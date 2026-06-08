@@ -8,6 +8,7 @@ import {
 import * as cookies from "../cookies.js";
 import {
   AbstractSessionStore,
+  BeforeSessionRolledHook,
   SessionCookieOptions
 } from "./abstract-session-store.js";
 import {
@@ -20,6 +21,7 @@ interface StatelessSessionStoreOptions {
   secret: string;
 
   rolling?: boolean; // defaults to true
+  beforeSessionRolled?: BeforeSessionRolledHook;
   absoluteDuration?: number; // defaults to 3 days
   inactivityDuration?: number; // defaults to 1 day
 
@@ -32,6 +34,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   constructor({
     secret,
     rolling,
+    beforeSessionRolled,
     absoluteDuration,
     inactivityDuration,
     cookieOptions
@@ -39,6 +42,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     super({
       secret,
       rolling,
+      beforeSessionRolled,
       absoluteDuration,
       inactivityDuration,
       cookieOptions
@@ -147,7 +151,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
         true,
         {
           domain: this.cookieConfig.domain,
-          path: this.cookieConfig.path
+          path: this.cookieConfig.path,
+          secure: this.cookieConfig.secure,
+          sameSite: this.cookieConfig.sameSite,
+          httpOnly: this.cookieConfig.httpOnly
         }
       );
     }
@@ -159,7 +166,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
   ) {
     const deleteOptions = {
       domain: this.cookieConfig.domain,
-      path: this.cookieConfig.path
+      path: this.cookieConfig.path,
+      secure: this.cookieConfig.secure,
+      sameSite: this.cookieConfig.sameSite,
+      httpOnly: this.cookieConfig.httpOnly
     };
 
     cookies.deleteChunkedCookie(
@@ -169,6 +179,17 @@ export class StatelessSessionStore extends AbstractSessionStore {
       false,
       deleteOptions
     );
+
+    // delete any existing v3 legacy cookies
+    if (cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, true)) {
+      cookies.deleteChunkedCookie(
+        LEGACY_COOKIE_NAME,
+        reqCookies,
+        resCookies,
+        true,
+        deleteOptions
+      );
+    }
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
       cookies.deleteCookie(resCookies, cookie.name, deleteOptions)

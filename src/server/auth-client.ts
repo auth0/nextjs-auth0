@@ -36,6 +36,13 @@ import {
   MtlsErrorCode,
   MyAccountApiError,
   OAuth2Error,
+  PasskeyChallengeError,
+  PasskeyEnrollmentChallengeError,
+  PasskeyEnrollmentVerifyError,
+  PasskeyGetTokenError,
+  PasskeyRegisterError,
+  PasswordlessStartError,
+  PasswordlessVerifyError,
   SdkError
 } from "../errors/index.js";
 import {
@@ -66,9 +73,23 @@ import {
   EnrollOtpOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_PASSKEY,
+  GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
+  PasskeyChallengeOptions,
+  PasskeyChallengeResponse,
+  PasskeyEnrollmentChallengeOptions,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyEnrollmentVerifyOptions,
+  PasskeyEnrollmentVerifyResponse,
+  PasskeyGetTokenOptions,
+  PasskeyRegisterOptions,
+  PasskeyRegisterResponse,
+  PasswordlessStartOptions,
+  PasswordlessVerifyOptions,
+  PasswordlessVerifyTokenResponse,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
@@ -88,8 +109,8 @@ import {
 import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
+import { buildEnrollOptions } from "../utils/mfa-server-utils.js";
 import {
-  buildEnrollOptions,
   buildVerifyParams,
   getVerifyGrantType,
   transformVerifyBodyToOptions
@@ -131,11 +152,15 @@ import {
   isBeforeOrEqual,
   mergeScopes,
   normalizeExpiresAt,
+  normalizeTokenType,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
-import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  addCacheControlHeadersForSession,
+  type ReadonlyRequestCookies
+} from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {
   AccessTokenFactory,
@@ -228,13 +253,15 @@ export interface Routes {
   mfaChallenge: string;
   mfaVerify: string;
   mfaAssociate: string;
+  passwordlessStart: string;
+  passwordlessVerify: string;
+  passkeyRegister: string;
+  passkeyChallenge: string;
+  passkeyGetToken: string;
+  passkeyEnrollmentChallenge: string;
+  passkeyEnrollmentVerify: string;
 }
-export type RoutesOptions = Partial<
-  Pick<
-    Routes,
-    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
-  >
->;
+export type RoutesOptions = Partial<Routes>;
 
 /**
  * @private
@@ -244,6 +271,12 @@ export interface AuthClientOptions {
   sessionStore: AbstractSessionStore;
 
   domain: string;
+  /**
+   * Issuer URL override. When provided, this is used instead of constructing
+   * the issuer from the domain hostname. Required for providers like Okta that
+   * use path-based authorization server URLs (e.g. https://myorg.okta.com/oauth2/default/).
+   */
+  issuer?: string;
   clientId: string;
   clientSecret?: string;
   clientAssertionSigningKey?: string | jose.CryptoKey;
@@ -329,6 +362,7 @@ export class AuthClient {
   private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   readonly domain: string;
+  private readonly _issuer: string;
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
@@ -425,6 +459,7 @@ export class AuthClient {
 
     // authorization server
     this.domain = options.domain;
+    this._issuer = options.issuer ?? `https://${options.domain}/`;
     this.clientMetadata = { client_id: options.clientId };
 
     // Apply DPoP timing validation options to client metadata if provided
@@ -635,6 +670,41 @@ export class AuthClient {
       sanitizedPathname === this.routes.mfaVerify
     ) {
       return this.handleVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessStart
+    ) {
+      return this.handlePasswordlessStart(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessVerify
+    ) {
+      return this.handlePasswordlessVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyRegister
+    ) {
+      return this.handlePasskeyRegister(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyChallenge
+    ) {
+      return this.handlePasskeyChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyGetToken
+    ) {
+      return this.handlePasskeyGetToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyEnrollmentChallenge
+    ) {
+      return this.handlePasskeyEnrollmentChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyEnrollmentVerify
+    ) {
+      return this.handlePasskeyEnrollmentVerify(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
@@ -645,7 +715,10 @@ export class AuthClient {
       // request if possible.
       const res = NextResponse.next();
 
-      if (this.sessionStore.isRolling) {
+      if (
+        this.sessionStore.isRolling &&
+        (await this.sessionStore.shouldRollSession(req))
+      ) {
         const { error, session } = await this.getSessionWithDomainCheck(
           req.cookies
         );
@@ -989,17 +1062,20 @@ export class AuthClient {
     if (
       state &&
       this.provider?.isResolverMode &&
-      transactionState.originDomain
+      (transactionState.originIssuer || transactionState.originDomain)
     ) {
-      // Check if the origin domain differs from current domain
-      const normalizedOriginDomain = normalizeDomain(
-        transactionState.originDomain
-      ).domain;
-      if (normalizedOriginDomain !== this.domain) {
-        // Delegate to the domain-specific AuthClient
-        const delegatedClient = this.provider.forDomainSync(
-          normalizedOriginDomain
-        );
+      // Prefer originIssuer (available since MCD v4.17.x) as it preserves path-based
+      // issuers (e.g. https://myorg.okta.com/oauth2/default). Fall back to
+      // originDomain for pre-MCD transaction cookies that only stored the hostname.
+      const originKey =
+        transactionState.originIssuer ?? transactionState.originDomain!;
+      const normalizedOrigin = normalizeDomain(originKey);
+      // Delegation is needed when the origin issuer differs from the current client's
+      // issuer (covers both hostname differences and same-host path differences).
+      if (normalizedOrigin.issuer !== this.issuer) {
+        // Pass the full issuer URL so forDomainSync can look up the correct
+        // path-based cache entry (e.g. /oauth2/default vs /oauth2/custom).
+        const delegatedClient = this.provider.forDomainSync(originKey);
         return delegatedClient.handleCallback(req);
       }
     }
@@ -1136,7 +1212,7 @@ export class AuthClient {
           await this.getClientAuth(),
           codeGrantParams,
           redirectUri.toString(),
-          transactionState.codeVerifier,
+          transactionState.codeVerifier ?? oauth.nopkce,
           {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
@@ -1539,6 +1615,172 @@ export class AuthClient {
       return res; // Return response WITH cookies
     } catch (e) {
       return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/start
+   * Initiates a passwordless authentication flow.
+   *
+   * Body: { connection: "email", email, send: "code" | "link" }
+   *       { connection: "sms", phoneNumber }
+   *
+   * Response: 204 No Content
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessStart(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      const res = new NextResponse(null, { status: 204 });
+
+      const language =
+        typeof bodyRecord.language === "string" && bodyRecord.language
+          ? bodyRecord.language
+          : undefined;
+
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
+          | "code"
+          | "link";
+
+        await this.passwordlessStart(
+          { connection: "email", email, send, language },
+          res.cookies,
+          req
+        );
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        await this.passwordlessStart({
+          connection: "sms",
+          phoneNumber,
+          language
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      return res;
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/verify
+   * Verifies a passwordless OTP and establishes a session.
+   *
+   * Body: { connection: "email", email, verificationCode }
+   *       { connection: "sms", phoneNumber, verificationCode }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403 + { error, error_description }
+   */
+  async handlePasswordlessVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+      const verificationCode = validateStringFieldAndThrow(
+        bodyRecord.verificationCode,
+        "verificationCode"
+      );
+
+      let options: PasswordlessVerifyOptions;
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        options = { connection: "email", email, verificationCode };
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        options = { connection: "sms", phoneNumber, verificationCode };
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      const tokenResponse = await this.passwordlessVerify(options);
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof PasswordlessVerifyError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
     }
   }
 
@@ -2084,7 +2326,7 @@ export class AuthClient {
 
     try {
       const authorizationServerMetadata = await this.discoveryCache.get(
-        this.domain,
+        this.issuer,
         async () => {
           return await oauth
             .discoveryRequest(issuer, {
@@ -2401,8 +2643,9 @@ export class AuthClient {
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 
-  private get issuer(): string {
-    return `https://${this.domain}/`;
+  /** @internal */
+  get issuer(): string {
+    return this._issuer;
   }
 
   /**
@@ -3647,14 +3890,9 @@ export class AuthClient {
       );
     }
 
-    // Ensure token_type is present (oauth4webapi marks it optional)
-    // oauth4webapi normalizes to lowercase, but we keep Auth0's casing for compatibility
     const result = {
       ...tokenEndpointResponse,
-      token_type: tokenEndpointResponse.token_type
-        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
-          tokenEndpointResponse.token_type.slice(1)
-        : "Bearer"
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type)
     } as MfaVerifyResponse;
 
     return result;
@@ -3703,6 +3941,1046 @@ export class AuthClient {
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey core methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Request a WebAuthn credential creation challenge for new user signup.
+   * Calls Auth0 POST /passkey/register.
+   */
+  async passkeyRegister(
+    options?: PasskeyRegisterOptions
+  ): Promise<PasskeyRegisterResponse> {
+    const url = new URL("/passkey/register", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    // Build user_profile from provided identity fields
+    const userProfile: Record<string, unknown> = {};
+    if (options?.name) userProfile.name = options.name;
+    if (options?.email) userProfile.email = options.email;
+    if (options?.username) userProfile.username = options.username;
+    if (options?.phoneNumber) userProfile.phone_number = options.phoneNumber;
+    if (options?.givenName) userProfile.given_name = options.givenName;
+    if (options?.familyName) userProfile.family_name = options.familyName;
+    if (options?.nickname) userProfile.nickname = options.nickname;
+    if (options?.picture) userProfile.picture = options.picture;
+    body.user_profile = userProfile;
+
+    if (options?.userMetadata) body.user_metadata = options.userMetadata;
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to get passkey signup challenge"
+        }));
+        throw new PasskeyRegisterError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey signup challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return {
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyRegisterError) throw e;
+      throw new PasskeyRegisterError(
+        "unexpected_error",
+        "Unexpected error during passkey signup challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Request a WebAuthn credential assertion challenge for login.
+   * Calls Auth0 POST /passkey/challenge.
+   */
+  async passkeyChallenge(
+    options?: PasskeyChallengeOptions
+  ): Promise<PasskeyChallengeResponse> {
+    const url = new URL("/passkey/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to get passkey login challenge"
+        }));
+        throw new PasskeyChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey login challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return {
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyChallengeError) throw e;
+      throw new PasskeyChallengeError(
+        "unexpected_error",
+        "Unexpected error during passkey login challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Complete a passkey signup or login by exchanging the WebAuthn assertion for a session.
+   * Calls Auth0 POST /oauth/token with the WebAuthn grant type.
+   */
+  async passkeyGetToken(
+    options: PasskeyGetTokenOptions,
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasskeyGetTokenError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+
+    // Auth0's passkey token endpoint requires a JSON body because authn_response
+    // is a nested object — URLSearchParams would stringify it, causing a 400.
+    // This means we cannot use oauth.genericTokenEndpointRequest (which only
+    // sends URLSearchParams), so DPoP must be attached manually via the handle's
+    // internal addProof method.
+    const tokenUrl = new URL("/oauth/token", this.issuer).toString();
+
+    const jsonBody: Record<string, unknown> = {
+      grant_type: GRANT_TYPE_PASSKEY,
+      client_id: this.clientMetadata.client_id,
+      auth_session: options.authSession,
+      authn_response: options.authResponse,
+      scope
+    };
+
+    if (this.clientSecret) jsonBody.client_secret = this.clientSecret;
+    if (this.authorizationParameters.audience)
+      jsonBody.audience = this.authorizationParameters.audience;
+    if (options.connection) jsonBody.realm = options.connection;
+    if (options.organization) jsonBody.organization = options.organization;
+
+    // Create DPoP handle once outside the retry closure so the handle can
+    // learn and reuse the server-issued nonce across attempts (RFC 9449).
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpOptions = this.httpOptions();
+          httpOptions.headers.set("Content-Type", "application/json");
+
+          const url = new URL(tokenUrl);
+
+          // oauth4webapi does not expose addProof/cacheNonce publicly, but they
+          // are the only way to attach a DPoP proof to a manually-built JSON
+          // request (genericTokenEndpointRequest only sends URLSearchParams).
+          if (dpopHandle) {
+            await (dpopHandle as any).addProof(
+              url,
+              httpOptions.headers,
+              "POST"
+            );
+          }
+
+          const httpResponse = await this.fetch(tokenUrl, {
+            method: "POST",
+            body: JSON.stringify(jsonBody),
+            ...httpOptions
+          });
+
+          // Let the handle learn the server-issued nonce from the response so
+          // it can be included in the next attempt's proof (RFC 9449 §8).
+          // Must happen before processGenericTokenEndpointResponse consumes
+          // the body, and before the retry check so the nonce is available on
+          // the next attempt even when the response is an error.
+          if (dpopHandle) {
+            (dpopHandle as any).cacheNonce(httpResponse, url);
+          }
+
+          // Let oauth4webapi process the response — this throws a
+          // ResponseBodyError for error responses (including use_dpop_nonce),
+          // which withDPoPNonceRetry can detect and retry on.
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasskeyGetTokenError(
+            "invalid_issuer",
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+          );
+        }
+        if (claim === "aud") {
+          throw new PasskeyGetTokenError(
+            "invalid_audience",
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      throw new PasskeyGetTokenError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passkey verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    if (!tokenEndpointResponse.id_token) {
+      throw new PasskeyGetTokenError(
+        "missing_id_token",
+        "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenEndpointResponse.access_token,
+        idToken: tokenEndpointResponse.id_token,
+        scope: tokenEndpointResponse.scope,
+        refreshToken: tokenEndpointResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) +
+          Number(tokenEndpointResponse.expires_in),
+        token_type: normalizeTokenType(tokenEndpointResponse.token_type)
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
+      }
+    };
+
+    session = await this.finalizeSession(
+      session,
+      tokenEndpointResponse.id_token
+    );
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey route handlers
+  // ---------------------------------------------------------------------------
+
+  async handlePasskeyRegister(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyRegisterOptions = {};
+      if (bodyRecord.email) options.email = bodyRecord.email;
+      if (bodyRecord.username) options.username = bodyRecord.username;
+      if (bodyRecord.phoneNumber) options.phoneNumber = bodyRecord.phoneNumber;
+      if (bodyRecord.name) options.name = bodyRecord.name;
+      if (bodyRecord.givenName) options.givenName = bodyRecord.givenName;
+      if (bodyRecord.familyName) options.familyName = bodyRecord.familyName;
+      if (bodyRecord.nickname) options.nickname = bodyRecord.nickname;
+      if (bodyRecord.picture) options.picture = bodyRecord.picture;
+      if (bodyRecord.userMetadata)
+        options.userMetadata = bodyRecord.userMetadata;
+      if (bodyRecord.connection) options.connection = bodyRecord.connection;
+      if (bodyRecord.organization)
+        options.organization = bodyRecord.organization;
+      const challenge = await this.passkeyRegister(options);
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyRegisterError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyChallenge(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyChallengeOptions = {};
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
+      const challenge = await this.passkeyChallenge(options);
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyChallengeError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyGetToken(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      if (
+        !bodyRecord.authResponse ||
+        typeof bodyRecord.authResponse !== "object"
+      ) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "authResponse is required"
+          },
+          { status: 400 }
+        );
+      }
+
+      const options: PasskeyGetTokenOptions = {
+        authSession,
+        authResponse: bodyRecord.authResponse
+      };
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
+
+      const res = NextResponse.json({ success: true });
+      await this.passkeyGetToken(options, req.cookies, res.cookies);
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof PasskeyGetTokenError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey enrollment route handlers
+  // ---------------------------------------------------------------------------
+
+  async handlePasskeyEnrollmentChallenge(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyEnrollmentChallengeOptions = {};
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.userIdentityId === "string")
+        options.userIdentityId = bodyRecord.userIdentityId;
+      const challenge = await this.passkeyEnrollmentChallenge(
+        req.cookies,
+        options
+      );
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentChallengeError) {
+        if (e.error === "not_authenticated" || e.error === "token_error") {
+          return NextResponse.json(e.toJSON(), { status: 401 });
+        }
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyEnrollmentVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const authenticationMethodId = validateStringFieldAndThrow(
+        bodyRecord.authenticationMethodId,
+        "authenticationMethodId"
+      );
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      if (
+        !bodyRecord.authResponse ||
+        typeof bodyRecord.authResponse !== "object"
+      ) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "authResponse is required"
+          },
+          { status: 400 }
+        );
+      }
+      const options: PasskeyEnrollmentVerifyOptions = {
+        authenticationMethodId,
+        authSession,
+        authResponse: bodyRecord.authResponse
+      };
+      const result = await this.passkeyEnrollmentVerify(options, req.cookies);
+      return NextResponse.json(result);
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentVerifyError) {
+        if (e.error === "not_authenticated" || e.error === "token_error") {
+          return NextResponse.json(e.toJSON(), { status: 401 });
+        }
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey enrollment core methods (MyAccount)
+  // ---------------------------------------------------------------------------
+
+  async passkeyEnrollmentChallenge(
+    reqCookies: RequestCookies,
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
+      throw new PasskeyEnrollmentChallengeError(
+        "not_authenticated",
+        sessionError?.message ?? "The user does not have an active session."
+      );
+    }
+    const [tokenSetError, tokenSetResponse] = await this.getTokenSet(session, {
+      audience: `${this.issuer}me/`,
+      scope: "create:me:authentication_methods"
+    });
+    if (tokenSetError) {
+      throw new PasskeyEnrollmentChallengeError(
+        "token_error",
+        "Failed to retrieve MyAccount access token."
+      );
+    }
+    const { tokenSet } = tokenSetResponse;
+    const url = new URL(
+      "/me/v1/authentication-methods",
+      this.issuer
+    ).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+    httpOptions.headers.set("Authorization", `Bearer ${tokenSet.accessToken}`);
+    const body: Record<string, unknown> = { type: "passkey" };
+    if (options?.connection) body.connection = options.connection;
+    if (options?.userIdentityId) body.identity = options.userIdentityId;
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error_description: "Failed to get passkey enrollment challenge"
+        }));
+        throw new PasskeyEnrollmentChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey enrollment challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+      const locationHeader = response.headers.get("Location") ?? "";
+      const authenticationMethodId = locationHeader.split("/").pop() ?? "";
+      if (!authenticationMethodId) {
+        throw new PasskeyEnrollmentChallengeError(
+          "unexpected_error",
+          "No authentication method ID in Location header."
+        );
+      }
+      const result = await response.json();
+      return {
+        authenticationMethodId,
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentChallengeError) throw e;
+      throw new PasskeyEnrollmentChallengeError(
+        "unexpected_error",
+        "Unexpected error during passkey enrollment challenge."
+      );
+    }
+  }
+
+  async passkeyEnrollmentVerify(
+    options: PasskeyEnrollmentVerifyOptions,
+    reqCookies: RequestCookies
+  ): Promise<PasskeyEnrollmentVerifyResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
+      throw new PasskeyEnrollmentVerifyError(
+        "not_authenticated",
+        sessionError?.message ?? "The user does not have an active session."
+      );
+    }
+    const [tokenSetError, tokenSetResponse] = await this.getTokenSet(session, {
+      audience: `${this.issuer}me/`,
+      scope: "create:me:authentication_methods"
+    });
+    if (tokenSetError) {
+      throw new PasskeyEnrollmentVerifyError(
+        "token_error",
+        "Failed to retrieve MyAccount access token."
+      );
+    }
+    const { tokenSet } = tokenSetResponse;
+    const url = new URL(
+      `/me/v1/authentication-methods/${options.authenticationMethodId}/verify`,
+      this.issuer
+    ).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+    httpOptions.headers.set("Authorization", `Bearer ${tokenSet.accessToken}`);
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify({
+          auth_session: options.authSession,
+          authn_response: options.authResponse
+        }),
+        ...httpOptions
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error_description: "Failed to verify passkey enrollment"
+        }));
+        throw new PasskeyEnrollmentVerifyError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to verify passkey enrollment",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+      return (await response.json()) as PasskeyEnrollmentVerifyResponse;
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentVerifyError) throw e;
+      throw new PasskeyEnrollmentVerifyError(
+        "unexpected_error",
+        "Unexpected error during passkey enrollment verification."
+      );
+    }
+  }
+
+  /**
+   * Creates a new session from a passwordless verify token response.
+   * Decodes the id_token to extract user claims, builds SessionData,
+   * runs the beforeSessionSaved hook, and persists the session.
+   *
+   * @param tokenResponse - Token response from passwordlessVerify
+   * @param reqCookies - Request cookies for session association
+   * @param resCookies - Response cookies for session persistence
+   * @throws {PasswordlessVerifyError} If id_token is absent from the response
+   */
+  async createSessionFromPasswordlessVerify(
+    tokenResponse: PasswordlessVerifyTokenResponse,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    if (!tokenResponse.id_token) {
+      throw new PasswordlessVerifyError(
+        "missing_id_token",
+        "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    // jose.decodeJwt does a non-validating base64 decode — safe here because
+    // the token was received from Auth0's HTTPS token endpoint (server-to-server)
+    // and iss/aud were already validated by oauth4webapi's
+    // processGenericTokenEndpointResponse inside passwordlessVerify().
+    const claims = jose.decodeJwt(tokenResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenResponse.access_token,
+        idToken: tokenResponse.id_token,
+        scope: tokenResponse.scope,
+        refreshToken: tokenResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
+        token_type: tokenResponse.token_type
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
+      }
+    };
+
+    session = await this.finalizeSession(session, tokenResponse.id_token);
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
+  }
+
+  /**
+   * Initiates a passwordless authentication flow by POSTing to `/passwordless/start`.
+   * Auth0 sends an OTP code or magic link to the user's email or phone number.
+   *
+   * When `options.send === 'link'` (magic link), `resCookies` must be provided so
+   * the transaction state can be persisted for the callback to resolve. `req` is
+   * optional and used for MCD domain resolution and appBaseUrl inference.
+   *
+   * @param options - Connection type, user identifier, and (for email) delivery method.
+   * @param resCookies - Response cookies to write the transaction cookie into (magic link only).
+   * @param req - Optional NextRequest for MCD domain resolution and appBaseUrl inference.
+   * @throws {PasswordlessStartError} On Auth0 API failure.
+   */
+  async passwordlessStart(
+    options: PasswordlessStartOptions,
+    resCookies?: ResponseCookies,
+    req?: NextRequest
+  ): Promise<void> {
+    // Magic link flow: build authParams (state, redirect_uri, etc.) and save
+    // a transaction cookie so /auth/callback can complete the code exchange.
+    let magicLinkTransactionState: TransactionState | undefined;
+    if (
+      options.connection === "email" &&
+      "send" in options &&
+      options.send === "link"
+    ) {
+      const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+      const redirectUri = createRouteUrl(
+        this.routes.callback,
+        appBaseUrl
+      ).toString();
+      const state = oauth.generateRandomState();
+
+      // Preserve tenant-level authorizationParameters (org, acr_values, etc.)
+      // but exclude PKCE and fields we set explicitly.
+      const MAGIC_LINK_EXCLUDED_PARAMS = [
+        "client_id",
+        "redirect_uri",
+        "response_type",
+        "state",
+        "nonce",
+        "code_challenge",
+        "code_challenge_method"
+      ];
+      const baseParams = mergeAuthorizationParamsIntoSearchParams(
+        this.authorizationParameters,
+        undefined,
+        MAGIC_LINK_EXCLUDED_PARAMS
+      );
+
+      const audience = this.authorizationParameters.audience as
+        | string
+        | undefined;
+      const scope =
+        getScopeForAudience(this.authorizationParameters.scope, audience) ||
+        "openid email profile";
+
+      options = {
+        ...options,
+        authParams: {
+          ...Object.fromEntries(baseParams),
+          redirect_uri: redirectUri,
+          response_type: RESPONSE_TYPES.CODE,
+          scope,
+          state,
+          ...(audience && { audience })
+        }
+      };
+
+      magicLinkTransactionState = {
+        responseType: RESPONSE_TYPES.CODE,
+        state,
+        returnTo: this.signInReturnToPath,
+        scope,
+        audience: this.authorizationParameters.audience as string | undefined,
+        originDomain: this.provider?.isResolverMode ? this.domain : undefined,
+        originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
+      };
+    }
+
+    const url = new URL("/passwordless/start", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    // Forward locale preference for Auth0 email template localization.
+    // Auth0's /passwordless/start respects x-request-language to select the
+    // correct email template language when multiple are configured.
+    if (options.language) {
+      httpOptions.headers.set("x-request-language", options.language);
+    }
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options.connection === "email") {
+      body.email = options.email;
+      body.send = options.send;
+    } else {
+      body.phone_number = options.phoneNumber;
+    }
+
+    if (options.authParams) {
+      body.authParams = options.authParams;
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to start passwordless flow"
+        }));
+        throw new PasswordlessStartError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to start passwordless flow",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) throw e;
+      throw new PasswordlessStartError(
+        "unexpected_error",
+        "Unexpected error during passwordless start",
+        undefined
+      );
+    }
+
+    if (magicLinkTransactionState) {
+      if (!resCookies) {
+        throw new InvalidConfigurationError(
+          "Magic link requires a response cookies object to persist the transaction state. " +
+            "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
+        );
+      }
+      await this.transactionStore.save(resCookies, magicLinkTransactionState);
+    }
+  }
+
+  /**
+   * Verifies a passwordless OTP and exchanges it for tokens via the OAuth token endpoint.
+   * Returns raw tokens — the caller (route handler) is responsible for creating the session.
+   *
+   * Uses `grant_type=http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - Connection type, user identifier, and verification code.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessVerifyError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessVerify(
+    options: PasswordlessVerifyOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessVerifyError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const params = new URLSearchParams();
+    params.append("realm", options.connection);
+    params.append("otp", options.verificationCode);
+
+    if (options.connection === "email") {
+      params.append("username", options.email);
+    } else {
+      params.append("username", options.phoneNumber);
+    }
+
+    // Resolve scope and audience from global authorizationParameters
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+    params.append("scope", scope);
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      // oauth4webapi validates the id_token (iss, aud, signature) inside
+      // processGenericTokenEndpointResponse and throws with code
+      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
+      // Surface those as specific PasswordlessVerifyErrors so callers can
+      // distinguish misconfiguration from a bad grant.
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessVerifyError(
+            "invalid_issuer",
+            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessVerifyError(
+            "invalid_audience",
+            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      throw new PasswordlessVerifyError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
   }
 
   /**
@@ -3759,10 +5037,48 @@ export class AuthClient {
       ? await clonedReq.arrayBuffer()
       : undefined;
 
+    // Keep an isolated, request-local session snapshot so retries within this
+    // proxy request can observe token refreshes immediately without writing the
+    // session cookie until the proxy response succeeds.
+    const requestSession = structuredClone(session);
+    const tokenSetResponsesByRequest = new Map<string, GetTokenSetResponse>();
+    const applyTokenSetResponseToRequestSession = (
+      tokenSetResponse: GetTokenSetResponse
+    ) => {
+      const sessionChanges = getSessionChangesAfterGetAccessToken(
+        requestSession,
+        tokenSetResponse.tokenSet,
+        {
+          scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+          audience: this.authorizationParameters?.audience
+        }
+      );
+
+      if (sessionChanges) {
+        Object.assign(requestSession, sessionChanges);
+      }
+
+      if (tokenSetResponse.idTokenClaims) {
+        requestSession.user = tokenSetResponse.idTokenClaims as User;
+      }
+    };
+
     let tokenSetSideEffect!: GetTokenSetResponse;
 
     const getAccessToken: AccessTokenFactory = async (authParams) => {
-      const [error, tokenSetResponse] = await this.getTokenSet(session, {
+      const cacheKey = JSON.stringify([
+        authParams.refresh ?? false,
+        authParams.audience ?? null,
+        authParams.scope ?? null
+      ]);
+      const cachedTokenSetResponse = tokenSetResponsesByRequest.get(cacheKey);
+
+      if (cachedTokenSetResponse) {
+        tokenSetSideEffect = cachedTokenSetResponse;
+        return cachedTokenSetResponse.tokenSet;
+      }
+
+      const [error, tokenSetResponse] = await this.getTokenSet(requestSession, {
         audience: authParams.audience,
         scope: authParams.scope
       });
@@ -3770,6 +5086,9 @@ export class AuthClient {
       if (error) {
         throw error;
       }
+
+      applyTokenSetResponseToRequestSession(tokenSetResponse);
+      tokenSetResponsesByRequest.set(cacheKey, tokenSetResponse);
 
       // Tracking the last used token set response for session updates later as a side effect.
       // This relies on the fact that `getAccessToken` is called before the actual fetch.
@@ -3833,11 +5152,10 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
-      // Handle MFA required error - return 403 with MFA context
-      // Note: session.mfa was already mutated by getTokenSet() before the error was thrown.
-      // JavaScript is single-threaded, so no race condition exists.
+      // Handle MFA required error - return 403 with MFA context.
+      // The request-local session snapshot was passed to getTokenSet().
       if (e instanceof MfaRequiredError) {
-        return this.#createMfaRequiredResponse(req, session, e);
+        return this.#createMfaRequiredResponse(req, requestSession, e);
       }
 
       // Return 401 for missing refresh token (cannot refresh expired token)
