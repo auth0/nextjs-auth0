@@ -6,7 +6,7 @@ import * as cookies from "./cookies.js";
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
 export interface TransactionState extends jose.JWTPayload {
-  codeVerifier: string;
+  codeVerifier?: string;
   responseType: RESPONSE_TYPES;
   state: string; // the state parameter passed to the authorization server
   returnTo: string; // the URL to redirect to after login
@@ -205,7 +205,10 @@ export class TransactionStore {
   async delete(resCookies: cookies.ResponseCookies, state: string) {
     cookies.deleteCookie(resCookies, this.getTransactionCookieName(state), {
       domain: this.cookieOptions.domain,
-      path: this.cookieOptions.path
+      path: this.cookieOptions.path,
+      secure: this.cookieOptions.secure,
+      sameSite: this.cookieOptions.sameSite,
+      httpOnly: this.cookieOptions.httpOnly
     });
   }
 
@@ -219,7 +222,10 @@ export class TransactionStore {
     const txnPrefix = this.getCookiePrefix();
     const deleteOptions = {
       domain: this.cookieOptions.domain,
-      path: this.cookieOptions.path
+      path: this.cookieOptions.path,
+      secure: this.cookieOptions.secure,
+      sameSite: this.cookieOptions.sameSite,
+      httpOnly: this.cookieOptions.httpOnly
     };
 
     reqCookies.getAll().forEach((cookie) => {

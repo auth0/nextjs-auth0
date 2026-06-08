@@ -282,15 +282,22 @@ describe("normalize.ts", () => {
         });
       });
 
-      it("should reject URLs with paths", () => {
-        expect(() =>
-          normalizeDomain("https://example.auth0.com/some/path")
-        ).toThrow(DomainValidationError);
-        expect(() =>
-          normalizeDomain("https://example.auth0.com/some/path")
-        ).toThrow(
-          "Domain URL cannot contain path, query, or fragment parameters."
+      it("should accept URLs with paths (e.g. Okta custom auth servers)", () => {
+        const result = normalizeDomain("https://myorg.okta.com/oauth2/default");
+        expect(result).toEqual({
+          domain: "myorg.okta.com",
+          issuer: "https://myorg.okta.com/oauth2/default/"
+        });
+      });
+
+      it("should accept URLs with paths and preserve trailing slash", () => {
+        const result = normalizeDomain(
+          "https://myorg.okta.com/oauth2/default/"
         );
+        expect(result).toEqual({
+          domain: "myorg.okta.com",
+          issuer: "https://myorg.okta.com/oauth2/default/"
+        });
       });
 
       it("should reject URLs with query parameters", () => {

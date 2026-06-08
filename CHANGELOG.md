@@ -1,5 +1,37 @@
 # Change Log
 
+## [v4.22.0](https://github.com/auth0/nextjs-auth0/tree/v4.22.0) (2026-06-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.21.0...v4.22.0)
+
+**Added**
+- Passkey enroll implementation (myaccount) [\#2680](https://github.com/auth0/nextjs-auth0/pull/2680) ([Piyush-85](https://github.com/Piyush-85))
+- Passkey implementaion [\#2676](https://github.com/auth0/nextjs-auth0/pull/2676) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: allow path-based domain URLs for Okta custom authorization servers [\#2666](https://github.com/auth0/nextjs-auth0/pull/2666) ([sleitor](https://github.com/sleitor))
+
+## [v4.21.0](https://github.com/auth0/nextjs-auth0/tree/v4.21.0) (2026-05-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.20.0...v4.21.0)
+
+**Added**
+- feat: allow-list auth0-client header for forwarding [\#2668](https://github.com/auth0/nextjs-auth0/pull/2668) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: Passwordless Authentication support [\#2634](https://github.com/auth0/nextjs-auth0/pull/2634) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix(cookies): include Secure/SameSite/HttpOnly on deletion Set-Cookie… [\#2651](https://github.com/auth0/nextjs-auth0/pull/2651) ([Piyush-85](https://github.com/Piyush-85))
+
+## [v4.20.0](https://github.com/auth0/nextjs-auth0/tree/v4.20.0) (2026-05-05)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.19.0...v4.20.0)
+
+**Added**
+- feat: support customizing profile and accessToken routes [\#2451](https://github.com/auth0/nextjs-auth0/pull/2451) ([eliw00d](https://github.com/eliw00d))
+
+**Fixed**
+- fix: stale session reuse on proxy DPoP nonce retry [\#2582](https://github.com/auth0/nextjs-auth0/pull/2582) ([nandan-bhat](https://github.com/nandan-bhat))
+- fix: move NextResponse-dependent buildEnrollOptions to server-only module [\#2643](https://github.com/auth0/nextjs-auth0/pull/2643) ([sleitor](https://github.com/sleitor))
+- fix: delete v3 appSession cookie on logout [\#2552](https://github.com/auth0/nextjs-auth0/pull/2552) ([gmurphey](https://github.com/gmurphey))
+- fix: respect allowInsecureRequests option in AuthClientProvider domain validation [\#2630](https://github.com/auth0/nextjs-auth0/pull/2630) ([sleitor](https://github.com/sleitor))
+
 ## [v4.19.0](https://github.com/auth0/nextjs-auth0/tree/v4.19.0) (2026-04-22)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.18.0...v4.19.0)
 

@@ -53,9 +53,10 @@ import type { AuthClient } from "../auth-client.js";
 export class ServerMfaClient implements MfaClient {
   constructor(private provider: AuthClientProvider) {}
 
-  private async getAuthClient(): Promise<AuthClient> {
-    const reqHeaders = await getHeaders();
-    return this.provider.forRequest(reqHeaders, undefined);
+  private async getAuthClient(req?: NextRequest): Promise<AuthClient> {
+    const reqHeaders = req ? req.headers : await getHeaders();
+    const url = req?.nextUrl;
+    return this.provider.forRequest(reqHeaders, url);
   }
 
   /**
@@ -206,16 +207,16 @@ export class ServerMfaClient implements MfaClient {
     arg2?: NextResponse,
     arg3?: VerifyMfaOptions
   ): Promise<MfaVerifyResponse> {
-    const authClient = await this.getAuthClient();
-
     // Determine which overload based on arg types
     if (arg1 instanceof NextRequest) {
       // Pages Router/Middleware: verify(req, res, options)
+      // req is passed so MCD resolver can pick the correct Auth0 domain
       if (!arg2 || !arg3) {
         throw new TypeError(
           "verify(req, res, options): All three arguments required for Pages Router"
         );
       }
+      const authClient = await this.getAuthClient(arg1);
       // Verify MFA and get tokens
       const result = await authClient.mfaVerify(arg3);
       // Cache tokens in session
@@ -233,6 +234,7 @@ export class ServerMfaClient implements MfaClient {
           "verify(options): Only one argument allowed for App Router"
         );
       }
+      const authClient = await this.getAuthClient();
       // Verify MFA and get tokens
       const result = await authClient.mfaVerify(arg1);
       // Get cookies from next/headers and cache tokens
