@@ -210,7 +210,7 @@ You can customize the client by using the options below:
 | includeIdTokenHintInOIDCLogoutUrl | `boolean`            | Configure whether to include `id_token_hint` in OIDC logout URLs for privacy. Defaults to `true` (recommended). When `false`, excludes PII from logout URLs but reduces DoS protection. See [OIDC logout privacy configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oidc-logout-privacy-configuration) for details. |
 | secret                      | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | signInReturnToPath          | `string`                  | The path to redirect the user to after successfully authenticating. Defaults to `/`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| session                     | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not. See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details. Also allows configuration of cookie attributes like `domain`, `path`, `secure`, `sameSite`, and `transient`. If not specified, these can be configured using `AUTH0_COOKIE_*` environment variables. Note: `httpOnly` is always `true`. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for details. |
+| session                     | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not, including a `beforeSessionRolled` predicate to selectively roll the session per request. See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) and [Selectively rolling sessions](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#selectively-rolling-sessions) for additional details. Also allows configuration of cookie attributes like `domain`, `path`, `secure`, `sameSite`, and `transient`. If not specified, these can be configured using `AUTH0_COOKIE_*` environment variables. Note: `httpOnly` is always `true`. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for details. |
 | enableParallelTransactions  | `boolean`                 | Enable support for multiple concurrent authentication flows by using unique transaction cookies per flow. When `true` (default), each authentication attempt gets its own transaction cookie with a unique state suffix. When `false`, uses a single shared transaction cookie, which may cause conflicts with concurrent auth attempts. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.                                                                                      |
 | transactionCookie           | `TransactionCookieOptions` | Configure transaction cookie management for authentication flows. You can control cookie expiration and other cookie options. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.                                                                                                                                                                                                                                                                                                 |
 | beforeSessionSaved          | `BeforeSessionSavedHook`  | A method to manipulate the session before persisting it. See [beforeSessionSaved](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved) for additional details.                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -451,7 +451,7 @@ For complete documentation, configuration options, and examples, see [Multiple C
 
 ## Routes
 
-The SDK mounts 8 routes:
+The SDK mounts 16 routes:
 
 1. `/auth/login`: the login route that the user will be redirected to to initiate an authentication transaction
 2. `/auth/logout`: the logout route that must be added to your Auth0 application's Allowed Logout URLs
@@ -459,11 +459,22 @@ The SDK mounts 8 routes:
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
-7. `/auth/passwordless/start`: send an OTP code or magic link to a user's email or phone number
-8. `/auth/passwordless/verify`: verify an OTP code and create a session
+7. `/auth/connect`: the route to connect an additional account to the current user's session
+8. `/auth/mfa/authenticators`: the route to list the MFA authenticators enrolled for the current user
+9. `/auth/mfa/challenge`: the route to initiate an MFA challenge for a specific authenticator
+10. `/auth/mfa/verify`: the route to verify an MFA challenge response and step up the session
+11. `/auth/mfa/associate`: the route to enroll a new MFA authenticator for the current user
+12. `/auth/passwordless/start`: send an OTP code or magic link to a user's email or phone number
+13. `/auth/passwordless/verify`: verify an OTP code and create a session
+14. `/auth/passkey/register`: get a WebAuthn credential creation challenge for a new user signup
+15. `/auth/passkey/challenge`: get a WebAuthn credential assertion challenge for an existing user login
+16. `/auth/passkey/get-token`: verify the WebAuthn credential and create a session
 
 > [!NOTE]
 > The passwordless routes support both **Email OTP**, **SMS OTP**, and **Magic Link** flows. For magic links, the user clicks the emailed link and is redirected to `/auth/callback` — no separate verify step is needed. Magic links require the `allow_magiclink_verify_without_session` tenant flag to be enabled in the Auth0 Dashboard (**Settings → Advanced**). See [Passwordless Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passwordless-authentication) in EXAMPLES.md for full setup and usage details.
+
+> [!NOTE]
+> The passkey routes implement the WebAuthn ceremony server-side. Use the `passkey` singleton from `@auth0/nextjs-auth0/client` for the full one-call API (`passkey.signup()`, `passkey.login()`), or call each route individually for step-by-step control. See [Passkey Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passkey-authentication) in EXAMPLES.md for full setup and usage details.
 
 > [!NOTE]  
 > The `/auth/access-token` response includes `token`, `expires_at` (seconds since epoch), `expires_in` (TTL seconds), optional `scope`, and optional `token_type`. If you're using the client helper `getAccessToken()`, it returns only the token string by default; pass `{ includeFullResponse: true }` to get the full response payload.

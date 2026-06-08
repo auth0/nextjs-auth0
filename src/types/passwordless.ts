@@ -136,6 +136,10 @@ export interface PasswordlessClient {
    * Starts a passwordless authentication flow by sending an OTP or magic link
    * to the user's email address or phone number.
    *
+   * For magic link (`send: 'link'`) in App Router, the transaction cookie is
+   * written via `next/headers` automatically. In Pages Router, pass explicit
+   * `req` and `res` so the cookie can be set on the response.
+   *
    * @param options - Connection type and user identifier.
    */
   start(options: PasswordlessStartOptions): Promise<void>;

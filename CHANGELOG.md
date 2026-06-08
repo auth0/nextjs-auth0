@@ -1,5 +1,25 @@
 # Change Log
 
+## [v4.22.0](https://github.com/auth0/nextjs-auth0/tree/v4.22.0) (2026-06-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.21.0...v4.22.0)
+
+**Added**
+- Passkey enroll implementation (myaccount) [\#2680](https://github.com/auth0/nextjs-auth0/pull/2680) ([Piyush-85](https://github.com/Piyush-85))
+- Passkey implementaion [\#2676](https://github.com/auth0/nextjs-auth0/pull/2676) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: allow path-based domain URLs for Okta custom authorization servers [\#2666](https://github.com/auth0/nextjs-auth0/pull/2666) ([sleitor](https://github.com/sleitor))
+
+## [v4.21.0](https://github.com/auth0/nextjs-auth0/tree/v4.21.0) (2026-05-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.20.0...v4.21.0)
+
+**Added**
+- feat: allow-list auth0-client header for forwarding [\#2668](https://github.com/auth0/nextjs-auth0/pull/2668) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: Passwordless Authentication support [\#2634](https://github.com/auth0/nextjs-auth0/pull/2634) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix(cookies): include Secure/SameSite/HttpOnly on deletion Set-Cookie… [\#2651](https://github.com/auth0/nextjs-auth0/pull/2651) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.20.0](https://github.com/auth0/nextjs-auth0/tree/v4.20.0) (2026-05-05)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.19.0...v4.20.0)
 

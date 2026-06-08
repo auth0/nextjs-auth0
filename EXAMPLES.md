@@ -66,6 +66,14 @@
   - [Error Handling](#error-handling)
   - [Route Configuration](#route-configuration)
   - [Error Types](#error-types)
+- [Passkey Authentication](#passkey-authentication)
+  - [Auth0 Setup](#auth0-setup-1)
+  - [Route Handler Setup](#route-handler-setup-1)
+  - [Client-Side Usage](#client-side-usage-1)
+  - [Server-Side (Headless) Usage](#server-side-headless-usage-1)
+  - [Error Handling](#error-handling-3)
+  - [Route Configuration](#route-configuration-1)
+  - [Error Types](#error-types-1)
 - [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
@@ -517,9 +525,14 @@ export async function middleware(request: NextRequest) {
 
   if (!session) {
     // user is not authenticated, redirect to login page
-    return NextResponse.redirect(
-      new URL("/auth/login", request.nextUrl.origin)
+    // preserve the URL the user was trying to reach so they land back there after login
+    // returnTo must be a relative path — absolute external URLs are rejected to prevent open redirects
+    const loginUrl = new URL("/auth/login", request.nextUrl.origin);
+    loginUrl.searchParams.set(
+      "returnTo",
+      request.nextUrl.pathname + request.nextUrl.search
     );
+    return NextResponse.redirect(loginUrl);
   }
 
   // the headers from the auth middleware should always be returned
@@ -544,6 +557,8 @@ export default function Profile({ user }) {
   return <div>Hello {user.name}</div>;
 }
 
+// withPageAuthRequired automatically uses ctx.resolvedUrl as returnTo, so the user
+// is redirected back to the exact page (including query string) they tried to visit.
 // You can optionally pass your own `getServerSideProps` function into
 // `withPageAuthRequired` and the props will be merged with the `user` prop
 export const getServerSideProps = auth0.withPageAuthRequired();
@@ -564,7 +579,8 @@ export default auth0.withPageAuthRequired(
   },
   { returnTo: "/profile" }
 );
-// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
+// returnTo is required for App Router — Server Components don't know their own URL.
+// For dynamic routes, pass a function: returnTo({ params }) { return `/profile/${params.id}`; }
 ```
 
 ## Protecting a Client-Side Rendered (CSR) Page
@@ -1825,6 +1841,364 @@ Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the
 | `PasswordlessVerifyError` | `invalid_grant` | Wrong or expired OTP |
 | `PasswordlessVerifyError` | `client_error` | Network failure or unparseable response |
 
+## Passkey Authentication
+
+Auth0 supports passkey (WebAuthn) authentication — users sign in with device biometrics or a PIN instead of a password. The private key never leaves the device's secure enclave.
+
+The SDK exposes:
+- **Built-in route handlers** served via `auth0.handler` (catch-all route) or `auth0.middleware` (proxy pattern) that handle the full passkey lifecycle server-side
+- **`auth0.passkey`** — a server-side client for calling challenge/verify from Server Actions or API routes directly
+- **`passkey`** from `@auth0/nextjs-auth0/client` — a client-side singleton that drives the full WebAuthn ceremony and calls the route handlers
+
+### Universal Login (Recommended)
+
+The simplest approach: redirect to Auth0's Universal Login page with passkey support enabled. Auth0 handles the entire WebAuthn ceremony on its hosted page — your app needs no custom form.
+
+```tsx
+<a href="/auth/login">Sign in</a>
+```
+
+After the user completes the flow, Auth0 redirects to `/auth/callback` and the SDK creates a session — identical to a standard OAuth callback.
+
+> [!NOTE]
+> The rest of this section documents the **custom (headless) API** — `auth0.passkey` and the `passkey` client singleton — for cases where you need full control over the login UI.
+
+### Auth0 Setup
+
+Before using passkeys, enable passkey support in the Auth0 Dashboard:
+
+1. Go to **Security → Attack Protection → Multi-factor Authentication** and ensure your application is configured for passkeys.
+2. Go to **Applications → \<your app\> → Settings** and ensure:
+   - **Allowed Callback URLs** includes your app's callback URL
+   - **Allowed Web Origins** includes your app's origin (required for WebAuthn's `rpId` check)
+3. If using a **custom domain**, the passkey `rpId` is your custom domain. Ensure it is configured under **Branding → Custom Domains**.
+
+> [!IMPORTANT]
+> The `/oauth/token` passkey grant requires a JSON request body (`Content-Type: application/json`) because `authn_response` must be a nested object. The SDK handles this automatically.
+
+> [!NOTE]
+> Default database connections require an `email` field in the signup options. Connections with custom `attributes` configuration may not require it — Auth0 will return an error if a required field is missing.
+
+### Route Handler Setup
+
+The SDK registers three handlers automatically when you mount `auth0.handler`:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passkey/register` | Get a WebAuthn credential creation challenge for a new user |
+| `POST` | `/auth/passkey/challenge` | Get a WebAuthn credential assertion challenge for an existing user |
+| `POST` | `/auth/passkey/get-token` | Verify the WebAuthn credential and create a session |
+
+**App Router** — add `POST` to your existing catch-all auth route:
+
+```typescript
+// app/auth/[auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.handler;
+export const POST = auth0.handler;
+```
+
+**Pages Router** — mount the handler in your API route:
+
+```typescript
+// pages/api/auth/[auth0].ts
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.handler;
+```
+
+### Client-Side Usage
+
+Import the `passkey` singleton from `@auth0/nextjs-auth0/client`. Use `signup()` for new users and `login()` for returning users — each method handles the full WebAuthn ceremony internally (challenge fetch → `navigator.credentials.create/get()` → verify).
+
+```tsx
+"use client";
+import { useState } from "react";
+import { passkey } from "@auth0/nextjs-auth0/client";
+
+export function PasskeyForm() {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await passkey.signup({ email, name: email });
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      if (err.error === "webauthn_error") {
+        setError(err.error_description ?? "Passkey operation was cancelled.");
+      } else {
+        setError(err.error_description ?? "Something went wrong.");
+      }
+    }
+  }
+
+  async function handleLogin() {
+    setError(null);
+    try {
+      await passkey.login();
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      if (err.error === "webauthn_error") {
+        setError(err.error_description ?? "Passkey operation was cancelled.");
+      } else {
+        setError(err.error_description ?? "Something went wrong.");
+      }
+    }
+  }
+
+  return (
+    <>
+      <form onSubmit={handleSignup}>
+        {error && <p>{error}</p>}
+        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" />
+        <button type="submit">Sign up with passkey</button>
+      </form>
+      <button onClick={handleLogin}>Sign in with passkey</button>
+    </>
+  );
+}
+```
+
+**Step-by-step (full control):**
+
+For cases where you need to inspect the challenge or credential before verifying, you can call each step individually:
+
+```typescript
+import { passkey } from "@auth0/nextjs-auth0/client";
+
+// Signup — step by step (via Server Actions)
+const challenge = await getSignupChallenge({ email: "user@example.com", name: "Jane" });
+const credential = await navigator.credentials.create({ publicKey: decodeCreationOptions(challenge.authnParamsPublicKey) });
+await verifyPasskey({ authSession: challenge.authSession, authResponse: serializeCredential(credential) });
+
+// Login — step by step (via Server Actions)
+const challenge = await getLoginChallenge();
+const credential = await navigator.credentials.get({ publicKey: decodeRequestOptions(challenge.authnParamsPublicKey) });
+await verifyPasskey({ authSession: challenge.authSession, authResponse: serializeCredential(credential) });
+```
+
+> [!NOTE]
+> `authnParamsPublicKey` is returned as a plain object with base64url-encoded buffers. When using the step-by-step API you must decode the `challenge`, `user.id`, and `allowCredentials[].id` fields back to `ArrayBuffer` before passing them to the WebAuthn API. The one-call `signup()` and `login()` methods handle this automatically.
+
+### Server-Side (Headless) Usage
+
+Use `auth0.passkey` directly in **Server Actions** or **API Routes** when you want full control over the request/response cycle.
+
+**App Router — Server Action:**
+
+```typescript
+"use server";
+import { auth0 } from "@/lib/auth0";
+import type { PasskeyRegisterOptions } from "@auth0/nextjs-auth0";
+
+export async function getSignupChallenge(options: PasskeyRegisterOptions) {
+  return auth0.passkey.register(options);
+}
+
+export async function getLoginChallenge() {
+  return auth0.passkey.challenge();
+}
+```
+
+**Pages Router — API Route:**
+
+```typescript
+import { auth0 } from "@/lib/auth0";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest, NextResponse } from "next/server";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const host = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
+  const proto = (Array.isArray(req.headers["x-forwarded-proto"])
+    ? req.headers["x-forwarded-proto"][0]
+    : req.headers["x-forwarded-proto"]) ?? "https";
+  const nextReq = new NextRequest(
+    host ? new URL(req.url!, `${proto}://${host}`) : new URL(req.url!, "https://localhost"),
+    { method: req.method, headers: req.headers as HeadersInit }
+  );
+  const nextRes = new NextResponse();
+
+  await auth0.passkey.getToken(nextReq, nextRes, {
+    authSession: req.body.authSession,
+    authResponse: req.body.authResponse
+  });
+
+  const cookies = nextRes.headers.getSetCookie();
+  if (cookies.length > 0) res.setHeader("Set-Cookie", cookies);
+  res.status(200).json({ success: true });
+}
+```
+
+### Error Handling
+
+Passkey errors expose `error` (the error code) and `error_description`. Check `error === "webauthn_error"` to distinguish user cancellation or device capability issues from server errors.
+
+```typescript
+import {
+  PasskeyRegisterError,
+  PasskeyChallengeError,
+  PasskeyGetTokenError
+} from "@auth0/nextjs-auth0/errors";
+
+try {
+  await passkey.signup({ email });
+} catch (err) {
+  if (err instanceof PasskeyRegisterError) {
+    // err.error           — e.g. 'passkeys_not_enabled', 'invalid_request'
+    // err.error_description — human-readable message
+  }
+  if (err instanceof PasskeyGetTokenError) {
+    if (err.error === "webauthn_error") {
+      // User cancelled the browser dialog, or device doesn't support passkeys
+    }
+  }
+}
+
+try {
+  await passkey.login();
+} catch (err) {
+  if (err instanceof PasskeyChallengeError) {
+    // Challenge request failed
+  }
+  if (err instanceof PasskeyGetTokenError) {
+    if (err.error === "webauthn_error") {
+      // User cancelled or device doesn't support passkeys
+    }
+  }
+}
+```
+
+### Passkey Enrollment
+
+Authenticated users can enroll additional passkeys — useful for backup devices or shared computers. Enrollment uses the Auth0 MyAccount API and requires an active session.
+
+#### Auth0 Setup for Enrollment
+
+1. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application:
+   - **Audience**: `https://{your-domain}/me/`
+   - **Scope**: `create:me:authentication_methods`
+3. The SDK exchanges the session refresh token for a MyAccount-scoped access token automatically at call time.
+
+#### Enrollment Route Handlers
+
+Two additional routes are registered automatically:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passkey/enrollment-challenge` | Request a WebAuthn creation challenge for the current user (requires session) |
+| `POST` | `/auth/passkey/enrollment-verify` | Verify the attestation and complete enrollment (requires session) |
+
+#### Server-Side Enrollment
+
+Call `auth0.passkey.enrollmentChallenge()` and `auth0.passkey.enrollmentVerify()` directly from a Server Action or API Route:
+
+```typescript
+"use server";
+import { auth0 } from "@/lib/auth0";
+import type { PasskeyEnrollmentVerifyOptions } from "@auth0/nextjs-auth0";
+
+export async function getEnrollmentChallenge() {
+  // Requires an active session — throws PasskeyEnrollmentChallengeError if not authenticated
+  return auth0.passkey.enrollmentChallenge();
+}
+
+export async function verifyEnrollment(options: PasskeyEnrollmentVerifyOptions) {
+  return auth0.passkey.enrollmentVerify(options);
+}
+```
+
+#### Client-Side Enrollment
+
+Call the enrollment route handlers from a client component:
+
+```tsx
+"use client";
+import { useState } from "react";
+
+export function PasskeyEnrollForm() {
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleEnroll() {
+    // Step 1 — get enrollment challenge
+    const challengeRes = await fetch("/auth/passkey/enrollment-challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({})
+    });
+    if (!challengeRes.ok) {
+      const err = await challengeRes.json().catch(() => ({}));
+      setError(err.error_description ?? "Failed to get enrollment challenge");
+      return;
+    }
+    const { authenticationMethodId, authSession, authnParamsPublicKey } = await challengeRes.json();
+
+    // Step 2 — WebAuthn ceremony
+    const credential = await navigator.credentials.create({
+      publicKey: decodeCreationOptions(authnParamsPublicKey) // decode base64url → ArrayBuffer
+    }) as PublicKeyCredential | null;
+    if (!credential) return;
+
+    // Step 3 — verify enrollment
+    const verifyRes = await fetch("/auth/passkey/enrollment-verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ authenticationMethodId, authSession, authResponse: serializeCredential(credential) })
+    });
+    if (!verifyRes.ok) {
+      const err = await verifyRes.json().catch(() => ({}));
+      setError(err.error_description ?? "Enrollment verification failed");
+      return;
+    }
+    const method = await verifyRes.json(); // PasskeyAuthenticationMethod
+    console.log("Enrolled:", method.id, method.key_id);
+  }
+
+  return <button onClick={handleEnroll}>Enroll a passkey</button>;
+}
+```
+
+> [!NOTE]
+> `authnParamsPublicKey` contains base64url-encoded `ArrayBuffer` fields (`challenge`, `user.id`, `excludeCredentials[].id`). You must decode them before passing to `navigator.credentials.create()`. See `examples/with-passkeys/components/passkey-enroll-form.tsx` for a complete implementation.
+
+### Route Configuration
+
+The default route paths can be overridden with environment variables:
+
+```bash
+# .env.local
+NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE=/auth/passkey/register
+NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE=/auth/passkey/challenge
+NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE=/auth/passkey/get-token
+NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE=/auth/passkey/enrollment-challenge
+NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE=/auth/passkey/enrollment-verify
+```
+
+Because these variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+
+### Error Types
+
+| Error Class | `error` Code | When Thrown |
+|-------------|--------------|-------------|
+| `PasskeyRegisterError` | `passkeys_not_enabled` | Passkeys not enabled for the application |
+| `PasskeyRegisterError` | `invalid_request` | Missing or malformed body field |
+| `PasskeyRegisterError` | `client_error` | Network failure or unparseable response |
+| `PasskeyChallengeError` | `invalid_request` | Missing or malformed body field |
+| `PasskeyChallengeError` | `client_error` | Network failure or unparseable response |
+| `PasskeyGetTokenError` | `webauthn_error` | User cancelled the browser dialog, or device doesn't support passkeys |
+| `PasskeyGetTokenError` | `invalid_grant` | Invalid or replayed passkey assertion |
+| `PasskeyGetTokenError` | `client_error` | Network failure or unparseable response |
+| `PasskeyEnrollmentChallengeError` | — | No active session when enrollment challenge was requested |
+| `PasskeyEnrollmentChallengeError` | — | Enrollment not enabled on the tenant |
+| `PasskeyEnrollmentChallengeError` | — | Auth0 did not return a `Location` header |
+| `PasskeyEnrollmentVerifyError` | — | No active session when enrollment verify was called |
+| `PasskeyEnrollmentVerifyError` | — | Invalid or replayed attestation |
+
 ## Silent authentication
 
 Silent authentication checks for an existing Auth0 session without user interaction. Use `prompt: 'none'` as an authorization parameter.
@@ -2864,9 +3238,10 @@ export const auth0 = new Auth0Client({
 
 | Option             | Type      | Description                                                                                                                                                                                                                                   |
 | ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
-| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
-| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
+| rolling             | `boolean`                 | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
+| absoluteDuration    | `number`                  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
+| inactivityDuration  | `number`                  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
+| beforeSessionRolled | `BeforeSessionRolledHook` | A predicate `(req: NextRequest) => boolean \| Promise<boolean>` that decides whether the session should be rolled for an incoming request. May be synchronous or asynchronous. Only consulted when `rolling` is enabled. See [Selectively rolling sessions](#selectively-rolling-sessions). Default: the session is always rolled. |
 
 ### Understanding Rolling Sessions
 
@@ -2902,6 +3277,37 @@ export const config = {
 
 > [!WARNING]
 > Disabling rolling sessions changes the user experience significantly. Users will be logged out after the absolute duration regardless of their activity level, requiring manual re-authentication.
+
+### Selectively rolling sessions
+
+Because rolling sessions require the middleware to run on (almost) every request, each request rolls the session and writes to the session store. With a stateful session store (e.g. Redis), a single page that fans out into many sub-requests can multiply the writes against your store.
+
+The `beforeSessionRolled` hook lets you decide, per request, whether the session should be rolled. Return `false` to skip rolling for that request while keeping rolling enabled everywhere else. The hook may be synchronous or asynchronous (return a `boolean` or a `Promise<boolean>`):
+
+```ts
+import type { NextRequest } from "next/server";
+
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  session: {
+    rolling: true,
+    beforeSessionRolled: (req: NextRequest) => {
+      // Only roll the session for top-level page navigations, not for the
+      // many API/data requests a page may trigger.
+      return !req.nextUrl.pathname.startsWith("/api/");
+    }
+  }
+});
+```
+
+Notes:
+
+- The hook is only consulted when `rolling` is enabled.
+- The hook may be asynchronous; the SDK awaits its result before deciding.
+- If the hook throws or rejects, the SDK fails open and rolls the session as usual (a warning is logged).
+- Skipping rolling does not log the user out — it only avoids extending the session (and the corresponding write to the session store) for that request. The session still expires according to `inactivityDuration` and `absoluteDuration`.
+- This hook only controls the middleware's passive expiry-bump on pass-through requests. Writes triggered by token refresh, updateSession, or authentication flows always proceed regardless of this hook — those writes occur because the session data itself changed, not just its expiry.
 
 ## Cookie Configuration
 
