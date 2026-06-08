@@ -25,7 +25,7 @@ interface AuthClientProviderOptions {
    * Factory function to create an AuthClient for a given domain.
    * Called when a new domain client is needed.
    */
-  createAuthClient: (domain: string) => AuthClient;
+  createAuthClient: (domain: string, issuer: string) => AuthClient;
 
   /**
    * Allow insecure HTTP requests to localhost during development.
@@ -55,11 +55,15 @@ const MAX_DOMAIN_CLIENTS = 100;
 export class AuthClientProvider {
   private mode: "static" | "resolver";
   private staticDomain?: string;
+  private staticIssuer?: string;
   private resolver?: DomainResolver;
 
   private domainClients: LruMap<string, AuthClient>;
 
-  private createAuthClientFactory: (domain: string) => AuthClient;
+  private createAuthClientFactory: (
+    domain: string,
+    issuer: string
+  ) => AuthClient;
 
   /**
    * Creates a new AuthClientProvider instance.
@@ -84,10 +88,15 @@ export class AuthClientProvider {
           options.allowInsecureRequests ?? process.env.NODE_ENV === "test"
       });
       this.staticDomain = normalized.domain;
+      this.staticIssuer = normalized.issuer;
 
-      // Pre-populate cache with singleton AuthClient for static domain
-      const client = this.createAuthClientFactory(this.staticDomain);
-      this.domainClients.set(this.staticDomain, client);
+      // Pre-populate cache with singleton AuthClient keyed by issuer URL
+      // (same key shape as resolver mode) to allow unified LRU lookup.
+      const client = this.createAuthClientFactory(
+        this.staticDomain,
+        normalized.issuer
+      );
+      this.domainClients.set(normalized.issuer, client);
     } else if (typeof options.domain === "function") {
       // Resolver mode: store resolver function
       this.mode = "resolver";
@@ -131,8 +140,8 @@ export class AuthClientProvider {
    * @internal
    */
   getAuthClientForStaticMode(): AuthClient | undefined {
-    if (this.mode === "static" && this.staticDomain) {
-      return this.domainClients.get(this.staticDomain);
+    if (this.mode === "static" && this.staticIssuer) {
+      return this.domainClients.get(this.staticIssuer);
     }
     return undefined;
   }
@@ -151,9 +160,9 @@ export class AuthClientProvider {
    * @internal
    */
   async forRequest(headers: Headers, url?: URL): Promise<AuthClient> {
-    if (this.mode === "static" && this.staticDomain) {
+    if (this.mode === "static" && this.staticIssuer) {
       // Static mode: always return the pre-cached client
-      return this.domainClients.get(this.staticDomain)!;
+      return this.domainClients.get(this.staticIssuer)!;
     }
 
     // Resolver mode: resolve domain and get/create client
@@ -175,18 +184,24 @@ export class AuthClientProvider {
   forDomainSync(domain: string): AuthClient {
     // Normalize and validate the domain
     const normalized = normalizeDomain(domain);
-    const normalizedDomain = normalized.domain;
 
-    // Cache key is the normalized domain hostname.
-    // When mTLS support is added, extend key to `${domain}:${mtlsEnabled}`
+    // Cache key is the full normalized issuer URL (including path for providers like
+    // Okta custom authorization servers: e.g. https://myorg.okta.com/oauth2/default/).
+    // Using only the hostname would cause cache collisions between distinct issuer paths
+    // on the same host (e.g. /oauth2/default vs /oauth2/custom).
+    // When mTLS support is added, extend key to `${normalized.issuer}:${mtlsEnabled}`
     // to cache separate AuthClient instances per mTLS mode (cf. server-js PR #119).
-    const client = this.domainClients.get(normalizedDomain);
+    const cacheKey = normalized.issuer;
+    const client = this.domainClients.get(cacheKey);
     if (client) {
       return client;
     }
     // Create new client (LruMap.set() handles eviction)
-    const newClient = this.createAuthClientFactory(normalizedDomain);
-    this.domainClients.set(normalizedDomain, newClient);
+    const newClient = this.createAuthClientFactory(
+      normalized.domain,
+      normalized.issuer
+    );
+    this.domainClients.set(cacheKey, newClient);
     return newClient;
   }
 
@@ -222,8 +237,11 @@ export class AuthClientProvider {
       );
     }
 
-    // Normalize the resolved domain
+    // Normalize the resolved domain and return the full issuer URL (including
+    // any path component, e.g. https://myorg.okta.com/oauth2/default/) so that
+    // forDomainSync can use it as a precise cache key and construct the correct
+    // AuthClient with the right issuer for OIDC discovery.
     const normalized = normalizeDomain(resolved);
-    return normalized.domain;
+    return normalized.issuer;
   }
 }

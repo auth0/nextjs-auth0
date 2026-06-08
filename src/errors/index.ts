@@ -52,6 +52,12 @@ export {
   ExecutionContextError
 } from "./popup-errors.js";
 
+export {
+  PasswordlessStartError,
+  PasswordlessVerifyError,
+  type PasswordlessApiErrorResponse
+} from "./passwordless-errors.js";
+
 // MCD (Multiple Custom Domains) error classes
 export {
   DomainResolutionError,
@@ -59,3 +65,12 @@ export {
   IssuerValidationError,
   SessionDomainMismatchError
 } from "./mcd.js";
+
+export {
+  PasskeyRegisterError,
+  PasskeyChallengeError,
+  PasskeyGetTokenError,
+  PasskeyEnrollmentChallengeError,
+  PasskeyEnrollmentVerifyError,
+  type PasskeyApiErrorResponse
+} from "./passkey-errors.js";

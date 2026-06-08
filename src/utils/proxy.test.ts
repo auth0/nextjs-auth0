@@ -108,6 +108,92 @@ describe("headers", () => {
       expect(result.get("x-correlation-id")).toBe("corr-123");
     });
 
+    it("should forward the auth0-client telemetry header", () => {
+      const telemetryValue = btoa(
+        JSON.stringify({
+          name: "universal-components",
+          version: "2.0.0",
+          is_proxy_mode: true,
+          framework: "react",
+          component: "user-mfa-management",
+          distribution: "npm",
+          css: "tailwind"
+        })
+      );
+
+      const request = new NextRequest("https://example.com", {
+        headers: { "auth0-client": telemetryValue }
+      });
+
+      const result = buildForwardedRequestHeaders(request);
+      expect(result.get("auth0-client")).toBe(telemetryValue);
+    });
+
+    it("should forward auth0-client header regardless of original casing", () => {
+      const request = new NextRequest("https://example.com", {
+        headers: { "Auth0-Client": "test-value" }
+      });
+
+      const result = buildForwardedRequestHeaders(request);
+      expect(result.get("auth0-client")).toBe("test-value");
+    });
+
+    it("should not inject auth0-client when not present in request", () => {
+      const request = new NextRequest("https://example.com", {
+        headers: { accept: "application/json" }
+      });
+
+      const result = buildForwardedRequestHeaders(request);
+      expect(result.get("auth0-client")).toBeNull();
+    });
+
+    it("should forward auth0-client alongside other allow-listed headers", () => {
+      const request = new NextRequest("https://example.com", {
+        headers: {
+          "auth0-client": "telemetry-value",
+          accept: "application/json",
+          "content-type": "application/json",
+          "user-agent": "Mozilla/5.0"
+        }
+      });
+
+      const result = buildForwardedRequestHeaders(request);
+      expect(result.get("auth0-client")).toBe("telemetry-value");
+      expect(result.get("accept")).toBe("application/json");
+      expect(result.get("content-type")).toBe("application/json");
+      expect(result.get("user-agent")).toBe("Mozilla/5.0");
+    });
+
+    it("should preserve auth0-client value exactly as provided (no SDK override)", () => {
+      const uiComponentsTelemetry = btoa(
+        JSON.stringify({
+          name: "universal-components",
+          version: "2.0.0",
+          is_proxy_mode: true,
+          framework: "react",
+          component: "user-mfa-management",
+          distribution: "npm",
+          css: "tailwind"
+        })
+      );
+
+      const request = new NextRequest("https://example.com/proxy/me/v1/mfa", {
+        headers: {
+          "auth0-client": uiComponentsTelemetry,
+          "content-type": "application/json"
+        }
+      });
+
+      const result = buildForwardedRequestHeaders(request);
+
+      // Must be EXACTLY the UI Components value, not SDK's own telemetry
+      expect(result.get("auth0-client")).toBe(uiComponentsTelemetry);
+      // Verify it's not the SDK's own telemetry format
+      const decoded = JSON.parse(atob(result.get("auth0-client")!));
+      expect(decoded.name).toBe("universal-components");
+      expect(decoded.name).not.toBe("nextjs-auth0");
+    });
+
     it("should forward proxy headers for IP and rate limiting", () => {
       const request = new NextRequest("https://example.com", {
         headers: {

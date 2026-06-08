@@ -115,6 +115,7 @@ export type {
 export type { TransactionCookieOptions } from "../server/transaction-store.js";
 
 export type {
+  BeforeSessionRolledHook,
   SessionConfiguration,
   SessionCookieOptions,
   SessionStoreOptions
@@ -199,6 +200,8 @@ export type ProxyOptions = {
   targetBaseUrl: string;
   audience: string;
   scope: string | null;
+  /** Force a fresh token exchange instead of returning a cached/unexpired token. */
+  forceTokenRefresh?: boolean;
 };
 
 export {
@@ -248,3 +251,34 @@ export type {
   DiscoveryCacheOptions,
   MCDMetadata
 } from "./mcd.js";
+
+export {
+  PasswordlessClient,
+  PasswordlessStartOptions,
+  PasswordlessStartEmailOptions,
+  PasswordlessStartSmsOptions,
+  PasswordlessVerifyOptions,
+  PasswordlessVerifyEmailOptions,
+  PasswordlessVerifySmsOptions,
+  PasswordlessVerifyTokenResponse,
+  GRANT_TYPE_PASSWORDLESS_OTP
+} from "./passwordless.js";
+
+export {
+  GRANT_TYPE_PASSKEY,
+  PasskeyRegisterOptions,
+  PasskeyChallengeOptions,
+  PasskeyRegisterResponse,
+  PasskeyChallengeResponse,
+  PasskeyAuthResponse,
+  PasskeyGetTokenOptions,
+  PasskeyEnrollmentChallengeOptions,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyEnrollmentVerifyOptions,
+  PasskeyEnrollmentVerifyResponse,
+  PasskeyClient,
+  PasskeyBrowserClient,
+  PasskeyCreationOptionsJSON,
+  PasskeyRequestOptionsJSON,
+  PasskeyCredentialDescriptorJSON
+} from "./passkey.js";
