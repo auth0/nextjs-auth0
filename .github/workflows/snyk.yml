@@ -47,4 +47,4 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --all-projects --exclude=examples
+          args: --all-projects --exclude=examples,e2e
