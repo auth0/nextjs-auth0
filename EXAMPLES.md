@@ -3238,10 +3238,9 @@ export const auth0 = new Auth0Client({
 
 | Option             | Type      | Description                                                                                                                                                                                                                                   |
 | ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rolling             | `boolean`                 | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
-| absoluteDuration    | `number`                  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
-| inactivityDuration  | `number`                  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
-| beforeSessionRolled | `BeforeSessionRolledHook` | A predicate `(req: NextRequest) => boolean \| Promise<boolean>` that decides whether the session should be rolled for an incoming request. May be synchronous or asynchronous. Only consulted when `rolling` is enabled. See [Selectively rolling sessions](#selectively-rolling-sessions). Default: the session is always rolled. |
+| rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
+| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
+| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
 ### Understanding Rolling Sessions
 
@@ -3277,37 +3276,6 @@ export const config = {
 
 > [!WARNING]
 > Disabling rolling sessions changes the user experience significantly. Users will be logged out after the absolute duration regardless of their activity level, requiring manual re-authentication.
-
-### Selectively rolling sessions
-
-Because rolling sessions require the middleware to run on (almost) every request, each request rolls the session and writes to the session store. With a stateful session store (e.g. Redis), a single page that fans out into many sub-requests can multiply the writes against your store.
-
-The `beforeSessionRolled` hook lets you decide, per request, whether the session should be rolled. Return `false` to skip rolling for that request while keeping rolling enabled everywhere else. The hook may be synchronous or asynchronous (return a `boolean` or a `Promise<boolean>`):
-
-```ts
-import type { NextRequest } from "next/server";
-
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client({
-  session: {
-    rolling: true,
-    beforeSessionRolled: (req: NextRequest) => {
-      // Only roll the session for top-level page navigations, not for the
-      // many API/data requests a page may trigger.
-      return !req.nextUrl.pathname.startsWith("/api/");
-    }
-  }
-});
-```
-
-Notes:
-
-- The hook is only consulted when `rolling` is enabled.
-- The hook may be asynchronous; the SDK awaits its result before deciding.
-- If the hook throws or rejects, the SDK fails open and rolls the session as usual (a warning is logged).
-- Skipping rolling does not log the user out — it only avoids extending the session (and the corresponding write to the session store) for that request. The session still expires according to `inactivityDuration` and `absoluteDuration`.
-- This hook only controls the middleware's passive expiry-bump on pass-through requests. Writes triggered by token refresh, updateSession, or authentication flows always proceed regardless of this hook — those writes occur because the session data itself changed, not just its expiry.
 
 ## Cookie Configuration
 
@@ -4113,7 +4081,7 @@ const result = await auth0.customTokenExchange({
 
 ### With Actor Token (Delegation)
 
-For delegation scenarios where a service or agent acts on behalf of a user (RFC 8693 §4.4). The `act` claim in the returned ID token identifies the acting party and is automatically decoded and returned on the response:
+For delegation scenarios where a service or agent acts on behalf of a user (RFC 8693 §4.1). The `act` claim in the returned ID token identifies the acting party and is automatically decoded and returned on the response:
 
 ```ts
 const result = await auth0.customTokenExchange({
@@ -4163,6 +4131,9 @@ try {
         break;
       case CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE:
         // Handle missing actor token type when actor token provided
+        break;
+      case CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE:
+        // Handle invalid actor token type format
         break;
       case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
         // Handle server-side exchange failure
