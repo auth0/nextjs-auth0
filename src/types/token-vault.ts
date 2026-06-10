@@ -130,6 +130,20 @@ export interface CustomTokenExchangeOptions {
 }
 
 /**
+ * Represents the `act` (actor) claim from an ID token issued via RFC 8693 delegation.
+ * The `act` claim identifies the acting party and may be nested to represent a delegation chain.
+ *
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-4.1 RFC 8693 §4.1}
+ */
+export interface ActClaim {
+  /** The subject identifier of the acting party. */
+  sub: string;
+  /** Nested actor claim representing a delegation chain. */
+  act?: ActClaim;
+  [key: string]: unknown;
+}
+
+/**
  * Response from Custom Token Exchange.
  */
 export interface CustomTokenExchangeResponse {
@@ -150,8 +164,8 @@ export interface CustomTokenExchangeResponse {
   /** Granted scopes */
   scope?: string;
   /**
-   * The actor claim decoded from the ID token, present in delegation/impersonation flows (RFC 8693 §4.4).
+   * The actor claim decoded from the ID token, present in delegation/impersonation flows (RFC 8693 §4.1).
    * Represents the acting party. May be nested to reflect a delegation chain.
    */
-  act?: import("./index.js").ActClaim;
+  act?: ActClaim;
 }

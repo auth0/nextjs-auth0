@@ -1,5 +1,5 @@
 import { AuthorizationParameters } from "./authorize.js";
-import { ConnectionTokenSet } from "./token-vault.js";
+import { ConnectionTokenSet, type ActClaim } from "./token-vault.js";
 
 export interface TokenSet {
   accessToken: string;
@@ -79,20 +79,6 @@ export interface SessionDataStore {
 }
 
 export type LogoutToken = { sub?: string; sid?: string; iss?: string };
-
-/**
- * Represents the `act` (actor) claim from an ID token issued via RFC 8693 delegation.
- * The `act` claim identifies the acting party and may be nested to represent a delegation chain.
- *
- * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-4.4 RFC 8693 §4.4}
- */
-export interface ActClaim {
-  /** The subject identifier of the acting party. */
-  sub: string;
-  /** Nested actor claim representing a delegation chain. */
-  act?: ActClaim;
-  [key: string]: unknown;
-}
 
 export interface User {
   sub: string;
@@ -229,6 +215,7 @@ export {
 } from "./authorize.js";
 export {
   AccessTokenForConnectionOptions,
+  ActClaim,
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,

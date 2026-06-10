@@ -337,20 +337,16 @@ describe("Custom Token Exchange", () => {
         expect(response).not.toBeNull();
       });
 
-      it("should return error when actorTokenType is too short", async () => {
+      it("should accept actorTokenType shorter than 10 chars (no length constraint for actor type)", async () => {
         const [error, response] = await authClient.customTokenExchange({
           subjectToken: "valid-token",
           subjectTokenType: "urn:acme:legacy-token",
           actorToken: "actor-token-value",
-          actorTokenType: "urn:a:bcd" // 9 chars
+          actorTokenType: "urn:a:bcd" // 9 chars — valid URN, no length restriction for actor_token_type
         });
 
-        expect(error).not.toBeNull();
-        expect(error?.code).toBe(
-          CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE
-        );
-        expect(error?.message).toContain("actor_token_type");
-        expect(response).toBeNull();
+        expect(error).toBeNull();
+        expect(response).not.toBeNull();
       });
 
       it("should return error when actorTokenType is not a valid URI", async () => {
@@ -363,7 +359,7 @@ describe("Custom Token Exchange", () => {
 
         expect(error).not.toBeNull();
         expect(error?.code).toBe(
-          CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE
+          CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE
         );
         expect(error?.message).toContain("actor_token_type");
         expect(response).toBeNull();
