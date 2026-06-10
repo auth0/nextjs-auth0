@@ -5,7 +5,7 @@ A Next.js App Router example demonstrating Custom Token Exchange (CTE) using [`@
 ## What this example covers
 
 - **Basic token exchange** — swap an external token for an Auth0 access token
-- **Delegation / impersonation** — pass `actorToken` and `actorTokenType` to represent an entity acting on behalf of the user (RFC 8693 §4.4)
+- **Delegation / impersonation** — pass `actorToken` and `actorTokenType` to represent an entity acting on behalf of the user (RFC 8693 §4.1)
 - **`act` claim handling** — decoded from the returned ID token and surfaced on the response and on `session.user.act`
 - **Typed error handling** — `CustomTokenExchangeError` with specific error codes
 - Protected `/dashboard` that redirects unauthenticated users to `/`
@@ -99,7 +99,7 @@ const result = await auth0.customTokenExchange({
   audience: "https://api.example.com",
   // delegation (optional):
   actorToken: "eyJ...",
-  actorTokenType: "http://corporate-idp/id-token",
+  actorTokenType: "https://corporate-idp.example.com/id-token",
 });
 // result.accessToken, result.act, ...
 ```
@@ -138,7 +138,7 @@ console.log(result.act); // { sub: "agent|abc123" }
 ### Error handling
 
 ```ts
-import { CustomTokenExchangeError, CustomTokenExchangeErrorCode } from "@auth0/nextjs-auth0/server";
+import { CustomTokenExchangeError, CustomTokenExchangeErrorCode } from "@auth0/nextjs-auth0/errors";
 
 try {
   const result = await auth0.customTokenExchange({ ... });
