@@ -47,4 +47,4 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --file=pnpm-lock.yaml
+          args: --all-projects --exclude=examples
