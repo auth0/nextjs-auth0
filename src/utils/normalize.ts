@@ -212,9 +212,14 @@ export function normalizeDomain(
     issuer = normalizeIssuer(options.issuerHint);
   } else {
     const protocol = options?.allowInsecureRequests ? scheme : "https";
-    // Preserve a non-root path from the original URL (e.g. /oauth2/default).
-    // normalizeIssuer ensures a trailing slash is always present.
-    issuer = normalizeIssuer(`${protocol}://${normalizedHostname}${urlPath}`);
+    const rawIssuer = `${protocol}://${normalizedHostname}${urlPath}`;
+    // For root-path issuers (hostname only), add a trailing slash to match
+    // Auth0's canonical issuer format (https://tenant.auth0.com/).
+    // For path-based issuers (e.g. Okta /oauth2/default, IBM /oidc/endpoint/default),
+    // preserve the URL verbatim — RFC 8414 does not require a trailing slash and
+    // adding one causes OAUTH_JSON_ATTRIBUTE_COMPARISON_FAILED when the provider's
+    // discovery document returns the issuer without a trailing slash.
+    issuer = urlPath === "/" ? normalizeIssuer(rawIssuer) : rawIssuer;
   }
 
   return {

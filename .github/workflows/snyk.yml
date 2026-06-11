@@ -46,3 +46,5 @@ jobs:
       - uses: snyk/actions/node@9adf32b1121593767fc3c057af55b55db032dc04 # pin@1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --exclude=examples,e2e
