@@ -650,5 +650,41 @@ describe("AuthClient passkey methods", () => {
         error: "discovery_error"
       });
     });
+
+    it("does NOT throw MfaRequiredError when mfa_required response has no mfa_token — falls through to PasskeyGetTokenError", async () => {
+      // When Auth0 returns mfa_required but omits mfa_token (malformed response),
+      // #throwIfMfaRequired falls through and the caller wraps it as PasskeyGetTokenError.
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+          HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "mfa_required without token"
+              // mfa_token intentionally absent
+            },
+            { status: 403 }
+          )
+        )
+      );
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+
+      await expect(
+        authClient.passkeyGetToken(
+          {
+            authSession: DEFAULT.authSession,
+            authResponse: MOCK_AUTH_RESPONSE
+          },
+          reqCookies,
+          resCookies
+        )
+      ).rejects.toMatchObject({
+        name: "PasskeyGetTokenError",
+        error: "mfa_required"
+      });
+    });
   });
 });
