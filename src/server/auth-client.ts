@@ -1723,6 +1723,9 @@ export class AuthClient {
       addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
       if (e instanceof PasswordlessVerifyError) {
         const serverErrorCodes = new Set([
           "discovery_error",
@@ -2605,6 +2608,39 @@ export class AuthClient {
     return clientPrivateKey
       ? oauth.PrivateKeyJwt(clientPrivateKey as CryptoKey)
       : oauth.ClientSecretPost(this.clientSecret!);
+  }
+
+  // Detects mfa_required in a token endpoint error, encrypts the raw mfa_token,
+  // and throws MfaRequiredError. Used by credential exchange grants (passkey,
+  // passwordless) that can trigger MFA step-up. Throws only when mfa_token is
+  // present — otherwise falls through so the caller can throw its own typed error.
+  async #throwIfMfaRequired(
+    err: any,
+    oauthErr: { error?: string; error_description?: string }
+  ): Promise<void> {
+    if (isMfaRequiredError(err)) {
+      const { mfa_token, error_description, mfa_requirements } =
+        extractMfaErrorDetails(err);
+      if (mfa_token) {
+        const encryptedToken = await encryptMfaToken(
+          mfa_token,
+          (this.authorizationParameters.audience as string) || "",
+          (this.authorizationParameters.scope as string) || DEFAULT_SCOPES,
+          mfa_requirements,
+          this.sessionStore.secret,
+          this.mfaTokenTtl
+        );
+        throw new MfaRequiredError(
+          error_description ?? "Multi-factor authentication is required.",
+          encryptedToken,
+          mfa_requirements,
+          new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        );
+      }
+    }
   }
 
   /** @internal */
@@ -4161,6 +4197,7 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(err, oauthErr);
       throw new PasskeyGetTokenError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
@@ -4336,6 +4373,9 @@ export class AuthClient {
       addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
       if (e instanceof PasskeyGetTokenError) {
         const serverErrorCodes = new Set([
           "discovery_error",
@@ -4923,6 +4963,7 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(err, oauthErr);
       throw new PasswordlessVerifyError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
@@ -5198,13 +5239,16 @@ export class AuthClient {
    */
   async #createMfaRequiredResponse(
     req: NextRequest,
-    session: SessionData,
+    session: SessionData | null,
     error: MfaRequiredError
   ): Promise<NextResponse> {
     // Use toJSON() for consistent REST API response format
     const res = NextResponse.json(error.toJSON(), { status: 403 });
-    // Save session with MFA context (mutated by getTokenSet via reference)
-    await this.sessionStore.set(req.cookies, res.cookies, session);
+    // Save session with MFA context if one exists (not applicable for passkey/passwordless
+    // first-factor flows where no session exists yet at this point)
+    if (session) {
+      await this.sessionStore.set(req.cookies, res.cookies, session);
+    }
     addCacheControlHeadersForSession(res);
     return res;
   }

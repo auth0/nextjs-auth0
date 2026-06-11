@@ -476,5 +476,76 @@ describe("AuthClient passkey route handlers", () => {
       const body = await res.json();
       expect(body.error).toBe("server_error");
     });
+
+    it("returns 403 with mfa_token and mfa_requirements when Auth0 returns mfa_required", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+          HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "Multi-factor authentication required.",
+              mfa_token: "raw-mfa-token-passkey",
+              mfa_requirements: { challenge: [{ type: "otp" }] }
+            },
+            { status: 403 }
+          )
+        )
+      );
+
+      const req = new NextRequest(
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            authSession: DEFAULT.authSession,
+            authResponse: MOCK_AUTH_RESPONSE
+          }),
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+
+      const res = await authClient.handler(req);
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error).toBe("mfa_required");
+      // mfa_token is the encrypted value — non-empty, not the raw token
+      expect(typeof body.mfa_token).toBe("string");
+      expect(body.mfa_token.length).toBeGreaterThan(0);
+      expect(body.mfa_token).not.toBe("raw-mfa-token-passkey");
+    });
+
+    it("does not set a session cookie on mfa_required — no session exists yet", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+          HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "MFA required.",
+              mfa_token: "raw-mfa-token-passkey",
+              mfa_requirements: { challenge: [{ type: "otp" }] }
+            },
+            { status: 403 }
+          )
+        )
+      );
+
+      const req = new NextRequest(
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            authSession: DEFAULT.authSession,
+            authResponse: MOCK_AUTH_RESPONSE
+          }),
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+
+      const res = await authClient.handler(req);
+      expect(res.status).toBe(403);
+      // No session cookie — passkey get-token is a first-factor flow,
+      // no session exists at the point MFA is triggered
+      expect(res.headers.get("set-cookie")).toBeNull();
+    });
   });
 });
