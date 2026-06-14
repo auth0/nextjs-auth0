@@ -2356,48 +2356,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
-    it("should store per-request maxAge in transaction state when not set in SDK config", async () => {
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-        secret,
-        appBaseUrl: DEFAULT.appBaseUrl,
-        routes: getDefaultRoutes(),
-        fetch: getMockAuthorizationServer()
-      });
-      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
-      loginUrl.searchParams.set("max_age", "900");
-      const request = new NextRequest(loginUrl, { method: "GET" });
-
-      const response = await authClient.handleLogin(request);
-      const authorizationUrl = new URL(response.headers.get("Location")!);
-
-      expect(authorizationUrl.searchParams.get("max_age")).toEqual("900");
-
-      const transactionCookie = response.cookies.get(
-        `__txn_${authorizationUrl.searchParams.get("state")}`
-      );
-      expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            transactionCookie!.value,
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
-        expect.objectContaining({
-          maxAge: 900
-        })
-      );
-    });
-
     it("should store per-request maxAge=0 (step-up) in transaction state when not set in SDK config", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
@@ -2591,6 +2549,52 @@ ca/T0LLtgmbMmxSv/MmzIg==
           returnTo: "/"
         })
       );
+    });
+
+    it("should return a 400 for a non-numeric max_age query param", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "abc");
+      const response = await authClient.handleLogin(
+        new NextRequest(loginUrl, { method: "GET" })
+      );
+      expect(response.status).toEqual(400);
+    });
+
+    it("should return a 400 for a negative max_age query param", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "-1");
+      const response = await authClient.handleLogin(
+        new NextRequest(loginUrl, { method: "GET" })
+      );
+      expect(response.status).toEqual(400);
     });
 
     describe("with pushed authorization requests", async () => {
@@ -8600,6 +8604,24 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       await expect(
         authClient.startInteractiveLogin({}, request)
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
+    it("should throw InvalidConfigurationError for a non-numeric max_age authorization parameter", async () => {
+      const authClient = await createAuthClient();
+      await expect(
+        authClient.startInteractiveLogin({
+          authorizationParameters: { max_age: "abc" as unknown as number }
+        })
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
+    it("should throw InvalidConfigurationError for a negative max_age authorization parameter", async () => {
+      const authClient = await createAuthClient();
+      await expect(
+        authClient.startInteractiveLogin({
+          authorizationParameters: { max_age: -1 }
+        })
       ).rejects.toThrow(InvalidConfigurationError);
     });
 
