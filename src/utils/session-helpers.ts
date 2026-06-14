@@ -3,6 +3,36 @@ import * as oauth from "oauth4webapi";
 import { TransactionState } from "../server/transaction-store.js";
 import type { AccessTokenSet, SessionData } from "../types/index.js";
 
+const SESSION_EXPIRY_LEEWAY_SECONDS = 30;
+
+/**
+ * Returns true when the IPSIE session ceiling has been reached.
+ * Applies 30s negative leeway for clock skew — the session is treated as
+ * expired slightly before the wall-clock ceiling, never after.
+ * A missing/undefined value means no ceiling was asserted; returns false.
+ */
+export function isSessionCeilingReached(sessionExpiresAt?: number): boolean {
+  if (sessionExpiresAt == null) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return now >= sessionExpiresAt - SESSION_EXPIRY_LEEWAY_SECONDS;
+}
+
+/**
+ * Returns true when the session ceiling is already in the past at login time.
+ * Compares against the ID token `iat` claim (falls back to wall-clock now).
+ * Used to reject an already-expired session before persisting it.
+ * A missing/undefined ceiling returns false (safe default — no ceiling).
+ */
+export function isSessionCeilingInPast(
+  sessionExpiresAt?: number,
+  iat?: unknown
+): boolean {
+  if (sessionExpiresAt == null) return false;
+  const reference =
+    typeof iat === "number" ? iat : Math.floor(Date.now() / 1000);
+  return sessionExpiresAt <= reference + SESSION_EXPIRY_LEEWAY_SECONDS;
+}
+
 /**
  * Merge an access token from a popup MFA callback into an existing session.
  *
@@ -107,6 +137,11 @@ export function buildSessionFromCallback(
   oidcRes: oauth.TokenEndpointResponse,
   transactionState: TransactionState
 ): SessionData {
+  const sessionExpiresAt =
+    typeof idTokenClaims.session_expiry === "number"
+      ? idTokenClaims.session_expiry
+      : undefined;
+
   return {
     user: idTokenClaims,
     tokenSet: {
@@ -120,7 +155,8 @@ export function buildSessionFromCallback(
     },
     internal: {
       sid: idTokenClaims.sid as string,
-      createdAt: Math.floor(Date.now() / 1000)
+      createdAt: Math.floor(Date.now() / 1000),
+      ...(sessionExpiresAt !== undefined && { sessionExpiresAt })
     }
   };
 }

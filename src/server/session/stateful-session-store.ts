@@ -254,4 +254,25 @@ export class StatefulSessionStore extends AbstractSessionStore {
       await this.store.delete(session.payload.id);
     }
   }
+
+  override async deleteByReqCookies(
+    reqCookies: cookies.RequestCookies
+  ): Promise<void> {
+    const cookieValue =
+      reqCookies.get(this.sessionCookieName)?.value ||
+      reqCookies.get(LEGACY_COOKIE_NAME)?.value;
+
+    if (!cookieValue) {
+      return;
+    }
+
+    const session = await cookies.decrypt<SessionCookieValue>(
+      cookieValue,
+      this.secret
+    );
+
+    if (session) {
+      await this.store.delete(session.payload.id);
+    }
+  }
 }

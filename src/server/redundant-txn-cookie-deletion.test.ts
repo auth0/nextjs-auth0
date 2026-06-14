@@ -158,6 +158,9 @@ class TestSessionStore extends AbstractSessionStore {
   ): Promise<void> {
     // Empty implementation for testing
   }
+  async deleteByReqCookies(): Promise<void> {
+    // Empty implementation for testing
+  }
 }
 
 const baseOptions: Partial<AuthClientOptions> = {
