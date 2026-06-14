@@ -2356,6 +2356,133 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
+    it("should store per-request maxAge in transaction state when not set in SDK config", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "900");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("900");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 900
+        })
+      );
+    });
+
+    it("should store per-request maxAge=0 (step-up) in transaction state when not set in SDK config", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "0");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("0");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 0
+        })
+      );
+    });
+
+    it("should use per-request maxAge over SDK-level max_age in transaction state", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        authorizationParameters: { max_age: 3600 },
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "0");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("0");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 0
+        })
+      );
+    });
+
     it("should store the returnTo path in the transaction state", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({

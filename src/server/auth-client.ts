@@ -855,9 +855,16 @@ export class AuthClient {
     }
 
     // Prepare transaction state
+    // Read max_age from the already-merged authorizationParams (not the static SDK config)
+    // so that per-request values (e.g. max_age=0 for step-up auth) are preserved for
+    // auth_time validation at callback. Falls back to SDK-level config when absent.
+    const requestedMaxAgeStr = authorizationParams.get("max_age");
     const transactionState: TransactionState = {
       nonce,
-      maxAge: this.authorizationParameters.max_age,
+      maxAge:
+        requestedMaxAgeStr !== null
+          ? Number(requestedMaxAgeStr)
+          : this.authorizationParameters.max_age,
       codeVerifier,
       responseType: RESPONSE_TYPES.CODE,
       state,
