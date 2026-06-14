@@ -485,6 +485,12 @@ The SDK mounts 16 routes:
 > [!IMPORTANT]  
 > The `/auth/access-token` route is enabled by default, but is only necessary when the access token is needed on the client-side. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
 
+## Session Expiry from the Upstream IdP
+
+For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token, and the SDK enforces this ceiling on every session read. Once it is reached, `getSession()` and `getUser()` return `null`, and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`. If the asserted ceiling is already in the past at login, the callback returns a `session_expired` error response instead of persisting an already-expired session.
+
+For more details, see [Session Expiry from the Upstream IdP](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-expiry-from-the-upstream-idp) in EXAMPLES.md.
+
 ## Feedback
 
 ### Contributing

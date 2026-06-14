@@ -149,6 +149,7 @@
   - [`onCallback` hook](#oncallback-hook)
   - [`connectAccount` method](#connectaccount-method)
 - [Back-Channel Logout](#back-channel-logout)
+- [Session Expiry from the Upstream IdP](#session-expiry-from-the-upstream-idp)
 - [Combining middleware](#combining-middleware)
 - [ID Token claims and the user object](#id-token-claims-and-the-user-object)
 - [Routes](#routes)
@@ -3942,6 +3943,27 @@ The SDK can be configured to listen to [Back-Channel Logout](https://auth0.com/d
 To use Back-Channel Logout, you will need to provide a session store implementation as shown in the [Database sessions](#database-sessions) section above with the `deleteByLogoutToken` implemented.
 
 A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` which will contain either a `sid` claim, a `sub` claim, or both.
+
+## Session Expiry from the Upstream IdP
+
+For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token, and the SDK enforces this ceiling automatically. Once it is reached, `getSession()` and `getUser()` return `null` (same as a logged-out user), and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`.
+
+You should catch the `session_expired` error wherever you call `getAccessToken()` and redirect the user to re-authenticate:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+import { AccessTokenError, AccessTokenErrorCode } from "@auth0/nextjs-auth0/server";
+
+try {
+  const { token } = await auth0.getAccessToken();
+  // use token...
+} catch (err) {
+  if (err instanceof AccessTokenError && err.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+    // IdP session ceiling reached — the user must log in again
+    redirect("/auth/login");
+  }
+  throw err;
+}
 
 ## Combining middleware
 
