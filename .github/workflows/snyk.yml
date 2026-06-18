@@ -31,12 +31,12 @@ jobs:
       - if: github.actor == 'dependabot[bot]' || github.event_name == 'merge_group'
         run: exit 0 # Skip unnecessary test runs for dependabot and merge queues. Artifically flag as successful, as this is a required check for branch protection.
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
           
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5 # docs https://pnpm.io/continuous-integration#github-actions
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0 # docs https://pnpm.io/continuous-integration#github-actions
         with:
           version: 10
 
