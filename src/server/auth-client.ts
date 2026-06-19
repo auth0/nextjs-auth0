@@ -559,6 +559,16 @@ export class AuthClient {
           "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
       );
     }
+    if (
+      this.useMtls &&
+      (options.clientSecret || options.clientAssertionSigningKey)
+    ) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls cannot be combined with clientSecret or clientAssertionSigningKey. " +
+          "mTLS replaces secret-based client authentication entirely."
+      );
+    }
     if (this.useMtls) {
       this.clientMetadata.use_mtls_endpoint_aliases = true;
     }
@@ -2287,6 +2297,10 @@ export class AuthClient {
         Math.floor(Date.now() / 1000) +
         Number(tokenEndpointResponse.expires_in);
 
+      if (this.useMtls) {
+        this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
+      }
+
       return [
         null,
         {
@@ -2339,6 +2353,18 @@ export class AuthClient {
             );
         }
       );
+
+      if (this.useMtls && !authorizationServerMetadata.mtls_endpoint_aliases) {
+        return [
+          new MtlsError(
+            MtlsErrorCode.MTLS_ENDPOINT_ALIASES_MISSING,
+            "useMtls is enabled but the authorization server discovery document does not advertise " +
+              "mtls_endpoint_aliases. Ensure mTLS is enabled on your Auth0 tenant and that requests " +
+              "are routed through your custom domain."
+          ),
+          null
+        ];
+      }
 
       this.authorizationServerMetadata = authorizationServerMetadata;
 
@@ -2615,6 +2641,23 @@ export class AuthClient {
     authorizationUrl.search = params.toString();
 
     return [null, authorizationUrl];
+  }
+
+  private warnIfNotCertificateBound(accessToken: string): void {
+    try {
+      const payload = jose.decodeJwt(accessToken);
+      const cnf = payload["cnf"] as Record<string, unknown> | undefined;
+      if (!cnf?.["x5t#S256"]) {
+        console.warn(
+          "[nextjs-auth0] useMtls is enabled but the issued access token does not contain " +
+            "a cnf.x5t#S256 claim. The token is not certificate-bound. " +
+            "Verify that mTLS is correctly configured on your Auth0 tenant and that " +
+            "token requests are routed through your mTLS custom domain."
+        );
+      }
+    } catch {
+      // decodeJwt only fails for opaque tokens — skip the check silently
+    }
   }
 
   private async getClientAuth(): Promise<oauth.ClientAuth> {
@@ -3123,6 +3166,10 @@ export class AuthClient {
       ];
     }
 
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
+    }
+
     // Map response: snake_case → camelCase
     return [
       null,
@@ -3392,7 +3439,7 @@ export class AuthClient {
     const openidClientConfig = new client.Configuration(
       authorizationServerMetadata,
       this.clientMetadata.client_id,
-      {},
+      { use_mtls_endpoint_aliases: this.useMtls },
       await this.getClientAuth()
     );
     const httpOpts = this.httpOptions();
@@ -5394,6 +5441,10 @@ export class AuthClient {
         ),
         null
       ];
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(oauthRes.access_token);
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;

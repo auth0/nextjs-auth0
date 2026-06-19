@@ -64,7 +64,7 @@ describe("mTLS AuthClient", () => {
             sessionStore,
             domain: DOMAIN,
             clientId: CLIENT_ID,
-            clientSecret: "some-secret",
+            // no clientSecret — avoid triggering MTLS_INCOMPATIBLE_CLIENT_AUTH first
             secret,
             appBaseUrl: "https://example.com",
             routes: getDefaultRoutes(),
@@ -84,11 +84,12 @@ describe("mTLS AuthClient", () => {
           sessionStore,
           domain: DOMAIN,
           clientId: CLIENT_ID,
-          clientSecret: "some-secret",
+          // no clientSecret
           secret,
           appBaseUrl: "https://example.com",
           routes: getDefaultRoutes(),
           useMtls: true
+          // no fetch
         });
       } catch (e) {
         caught = e;
@@ -97,6 +98,60 @@ describe("mTLS AuthClient", () => {
       expect(caught).toBeInstanceOf(MtlsError);
       expect((caught as MtlsError).code).toBe(
         MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH
+      );
+    });
+
+    it("throws MtlsError with code MTLS_INCOMPATIBLE_CLIENT_AUTH when clientSecret is also set", () => {
+      const { transactionStore, sessionStore } = makeStores(secret);
+
+      let caught: unknown;
+      try {
+        new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DOMAIN,
+          clientId: CLIENT_ID,
+          clientSecret: "should-not-be-here",
+          secret,
+          appBaseUrl: "https://example.com",
+          routes: getDefaultRoutes(),
+          useMtls: true,
+          fetch: globalThis.fetch
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(MtlsError);
+      expect((caught as MtlsError).code).toBe(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH
+      );
+    });
+
+    it("throws MtlsError with code MTLS_INCOMPATIBLE_CLIENT_AUTH when clientAssertionSigningKey is also set", () => {
+      const { transactionStore, sessionStore } = makeStores(secret);
+
+      let caught: unknown;
+      try {
+        new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DOMAIN,
+          clientId: CLIENT_ID,
+          clientAssertionSigningKey: "some-key",
+          secret,
+          appBaseUrl: "https://example.com",
+          routes: getDefaultRoutes(),
+          useMtls: true,
+          fetch: globalThis.fetch
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(MtlsError);
+      expect((caught as MtlsError).code).toBe(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH
       );
     });
 
