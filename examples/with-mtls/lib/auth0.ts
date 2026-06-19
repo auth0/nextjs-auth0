@@ -43,14 +43,19 @@ if (!certPath || !keyPath) {
   );
 }
 
+function readCertFile(envVar: string, path: string): Buffer {
+  try {
+    return readFileSync(path);
+  } catch {
+    throw new Error(`Failed to read certificate file specified by ${envVar}.`);
+  }
+}
+
 const tlsAgent = new Agent({
   connect: {
-    cert: readFileSync(certPath),
-    key: readFileSync(keyPath),
-    ...(caPath ? { ca: readFileSync(caPath) } : {}),
-    // For local development with Vivaldi self-signed certificates,
-    // disable certificate validation. Remove for production!
-    rejectUnauthorized: false
+    cert: readCertFile("MTLS_CLIENT_CERT_PATH", certPath),
+    key: readCertFile("MTLS_CLIENT_KEY_PATH", keyPath),
+    ...(caPath ? { ca: readCertFile("MTLS_CA_CERT_PATH", caPath) } : {})
   }
 });
 
