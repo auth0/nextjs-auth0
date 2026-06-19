@@ -1565,22 +1565,38 @@ export class AuthClient {
       // Verify MFA and get tokens
       const result = await this.mfaVerify(verifyOptions);
 
-      // Create response FIRST so cookies can be attached
-      const res = NextResponse.json(result);
-
-      // Cache tokens in session if session exists
       const { error: sessionError, session } =
         await this.getSessionWithDomainCheck(req.cookies);
+
       if (!sessionError && session) {
+        // Step-up MFA: session exists — cache new token and return success.
+        // Tokens are stored in the session cookie; the body must not expose them.
+        const res = NextResponse.json({ success: true });
         await this.cacheTokenFromMfaVerify(
           result,
           mfaToken,
           req.cookies,
-          res.cookies // Use actual response cookies, not temp
+          res.cookies
         );
+        return res;
+      } else if (result.id_token) {
+        // First-factor MFA (e.g. passkey + MFA): no session yet — create one from
+        // the token response. Return { success: true } only; tokens stay in the
+        // session cookie and must not be exposed in the response body.
+        const res = NextResponse.json({ success: true });
+        await this.createSessionFromPasswordlessVerify(
+          result as PasswordlessVerifyTokenResponse,
+          req.cookies,
+          res.cookies
+        );
+        addCacheControlHeadersForSession(res);
+        return res;
       }
 
-      return res; // Return response WITH cookies
+      // mfaVerify succeeded but returned no id_token and no session exists —
+      // this should not happen with a well-formed Auth0 response. Return success
+      // without exposing raw tokens to the browser.
+      return NextResponse.json({ success: true });
     } catch (e) {
       return handleMfaError(e);
     }
@@ -2616,7 +2632,9 @@ export class AuthClient {
   // present — otherwise falls through so the caller can throw its own typed error.
   async #throwIfMfaRequired(
     err: any,
-    oauthErr: { error?: string; error_description?: string }
+    oauthErr: { error?: string; error_description?: string },
+    audience?: string,
+    scope?: string
   ): Promise<void> {
     if (isMfaRequiredError(err)) {
       const { mfa_token, error_description, mfa_requirements } =
@@ -2624,8 +2642,10 @@ export class AuthClient {
       if (mfa_token) {
         const encryptedToken = await encryptMfaToken(
           mfa_token,
-          (this.authorizationParameters.audience as string) || "",
-          (this.authorizationParameters.scope as string) || DEFAULT_SCOPES,
+          audience ?? (this.authorizationParameters.audience as string) ?? "",
+          scope ??
+            (this.authorizationParameters.scope as string) ??
+            DEFAULT_SCOPES,
           mfa_requirements,
           this.sessionStore.secret,
           this.mfaTokenTtl
@@ -3630,17 +3650,21 @@ export class AuthClient {
       this.sessionStore.secret
     );
 
-    // Validate mfaRequirements has challenge types
-    const allowedTypes = new Set(
-      (context.mfaRequirements?.challenge ?? []).map((c) =>
-        c.type.toLowerCase()
-      )
-    );
-
-    if (allowedTypes.size === 0) {
-      throw new MfaNoAvailableFactorsError(
-        "No MFA challenge types available in mfa_requirements"
+    // Validate mfaRequirements has challenge types only when requirements are present.
+    // When mfa_requirements is absent (e.g. webauthn grant), all challenge types are allowed.
+    if (context.mfaRequirements?.challenge) {
+      const allowedTypes = new Set(
+        context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
       );
+
+      if (
+        allowedTypes.size === 0 ||
+        !allowedTypes.has(challengeType.toLowerCase())
+      ) {
+        throw new MfaNoAvailableFactorsError(
+          "No MFA challenge types available in mfa_requirements"
+        );
+      }
     }
 
     // Extract raw mfaToken for Auth0 API call
@@ -3800,7 +3824,7 @@ export class AuthClient {
       );
     }
 
-    const verifyParams = buildVerifyParams(options, mfaToken);
+    const verifyParams = buildVerifyParams(options, mfaToken, audience, scope);
     const verifyGrantType = getVerifyGrantType(verifyParams);
 
     // Create DPoP handle ONCE outside the closure so it persists across retries.
@@ -4197,7 +4221,12 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
-      await this.#throwIfMfaRequired(err, oauthErr);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
       throw new PasskeyGetTokenError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
@@ -4963,7 +4992,12 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
-      await this.#throwIfMfaRequired(err, oauthErr);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
       throw new PasswordlessVerifyError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||

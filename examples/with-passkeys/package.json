@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "file:../..",
+    "@types/qrcode": "^1.5.6",
     "next": "16.2.5",
+    "qrcode": "^1.5.4",
     "react": "19.0.1",
     "react-dom": "19.0.1"
   },

@@ -25,6 +25,10 @@ import { TransactionStore } from "./transaction-store.js";
 
 vi.mock("next/headers.js", () => createNextHeadersMock({ cookies: false }));
 
+// JWE format: 5 base64url parts separated by dots
+const JWE_PATTERN =
+  /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
 // Test configuration
 const domain = "https://auth0.example.com";
 const alg = "RS256";
@@ -254,10 +258,7 @@ describe("MFA Error Bubbling", () => {
       }
 
       expect(thrownError).not.toBeNull();
-      // JWE format: 5 base64url parts separated by dots
-      const jwePattern =
-        /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-      expect(thrownError!.mfa_token).toMatch(jwePattern);
+      expect(thrownError!.mfa_token).toMatch(JWE_PATTERN);
     });
 
     it("should NOT expose raw mfa_token", async () => {
@@ -570,9 +571,6 @@ describe("MFA Error Bubbling", () => {
 // ---------------------------------------------------------------------------
 
 describe("MFA Error Bubbling — passkeyGetToken", () => {
-  const jwePattern =
-    /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-
   const mockAuthResponse = {
     id: "cred-id",
     rawId: "cred-raw-id",
@@ -648,7 +646,7 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
   it("mfa_token is a JWE (5 dot-separated base64url parts)", async () => {
     useMfaRequiredOnPasskeyToken();
     const error = await getPasskeyMfaError();
-    expect(error.mfa_token).toMatch(jwePattern);
+    expect(error.mfa_token).toMatch(JWE_PATTERN);
   });
 
   it("does NOT expose the raw mfa_token", async () => {
@@ -750,9 +748,6 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
 // ---------------------------------------------------------------------------
 
 describe("MFA Error Bubbling — passwordlessVerify", () => {
-  const jwePattern =
-    /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-
   let passwordlessAuthClient: AuthClient;
   let passwordlessSecret: string;
 
@@ -814,7 +809,7 @@ describe("MFA Error Bubbling — passwordlessVerify", () => {
   it("mfa_token is a JWE (5 dot-separated base64url parts)", async () => {
     useMfaRequiredOnPasswordlessToken();
     const error = await getPasswordlessMfaError();
-    expect(error.mfa_token).toMatch(jwePattern);
+    expect(error.mfa_token).toMatch(JWE_PATTERN);
   });
 
   it("does NOT expose the raw mfa_token", async () => {

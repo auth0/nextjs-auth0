@@ -7,7 +7,6 @@ const dpopKeyPair = process.env.AUTH0_USE_DPOP === "true"
 export const auth0 = new Auth0Client({
   allowInsecureRequests: true,
   authorizationParameters: {
-    audience: `https://${process.env.AUTH0_DOMAIN}/me/`,
     scope: "openid profile email offline_access"
   },
   ...(dpopKeyPair && { useDPoP: true, dpopKeyPair })

@@ -1114,9 +1114,8 @@ describe("AuthClient MFA Methods", () => {
         const response = await authClient.handleVerify(request);
         expect(response.status).toBe(200);
 
-        // Verify response is already snake_case
         const result = await response.json();
-        expect(result.access_token).toBe("new-access-token");
+        expect(result).toEqual({ success: true });
       });
 
       it("should return 403 with new mfaToken for chained MFA", async () => {

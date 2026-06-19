@@ -126,6 +126,9 @@ class ClientPasswordlessClient implements PasswordlessClient {
         error: "client_error",
         error_description: "Failed to parse error response"
       }));
+      if (error.error === "mfa_required") {
+        throw error;
+      }
       throw new PasswordlessVerifyError(
         error.error ?? "client_error",
         error.error_description ?? "Passwordless verify failed",

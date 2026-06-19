@@ -12,7 +12,7 @@ import {
 } from "vitest";
 
 import {
-  challengeScenarios,
+  challengeScenariosClient as challengeScenarios,
   enrollScenarios,
   getAuthenticatorsScenarios,
   verifyScenarios

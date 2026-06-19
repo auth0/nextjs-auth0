@@ -293,6 +293,24 @@ export const challengeScenarios: MfaTestScenario<
     }
   },
   {
+    // Server validates locally before the network call — expects mfa_no_available_factors
+    name: "Auth0 400 error",
+    input: {
+      mfaToken: "encrypted-token",
+      challengeType: "invalid",
+      mfaRequirements: { challenge: [{ type: "otp" }] }
+    },
+    expectError: (error: any) => {
+      if (error.code !== "mfa_no_available_factors")
+        throw new Error("Expected mfa_no_available_factors");
+    }
+  }
+];
+
+// Client-specific challenge scenarios where validation happens server-side via HTTP route
+export const challengeScenariosClient: typeof challengeScenarios = [
+  ...challengeScenarios.filter((s) => s.name !== "Auth0 400 error"),
+  {
     name: "Auth0 400 error",
     input: {
       mfaToken: "encrypted-token",

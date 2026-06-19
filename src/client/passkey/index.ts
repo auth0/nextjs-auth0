@@ -339,6 +339,9 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         authResponse: serializeCredential(credential)
       });
     } catch (err: any) {
+      if (err?.error === "mfa_required") {
+        throw err;
+      }
       throw new PasskeyGetTokenError(
         err?.error ?? "client_error",
         err?.error_description ?? "Passkey verification failed",
@@ -360,6 +363,9 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         options ?? {}
       );
     } catch (err: any) {
+      if (err?.error === "mfa_required") {
+        throw err;
+      }
       throw new PasskeyEnrollmentChallengeError(
         err?.error ?? "unknown_error",
         err?.error_description ?? "Failed to get passkey enrollment challenge"
