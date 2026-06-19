@@ -14,7 +14,27 @@ export enum MtlsErrorCode {
    * with a client certificate) because the standard `fetch` global has no API
    * for attaching client certificates. The SDK cannot enforce mTLS without it.
    */
-  MTLS_REQUIRES_CUSTOM_FETCH = "mtls_requires_custom_fetch"
+  MTLS_REQUIRES_CUSTOM_FETCH = "mtls_requires_custom_fetch",
+
+  /**
+   * `useMtls` was set to `true` but the authorization server's discovery
+   * document does not advertise `mtls_endpoint_aliases`.
+   *
+   * RFC 8705 certificate-bound tokens require that token requests are sent to
+   * the mTLS-specific endpoint. Without `mtls_endpoint_aliases` in discovery,
+   * the SDK cannot route requests correctly and refuses to proceed rather than
+   * silently issuing non-certificate-bound tokens.
+   */
+  MTLS_ENDPOINT_ALIASES_MISSING = "mtls_endpoint_aliases_missing",
+
+  /**
+   * `useMtls` was set to `true` alongside a `clientSecret` or
+   * `clientAssertionSigningKey`, which are mutually exclusive with mTLS.
+   *
+   * mTLS replaces secret-based client authentication entirely. Providing both
+   * creates ambiguity and likely indicates a misconfiguration.
+   */
+  MTLS_INCOMPATIBLE_CLIENT_AUTH = "mtls_incompatible_client_auth"
 }
 
 /**
@@ -31,6 +51,8 @@ export enum MtlsErrorCode {
  *
  * Common scenarios that trigger `MtlsError`:
  * - `useMtls: true` is set without providing a `customFetch` implementation
+ * - The authorization server discovery document lacks `mtls_endpoint_aliases`
+ * - `useMtls: true` is combined with `clientSecret` or `clientAssertionSigningKey`
  *
  * @example Handling mTLS configuration errors
  * ```typescript
