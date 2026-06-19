@@ -20,6 +20,9 @@
   - [On the server (App Router)](#on-the-server-app-router)
   - [On the server (Pages Router)](#on-the-server-pages-router)
   - [Middleware](#middleware)
+- [Mounting the authentication routes as route handlers](#mounting-the-authentication-routes-as-route-handlers)
+  - [App Router](#app-router-handleauth)
+  - [Pages Router](#pages-router-handleauth)
 - [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
   - [Page Router](#page-router)
   - [App Router](#app-router)
@@ -543,6 +546,59 @@ export async function middleware(request: NextRequest) {
 
 > [!IMPORTANT]  
 > The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
+## Mounting the authentication routes as route handlers
+
+By default the SDK mounts its authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`, `/auth/profile`, …) through `auth0.middleware()`. If you prefer not to run the SDK in the middleware, you can instead mount these routes as ordinary **route handlers** using `auth0.handleAuth`. It works with both the App Router and the Pages Router.
+
+> [!NOTE]
+> You only need this if you are not already mounting the routes via `auth0.middleware()`. Use one approach or the other — not both — for the authentication routes.
+
+<a id="app-router-handleauth"></a>
+
+### App Router
+
+Create a catch-all route handler at `app/auth/[...auth0]/route.ts`:
+
+```ts
+// app/auth/[...auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.handleAuth;
+export const POST = auth0.handleAuth;
+```
+
+Because the file lives at `app/auth/[...auth0]`, the incoming pathnames (`/auth/login`, `/auth/callback`, …) already match the SDK's default routes, so no extra configuration is required.
+
+<a id="pages-router-handleauth"></a>
+
+### Pages Router
+
+Create a catch-all API route at `pages/api/auth/[...auth0].ts`:
+
+```ts
+// pages/api/auth/[...auth0].ts
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.handleAuth;
+```
+
+> [!IMPORTANT]
+> Pages Router API routes are always served from `/api/...`. This means the incoming pathnames will be `/api/auth/login`, `/api/auth/callback`, etc. — which do **not** match the SDK's default routes (`/auth/login`, …). You must configure the routes to include the `/api` prefix, either via the `routes` option or the `NEXT_PUBLIC_*_ROUTE` environment variables, and update your Allowed Callback URLs in the Auth0 Dashboard accordingly:
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    callback: "/api/auth/callback",
+    backChannelLogout: "/api/auth/backchannel-logout"
+  }
+});
+```
 
 ## Protecting a Server-Side Rendered (SSR) Page
 

@@ -61,6 +61,7 @@ import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import {
   toHeadersFromIncomingMessage,
   toNextRequest,
+  toNextRequestFromPagesRouter,
   toNextResponse,
   toUrlFromPagesRouter
 } from "./next-compat.js";
@@ -731,6 +732,10 @@ export class Auth0Client {
     if (staticClient) {
       staticClient.provider = this.provider;
     }
+
+    // Bind handleAuth so it can be passed directly as a route handler export,
+    // e.g. `export const GET = auth0.handleAuth`.
+    this.handleAuth = this.handleAuth.bind(this);
   }
 
   /**
@@ -743,6 +748,93 @@ export class Auth0Client {
       nextReq.nextUrl
     );
     return authClient.handler.bind(authClient)(nextReq);
+  }
+
+  /**
+   * handleAuth mounts the SDK's auth routes (login, logout, callback, profile,
+   * etc.) as a route handler, for apps that prefer not to run the SDK in the
+   * middleware.
+   *
+   * It works with both the App Router and the Pages Router. The method is bound
+   * to the client instance in the constructor, so it can be passed directly as
+   * a route handler export.
+   *
+   * @example App Router (`app/auth/[...auth0]/route.ts`)
+   * ```typescript
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export const GET = auth0.handleAuth;
+   * export const POST = auth0.handleAuth;
+   * ```
+   *
+   * @example Pages Router (`pages/api/auth/[...auth0].ts`)
+   * ```typescript
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default auth0.handleAuth;
+   * ```
+   *
+   * Note: Pages Router API routes are served from `/api/...`, so the SDK routes
+   * must be configured to include the `/api` prefix (e.g. via the `routes`
+   * option or the `NEXT_PUBLIC_*_ROUTE` environment variables) for the handler
+   * to match incoming requests.
+   */
+  async handleAuth(req: Request | NextRequest): Promise<NextResponse>;
+  async handleAuth(req: NextApiRequest, res: NextApiResponse): Promise<void>;
+  async handleAuth(
+    req: Request | NextRequest | NextApiRequest,
+    res?: NextApiResponse
+  ): Promise<NextResponse | void> {
+    // App Router / Route Handler: return the NextResponse directly.
+    if (isRequest(req)) {
+      return this.middleware(req as Request | NextRequest);
+    }
+
+    // Pages Router API route: normalize the request, run the existing handler,
+    // then write the resulting NextResponse back onto the NextApiResponse.
+    const nextReq = toNextRequestFromPagesRouter(req as NextApiRequest);
+    const authClient = await this.provider.forRequest(
+      nextReq.headers,
+      nextReq.nextUrl
+    );
+    const nextRes = await authClient.handler.bind(authClient)(nextReq);
+
+    await this.writeNextResponseToApiResponse(nextRes, res as NextApiResponse);
+  }
+
+  /**
+   * Write a NextResponse onto a Pages Router NextApiResponse: status, headers
+   * (handling multiple `set-cookie` values), and body.
+   */
+  private async writeNextResponseToApiResponse(
+    nextRes: NextResponse,
+    apiRes: NextApiResponse
+  ): Promise<void> {
+    // Multiple set-cookie headers must be set as an array; res.setHeader()
+    // overwrites previous values when called repeatedly with the same name.
+    const setCookieValues = nextRes.headers.getSetCookie();
+    if (setCookieValues.length > 0) {
+      apiRes.setHeader("set-cookie", setCookieValues);
+    }
+
+    for (const [key, value] of nextRes.headers.entries()) {
+      if (key.toLowerCase() === "set-cookie") {
+        continue;
+      }
+      apiRes.setHeader(key, value);
+    }
+
+    apiRes.statusCode = nextRes.status;
+    if (nextRes.statusText) {
+      apiRes.statusMessage = nextRes.statusText;
+    }
+
+    const body = nextRes.body ? await nextRes.text() : null;
+    if (body) {
+      apiRes.send(body);
+    } else {
+      apiRes.end();
+    }
   }
 
   /**

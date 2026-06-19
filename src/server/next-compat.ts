@@ -147,3 +147,76 @@ export function toUrlFromPagesRouter(
     return undefined;
   }
 }
+
+/**
+ * Re-serialize an already-parsed Pages Router request body back into a string.
+ *
+ * Next.js' API route body parser populates `req.body` with an already-parsed
+ * value (an object for JSON / urlencoded payloads, a string for text). To run
+ * the existing `NextRequest`-based auth handlers we must reconstruct a body that
+ * those handlers can read back the same way. We re-serialize based on the
+ * original `content-type` so that, for example, the back-channel logout handler
+ * (which reads `application/x-www-form-urlencoded` via `req.text()` +
+ * `URLSearchParams`) still sees a urlencoded body rather than JSON.
+ */
+function serializePagesRouterBody(
+  body: unknown,
+  contentType: string
+): string | undefined {
+  if (body === undefined || body === null) {
+    return undefined;
+  }
+
+  // Already a string (text/* payloads, or bodies Next.js left unparsed).
+  if (typeof body === "string") {
+    return body;
+  }
+
+  // application/x-www-form-urlencoded → re-encode the parsed object.
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    return new URLSearchParams(body as Record<string, string>).toString();
+  }
+
+  // Default to JSON for parsed objects (the common case for API routes).
+  return JSON.stringify(body);
+}
+
+/**
+ * Normalize a Pages Router request (`NextApiRequest`) into a `NextRequest`.
+ *
+ * This allows the SDK's existing `NextRequest`-based auth handlers to run
+ * unchanged when auth routes are mounted as Pages Router API routes
+ * (`pages/api/auth/[...auth0].ts`) instead of in the middleware.
+ * @internal
+ */
+export function toNextRequestFromPagesRouter(req: NextApiRequest): NextRequest {
+  const url =
+    toUrlFromPagesRouter(req) ??
+    new URL(req.url ?? "/", process.env.APP_BASE_URL);
+
+  const headers = toHeadersFromIncomingMessage(req);
+
+  const method = (req.method ?? "GET").toUpperCase();
+  const hasBody = method !== "GET" && method !== "HEAD";
+
+  const body = hasBody
+    ? serializePagesRouterBody(req.body, headers.get("content-type") ?? "")
+    : undefined;
+
+  // The re-serialized body length may differ from the original raw payload, so
+  // drop length/encoding headers and let the runtime recompute them.
+  headers.delete("content-length");
+  headers.delete("transfer-encoding");
+
+  const init: any = {
+    method,
+    headers,
+    duplex: "half"
+  };
+
+  if (body !== undefined) {
+    init.body = body;
+  }
+
+  return new NextRequest(url, init);
+}

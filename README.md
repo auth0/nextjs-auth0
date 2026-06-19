@@ -165,6 +165,9 @@ export const config = {
 > [!IMPORTANT]
 > This broad middleware matcher is essential for rolling sessions and security features. For scenarios when rolling sessions are disabled, see [Session Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for alternative approaches.
 
+> [!NOTE]
+> Prefer not to run the SDK in the middleware? You can instead mount the authentication routes as route handlers using `auth0.handleAuth` (App Router and Pages Router). See [Mounting the authentication routes as route handlers](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mounting-the-authentication-routes-as-route-handlers).
+
 You can now begin to authenticate your users by redirecting them to your application's `/auth/login` route:
 
 ```tsx

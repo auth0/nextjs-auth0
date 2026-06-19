@@ -1,7 +1,34 @@
+import { NextApiRequest } from "next";
 import { NextRequest, NextResponse } from "next/server.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { toNextRequest, toNextResponse } from "./next-compat.js";
+import {
+  toNextRequest,
+  toNextRequestFromPagesRouter,
+  toNextResponse
+} from "./next-compat.js";
+
+function createMockNextApiRequest(
+  url: string,
+  options: {
+    method?: string;
+    body?: any;
+    headers?: Record<string, string>;
+  } = {}
+): NextApiRequest {
+  const urlObj = new URL(url);
+  const { method = "GET", body, headers = {} } = options;
+
+  return {
+    method,
+    url: urlObj.pathname + urlObj.search,
+    headers: {
+      host: urlObj.host,
+      ...headers
+    },
+    body
+  } as unknown as NextApiRequest;
+}
 
 describe("next-compat", () => {
   describe("toNextRequest", () => {
@@ -330,6 +357,113 @@ describe("next-compat", () => {
         }
       });
       expect(() => toNextResponse(fakeRes)).not.toThrow();
+    });
+  });
+
+  describe("toNextRequestFromPagesRouter", () => {
+    const originalBaseUrl = process.env.APP_BASE_URL;
+
+    afterEach(() => {
+      process.env.APP_BASE_URL = originalBaseUrl;
+    });
+
+    it("builds the URL from host header and request url", () => {
+      const req = createMockNextApiRequest(
+        "https://example.com/api/auth/login?returnTo=/dashboard"
+      );
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+
+      expect(nextReq).toBeInstanceOf(NextRequest);
+      expect(nextReq.nextUrl.pathname).toBe("/api/auth/login");
+      expect(nextReq.nextUrl.searchParams.get("returnTo")).toBe("/dashboard");
+    });
+
+    it("falls back to APP_BASE_URL when the host header is missing", () => {
+      process.env.APP_BASE_URL = "https://fallback.example.com";
+      const req = {
+        method: "GET",
+        url: "/api/auth/login",
+        headers: {}
+      } as unknown as NextApiRequest;
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+
+      expect(nextReq.nextUrl.origin).toBe("https://fallback.example.com");
+      expect(nextReq.nextUrl.pathname).toBe("/api/auth/login");
+    });
+
+    it("converts headers, including arrays, to a Headers object", () => {
+      const req = createMockNextApiRequest(
+        "https://example.com/api/auth/login",
+        { headers: { "x-custom": "value" } }
+      );
+      (req.headers as any)["set-cookie"] = ["a=1", "b=2"];
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+
+      expect(nextReq.headers.get("x-custom")).toBe("value");
+    });
+
+    it("does not attach a body for GET requests", () => {
+      const req = createMockNextApiRequest(
+        "https://example.com/api/auth/login",
+        { method: "GET", body: { should: "be ignored" } }
+      );
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+
+      expect(nextReq.body).toBeNull();
+    });
+
+    it("serializes an already-parsed object body as JSON", async () => {
+      const req = createMockNextApiRequest(
+        "https://example.com/api/auth/mfa/challenge",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: { mfa_token: "abc", challenge_type: "otp" }
+        }
+      );
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+
+      expect(nextReq.method).toBe("POST");
+      await expect(nextReq.json()).resolves.toEqual({
+        mfa_token: "abc",
+        challenge_type: "otp"
+      });
+    });
+
+    it("re-encodes urlencoded bodies so req.text() yields a urlencoded string", async () => {
+      const req = createMockNextApiRequest(
+        "https://example.com/api/auth/backchannel-logout",
+        {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: { logout_token: "the-token" }
+        }
+      );
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+      const text = await nextReq.text();
+
+      expect(new URLSearchParams(text).get("logout_token")).toBe("the-token");
+    });
+
+    it("passes a string body through unchanged", async () => {
+      const req = createMockNextApiRequest(
+        "https://example.com/api/auth/backchannel-logout",
+        {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body: "raw-string-body"
+        }
+      );
+
+      const nextReq = toNextRequestFromPagesRouter(req);
+
+      await expect(nextReq.text()).resolves.toBe("raw-string-body");
     });
   });
 });
