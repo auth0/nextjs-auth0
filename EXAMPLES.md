@@ -27,6 +27,7 @@
 - [Protect an API Route](#protect-an-api-route)
   - [Page Router](#page-router-1)
   - [App Router](#app-router-1)
+- [Protecting Server Actions](#protecting-server-actions)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
   - [On the server (App Router)](#on-the-server-app-router-1)
@@ -692,7 +693,7 @@ The fix requires two things working together.
 
 **Step 1 — Let the Server Action request through middleware.**
 
-Detect the `Next-Action` header and skip the redirect for server action requests. Instead, return `NextResponse.next()` so the request reaches your server action function body.
+Detect the `Next-Action` header and skip the redirect for server action requests. Return `authResponse` (the response from `auth0.middleware()`) so that session cookies and other headers set by the SDK are preserved, and the request proceeds to your server action.
 
 ```ts
 // middleware.ts
@@ -716,7 +717,7 @@ export async function middleware(request: NextRequest) {
     // login page HTML as a server action result. Let the request through so
     // the redirect() call inside the server action can fire instead.
     if (request.headers.has("next-action")) {
-      return NextResponse.next();
+      return authResponse;
     }
 
     return NextResponse.redirect(new URL("/auth/login", request.url), {
