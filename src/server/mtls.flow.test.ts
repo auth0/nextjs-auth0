@@ -21,6 +21,7 @@ import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MtlsError, MtlsErrorCode } from "../errors/mtls-errors.js";
 import { getDefaultRoutes, setupMswLifecycle } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import type { SessionData } from "../types/index.js";
@@ -39,12 +40,16 @@ const ALG = "RS256";
 
 const STANDARD_TOKEN_ENDPOINT = `https://${DOMAIN}/oauth/token`;
 const MTLS_TOKEN_ENDPOINT = `https://mtls.${DOMAIN}/oauth/token`;
+const BC_AUTHORIZE_ENDPOINT = `https://${DOMAIN}/bc-authorize`;
 
 // ---------------------------------------------------------------------------
 // Discovery metadata (with and without mTLS aliases)
 // ---------------------------------------------------------------------------
 
-function makeDiscoveryMetadata(includeMtlsAliases: boolean) {
+function makeDiscoveryMetadata(
+  includeMtlsAliases: boolean,
+  includeCiba = false
+) {
   const base = {
     issuer: `https://${DOMAIN}/`,
     authorization_endpoint: `https://${DOMAIN}/authorize`,
@@ -54,7 +59,11 @@ function makeDiscoveryMetadata(includeMtlsAliases: boolean) {
     end_session_endpoint: `https://${DOMAIN}/oidc/logout`,
     response_types_supported: ["code"],
     subject_types_supported: ["public"],
-    id_token_signing_alg_values_supported: [ALG]
+    id_token_signing_alg_values_supported: [ALG],
+    ...(includeCiba && {
+      backchannel_authentication_endpoint: BC_AUTHORIZE_ENDPOINT,
+      backchannel_token_delivery_modes_supported: ["poll"]
+    })
   };
 
   if (!includeMtlsAliases) return base;
@@ -96,13 +105,15 @@ setupMswLifecycle(server);
 function setupHandlers(
   {
     includeMtlsAliases,
+    includeCiba,
     onTokenRequest
   }: {
     includeMtlsAliases: boolean;
+    includeCiba?: boolean;
     onTokenRequest?: (url: string, body: URLSearchParams) => void;
   } = { includeMtlsAliases: true }
 ) {
-  const metadata = makeDiscoveryMetadata(includeMtlsAliases);
+  const metadata = makeDiscoveryMetadata(includeMtlsAliases, includeCiba);
 
   const tokenHandler = async ({
     request
@@ -135,7 +146,15 @@ function setupHandlers(
     // Standard token endpoint (should NOT be called when useMtls=true)
     http.post(STANDARD_TOKEN_ENDPOINT, tokenHandler),
     // mTLS alias endpoint (should be called when useMtls=true)
-    http.post(MTLS_TOKEN_ENDPOINT, tokenHandler)
+    http.post(MTLS_TOKEN_ENDPOINT, tokenHandler),
+    // CIBA bc-authorize endpoint
+    http.post(BC_AUTHORIZE_ENDPOINT, () =>
+      HttpResponse.json({
+        auth_req_id: "test-auth-req-id",
+        expires_in: 120,
+        interval: 0.01
+      })
+    )
   );
 }
 
@@ -362,15 +381,52 @@ describe("mTLS flow tests", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 4. Graceful fallback when no mtls_endpoint_aliases in discovery
+  // 4. CIBA token poll routes to the mTLS alias endpoint
+  // -------------------------------------------------------------------------
+
+  describe("CIBA under mTLS", () => {
+    it("routes the CIBA token poll to the mTLS alias endpoint when useMtls=true", async () => {
+      const requestedUrls: string[] = [];
+      setupHandlers({
+        includeMtlsAliases: true,
+        includeCiba: true,
+        onTokenRequest: (url) => requestedUrls.push(url)
+      });
+
+      const { transactionStore, sessionStore } = makeStores();
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DOMAIN,
+        clientId: CLIENT_ID,
+        appBaseUrl: APP_BASE_URL,
+        secret,
+        routes: getDefaultRoutes(),
+        useMtls: true,
+        fetch: fetch as typeof fetch
+      });
+
+      const [error] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-binding-msg",
+        loginHint: { sub: "user-123" }
+      });
+
+      expect(error).toBeNull();
+      // The CIBA token poll must go to the mTLS alias, not the standard endpoint
+      expect(requestedUrls).toContain(MTLS_TOKEN_ENDPOINT);
+      expect(requestedUrls).not.toContain(STANDARD_TOKEN_ENDPOINT);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. Fail-closed when no mtls_endpoint_aliases in discovery
   // -------------------------------------------------------------------------
 
   describe("missing mtls_endpoint_aliases", () => {
-    it("falls back to the standard token endpoint if discovery has no mtls_endpoint_aliases", async () => {
-      const requestedUrls: string[] = [];
+    it("returns MtlsError when useMtls=true and discovery has no mtls_endpoint_aliases", async () => {
       setupHandlers({
-        includeMtlsAliases: false,
-        onTokenRequest: (url) => requestedUrls.push(url)
+        includeMtlsAliases: false
       });
 
       const { transactionStore, sessionStore } = makeStores();
@@ -390,9 +446,10 @@ describe("mTLS flow tests", () => {
       const session = await makeExpiredSession();
       const [error] = await authClient.getTokenSet(session, {});
 
-      // Should not throw — just falls back to the standard endpoint
-      expect(error).toBeNull();
-      expect(requestedUrls).toContain(STANDARD_TOKEN_ENDPOINT);
+      expect(error).toBeInstanceOf(MtlsError);
+      expect((error as MtlsError).code).toBe(
+        MtlsErrorCode.MTLS_ENDPOINT_ALIASES_MISSING
+      );
     });
   });
 });
