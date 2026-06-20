@@ -8,7 +8,7 @@ import type {
   Authenticator,
   ChallengeResponse,
   EnrollmentResponse,
-  MfaVerifyResponse
+  MfaTokenEndpointResponse
 } from "../types/index.js";
 
 /**
@@ -346,7 +346,7 @@ export const verifyScenarios: MfaTestScenario<
     scope?: string;
     mfaRequirements?: MfaRequirements;
   },
-  MfaVerifyResponse
+  MfaTokenEndpointResponse
 >[] = [
   {
     name: "OTP verification success",
@@ -365,7 +365,7 @@ export const verifyScenarios: MfaTestScenario<
         expires_in: 3600
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.access_token !== "new-access-token")
         throw new Error("Expected access_token");
       if (result.token_type !== "Bearer")
@@ -389,7 +389,7 @@ export const verifyScenarios: MfaTestScenario<
         expires_in: 3600
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.access_token !== "new-access-token")
         throw new Error("Expected access_token");
     }
@@ -411,7 +411,7 @@ export const verifyScenarios: MfaTestScenario<
         recovery_code: "new-recovery-code"
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.access_token !== "new-access-token")
         throw new Error("Expected access_token");
       if (result.recovery_code !== "new-recovery-code")
@@ -434,7 +434,7 @@ export const verifyScenarios: MfaTestScenario<
         expires_in: 3600
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.recovery_code !== undefined)
         throw new Error("Expected no recovery_code");
     }

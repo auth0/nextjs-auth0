@@ -512,6 +512,7 @@ describe("AuthClient passkey route handlers", () => {
       expect(typeof body.mfa_token).toBe("string");
       expect(body.mfa_token.length).toBeGreaterThan(0);
       expect(body.mfa_token).not.toBe("raw-mfa-token-passkey");
+      expect(body.mfa_requirements).toEqual({ challenge: [{ type: "otp" }] });
     });
 
     it("does not set a session cookie on mfa_required — no session exists yet", async () => {

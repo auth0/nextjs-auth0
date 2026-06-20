@@ -1176,11 +1176,13 @@ export class Auth0Client {
    *       authenticatorId: authenticators[0].id
    *     });
    *
-   *     // Verify code
-   *     const tokens = await auth0.mfa.verify({
+   *     // Verify code — tokens stored in session cookie, not in response body
+   *     await auth0.mfa.verify({
    *       mfaToken: error.mfa_token,
    *       otp: '123456'
    *     });
+   *     // Retrieve the access token from the session after verify
+   *     const token = await auth0.getAccessToken();
    *   }
    * }
    * ```

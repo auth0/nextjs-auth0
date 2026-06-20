@@ -1070,6 +1070,7 @@ describe("AuthClient passwordless methods", () => {
         expect(typeof body.mfa_token).toBe("string");
         expect(body.mfa_token.length).toBeGreaterThan(0);
         expect(body.mfa_token).not.toBe("raw-mfa-token-passwordless");
+        expect(body.mfa_requirements).toEqual({ challenge: [{ type: "otp" }] });
       });
 
       it("does not set a session cookie on mfa_required — no session exists yet", async () => {

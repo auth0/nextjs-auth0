@@ -178,8 +178,11 @@ export class ServerMfaClient implements MfaClient {
    * Verify MFA code and complete authentication.
    * App Router overload (uses cookies() internally).
    *
+   * Stores resulting tokens in the session cookie. Returns `{ success: true }`.
+   * Call `getAccessToken()` after verify to retrieve the token.
+   *
    * @param options - Verification options
-   * @returns Token response
+   * @returns `{ success: true }`
    */
   async verify(options: VerifyMfaOptions): Promise<MfaVerifyResponse>;
 
@@ -187,10 +190,13 @@ export class ServerMfaClient implements MfaClient {
    * Verify MFA code and complete authentication.
    * Pages Router/Middleware overload (explicit req/res).
    *
+   * Stores resulting tokens in the session cookie. Returns `{ success: true }`.
+   * Call `getAccessToken()` after verify to retrieve the token.
+   *
    * @param req - Next.js request
    * @param res - Next.js response
    * @param options - Verification options
-   * @returns Token response
+   * @returns `{ success: true }`
    */
   async verify(
     req: NextRequest,
@@ -217,16 +223,14 @@ export class ServerMfaClient implements MfaClient {
         );
       }
       const authClient = await this.getAuthClient(arg1);
-      // Verify MFA and get tokens
-      const result = await authClient.mfaVerify(arg3);
-      // Cache tokens in session
+      const tokenResponse = await authClient.mfaVerify(arg3);
       await authClient.cacheTokenFromMfaVerify(
-        result,
+        tokenResponse,
         arg3.mfaToken,
         arg1.cookies,
         arg2.cookies
       );
-      return result;
+      return { success: true };
     } else {
       // App Router: verify(options)
       if (arg2 !== undefined || arg3 !== undefined) {
@@ -235,18 +239,16 @@ export class ServerMfaClient implements MfaClient {
         );
       }
       const authClient = await this.getAuthClient();
-      // Verify MFA and get tokens
-      const result = await authClient.mfaVerify(arg1);
-      // Get cookies from next/headers and cache tokens
+      const tokenResponse = await authClient.mfaVerify(arg1);
       const { cookies: cookiesLib } = await import("next/headers.js");
       const cookies = await cookiesLib();
       await authClient.cacheTokenFromMfaVerify(
-        result,
+        tokenResponse,
         arg1.mfaToken,
         cookies as any,
         cookies as any
       );
-      return result;
+      return { success: true };
     }
   }
 }

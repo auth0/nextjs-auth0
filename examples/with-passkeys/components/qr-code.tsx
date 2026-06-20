@@ -9,7 +9,9 @@ export function QrCode({ value }: { value: string }) {
 
   useEffect(() => {
     if (canvasRef.current) {
-      QRCode.toCanvas(canvasRef.current, value, { width: 160, margin: 2 }).catch(() => {});
+      QRCode.toCanvas(canvasRef.current, value, { width: 160, margin: 2 }).catch(
+        (err) => console.error("Failed to render QR code:", err)
+      );
     }
   }, [value]);
 

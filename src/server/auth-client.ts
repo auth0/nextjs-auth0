@@ -75,7 +75,7 @@ import {
   GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
-  MfaVerifyResponse,
+  MfaTokenEndpointResponse,
   PasskeyChallengeOptions,
   PasskeyChallengeResponse,
   PasskeyEnrollmentChallengeOptions,
@@ -3657,12 +3657,14 @@ export class AuthClient {
         context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
       );
 
-      if (
-        allowedTypes.size === 0 ||
-        !allowedTypes.has(challengeType.toLowerCase())
-      ) {
+      if (allowedTypes.size === 0) {
         throw new MfaNoAvailableFactorsError(
           "No MFA challenge types available in mfa_requirements"
+        );
+      }
+      if (!allowedTypes.has(challengeType.toLowerCase())) {
+        throw new MfaNoAvailableFactorsError(
+          `Challenge type "${challengeType}" is not allowed by mfa_requirements. Allowed: ${[...allowedTypes].join(", ")}`
         );
       }
     }
@@ -3805,7 +3807,9 @@ export class AuthClient {
    * @throws {MfaVerifyError} On API failure
    * @throws {MfaRequiredError} For chained MFA (with encrypted token)
    */
-  async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
+  async mfaVerify(
+    options: VerifyMfaOptions
+  ): Promise<MfaTokenEndpointResponse> {
     await this.ensureDpopValidated();
     // Decrypt token to extract context
     const { mfaToken, audience, scope } = await decryptMfaToken(
@@ -3917,7 +3921,7 @@ export class AuthClient {
     const result = {
       ...tokenEndpointResponse,
       token_type: normalizeTokenType(tokenEndpointResponse.token_type)
-    } as MfaVerifyResponse;
+    } as MfaTokenEndpointResponse;
 
     return result;
   }
@@ -3932,7 +3936,7 @@ export class AuthClient {
    * @throws {MfaVerifyError} If session not found
    */
   async cacheTokenFromMfaVerify(
-    tokenResponse: MfaVerifyResponse,
+    tokenResponse: MfaTokenEndpointResponse,
     encryptedMfaToken: string,
     reqCookies: RequestCookies,
     resCookies: ResponseCookies

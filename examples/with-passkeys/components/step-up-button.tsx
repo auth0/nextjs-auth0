@@ -32,7 +32,7 @@ export function StepUpButton() {
         audience: "https://api.example.com",
         scope: "read:users write:users"
       });
-      alert(`Access token received — check the browser console.\n\n${token}`);
+      console.log("Access token received (step-up not required):", token);
     } catch (err) {
       if (err instanceof MfaRequiredError) {
         try {

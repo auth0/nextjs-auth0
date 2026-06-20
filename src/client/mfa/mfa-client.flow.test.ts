@@ -301,7 +301,11 @@ describe("ClientMfaClient", () => {
                   expect(body.recovery_code).toBe(scenario.input.recoveryCode);
                 }
 
-                // Verify response is already snake_case
+                // Success: server always returns { success: true } — tokens are in the session cookie.
+                // Error: propagate the scenario's error body and status.
+                if (scenario.mswResponse!.status === 200) {
+                  return HttpResponse.json({ success: true }, { status: 200 });
+                }
                 return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
                 });
@@ -330,11 +334,7 @@ describe("ClientMfaClient", () => {
           }
         } else {
           const result = await mfaClient.verify(verifyOptions);
-          if (typeof scenario.expected === "function") {
-            scenario.expected(result);
-          } else {
-            expect(result).toEqual(scenario.expected);
-          }
+          expect(result).toEqual({ success: true });
         }
       });
     });
