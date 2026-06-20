@@ -123,11 +123,8 @@ export const GRANT_TYPE_MFA_RECOVERY_CODE =
  *
  * All fields other than `success` and `recovery_code` exist for backward
  * compatibility only and will always be `undefined` at runtime. They are
- * deprecated and will be removed in the next major version.
- *
- * @deprecated All token and metadata fields (`access_token`, `refresh_token`,
- * `scope`, `audience`, etc.) are deprecated. Use `getAccessToken()` after
- * `mfa.verify()` to retrieve the resulting token.
+ * deprecated at the field level and will be removed in the next major version.
+ * Use `getAccessToken()` after `mfa.verify()` to retrieve the resulting token.
  */
 export interface MfaVerifyResponse {
   /** Always `true` on a successful verification. */

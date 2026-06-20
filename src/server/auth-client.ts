@@ -75,7 +75,6 @@ import {
   GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
-  MfaTokenEndpointResponse,
   PasskeyChallengeOptions,
   PasskeyChallengeResponse,
   PasskeyEnrollmentChallengeOptions,
@@ -97,6 +96,7 @@ import {
   User,
   VerifyMfaOptions
 } from "../types/index.js";
+import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
@@ -1568,10 +1568,17 @@ export class AuthClient {
       const { error: sessionError, session } =
         await this.getSessionWithDomainCheck(req.cookies);
 
+      const successBody = {
+        success: true as const,
+        ...(result.recovery_code !== undefined && {
+          recovery_code: result.recovery_code
+        })
+      };
+
       if (!sessionError && session) {
         // Step-up MFA: session exists — cache new token and return success.
         // Tokens are stored in the session cookie; the body must not expose them.
-        const res = NextResponse.json({ success: true });
+        const res = NextResponse.json(successBody);
         await this.cacheTokenFromMfaVerify(
           result,
           mfaToken,
@@ -1583,7 +1590,7 @@ export class AuthClient {
         // First-factor MFA (e.g. passkey + MFA): no session yet — create one from
         // the token response. Return { success: true } only; tokens stay in the
         // session cookie and must not be exposed in the response body.
-        const res = NextResponse.json({ success: true });
+        const res = NextResponse.json(successBody);
         await this.createSessionFromPasswordlessVerify(
           result as PasswordlessVerifyTokenResponse,
           req.cookies,
@@ -1593,10 +1600,13 @@ export class AuthClient {
         return res;
       }
 
-      // mfaVerify succeeded but returned no id_token and no session exists —
-      // this should not happen with a well-formed Auth0 response. Return success
-      // without exposing raw tokens to the browser.
-      return NextResponse.json({ success: true });
+      // mfaVerify succeeded but no id_token and no existing session —
+      // malformed Auth0 response; returning success here would leave the user
+      // authenticated in their mind but with no session cookie.
+      throw new MfaVerifyError(
+        "missing_session",
+        "MFA verification succeeded but no session could be established. Ensure 'openid' scope is requested."
+      );
     } catch (e) {
       return handleMfaError(e);
     }

@@ -230,7 +230,14 @@ export class ServerMfaClient implements MfaClient {
         arg1.cookies,
         arg2.cookies
       );
-      return { success: true };
+      // Tokens stay in the session cookie. recovery_code is the one exception —
+      // it's a one-time backup credential the user must write down immediately.
+      return {
+        success: true as const,
+        ...(tokenResponse.recovery_code !== undefined && {
+          recovery_code: tokenResponse.recovery_code
+        })
+      };
     } else {
       // App Router: verify(options)
       if (arg2 !== undefined || arg3 !== undefined) {
@@ -248,7 +255,14 @@ export class ServerMfaClient implements MfaClient {
         cookies as any,
         cookies as any
       );
-      return { success: true };
+      // Tokens stay in the session cookie. recovery_code is the one exception —
+      // it's a one-time backup credential the user must write down immediately.
+      return {
+        success: true as const,
+        ...(tokenResponse.recovery_code !== undefined && {
+          recovery_code: tokenResponse.recovery_code
+        })
+      };
     }
   }
 }

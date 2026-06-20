@@ -5,7 +5,7 @@ import { useState } from "react";
 import { getAccessToken, mfa } from "@auth0/nextjs-auth0/client";
 import { MfaRequiredError } from "@auth0/nextjs-auth0/errors";
 
-type Step = "idle" | "otp";
+type Step = "idle" | "otp" | "done";
 
 export function StepUpButton() {
   const [step, setStep] = useState<Step>("idle");
@@ -28,11 +28,11 @@ export function StepUpButton() {
     setError(null);
 
     try {
-      const token = await getAccessToken({
+      await getAccessToken({
         audience: "https://api.example.com",
         scope: "read:users write:users"
       });
-      console.log("Access token received (step-up not required):", token);
+      setStep("done");
     } catch (err) {
       if (err instanceof MfaRequiredError) {
         try {
@@ -84,12 +84,12 @@ export function StepUpButton() {
 
       // mfa.verify() caches the token in the session cookie and returns { success: true }.
       // Retrieve the access token from the session via getAccessToken().
-      const token = await getAccessToken({
+      await getAccessToken({
         audience: "https://api.example.com",
         scope: "read:users write:users"
       });
-      console.log(`MFA complete — access token received.\n\n${token}`);
       reset();
+      setStep("done");
     } catch (err: any) {
       setError(err?.error_description ?? err?.message ?? "Invalid code. Please try again.");
     } finally {
@@ -148,6 +148,17 @@ export function StepUpButton() {
           className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
         >
           ← Cancel
+        </button>
+      </div>
+    );
+  }
+
+  if (step === "done") {
+    return (
+      <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        Access token retrieved successfully.{" "}
+        <button type="button" onClick={reset} className="underline">
+          Reset
         </button>
       </div>
     );

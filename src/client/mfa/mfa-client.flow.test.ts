@@ -301,10 +301,14 @@ describe("ClientMfaClient", () => {
                   expect(body.recovery_code).toBe(scenario.input.recoveryCode);
                 }
 
-                // Success: server always returns { success: true } — tokens are in the session cookie.
+                // Success: server returns { success: true } + recovery_code if tenant rotated it.
                 // Error: propagate the scenario's error body and status.
                 if (scenario.mswResponse!.status === 200) {
-                  return HttpResponse.json({ success: true }, { status: 200 });
+                  const successBody: Record<string, unknown> = { success: true };
+                  if (scenario.mswResponse!.body?.recovery_code !== undefined) {
+                    successBody.recovery_code = scenario.mswResponse!.body.recovery_code;
+                  }
+                  return HttpResponse.json(successBody, { status: 200 });
                 }
                 return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
@@ -334,7 +338,11 @@ describe("ClientMfaClient", () => {
           }
         } else {
           const result = await mfaClient.verify(verifyOptions);
-          expect(result).toEqual({ success: true });
+          const expectedResult: Record<string, unknown> = { success: true };
+          if (scenario.mswResponse?.body?.recovery_code !== undefined) {
+            expectedResult.recovery_code = scenario.mswResponse.body.recovery_code;
+          }
+          expect(result).toEqual(expectedResult);
         }
       });
     });

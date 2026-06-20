@@ -7,9 +7,9 @@ import type { MfaRequirements } from "../errors/index.js";
 import type {
   Authenticator,
   ChallengeResponse,
-  EnrollmentResponse,
-  MfaTokenEndpointResponse
+  EnrollmentResponse
 } from "../types/index.js";
+import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 
 /**
  * Test scenario structure for black-box testing.

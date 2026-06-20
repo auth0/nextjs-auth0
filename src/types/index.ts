@@ -232,7 +232,6 @@ export {
   EnrollFactorTypeOtpOptions,
   EnrollFactorTypeOobOptions,
   MfaVerifyResponse,
-  MfaTokenEndpointResponse,
   VerifyMfaOptions,
   VerifyMfaOptionsBase,
   VerifyMfaWithOtpOptions,
