@@ -96,8 +96,8 @@ import {
   User,
   VerifyMfaOptions
 } from "../types/index.js";
-import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 import type { SessionCheckResult } from "../types/mcd.js";
+import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {

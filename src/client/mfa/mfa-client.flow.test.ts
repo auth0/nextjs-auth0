@@ -304,9 +304,12 @@ describe("ClientMfaClient", () => {
                 // Success: server returns { success: true } + recovery_code if tenant rotated it.
                 // Error: propagate the scenario's error body and status.
                 if (scenario.mswResponse!.status === 200) {
-                  const successBody: Record<string, unknown> = { success: true };
+                  const successBody: Record<string, unknown> = {
+                    success: true
+                  };
                   if (scenario.mswResponse!.body?.recovery_code !== undefined) {
-                    successBody.recovery_code = scenario.mswResponse!.body.recovery_code;
+                    successBody.recovery_code =
+                      scenario.mswResponse!.body.recovery_code;
                   }
                   return HttpResponse.json(successBody, { status: 200 });
                 }
@@ -340,7 +343,8 @@ describe("ClientMfaClient", () => {
           const result = await mfaClient.verify(verifyOptions);
           const expectedResult: Record<string, unknown> = { success: true };
           if (scenario.mswResponse?.body?.recovery_code !== undefined) {
-            expectedResult.recovery_code = scenario.mswResponse.body.recovery_code;
+            expectedResult.recovery_code =
+              scenario.mswResponse.body.recovery_code;
           }
           expect(result).toEqual(expectedResult);
         }
