@@ -1223,7 +1223,7 @@ describe("AuthClient MFA Methods", () => {
         expect(result.recovery_code).toBeUndefined();
       });
 
-      it("should return 500 when mfaVerify succeeds with no id_token and no existing session", async () => {
+      it("should return 400 when mfaVerify succeeds with no id_token and no existing session", async () => {
         const encryptedToken = await encryptMfaToken(
           DEFAULT.mfaToken,
           "https://api.example.com",
