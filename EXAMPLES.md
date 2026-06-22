@@ -27,6 +27,7 @@
 - [Protect an API Route](#protect-an-api-route)
   - [Page Router](#page-router-1)
   - [App Router](#app-router-1)
+- [Protecting Server Actions](#protecting-server-actions)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
   - [On the server (App Router)](#on-the-server-app-router-1)
@@ -670,6 +671,123 @@ export default withPageAuthRequired(function Products() {
   return <div>{data.protected}</div>;
 });
 ```
+
+## Protecting Server Actions
+
+Next.js [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations) are invoked via an internal `POST` request with a `Next-Action` header. This means they pass through your middleware just like any other request — and this creates a subtle but important pitfall when protecting them against expired sessions.
+
+### Why `NextResponse.redirect()` in middleware does not work for Server Actions
+
+When a regular page navigation hits an expired session, returning a `303` redirect from middleware works perfectly: the browser follows the redirect and navigates to the login page.
+
+However, when a Server Action is invoked, React's internal fetch runner sends a `POST` with a `Next-Action` header. The browser's `fetch` API **automatically follows any `3xx` redirect at the network layer** — before React ever sees the response. The redirect is consumed silently: `fetch` sends a `GET` to `/auth/login`, receives back the login page HTML, and hands that HTML to the React runtime as the "result" of the server action. React discards it. The action appears to do nothing and the user stays on the same page with no feedback.
+
+What you see in the browser network tab is:
+- `POST /protected-page` → `303`
+- `GET /auth/login` → `200`
+- *(no navigation)*
+
+### The correct pattern
+
+The fix requires two things working together.
+
+**Step 1 — Let the Server Action request through middleware.**
+
+Detect the `Next-Action` header and skip the redirect for server action requests. Return `authResponse` (the response from `auth0.middleware()`) so that session cookies and other headers set by the SDK are preserved, and the request proceeds to your server action.
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request);
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authResponse;
+  }
+
+  const session = await auth0.getSession(request);
+  const isProtectedRoute = !request.nextUrl.pathname.startsWith("/public");
+
+  if (!session && isProtectedRoute) {
+    // Server Actions are POST requests with a Next-Action header.
+    // Returning a 303 redirect here does NOT navigate the browser — React's
+    // internal fetch runner follows the redirect silently and discards the
+    // login page HTML as a server action result. Let the request through so
+    // the redirect() call inside the server action can fire instead.
+    if (request.headers.has("next-action")) {
+      return authResponse;
+    }
+
+    return NextResponse.redirect(new URL("/auth/login", request.url), {
+      status: 303,
+    });
+  }
+
+  return authResponse;
+}
+```
+
+**Step 2 — Call `redirect()` from `next/navigation` inside the Server Action.**
+
+`redirect()` from `next/navigation` does **not** issue an HTTP redirect. It throws a special internal `NEXT_REDIRECT` error that Next.js encodes into the React Flight response. The client-side React runtime reads the redirect instruction and calls `router.push()` — this is the mechanism that actually navigates the browser.
+
+```ts
+// app/actions.ts
+"use server";
+
+import { redirect } from "next/navigation";
+import { auth0 } from "@/lib/auth0";
+
+export async function myProtectedAction(formData: FormData) {
+  // Check session BEFORE any try/catch block (see warning below).
+  const session = await auth0.getSession();
+  if (!session) {
+    redirect("/auth/login");
+  }
+
+  // ... rest of your action
+}
+```
+
+> [!WARNING]
+> **Do not call `redirect()` inside a `try/catch` block.**
+>
+> `redirect()` works by throwing a special `NEXT_REDIRECT` error internally. If it is called inside a `try/catch`, that error will be caught and swallowed — the redirect will silently fail and the user will not be navigated. Always check the session and call `redirect()` before entering any `try/catch` block.
+>
+> ```ts
+> // ❌ Wrong — redirect() is called inside catch and will be swallowed
+> export async function myAction() {
+>   try {
+>     const session = await auth0.getSession();
+>     if (!session) throw new Error("No session");
+>     // ...
+>   } catch (error) {
+>     redirect("/auth/login"); // never fires — caught then discarded
+>   }
+> }
+>
+> // ✅ Correct — session check is outside try/catch
+> export async function myAction() {
+>   const session = await auth0.getSession();
+>   if (!session) {
+>     redirect("/auth/login"); // fires correctly
+>   }
+>
+>   try {
+>     // ... rest of action
+>   } catch (error) {
+>     return { error: "Something went wrong" };
+>   }
+> }
+> ```
+
+### Why this is not an SDK bug
+
+The Auth0 SDK does not issue `303` redirects for server action requests — that logic lives entirely in user-written middleware code. The SDK's `auth0.middleware()` only handles `/auth/*` routes and rolling session cookie refresh; it never redirects based on session state. The redirect in the buggy pattern is always user code.
+
+The SDK's `auth0.getSession()` works correctly inside server actions. The issue is purely about how the redirect is triggered and which mechanism is capable of navigating the browser from within a server action context.
 
 ## Accessing the idToken
 
@@ -3238,10 +3356,9 @@ export const auth0 = new Auth0Client({
 
 | Option             | Type      | Description                                                                                                                                                                                                                                   |
 | ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rolling             | `boolean`                 | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
-| absoluteDuration    | `number`                  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
-| inactivityDuration  | `number`                  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
-| beforeSessionRolled | `BeforeSessionRolledHook` | A predicate `(req: NextRequest) => boolean \| Promise<boolean>` that decides whether the session should be rolled for an incoming request. May be synchronous or asynchronous. Only consulted when `rolling` is enabled. See [Selectively rolling sessions](#selectively-rolling-sessions). Default: the session is always rolled. |
+| rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
+| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
+| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
 ### Understanding Rolling Sessions
 
@@ -3277,37 +3394,6 @@ export const config = {
 
 > [!WARNING]
 > Disabling rolling sessions changes the user experience significantly. Users will be logged out after the absolute duration regardless of their activity level, requiring manual re-authentication.
-
-### Selectively rolling sessions
-
-Because rolling sessions require the middleware to run on (almost) every request, each request rolls the session and writes to the session store. With a stateful session store (e.g. Redis), a single page that fans out into many sub-requests can multiply the writes against your store.
-
-The `beforeSessionRolled` hook lets you decide, per request, whether the session should be rolled. Return `false` to skip rolling for that request while keeping rolling enabled everywhere else. The hook may be synchronous or asynchronous (return a `boolean` or a `Promise<boolean>`):
-
-```ts
-import type { NextRequest } from "next/server";
-
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client({
-  session: {
-    rolling: true,
-    beforeSessionRolled: (req: NextRequest) => {
-      // Only roll the session for top-level page navigations, not for the
-      // many API/data requests a page may trigger.
-      return !req.nextUrl.pathname.startsWith("/api/");
-    }
-  }
-});
-```
-
-Notes:
-
-- The hook is only consulted when `rolling` is enabled.
-- The hook may be asynchronous; the SDK awaits its result before deciding.
-- If the hook throws or rejects, the SDK fails open and rolls the session as usual (a warning is logged).
-- Skipping rolling does not log the user out — it only avoids extending the session (and the corresponding write to the session store) for that request. The session still expires according to `inactivityDuration` and `absoluteDuration`.
-- This hook only controls the middleware's passive expiry-bump on pass-through requests. Writes triggered by token refresh, updateSession, or authentication flows always proceed regardless of this hook — those writes occur because the session data itself changed, not just its expiry.
 
 ## Cookie Configuration
 
@@ -4113,17 +4199,31 @@ const result = await auth0.customTokenExchange({
 
 ### With Actor Token (Delegation)
 
-For delegation scenarios where a service acts on behalf of a user:
+For delegation scenarios where a service or agent acts on behalf of a user (RFC 8693 §4.1). The `act` claim in the returned ID token identifies the acting party and is automatically decoded and returned on the response:
 
 ```ts
 const result = await auth0.customTokenExchange({
   subjectToken: userToken,
   subjectTokenType: "urn:acme:user-token",
-  actorToken: serviceToken,
-  actorTokenType: "urn:acme:service-token",
+  actorToken: agentToken,
+  actorTokenType: "https://idp.example.com/token-type/agent",
   audience: "https://downstream-api.example.com"
 });
+
+// act claim decoded from the ID token — set via Auth0 Action using api.authentication.setActor()
+console.log(result.act);
+// { sub: "agent|abc123" }
 ```
+
+The `act` claim is also accessible on `session.user.act` when present in a session-creating flow (e.g. standard OIDC login with an Action that calls `api.authentication.setActor()`):
+
+```ts
+const session = await auth0.getSession();
+console.log(session?.user?.act);
+// { sub: "agent|abc123" }
+```
+
+> **Note**: Auth0 suppresses the refresh token when `actor_token` is present in the request. `result.refreshToken` will be `undefined` in delegation flows — this is expected behaviour, not an error.
 
 ### Error Handling
 
@@ -4149,6 +4249,9 @@ try {
         break;
       case CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE:
         // Handle missing actor token type when actor token provided
+        break;
+      case CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE:
+        // Handle invalid actor token type format
         break;
       case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
         // Handle server-side exchange failure
