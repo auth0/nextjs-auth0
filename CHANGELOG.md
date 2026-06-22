@@ -1,5 +1,21 @@
 # Change Log
 
+## [v4.23.0](https://github.com/auth0/nextjs-auth0/tree/v4.23.0) (2026-06-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.22.0...v4.23.0)
+
+**⚠️ BREAKING CHANGES**
+- fix: surface MfaRequiredError from passkeyGetToken and passwordlessVe… [\#2702](https://github.com/auth0/nextjs-auth0/pull/2702) ([Piyush-85](https://github.com/Piyush-85))
+
+**Added**
+- feat: mTLS implementation [\#2647](https://github.com/auth0/nextjs-auth0/pull/2647) ([Piyush-85](https://github.com/Piyush-85))
+- feat: cte delegation [\#2690](https://github.com/auth0/nextjs-auth0/pull/2690) ([Piyush-85](https://github.com/Piyush-85))
+- feat: add predicate function parameter to allow selectively rolling s… [\#2622](https://github.com/auth0/nextjs-auth0/pull/2622) ([PSoltes](https://github.com/PSoltes))
+
+**Fixed**
+- fix: do not add trailing slash to path-based issuer URLs [\#2693](https://github.com/auth0/nextjs-auth0/pull/2693) ([sleitor](https://github.com/sleitor))
+- fix: add pnpm-workspace.yaml with allowBuilds to unblock pnpm install… [\#2701](https://github.com/auth0/nextjs-auth0/pull/2701) ([Piyush-85](https://github.com/Piyush-85))
+
+
 ## [v4.22.0](https://github.com/auth0/nextjs-auth0/tree/v4.22.0) (2026-06-01)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.21.0...v4.22.0)
 
