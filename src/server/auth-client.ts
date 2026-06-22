@@ -555,7 +555,8 @@ export class AuthClient {
     if (this.useMtls && !options.fetch) {
       throw new MtlsError(
         MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
-        "useMtls requires a customFetch option with a TLS client certificate implementation. " +
+        "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
+          "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
           "The standard fetch global has no client certificate API. " +
           "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
       );
@@ -1312,6 +1313,10 @@ export class AuthClient {
           state
         );
       }
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(oidcRes.access_token);
     }
 
     // ★ POSTMESSAGE BRANCH
@@ -2355,12 +2360,15 @@ export class AuthClient {
         }
       );
 
-      if (this.useMtls && !authorizationServerMetadata.mtls_endpoint_aliases) {
+      if (
+        this.useMtls &&
+        !authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
+      ) {
         return [
           new MtlsError(
             MtlsErrorCode.MTLS_ENDPOINT_ALIASES_MISSING,
             "useMtls is enabled but the authorization server discovery document does not advertise " +
-              "mtls_endpoint_aliases. Ensure mTLS is enabled on your Auth0 tenant and that requests " +
+              "mtls_endpoint_aliases.token_endpoint. Ensure mTLS is enabled on your Auth0 tenant and that requests " +
               "are routed through your custom domain."
           ),
           null
@@ -4185,7 +4193,12 @@ export class AuthClient {
     // This means we cannot use oauth.genericTokenEndpointRequest (which only
     // sends URLSearchParams), so DPoP must be attached manually via the handle's
     // internal addProof method.
-    const tokenUrl = new URL("/oauth/token", this.issuer).toString();
+    // When useMtls=true, prefer the mTLS alias so certificate-bound tokens are issued.
+    const tokenUrl =
+      this.useMtls &&
+      authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
+        ? authorizationServerMetadata.mtls_endpoint_aliases.token_endpoint
+        : new URL("/oauth/token", this.issuer).toString();
 
     const jsonBody: Record<string, unknown> = {
       grant_type: GRANT_TYPE_PASSKEY,
@@ -4294,6 +4307,10 @@ export class AuthClient {
         "missing_id_token",
         "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
       );
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
     }
 
     const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
