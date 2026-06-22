@@ -22,6 +22,8 @@ export {
 
 export { DPoPError, DPoPErrorCode } from "./dpop-errors.js";
 
+export { MtlsError, MtlsErrorCode } from "./mtls-errors.js";
+
 export {
   MyAccountApiError,
   ConnectAccountError,

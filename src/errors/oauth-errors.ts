@@ -213,6 +213,11 @@ export enum CustomTokenExchangeErrorCode {
   MISSING_ACTOR_TOKEN_TYPE = "missing_actor_token_type",
 
   /**
+   * The actor_token_type is not a valid URI.
+   */
+  INVALID_ACTOR_TOKEN_TYPE = "invalid_actor_token_type",
+
+  /**
    * The token exchange request failed.
    */
   EXCHANGE_FAILED = "exchange_failed"

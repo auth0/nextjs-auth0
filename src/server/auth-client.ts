@@ -32,6 +32,8 @@ import {
   MfaRequiredError,
   MfaVerifyError,
   MissingStateError,
+  MtlsError,
+  MtlsErrorCode,
   MyAccountApiError,
   OAuth2Error,
   PasskeyChallengeError,
@@ -58,6 +60,7 @@ import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
+  ActClaim,
   AuthenticatorApiResponse,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
@@ -314,6 +317,21 @@ export interface AuthClientOptions {
   dpopOptions?: DpopOptions;
 
   /**
+   * Enable mTLS (Mutual TLS) client authentication (RFC 8705).
+   *
+   * When `true`, the SDK uses `oauth.TlsClientAuth()` for client authentication
+   * and routes all token requests to the mTLS endpoint aliases advertised in
+   * the Auth0 discovery document (`mtls_endpoint_aliases`).
+   *
+   * Requires the `fetch` option to be set with a TLS-aware implementation
+   * (e.g. Node.js `undici` with a client certificate). The standard `fetch`
+   * global has no client certificate API.
+   *
+   * @default false
+   */
+  useMtls?: boolean;
+
+  /**
    * MFA token TTL in seconds (for token encryption expiration).
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
    */
@@ -379,6 +397,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
   private dpopValidated = false;
+
+  private readonly useMtls: boolean;
 
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
@@ -530,6 +550,30 @@ export class AuthClient {
     this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 0;
 
     this.useDPoP = options.useDPoP ?? false;
+
+    this.useMtls = options.useMtls ?? false;
+    if (this.useMtls && !options.fetch) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
+        "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
+          "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
+          "The standard fetch global has no client certificate API. " +
+          "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
+      );
+    }
+    if (
+      this.useMtls &&
+      (options.clientSecret || options.clientAssertionSigningKey)
+    ) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls cannot be combined with clientSecret or clientAssertionSigningKey. " +
+          "mTLS replaces secret-based client authentication entirely."
+      );
+    }
+    if (this.useMtls) {
+      this.clientMetadata.use_mtls_endpoint_aliases = true;
+    }
 
     // MFA token TTL for token encryption
     this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
@@ -1269,6 +1313,10 @@ export class AuthClient {
           state
         );
       }
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(oidcRes.access_token);
     }
 
     // ★ POSTMESSAGE BRANCH
@@ -2284,6 +2332,10 @@ export class AuthClient {
         Math.floor(Date.now() / 1000) +
         Number(tokenEndpointResponse.expires_in);
 
+      if (this.useMtls) {
+        this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
+      }
+
       return [
         null,
         {
@@ -2336,6 +2388,21 @@ export class AuthClient {
             );
         }
       );
+
+      if (
+        this.useMtls &&
+        !authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
+      ) {
+        return [
+          new MtlsError(
+            MtlsErrorCode.MTLS_ENDPOINT_ALIASES_MISSING,
+            "useMtls is enabled but the authorization server discovery document does not advertise " +
+              "mtls_endpoint_aliases.token_endpoint. Ensure mTLS is enabled on your Auth0 tenant and that requests " +
+              "are routed through your custom domain."
+          ),
+          null
+        ];
+      }
 
       this.authorizationServerMetadata = authorizationServerMetadata;
 
@@ -2614,7 +2681,28 @@ export class AuthClient {
     return [null, authorizationUrl];
   }
 
+  private warnIfNotCertificateBound(accessToken: string): void {
+    try {
+      const payload = jose.decodeJwt(accessToken);
+      const cnf = payload["cnf"] as Record<string, unknown> | undefined;
+      if (!cnf?.["x5t#S256"]) {
+        console.warn(
+          "[nextjs-auth0] useMtls is enabled but the issued access token does not contain " +
+            "a cnf.x5t#S256 claim. The token is not certificate-bound. " +
+            "Verify that mTLS is correctly configured on your Auth0 tenant and that " +
+            "token requests are routed through your mTLS custom domain."
+        );
+      }
+    } catch {
+      // decodeJwt only fails for opaque tokens — skip the check silently
+    }
+  }
+
   private async getClientAuth(): Promise<oauth.ClientAuth> {
+    if (this.useMtls) {
+      return oauth.TlsClientAuth();
+    }
+
     if (!this.clientSecret && !this.clientAssertionSigningKey) {
       throw new Error(
         "The client secret or client assertion signing key must be provided."
@@ -2937,21 +3025,13 @@ export class AuthClient {
   }
 
   /**
-   * Validates that subject_token_type is a valid URI.
-   *
-   * Validation rules:
-   * - Length: 10-100 characters
-   * - Format: Valid URL or URN
-   *
-   * Note: Reserved namespace validation is handled by Auth0 when creating CTE profiles.
-   *
-   * @param type - The subject_token_type to validate
-   * @returns CustomTokenExchangeError if invalid, null if valid
+   * Validates subject_token_type: 10-100 chars, valid URI (URL or URN).
+   * The 10-100 length constraint matches the Auth0 CTE Profile Management API requirement
+   * for subject_token_type, which is used as a routing key to select a profile.
    */
   private validateSubjectTokenType(
     type: string
   ): CustomTokenExchangeError | null {
-    // 1. Length validation (minLength: 10, maxLength: 100)
     if (type.length < 10) {
       return new CustomTokenExchangeError(
         CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
@@ -2964,8 +3044,24 @@ export class AuthClient {
         `Invalid subject_token_type: must be at most 100 characters. Received ${type.length} characters.`
       );
     }
+    return this.validateTokenTypeUri(type, "subject_token_type");
+  }
 
-    // 2. Check valid URI (URL or URN format)
+  /**
+   * Validates actor_token_type: valid URI (URL or URN).
+   * No length constraint — actor_token_type is not registered in a CTE profile
+   * and RFC 8693 §3 imposes no length limit on token type URIs.
+   */
+  private validateActorTokenType(
+    type: string
+  ): CustomTokenExchangeError | null {
+    return this.validateTokenTypeUri(type, "actor_token_type");
+  }
+
+  private validateTokenTypeUri(
+    type: string,
+    field: "subject_token_type" | "actor_token_type"
+  ): CustomTokenExchangeError | null {
     let isValidUrl = false;
     try {
       new URL(type);
@@ -2979,9 +3075,13 @@ export class AuthClient {
       /^urn:[a-z0-9][a-z0-9-]{0,31}:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$/i.test(type);
 
     if (!isValidUrl && !isValidUrn) {
+      const code =
+        field === "actor_token_type"
+          ? CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE
+          : CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE;
       return new CustomTokenExchangeError(
-        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
-        `Invalid subject_token_type: must be a valid URI (URL or URN format). Received: "${type}"`
+        code,
+        `Invalid ${field}: must be a valid URI (URL or URN format). Received: "${type}"`
       );
     }
 
@@ -3051,6 +3151,16 @@ export class AuthClient {
         ),
         null
       ];
+    }
+
+    // Validate actorTokenType is a valid URI (RFC 8693 §3)
+    if (options.actorToken && options.actorTokenType) {
+      const actorTokenTypeError = this.validateActorTokenType(
+        options.actorTokenType
+      );
+      if (actorTokenTypeError) {
+        return [actorTokenTypeError, null];
+      }
     }
 
     // Discover authorization server metadata
@@ -3133,11 +3243,18 @@ export class AuthClient {
     };
 
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let act: ActClaim | undefined;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(processTokenExchange, {
         isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
         ...this.dpopOptions?.retry
       });
+      // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
+      act = tokenEndpointResponse.id_token
+        ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
+            | ActClaim
+            | undefined)
+        : undefined;
     } catch (err: any) {
       const oauthErr = await extractOAuthErrorDetails(err);
       return [
@@ -3153,6 +3270,10 @@ export class AuthClient {
       ];
     }
 
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
+    }
+
     // Map response: snake_case → camelCase
     return [
       null,
@@ -3162,7 +3283,8 @@ export class AuthClient {
         refreshToken: tokenEndpointResponse.refresh_token,
         tokenType: tokenEndpointResponse.token_type ?? "Bearer",
         expiresIn: Number(tokenEndpointResponse.expires_in),
-        scope: tokenEndpointResponse.scope
+        scope: tokenEndpointResponse.scope,
+        act
       }
     ];
   }
@@ -3422,7 +3544,7 @@ export class AuthClient {
     const openidClientConfig = new client.Configuration(
       authorizationServerMetadata,
       this.clientMetadata.client_id,
-      {},
+      { use_mtls_endpoint_aliases: this.useMtls },
       await this.getClientAuth()
     );
     const httpOpts = this.httpOptions();
@@ -4145,7 +4267,12 @@ export class AuthClient {
     // This means we cannot use oauth.genericTokenEndpointRequest (which only
     // sends URLSearchParams), so DPoP must be attached manually via the handle's
     // internal addProof method.
-    const tokenUrl = new URL("/oauth/token", this.issuer).toString();
+    // When useMtls=true, prefer the mTLS alias so certificate-bound tokens are issued.
+    const tokenUrl =
+      this.useMtls &&
+      authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
+        ? authorizationServerMetadata.mtls_endpoint_aliases.token_endpoint
+        : new URL("/oauth/token", this.issuer).toString();
 
     const jsonBody: Record<string, unknown> = {
       grant_type: GRANT_TYPE_PASSKEY,
@@ -4260,6 +4387,10 @@ export class AuthClient {
         "missing_id_token",
         "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
       );
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
     }
 
     const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
@@ -4715,10 +4846,6 @@ export class AuthClient {
       );
     }
 
-    // jose.decodeJwt does a non-validating base64 decode — safe here because
-    // the token was received from Auth0's HTTPS token endpoint (server-to-server)
-    // and iss/aud were already validated by oauth4webapi's
-    // processGenericTokenEndpointResponse inside passwordlessVerify().
     const claims = jose.decodeJwt(tokenResponse.id_token);
     const user = claims as unknown as User;
 
@@ -5450,6 +5577,10 @@ export class AuthClient {
         ),
         null
       ];
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(oauthRes.access_token);
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
