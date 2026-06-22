@@ -1,5 +1,5 @@
 import { AuthorizationParameters } from "./authorize.js";
-import { ConnectionTokenSet } from "./token-vault.js";
+import { ConnectionTokenSet, type ActClaim } from "./token-vault.js";
 
 export interface TokenSet {
   accessToken: string;
@@ -94,6 +94,11 @@ export interface User {
    * This field is populated when the user logs in through an organization.
    */
   org_id?: string;
+  /**
+   * The actor claim from the ID token, present in delegation/impersonation flows (RFC 8693).
+   * Set by an Auth0 Action via `api.authentication.setActor()`.
+   */
+  act?: ActClaim;
 
   [key: string]: any;
 }
@@ -210,6 +215,7 @@ export {
 } from "./authorize.js";
 export {
   AccessTokenForConnectionOptions,
+  ActClaim,
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
