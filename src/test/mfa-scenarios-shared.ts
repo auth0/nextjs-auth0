@@ -7,9 +7,9 @@ import type { MfaRequirements } from "../errors/index.js";
 import type {
   Authenticator,
   ChallengeResponse,
-  EnrollmentResponse,
-  MfaVerifyResponse
+  EnrollmentResponse
 } from "../types/index.js";
+import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 
 /**
  * Test scenario structure for black-box testing.
@@ -293,6 +293,24 @@ export const challengeScenarios: MfaTestScenario<
     }
   },
   {
+    // Server validates locally before the network call — expects mfa_no_available_factors
+    name: "Auth0 400 error",
+    input: {
+      mfaToken: "encrypted-token",
+      challengeType: "invalid",
+      mfaRequirements: { challenge: [{ type: "otp" }] }
+    },
+    expectError: (error: any) => {
+      if (error.code !== "mfa_no_available_factors")
+        throw new Error("Expected mfa_no_available_factors");
+    }
+  }
+];
+
+// Client-specific challenge scenarios where validation happens server-side via HTTP route
+export const challengeScenariosClient: typeof challengeScenarios = [
+  ...challengeScenarios.filter((s) => s.name !== "Auth0 400 error"),
+  {
     name: "Auth0 400 error",
     input: {
       mfaToken: "encrypted-token",
@@ -328,7 +346,7 @@ export const verifyScenarios: MfaTestScenario<
     scope?: string;
     mfaRequirements?: MfaRequirements;
   },
-  MfaVerifyResponse
+  MfaTokenEndpointResponse
 >[] = [
   {
     name: "OTP verification success",
@@ -347,7 +365,7 @@ export const verifyScenarios: MfaTestScenario<
         expires_in: 3600
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.access_token !== "new-access-token")
         throw new Error("Expected access_token");
       if (result.token_type !== "Bearer")
@@ -371,7 +389,7 @@ export const verifyScenarios: MfaTestScenario<
         expires_in: 3600
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.access_token !== "new-access-token")
         throw new Error("Expected access_token");
     }
@@ -393,7 +411,7 @@ export const verifyScenarios: MfaTestScenario<
         recovery_code: "new-recovery-code"
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.access_token !== "new-access-token")
         throw new Error("Expected access_token");
       if (result.recovery_code !== "new-recovery-code")
@@ -416,7 +434,7 @@ export const verifyScenarios: MfaTestScenario<
         expires_in: 3600
       }
     },
-    expected: (result: MfaVerifyResponse) => {
+    expected: (result: MfaTokenEndpointResponse) => {
       if (result.recovery_code !== undefined)
         throw new Error("Expected no recovery_code");
     }

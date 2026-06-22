@@ -253,5 +253,32 @@ describe("ClientPasswordlessClient", () => {
         error: "client_error"
       });
     });
+
+    it("re-throws mfa_required raw object instead of wrapping as PasswordlessVerifyError", async () => {
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/passwordless/verify`, () =>
+          HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "Multi-factor authentication is required.",
+              mfa_token: "encrypted-mfa-token-value"
+            },
+            { status: 403 }
+          )
+        )
+      );
+
+      const err = await client
+        .verify({
+          connection: "email",
+          email: DEFAULT.email,
+          verificationCode: DEFAULT.verificationCode
+        })
+        .catch((e) => e);
+
+      expect(err.error).toBe("mfa_required");
+      expect(err.mfa_token).toBe("encrypted-mfa-token-value");
+      expect(err.name).not.toBe("PasswordlessVerifyError");
+    });
   });
 });

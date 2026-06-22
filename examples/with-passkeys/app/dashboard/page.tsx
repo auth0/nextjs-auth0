@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { auth0 } from "@/lib/auth0";
 import { PasskeyEnrollForm } from "@/components/passkey-enroll-form";
+import { StepUpButton } from "@/components/step-up-button";
 
 export default async function Dashboard() {
   const session = await auth0.getSession();
@@ -72,6 +73,16 @@ export default async function Dashboard() {
             Add this device as an additional passkey for faster future logins.
           </p>
           <PasskeyEnrollForm />
+        </div>
+
+        {/* Step-up MFA test card */}
+        <div className="rounded-2xl border border-orange-200 bg-white p-8 shadow-sm">
+          <h2 className="mb-1 text-lg font-semibold">Step-up MFA test</h2>
+          <p className="mb-4 text-xs text-gray-400">
+            Requests an access token for <code>https://api.example.com</code> with{" "}
+            <code>read:users write:users</code>. Triggers step-up MFA if required by your Auth0 policy.
+          </p>
+          <StepUpButton />
         </div>
       </div>
     </main>

@@ -13,13 +13,21 @@ import {
 } from "vitest";
 
 import { MfaRequiredError, OAuth2Error } from "../errors/index.js";
-import { setupMswLifecycle } from "../test/defaults.js";
+import { getDefaultRoutes, setupMswLifecycle } from "../test/defaults.js";
 import { createNextHeadersMock } from "../test/mocks.js";
+import { generateSecret } from "../test/utils.js";
 import { MfaContext, SessionData } from "../types/index.js";
+import { AuthClient } from "./auth-client.js";
 import { Auth0Client } from "./client.js";
 import { decrypt } from "./cookies.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TransactionStore } from "./transaction-store.js";
 
 vi.mock("next/headers.js", () => createNextHeadersMock({ cookies: false }));
+
+// JWE format: 5 base64url parts separated by dots
+const JWE_PATTERN =
+  /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 // Test configuration
 const domain = "https://auth0.example.com";
@@ -250,10 +258,7 @@ describe("MFA Error Bubbling", () => {
       }
 
       expect(thrownError).not.toBeNull();
-      // JWE format: 5 base64url parts separated by dots
-      const jwePattern =
-        /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-      expect(thrownError!.mfa_token).toMatch(jwePattern);
+      expect(thrownError!.mfa_token).toMatch(JWE_PATTERN);
     });
 
     it("should NOT expose raw mfa_token", async () => {
@@ -556,5 +561,346 @@ describe("MFA Error Bubbling", () => {
       expect(thrownError).not.toBeNull();
       expect(thrownError!.mfa_token).toBeDefined();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MFA Error Bubbling — passkeyGetToken
+// Auth0 returns mfa_required during the webauthn token exchange grant.
+// Mirrors the refresh token tests above for the passkey code path.
+// ---------------------------------------------------------------------------
+
+describe("MFA Error Bubbling — passkeyGetToken", () => {
+  const mockAuthResponse = {
+    id: "cred-id",
+    rawId: "cred-raw-id",
+    type: "public-key" as const,
+    response: {
+      clientDataJSON: "clientDataJSON-base64url",
+      attestationObject: "attestationObject-base64url"
+    }
+  };
+
+  // AuthClient is used directly — same pattern as passkey.flow.test.ts — so we
+  // can call passkeyGetToken without a full HTTP handler stack.
+  let passkeyAuthClient: AuthClient;
+  let passkeySecret: string;
+
+  beforeEach(async () => {
+    passkeySecret = await generateSecret(32);
+    passkeyAuthClient = new AuthClient({
+      domain: domain.replace("https://", ""),
+      clientId: testAuth0ClientConfig.clientId,
+      clientSecret: testAuth0ClientConfig.clientSecret,
+      appBaseUrl: testAuth0ClientConfig.appBaseUrl,
+      secret: passkeySecret,
+      transactionStore: new TransactionStore({ secret: passkeySecret }),
+      sessionStore: new StatelessSessionStore({ secret: passkeySecret }),
+      routes: getDefaultRoutes()
+    });
+  });
+
+  function useMfaRequiredOnPasskeyToken(
+    token = mockMfaToken,
+    requirements = mockMfaRequirements
+  ) {
+    server.use(
+      http.post(`${domain}/oauth/token`, () =>
+        HttpResponse.json(
+          {
+            error: "mfa_required",
+            error_description: "Multi-factor authentication is required.",
+            mfa_token: token,
+            mfa_requirements: requirements
+          },
+          { status: 403 }
+        )
+      )
+    );
+  }
+
+  async function getPasskeyMfaError(): Promise<MfaRequiredError> {
+    const { RequestCookies, ResponseCookies } =
+      await import("@edge-runtime/cookies");
+    let thrownError: MfaRequiredError | null = null;
+    try {
+      await passkeyAuthClient.passkeyGetToken(
+        { authSession: "test-auth-session", authResponse: mockAuthResponse },
+        new RequestCookies(new Headers()),
+        new ResponseCookies(new Headers())
+      );
+    } catch (e) {
+      thrownError = e as MfaRequiredError;
+    }
+    expect(thrownError).toBeInstanceOf(MfaRequiredError);
+    return thrownError!;
+  }
+
+  it("throws MfaRequiredError when /oauth/token returns mfa_required", async () => {
+    useMfaRequiredOnPasskeyToken();
+    await expect(getPasskeyMfaError()).resolves.toBeInstanceOf(
+      MfaRequiredError
+    );
+  });
+
+  it("mfa_token is a JWE (5 dot-separated base64url parts)", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    expect(error.mfa_token).toMatch(JWE_PATTERN);
+  });
+
+  it("does NOT expose the raw mfa_token", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    expect(error.mfa_token).not.toBe(mockMfaToken);
+  });
+
+  it("encrypted token is decryptable with the SDK secret and contains raw mfaToken", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    const decrypted = await decrypt<MfaContext>(error.mfa_token, passkeySecret);
+    expect(decrypted).not.toBeNull();
+    expect(decrypted!.payload.mfaToken).toBe(mockMfaToken);
+    expect(decrypted!.payload.audience).toBeDefined();
+    expect(decrypted!.payload.scope).toBeDefined();
+  });
+
+  it("audience and scope in encrypted token reflect the client authorizationParameters", async () => {
+    const testAudience = "https://api.example.com";
+    const testScope = "openid profile email";
+    const scopedSecret = await generateSecret(32);
+    const scopedClient = new AuthClient({
+      domain: domain.replace("https://", ""),
+      clientId: testAuth0ClientConfig.clientId,
+      clientSecret: testAuth0ClientConfig.clientSecret,
+      appBaseUrl: testAuth0ClientConfig.appBaseUrl,
+      secret: scopedSecret,
+      transactionStore: new TransactionStore({ secret: scopedSecret }),
+      sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+      routes: getDefaultRoutes(),
+      authorizationParameters: { audience: testAudience, scope: testScope }
+    });
+
+    useMfaRequiredOnPasskeyToken();
+
+    const { RequestCookies, ResponseCookies } =
+      await import("@edge-runtime/cookies");
+    let thrownError: MfaRequiredError | null = null;
+    try {
+      await scopedClient.passkeyGetToken(
+        { authSession: "test-auth-session", authResponse: mockAuthResponse },
+        new RequestCookies(new Headers()),
+        new ResponseCookies(new Headers())
+      );
+    } catch (e) {
+      thrownError = e as MfaRequiredError;
+    }
+    expect(thrownError).toBeInstanceOf(MfaRequiredError);
+
+    const decrypted = await decrypt<MfaContext>(
+      thrownError!.mfa_token,
+      scopedSecret
+    );
+    expect(decrypted!.payload.audience).toBe(testAudience);
+    expect(decrypted!.payload.scope).toBe(testScope);
+  });
+
+  it("MfaRequiredError has correct code, error, error_description", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    expect(error.code).toBe("mfa_required");
+    expect(error.error).toBe("mfa_required");
+    expect(error.error_description).toBe(
+      "Multi-factor authentication is required."
+    );
+  });
+
+  it("MfaRequiredError carries mfa_requirements from the Auth0 response", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    expect(error.mfa_requirements).toEqual(mockMfaRequirements);
+  });
+
+  it("MfaRequiredError.cause is an OAuth2Error with code mfa_required", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    expect(error.cause).toBeInstanceOf(OAuth2Error);
+    expect((error.cause as OAuth2Error).code).toBe("mfa_required");
+  });
+
+  it("toJSON() serializes to REST-compatible shape", async () => {
+    useMfaRequiredOnPasskeyToken();
+    const error = await getPasskeyMfaError();
+    const json = error.toJSON();
+    expect(json.error).toBe("mfa_required");
+    expect(json.error_description).toBe(
+      "Multi-factor authentication is required."
+    );
+    expect(json.mfa_token).toBeDefined();
+    expect(json.mfa_requirements).toEqual(mockMfaRequirements);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MFA Error Bubbling — passwordlessVerify
+// Auth0 returns mfa_required during the passwordless OTP grant.
+// Mirrors the refresh token tests above for the passwordless code path.
+// ---------------------------------------------------------------------------
+
+describe("MFA Error Bubbling — passwordlessVerify", () => {
+  let passwordlessAuthClient: AuthClient;
+  let passwordlessSecret: string;
+
+  beforeEach(async () => {
+    passwordlessSecret = await generateSecret(32);
+    passwordlessAuthClient = new AuthClient({
+      domain: domain.replace("https://", ""),
+      clientId: testAuth0ClientConfig.clientId,
+      clientSecret: testAuth0ClientConfig.clientSecret,
+      appBaseUrl: testAuth0ClientConfig.appBaseUrl,
+      secret: passwordlessSecret,
+      transactionStore: new TransactionStore({ secret: passwordlessSecret }),
+      sessionStore: new StatelessSessionStore({ secret: passwordlessSecret }),
+      routes: getDefaultRoutes()
+    });
+  });
+
+  function useMfaRequiredOnPasswordlessToken(
+    token = mockMfaToken,
+    requirements = mockMfaRequirements
+  ) {
+    server.use(
+      http.post(`${domain}/oauth/token`, () =>
+        HttpResponse.json(
+          {
+            error: "mfa_required",
+            error_description: "Multi-factor authentication is required.",
+            mfa_token: token,
+            mfa_requirements: requirements
+          },
+          { status: 403 }
+        )
+      )
+    );
+  }
+
+  async function getPasswordlessMfaError(): Promise<MfaRequiredError> {
+    let thrownError: MfaRequiredError | null = null;
+    try {
+      await passwordlessAuthClient.passwordlessVerify({
+        connection: "email",
+        email: "user@example.com",
+        verificationCode: "123456"
+      });
+    } catch (e) {
+      thrownError = e as MfaRequiredError;
+    }
+    expect(thrownError).toBeInstanceOf(MfaRequiredError);
+    return thrownError!;
+  }
+
+  it("throws MfaRequiredError when /oauth/token returns mfa_required", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    await expect(getPasswordlessMfaError()).resolves.toBeInstanceOf(
+      MfaRequiredError
+    );
+  });
+
+  it("mfa_token is a JWE (5 dot-separated base64url parts)", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    expect(error.mfa_token).toMatch(JWE_PATTERN);
+  });
+
+  it("does NOT expose the raw mfa_token", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    expect(error.mfa_token).not.toBe(mockMfaToken);
+  });
+
+  it("encrypted token is decryptable with the SDK secret and contains raw mfaToken", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    const decrypted = await decrypt<MfaContext>(
+      error.mfa_token,
+      passwordlessSecret
+    );
+    expect(decrypted).not.toBeNull();
+    expect(decrypted!.payload.mfaToken).toBe(mockMfaToken);
+    expect(decrypted!.payload.audience).toBeDefined();
+    expect(decrypted!.payload.scope).toBeDefined();
+  });
+
+  it("audience and scope in encrypted token reflect the client authorizationParameters", async () => {
+    const testAudience = "https://api.example.com";
+    const testScope = "openid profile email";
+    const scopedSecret = await generateSecret(32);
+    const scopedClient = new AuthClient({
+      domain: domain.replace("https://", ""),
+      clientId: testAuth0ClientConfig.clientId,
+      clientSecret: testAuth0ClientConfig.clientSecret,
+      appBaseUrl: testAuth0ClientConfig.appBaseUrl,
+      secret: scopedSecret,
+      transactionStore: new TransactionStore({ secret: scopedSecret }),
+      sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+      routes: getDefaultRoutes(),
+      authorizationParameters: { audience: testAudience, scope: testScope }
+    });
+
+    useMfaRequiredOnPasswordlessToken();
+
+    let thrownError: MfaRequiredError | null = null;
+    try {
+      await scopedClient.passwordlessVerify({
+        connection: "email",
+        email: "user@example.com",
+        verificationCode: "123456"
+      });
+    } catch (e) {
+      thrownError = e as MfaRequiredError;
+    }
+    expect(thrownError).toBeInstanceOf(MfaRequiredError);
+
+    const decrypted = await decrypt<MfaContext>(
+      thrownError!.mfa_token,
+      scopedSecret
+    );
+    expect(decrypted!.payload.audience).toBe(testAudience);
+    expect(decrypted!.payload.scope).toBe(testScope);
+  });
+
+  it("MfaRequiredError has correct code, error, error_description", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    expect(error.code).toBe("mfa_required");
+    expect(error.error).toBe("mfa_required");
+    expect(error.error_description).toBe(
+      "Multi-factor authentication is required."
+    );
+  });
+
+  it("MfaRequiredError carries mfa_requirements from the Auth0 response", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    expect(error.mfa_requirements).toEqual(mockMfaRequirements);
+  });
+
+  it("MfaRequiredError.cause is an OAuth2Error with code mfa_required", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    expect(error.cause).toBeInstanceOf(OAuth2Error);
+    expect((error.cause as OAuth2Error).code).toBe("mfa_required");
+  });
+
+  it("toJSON() serializes to REST-compatible shape", async () => {
+    useMfaRequiredOnPasswordlessToken();
+    const error = await getPasswordlessMfaError();
+    const json = error.toJSON();
+    expect(json.error).toBe("mfa_required");
+    expect(json.error_description).toBe(
+      "Multi-factor authentication is required."
+    );
+    expect(json.mfa_token).toBeDefined();
+    expect(json.mfa_requirements).toEqual(mockMfaRequirements);
   });
 });
