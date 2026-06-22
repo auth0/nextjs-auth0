@@ -211,6 +211,53 @@ describe("Auth0Client", () => {
         expect(err.cause?.message).toContain("Missing: domain");
       });
     });
+
+    describe("mTLS", () => {
+      const BASE = {
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        appBaseUrl: "https://example.com",
+        secret: "a".repeat(32)
+      };
+
+      it("accepts useMtls=true without clientSecret", () => {
+        expect(
+          () =>
+            new Auth0Client({
+              ...BASE,
+              useMtls: true,
+              customFetch: globalThis.fetch
+            })
+        ).not.toThrow();
+      });
+
+      it("reads useMtls from AUTH0_MTLS env var", () => {
+        process.env.AUTH0_MTLS = "true";
+
+        expect(
+          () =>
+            new Auth0Client({
+              ...BASE,
+              customFetch: globalThis.fetch
+            })
+        ).not.toThrow();
+
+        delete process.env.AUTH0_MTLS;
+      });
+
+      it("still requires clientSecret when useMtls is false (default)", () => {
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(() => {});
+
+        new Auth0Client({ ...BASE });
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("clientAuthentication")
+        );
+        consoleSpy.mockRestore();
+      });
+    });
   });
 
   // TODO: Re-implement DPoP handle management if needed
