@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Certificates — never commit private keys!
+certs/
+
+# Misc
+.DS_Store
+*.pem
