@@ -60,6 +60,7 @@ import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
+  ActClaim,
   AuthenticatorApiResponse,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
@@ -2950,21 +2951,13 @@ export class AuthClient {
   }
 
   /**
-   * Validates that subject_token_type is a valid URI.
-   *
-   * Validation rules:
-   * - Length: 10-100 characters
-   * - Format: Valid URL or URN
-   *
-   * Note: Reserved namespace validation is handled by Auth0 when creating CTE profiles.
-   *
-   * @param type - The subject_token_type to validate
-   * @returns CustomTokenExchangeError if invalid, null if valid
+   * Validates subject_token_type: 10-100 chars, valid URI (URL or URN).
+   * The 10-100 length constraint matches the Auth0 CTE Profile Management API requirement
+   * for subject_token_type, which is used as a routing key to select a profile.
    */
   private validateSubjectTokenType(
     type: string
   ): CustomTokenExchangeError | null {
-    // 1. Length validation (minLength: 10, maxLength: 100)
     if (type.length < 10) {
       return new CustomTokenExchangeError(
         CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
@@ -2977,8 +2970,24 @@ export class AuthClient {
         `Invalid subject_token_type: must be at most 100 characters. Received ${type.length} characters.`
       );
     }
+    return this.validateTokenTypeUri(type, "subject_token_type");
+  }
 
-    // 2. Check valid URI (URL or URN format)
+  /**
+   * Validates actor_token_type: valid URI (URL or URN).
+   * No length constraint — actor_token_type is not registered in a CTE profile
+   * and RFC 8693 §3 imposes no length limit on token type URIs.
+   */
+  private validateActorTokenType(
+    type: string
+  ): CustomTokenExchangeError | null {
+    return this.validateTokenTypeUri(type, "actor_token_type");
+  }
+
+  private validateTokenTypeUri(
+    type: string,
+    field: "subject_token_type" | "actor_token_type"
+  ): CustomTokenExchangeError | null {
     let isValidUrl = false;
     try {
       new URL(type);
@@ -2992,9 +3001,13 @@ export class AuthClient {
       /^urn:[a-z0-9][a-z0-9-]{0,31}:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$/i.test(type);
 
     if (!isValidUrl && !isValidUrn) {
+      const code =
+        field === "actor_token_type"
+          ? CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE
+          : CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE;
       return new CustomTokenExchangeError(
-        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
-        `Invalid subject_token_type: must be a valid URI (URL or URN format). Received: "${type}"`
+        code,
+        `Invalid ${field}: must be a valid URI (URL or URN format). Received: "${type}"`
       );
     }
 
@@ -3064,6 +3077,16 @@ export class AuthClient {
         ),
         null
       ];
+    }
+
+    // Validate actorTokenType is a valid URI (RFC 8693 §3)
+    if (options.actorToken && options.actorTokenType) {
+      const actorTokenTypeError = this.validateActorTokenType(
+        options.actorTokenType
+      );
+      if (actorTokenTypeError) {
+        return [actorTokenTypeError, null];
+      }
     }
 
     // Discover authorization server metadata
@@ -3146,11 +3169,18 @@ export class AuthClient {
     };
 
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let act: ActClaim | undefined;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(processTokenExchange, {
         isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
         ...this.dpopOptions?.retry
       });
+      // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
+      act = tokenEndpointResponse.id_token
+        ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
+            | ActClaim
+            | undefined)
+        : undefined;
     } catch (err: any) {
       const oauthErr = await extractOAuthErrorDetails(err);
       return [
@@ -3179,7 +3209,8 @@ export class AuthClient {
         refreshToken: tokenEndpointResponse.refresh_token,
         tokenType: tokenEndpointResponse.token_type ?? "Bearer",
         expiresIn: Number(tokenEndpointResponse.expires_in),
-        scope: tokenEndpointResponse.scope
+        scope: tokenEndpointResponse.scope,
+        act
       }
     ];
   }
@@ -4715,10 +4746,6 @@ export class AuthClient {
       );
     }
 
-    // jose.decodeJwt does a non-validating base64 decode — safe here because
-    // the token was received from Auth0's HTTPS token endpoint (server-to-server)
-    // and iss/aud were already validated by oauth4webapi's
-    // processGenericTokenEndpointResponse inside passwordlessVerify().
     const claims = jose.decodeJwt(tokenResponse.id_token);
     const user = claims as unknown as User;
 
