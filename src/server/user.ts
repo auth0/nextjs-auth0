@@ -12,7 +12,8 @@ export const DEFAULT_ID_TOKEN_CLAIMS = [
   "picture",
   "email",
   "email_verified",
-  "org_id"
+  "org_id",
+  "act"
 ];
 
 /**

@@ -3911,6 +3911,102 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(transactionCookie!.maxAge).toEqual(0);
     });
 
+    it("should persist act claim from ID token into session.user", async () => {
+      const state = "transaction-state";
+      const code = "auth-code";
+      const act = { sub: "agent|abc123" };
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      // Build an ID token that includes the act claim
+      const idToken = await new jose.SignJWT({
+        sid: DEFAULT.sid,
+        auth_time: Date.now(),
+        nonce: "nonce-value",
+        act
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject(DEFAULT.sub)
+        .setIssuedAt()
+        .setIssuer(_authorizationServerMetadata.issuer)
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: idToken,
+            expires_in: 86400
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        maxAge: 3600,
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state: state,
+        returnTo: "/dashboard"
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handleCallback(request);
+      expect(response.status).toEqual(307);
+
+      const sessionCookie = response.cookies.get("__session");
+      expect(sessionCookie).toBeDefined();
+      const { payload: session } = (await decrypt(
+        sessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult;
+
+      expect(session).toEqual(
+        expect.objectContaining({
+          user: {
+            sub: DEFAULT.sub,
+            act
+          }
+        })
+      );
+    });
+
     describe("when a base path is defined", async () => {
       beforeAll(() => {
         process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
