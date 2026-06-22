@@ -317,14 +317,17 @@ class ClientMfaClient implements MfaClient {
    * Server-side logic:
    * - Decrypts mfaToken (validates TTL and integrity)
    * - Calls Auth0 verify API
-   * - Caches resulting access token in session
-   * - Returns token response
+   * - Stores resulting tokens in the session cookie (server-side only)
+   * - Returns `{ success: true }` — tokens are never sent in the response body
+   *
+   * Call `getAccessToken()` after a successful verify to retrieve the access token
+   * from the session.
    *
    * Chained MFA: If Auth0 returns mfa_required, throws MfaRequiredError with
    * a new encrypted mfa_token for the next factor.
    *
    * @param options - Verification options (otp, oobCode+bindingCode, or recoveryCode)
-   * @returns Token response with access_token, refresh_token, etc.
+   * @returns `{ success: true }` — call `getAccessToken()` to retrieve the token.
    * @throws {MfaTokenExpiredError} Token TTL exceeded
    * @throws {MfaTokenInvalidError} Token tampered or malformed
    * @throws {MfaRequiredError} Additional MFA factor required (chained MFA)
@@ -701,8 +704,9 @@ class ClientMfaClient implements MfaClient {
  * // Initiate challenge
  * const challenge = await mfa.challenge({ mfaToken, challengeType: 'oob' });
  *
- * // Verify and complete
- * const tokens = await mfa.verify({ mfaToken, otp: '123456' });
+ * // Verify and complete — tokens stored in session cookie server-side
+ * await mfa.verify({ mfaToken, otp: '123456' });
+ * const token = await getAccessToken(); // retrieve from session
  *
  * // Step-up via popup (no redirect)
  * const { token } = await mfa.challengeWithPopup({

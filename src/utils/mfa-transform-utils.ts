@@ -119,10 +119,14 @@ export function transformVerifyBodyToOptions(
 
 export const buildVerifyParams = (
   options: VerifyMfaOptions,
-  mfaToken: string
+  mfaToken: string,
+  audience?: string,
+  scope?: string
 ): URLSearchParams => {
   const params = new URLSearchParams();
   params.append("mfa_token", mfaToken);
+  if (audience) params.append("audience", audience);
+  if (scope) params.append("scope", scope);
 
   if ("otp" in options && options.otp) {
     params.append("otp", options.otp);

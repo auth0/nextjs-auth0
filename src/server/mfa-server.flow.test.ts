@@ -1096,17 +1096,22 @@ describe("AuthClient MFA Methods", () => {
           })
         );
 
-        // Authorization header + snake_case body
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: { accessToken: "old-token", expiresAt: 9999999999 },
+          internal: { sid: "sid", createdAt: Math.floor(Date.now() / 1000) }
+        };
+        const sessionCookie = await createSessionCookie(session, secret);
+
         const request = new NextRequest(
           new URL("/auth/mfa/verify", DEFAULT.appBaseUrl),
           {
             method: "POST",
-            body: JSON.stringify({
-              otp: "123456"
-            }),
+            body: JSON.stringify({ otp: "123456" }),
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${encryptedToken}`
+              Authorization: `Bearer ${encryptedToken}`,
+              cookie: `__session=${sessionCookie}`
             }
           }
         );
@@ -1114,9 +1119,150 @@ describe("AuthClient MFA Methods", () => {
         const response = await authClient.handleVerify(request);
         expect(response.status).toBe(200);
 
-        // Verify response is already snake_case
         const result = await response.json();
-        expect(result.access_token).toBe("new-access-token");
+        expect(result).toEqual({ success: true });
+      });
+
+      it("should include recovery_code in response when tenant rotates it on verify", async () => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "https://api.example.com",
+          "openid profile",
+          { challenge: [{ type: "otp" }] },
+          secret,
+          300
+        );
+
+        server.use(
+          http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+            return HttpResponse.json({
+              access_token: "new-access-token",
+              token_type: "Bearer",
+              expires_in: 3600,
+              recovery_code: "NEW-RCOV-CODE-5678"
+            });
+          })
+        );
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: { accessToken: "old-token", expiresAt: 9999999999 },
+          internal: { sid: "sid", createdAt: Math.floor(Date.now() / 1000) }
+        };
+        const sessionCookie = await createSessionCookie(session, secret);
+
+        const request = new NextRequest(
+          new URL("/auth/mfa/verify", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({ recovery_code: "OLD-RCOV-CODE-1234" }),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`,
+              cookie: `__session=${sessionCookie}`
+            }
+          }
+        );
+
+        const response = await authClient.handleVerify(request);
+        expect(response.status).toBe(200);
+
+        const result = await response.json();
+        expect(result.success).toBe(true);
+        expect(result.recovery_code).toBe("NEW-RCOV-CODE-5678");
+        // Tokens must never appear in the response body
+        expect(result.access_token).toBeUndefined();
+        expect(result.refresh_token).toBeUndefined();
+      });
+
+      it("should not include recovery_code in response when tenant does not rotate it", async () => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "https://api.example.com",
+          "openid profile",
+          { challenge: [{ type: "otp" }] },
+          secret,
+          300
+        );
+
+        server.use(
+          http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+            return HttpResponse.json({
+              access_token: "new-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          })
+        );
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: { accessToken: "old-token", expiresAt: 9999999999 },
+          internal: { sid: "sid", createdAt: Math.floor(Date.now() / 1000) }
+        };
+        const sessionCookie = await createSessionCookie(session, secret);
+
+        const request = new NextRequest(
+          new URL("/auth/mfa/verify", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({ recovery_code: "OLD-RCOV-CODE-1234" }),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`,
+              cookie: `__session=${sessionCookie}`
+            }
+          }
+        );
+
+        const response = await authClient.handleVerify(request);
+        expect(response.status).toBe(200);
+
+        const result = await response.json();
+        expect(result).toEqual({ success: true });
+        expect(result.recovery_code).toBeUndefined();
+      });
+
+      it("should return 400 when mfaVerify succeeds with no id_token and no existing session", async () => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "https://api.example.com",
+          "openid profile",
+          { challenge: [{ type: "otp" }] },
+          secret,
+          300
+        );
+
+        // No id_token in response (malformed Auth0 response) and no session cookie
+        server.use(
+          http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+            return HttpResponse.json({
+              access_token: "new-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+              // intentionally no id_token
+            });
+          })
+        );
+
+        const request = new NextRequest(
+          new URL("/auth/mfa/verify", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({ otp: "123456" }),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`
+              // no session cookie — no existing session
+            }
+          }
+        );
+
+        const response = await authClient.handleVerify(request);
+        expect(response.status).toBe(400);
+
+        const body = await response.json();
+        expect(body.error).toBe("missing_session");
       });
 
       it("should return 403 with new mfaToken for chained MFA", async () => {
