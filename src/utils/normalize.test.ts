@@ -282,15 +282,17 @@ describe("normalize.ts", () => {
         });
       });
 
-      it("should accept URLs with paths (e.g. Okta custom auth servers)", () => {
+      it("should accept URLs with paths (e.g. Okta custom auth servers) without adding trailing slash", () => {
+        // RFC 8414 does not require a trailing slash. Path-based issuers must be
+        // preserved verbatim so they match the provider's discovery document exactly.
         const result = normalizeDomain("https://myorg.okta.com/oauth2/default");
         expect(result).toEqual({
           domain: "myorg.okta.com",
-          issuer: "https://myorg.okta.com/oauth2/default/"
+          issuer: "https://myorg.okta.com/oauth2/default"
         });
       });
 
-      it("should accept URLs with paths and preserve trailing slash", () => {
+      it("should preserve trailing slash when user explicitly provides it", () => {
         const result = normalizeDomain(
           "https://myorg.okta.com/oauth2/default/"
         );
@@ -298,6 +300,33 @@ describe("normalize.ts", () => {
           domain: "myorg.okta.com",
           issuer: "https://myorg.okta.com/oauth2/default/"
         });
+      });
+
+      it("should not add trailing slash for IBM IAM-style path-based issuers", () => {
+        // IBM IAM and similar providers return issuers without trailing slash
+        // in their discovery documents. Adding a slash causes
+        // OAUTH_JSON_ATTRIBUTE_COMPARISON_FAILED at auth time.
+        const result = normalizeDomain(
+          "https://myorg.example.com/oidc/endpoint/default"
+        );
+        expect(result).toEqual({
+          domain: "myorg.example.com",
+          issuer: "https://myorg.example.com/oidc/endpoint/default"
+        });
+      });
+
+      it("should add trailing slash for root-path (Auth0-style) issuers", () => {
+        // Auth0 publishes its issuer with a trailing slash in both the discovery
+        // document and iss token claims (https://tenant.auth0.com/). We must
+        // preserve this so jose's strict issuer comparison succeeds.
+        const withoutSlash = normalizeDomain("https://tenant.auth0.com");
+        expect(withoutSlash.issuer).toBe("https://tenant.auth0.com/");
+
+        const withSlash = normalizeDomain("https://tenant.auth0.com/");
+        expect(withSlash.issuer).toBe("https://tenant.auth0.com/");
+
+        const bareHostname = normalizeDomain("tenant.auth0.com");
+        expect(bareHostname.issuer).toBe("https://tenant.auth0.com/");
       });
 
       it("should reject URLs with query parameters", () => {
