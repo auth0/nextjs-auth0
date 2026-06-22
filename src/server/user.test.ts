@@ -33,6 +33,22 @@ describe("filterDefaultIdTokenClaims", async () => {
     });
   });
 
+  it("should retain the act claim", () => {
+    const act = { sub: "agent|abc123" };
+    expect(filterDefaultIdTokenClaims({ sub: "user_123", act })).toEqual({
+      sub: "user_123",
+      act
+    });
+  });
+
+  it("should retain a nested act chain", () => {
+    const act = { sub: "agent|abc123", act: { sub: "service|xyz" } };
+    expect(filterDefaultIdTokenClaims({ sub: "user_123", act })).toEqual({
+      sub: "user_123",
+      act
+    });
+  });
+
   it("should return an empty object if no claims are provided", () => {
     expect(filterDefaultIdTokenClaims({})).toEqual({});
   });

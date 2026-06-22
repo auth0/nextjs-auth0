@@ -1688,8 +1688,7 @@ export class Auth0Client {
     const clientAssertionSigningKey =
       options.clientAssertionSigningKey ??
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
-    const isMtls =
-      options.useMtls === true || process.env.AUTH0_MTLS === "true";
+    const isMtls = options.useMtls ?? process.env.AUTH0_MTLS === "true";
     const hasClientAuthentication =
       !!(clientSecret || clientAssertionSigningKey) || isMtls;
 
