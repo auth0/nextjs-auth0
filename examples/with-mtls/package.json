@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "file:../../",
-    "next": "^15.3.1",
+    "next": "16.2.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "undici": "^7.3.0"
