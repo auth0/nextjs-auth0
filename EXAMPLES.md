@@ -3147,6 +3147,8 @@ This spins up a local HTTPS server that requests a client certificate and valida
 
 6. **Environment-Specific Certificates:** Use different certificates per environment (dev, staging, production) for proper isolation.
 
+7. **Passwordless Start Not Supported:** `/passwordless/start` does not accept mTLS client authentication — Auth0's passport strategy list for that endpoint omits both mTLS strategies. An mTLS-only client (no `clientSecret`) will receive `invalid_client` when calling `passwordlessStart`. All other SDK interactive flows — `mfaVerify` (`/mfa/challenge`), `passkeyGetToken` (`/passkey/challenge`, `/passkey/register`) — accept mTLS and route token exchange through the mTLS alias automatically.
+
 ## Proxy Handler for My Account and My Organization APIs
 
 The SDK provides built-in proxy handler support for Auth0's My Account and My Organization Management APIs. This enables browser-initiated requests to these APIs while maintaining server-side DPoP authentication and token management.

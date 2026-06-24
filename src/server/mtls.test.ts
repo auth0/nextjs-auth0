@@ -1,10 +1,13 @@
+import { NextRequest } from "next/server.js";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MtlsError, MtlsErrorCode } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
+import type { SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
+import { encrypt } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
 
@@ -15,6 +18,9 @@ vi.mock("oauth4webapi", async () => {
     TlsClientAuth: vi.fn(() => ({ type: "tls" })),
     discoveryRequest: vi.fn(),
     processDiscoveryResponse: vi.fn(),
+    revocationRequest: vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })),
     customFetch: Symbol("customFetch"),
     allowInsecureRequests: Symbol("allowInsecureRequests")
   };
@@ -36,9 +42,11 @@ function setupDiscoveryMocks(overrides: Record<string, unknown> = {}) {
     issuer: `https://${DOMAIN}/`,
     authorization_endpoint: `https://${DOMAIN}/authorize`,
     token_endpoint: `https://${DOMAIN}/oauth/token`,
+    revocation_endpoint: `https://${DOMAIN}/oauth/revoke`,
     jwks_uri: `https://${DOMAIN}/.well-known/jwks.json`,
     mtls_endpoint_aliases: {
-      token_endpoint: `https://mtls.${DOMAIN}/oauth/token`
+      token_endpoint: `https://mtls.${DOMAIN}/oauth/token`,
+      revocation_endpoint: `https://mtls.${DOMAIN}/oauth/revoke`
     },
     ...overrides
   } as any);
@@ -50,6 +58,7 @@ describe("mTLS AuthClient", () => {
   beforeEach(async () => {
     secret = await generateSecret(32);
     vi.mocked(oauth.TlsClientAuth).mockClear();
+    vi.mocked(oauth.revocationRequest).mockClear();
     setupDiscoveryMocks();
   });
 
@@ -155,6 +164,33 @@ describe("mTLS AuthClient", () => {
       );
     });
 
+    it("throws MtlsError with code MTLS_INCOMPATIBLE_CLIENT_AUTH when useDPoP is also set", () => {
+      const { transactionStore, sessionStore } = makeStores(secret);
+
+      let caught: unknown;
+      try {
+        new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DOMAIN,
+          clientId: CLIENT_ID,
+          secret,
+          appBaseUrl: "https://example.com",
+          routes: getDefaultRoutes(),
+          useMtls: true,
+          useDPoP: true,
+          fetch: globalThis.fetch
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(MtlsError);
+      expect((caught as MtlsError).code).toBe(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH
+      );
+    });
+
     it("does not throw when useMtls=true and a custom fetch is provided", async () => {
       const { transactionStore, sessionStore } = makeStores(secret);
 
@@ -236,6 +272,166 @@ describe("mTLS AuthClient", () => {
         (authClient as unknown as { clientMetadata: Record<string, unknown> })
           .clientMetadata.use_mtls_endpoint_aliases
       ).toBeUndefined();
+    });
+  });
+
+  describe("refresh token revocation on logout (mTLS)", () => {
+    it("calls oauth.revocationRequest with the mTLS alias revocation endpoint", async () => {
+      const { transactionStore, sessionStore } = makeStores(secret);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DOMAIN,
+        clientId: CLIENT_ID,
+        secret,
+        appBaseUrl: "https://example.com",
+        routes: getDefaultRoutes(),
+        useMtls: true,
+        fetch: vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+      });
+
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_mtls_123",
+          expiresAt: 9999999999
+        },
+        internal: {
+          sid: "sid_123",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const expiration = Math.floor(Date.now() / 1000 + 3600);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+
+      const request = new NextRequest(
+        new URL("/auth/logout", "https://example.com"),
+        { method: "GET", headers }
+      );
+
+      await authClient.handleLogout(request);
+
+      expect(oauth.revocationRequest).toHaveBeenCalledOnce();
+
+      const [asArg, clientArg, , tokenArg] = vi.mocked(oauth.revocationRequest)
+        .mock.calls[0];
+
+      // oauth4webapi reads revocation_endpoint from `as` honouring use_mtls_endpoint_aliases
+      // on clientMetadata — the alias URL must be present in the metadata passed in
+      expect(
+        (asArg as oauth.AuthorizationServer).mtls_endpoint_aliases
+          ?.revocation_endpoint
+      ).toBe(`https://mtls.${DOMAIN}/oauth/revoke`);
+      expect((clientArg as oauth.Client).use_mtls_endpoint_aliases).toBe(true);
+      expect(tokenArg).toBe("rt_mtls_123");
+    });
+
+    it("calls oauth.revocationRequest with regular endpoint when useMtls=false", async () => {
+      const { transactionStore, sessionStore } = makeStores(secret);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DOMAIN,
+        clientId: CLIENT_ID,
+        clientSecret: "some-secret",
+        secret,
+        appBaseUrl: "https://example.com",
+        routes: getDefaultRoutes(),
+        fetch: vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+      });
+
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_plain_123",
+          expiresAt: 9999999999
+        },
+        internal: {
+          sid: "sid_123",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const expiration = Math.floor(Date.now() / 1000 + 3600);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+
+      const request = new NextRequest(
+        new URL("/auth/logout", "https://example.com"),
+        { method: "GET", headers }
+      );
+
+      await authClient.handleLogout(request);
+
+      expect(oauth.revocationRequest).toHaveBeenCalledOnce();
+      const [, clientArg, , tokenArg] = vi.mocked(oauth.revocationRequest).mock
+        .calls[0];
+      expect(
+        (clientArg as oauth.Client).use_mtls_endpoint_aliases
+      ).toBeUndefined();
+      expect(tokenArg).toBe("rt_plain_123");
+    });
+  });
+
+  describe("discovery guard — mtls_endpoint_aliases missing", () => {
+    it("returns MtlsError with MTLS_ENDPOINT_ALIASES_MISSING when discovery has no mtls_endpoint_aliases", async () => {
+      setupDiscoveryMocks({ mtls_endpoint_aliases: undefined });
+
+      const { transactionStore, sessionStore } = makeStores(secret);
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DOMAIN,
+        clientId: CLIENT_ID,
+        secret,
+        appBaseUrl: "https://example.com",
+        routes: getDefaultRoutes(),
+        useMtls: true,
+        fetch: vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/login", "https://example.com"),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toBe(500);
+    });
+
+    it("returns MtlsError with MTLS_ENDPOINT_ALIASES_MISSING when mtls_endpoint_aliases has no token_endpoint", async () => {
+      setupDiscoveryMocks({
+        mtls_endpoint_aliases: {
+          revocation_endpoint: `https://mtls.${DOMAIN}/oauth/revoke`
+        }
+      });
+
+      const { transactionStore, sessionStore } = makeStores(secret);
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DOMAIN,
+        clientId: CLIENT_ID,
+        secret,
+        appBaseUrl: "https://example.com",
+        routes: getDefaultRoutes(),
+        useMtls: true,
+        fetch: vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/login", "https://example.com"),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toBe(500);
     });
   });
 

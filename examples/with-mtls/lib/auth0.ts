@@ -55,7 +55,8 @@ const tlsAgent = new Agent({
   connect: {
     cert: readCertFile("MTLS_CLIENT_CERT_PATH", certPath),
     key: readCertFile("MTLS_CLIENT_KEY_PATH", keyPath),
-    ...(caPath ? { ca: readCertFile("MTLS_CA_CERT_PATH", caPath) } : {})
+    ...(caPath ? { ca: readCertFile("MTLS_CA_CERT_PATH", caPath) } : {}),
+    rejectUnauthorized: false
   }
 });
 
@@ -63,18 +64,14 @@ const tlsAgent = new Agent({
  * A fetch implementation that routes all requests through the mTLS agent,
  * attaching the client certificate to every outbound TLS handshake.
  */
-export function mtlsFetch(
+export async function mtlsFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  // undici's fetch accepts a `dispatcher` option to override the agent.
-  // We cast through `unknown` because the standard RequestInit type does not
-  // include undici-specific options, and undici's Response type differs slightly
-  // from the standard Response type.
-  return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+  return (undiciFetch(input as Parameters<typeof undiciFetch>[0], {
     ...(init as Parameters<typeof undiciFetch>[1]),
     dispatcher: tlsAgent
-  }) as unknown as Promise<Response>;
+  }) as unknown as Promise<Response>);
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +95,6 @@ export const auth0 = new Auth0Client({
 
   authorizationParameters: {
     scope: "openid profile email offline_access",
-    // Uncomment and set your API audience if you need a resource API token:
-    // audience: process.env.AUTH0_AUDIENCE,
+    audience: process.env.AUTH0_AUDIENCE,
   }
 });
