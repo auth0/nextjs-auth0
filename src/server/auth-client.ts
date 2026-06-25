@@ -41,6 +41,8 @@ import {
   PasskeyEnrollmentVerifyError,
   PasskeyGetTokenError,
   PasskeyRegisterError,
+  PasswordlessDbChallengeError,
+  PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError,
   SdkError
@@ -87,6 +89,10 @@ import {
   PasskeyGetTokenOptions,
   PasskeyRegisterOptions,
   PasskeyRegisterResponse,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions,
   PasswordlessVerifyTokenResponse,
@@ -256,6 +262,8 @@ export interface Routes {
   mfaAssociate: string;
   passwordlessStart: string;
   passwordlessVerify: string;
+  passwordlessDbOtpChallenge: string;
+  passwordlessDbGetToken: string;
   passkeyRegister: string;
   passkeyChallenge: string;
   passkeyGetToken: string;
@@ -692,6 +700,16 @@ export class AuthClient {
       sanitizedPathname === this.routes.passwordlessVerify
     ) {
       return this.handlePasswordlessVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessDbOtpChallenge
+    ) {
+      return this.handlePasswordlessDbOtpChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessDbGetToken
+    ) {
+      return this.handlePasswordlessDbGetToken(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.passkeyRegister
@@ -1801,6 +1819,156 @@ export class AuthClient {
         return this.#createMfaRequiredResponse(req, null, e);
       }
       if (e instanceof PasswordlessVerifyError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/otp/challenge
+   * Requests an OTP challenge against a database connection via /otp/challenge.
+   *
+   * Body: { email, connection, allowSignup? }
+   *       { phoneNumber, connection, deliveryMethod?, allowSignup? }
+   *
+   * Response: 200 { authSession: "<opaque>" }
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessDbOtpChallenge(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      const allowSignup =
+        typeof bodyRecord.allowSignup === "boolean"
+          ? bodyRecord.allowSignup
+          : false;
+
+      let challenge: PasswordlessDbChallenge;
+
+      if (typeof bodyRecord.email === "string" && bodyRecord.email) {
+        challenge = await this.passwordlessDbOtpChallenge({
+          email: bodyRecord.email,
+          connection,
+          allowSignup
+        });
+      } else if (
+        typeof bodyRecord.phoneNumber === "string" &&
+        bodyRecord.phoneNumber
+      ) {
+        const deliveryMethod =
+          bodyRecord.deliveryMethod === "voice" ? "voice" : "text";
+        challenge = await this.passwordlessDbOtpChallenge({
+          phoneNumber: bodyRecord.phoneNumber,
+          connection,
+          allowSignup,
+          deliveryMethod
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "missing_identifier",
+            error_description: "Either email or phoneNumber is required"
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ authSession: challenge.authSession });
+    } catch (e) {
+      if (e instanceof PasswordlessDbChallengeError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/otp/token
+   * Exchanges an auth_session + OTP for tokens and establishes a session.
+   *
+   * Body: { authSession, otp }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403/500 + { error, error_description }
+   */
+  async handlePasswordlessDbGetToken(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      const otp = validateStringFieldAndThrow(bodyRecord.otp, "otp");
+
+      const tokenResponse = await this.passwordlessDbGetToken({
+        authSession,
+        otp
+      });
+
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
+      if (e instanceof PasswordlessDbGetTokenError) {
         const serverErrorCodes = new Set([
           "discovery_error",
           "unexpected_error"
@@ -5144,6 +5312,205 @@ export class AuthClient {
         oauthErr.error_description ||
           err.message ||
           "Passwordless verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
+  }
+
+  /**
+   * Requests an OTP challenge for a database connection via `POST /otp/challenge`.
+   *
+   * The challenge always returns 200 regardless of whether the user exists
+   * (user-enumeration prevention). If the user is blocked or signup is disabled
+   * for a non-existent user, the returned auth_session will be non-functional
+   * and passwordlessDbGetToken will fail with invalid_request.
+   *
+   * @param options - Email or phone challenge options including connection name.
+   * @returns Opaque PasswordlessDbChallenge containing auth_session.
+   * @throws {PasswordlessDbChallengeError} On Auth0 API failure.
+   */
+  async passwordlessDbOtpChallenge(
+    options:
+      | PasswordlessDbChallengeEmailOptions
+      | PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    const url = new URL("/otp/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection,
+      allow_signup: options.allowSignup ?? false
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if ("email" in options) {
+      body.email = options.email;
+    } else {
+      body.phone_number = options.phoneNumber;
+      if (options.deliveryMethod) {
+        body.delivery_method = options.deliveryMethod;
+      }
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to request OTP challenge"
+        }));
+        throw new PasswordlessDbChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to request OTP challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const data = await response.json();
+      return { authSession: data.auth_session };
+    } catch (e) {
+      if (e instanceof PasswordlessDbChallengeError) throw e;
+      throw new PasswordlessDbChallengeError(
+        "unexpected_error",
+        "Unexpected error during OTP challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Exchanges an auth_session and OTP for tokens via `POST /oauth/token`.
+   * Uses grant type `http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - The opaque auth_session and user-entered OTP.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessDbGetTokenError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessDbGetToken(
+    options: PasswordlessDbGetTokenOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessDbGetTokenError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+
+    const params = new URLSearchParams();
+    params.append("auth_session", options.authSession);
+    params.append("otp", options.otp);
+    params.append("scope", scope);
+
+    if (this.clientSecret) {
+      params.append("client_secret", this.clientSecret);
+    }
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessDbGetTokenError(
+            "invalid_issuer",
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessDbGetTokenError(
+            "invalid_audience",
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
+      throw new PasswordlessDbGetTokenError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless DB token exchange failed",
         oauthErr.error
           ? {
               error: oauthErr.error,

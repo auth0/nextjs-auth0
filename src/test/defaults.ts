@@ -27,6 +27,12 @@ export function getDefaultRoutes(): Routes {
     passwordlessVerify:
       process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
       "/auth/passwordless/verify",
+    passwordlessDbOtpChallenge:
+      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
+      "/auth/passwordless/otp/challenge",
+    passwordlessDbGetToken:
+      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE ||
+      "/auth/passwordless/otp/token",
     passkeyRegister:
       process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
       "/auth/passkey/register",
