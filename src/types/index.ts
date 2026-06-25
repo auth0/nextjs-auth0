@@ -267,7 +267,12 @@ export {
   PasswordlessVerifyEmailOptions,
   PasswordlessVerifySmsOptions,
   PasswordlessVerifyTokenResponse,
-  GRANT_TYPE_PASSWORDLESS_OTP
+  GRANT_TYPE_PASSWORDLESS_OTP,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbDeliveryMethod,
+  PasswordlessDbGetTokenOptions
 } from "./passwordless.js";
 
 export {

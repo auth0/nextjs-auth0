@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server.js";
 
 import type {
   PasswordlessClient,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions
 } from "../../types/index.js";
@@ -166,5 +170,24 @@ export class ServerPasswordlessClient implements PasswordlessClient {
         cookiesLib as any
       );
     }
+  }
+
+  async challengeWithEmail(
+    options: PasswordlessDbChallengeEmailOptions
+  ): Promise<PasswordlessDbChallenge> {
+    void options;
+    throw new Error("Not implemented");
+  }
+
+  async challengeWithPhoneNumber(
+    options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    void options;
+    throw new Error("Not implemented");
+  }
+
+  async loginWithOtp(options: PasswordlessDbGetTokenOptions): Promise<void> {
+    void options;
+    throw new Error("Not implemented");
   }
 }

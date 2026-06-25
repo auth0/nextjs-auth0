@@ -4,6 +4,10 @@ import {
 } from "../../errors/index.js";
 import type {
   PasswordlessClient,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions
 } from "../../types/index.js";
@@ -135,6 +139,25 @@ class ClientPasswordlessClient implements PasswordlessClient {
         undefined
       );
     }
+  }
+
+  async challengeWithEmail(
+    options: PasswordlessDbChallengeEmailOptions
+  ): Promise<PasswordlessDbChallenge> {
+    void options;
+    throw new Error("Not implemented");
+  }
+
+  async challengeWithPhoneNumber(
+    options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    void options;
+    throw new Error("Not implemented");
+  }
+
+  async loginWithOtp(options: PasswordlessDbGetTokenOptions): Promise<void> {
+    void options;
+    throw new Error("Not implemented");
   }
 }
 
