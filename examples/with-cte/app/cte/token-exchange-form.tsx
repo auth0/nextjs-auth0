@@ -26,7 +26,7 @@ const labelClass = "mb-1 block text-sm font-medium text-gray-700";
 export function TokenExchangeForm() {
   const [subjectToken, setSubjectToken] = useState("");
   const [subjectTokenType, setSubjectTokenType] = useState(
-    "urn:ietf:params:oauth:token-type:access_token"
+    "urn:acme:legacy-token"
   );
   const [audience, setAudience] = useState("");
   const [scope, setScope] = useState("");
