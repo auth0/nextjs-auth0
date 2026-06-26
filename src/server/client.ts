@@ -1110,7 +1110,8 @@ export class Auth0Client {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
     // Connection tokens follow the upstream IdP's own token TTLs and are not
-    // subject to the IPSIE primary session ceiling — bypass ceiling enforcement.
+    // subject to the IPSIE primary session ceiling — skip only the ceiling check,
+    // MCD domain validation still applies.
     let reqCookies:
       | RequestCookies
       | import("./cookies.js").ReadonlyRequestCookies;
@@ -1122,7 +1123,11 @@ export class Auth0Client {
     } else {
       reqCookies = await cookies();
     }
-    const session = await authClient.getSessionWithoutCeilingCheck(reqCookies);
+    const { error: sessionError, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies, {
+        skipCeilingCheck: true
+      });
+    if (sessionError) throw sessionError;
 
     if (!session) {
       throw new AccessTokenForConnectionError(

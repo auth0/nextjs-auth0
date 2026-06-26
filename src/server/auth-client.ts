@@ -2852,7 +2852,8 @@ export class AuthClient {
    * @internal
    */
   async getSessionWithDomainCheck(
-    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies,
+    { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
     // Read session from store
     const session = await this.sessionStore.get(cookies);
@@ -2871,7 +2872,12 @@ export class AuthClient {
     // fire transparently. For stateful stores, delete the backing record so the
     // store stays clean; stateless sessions are self-contained in the cookie and
     // will be orphaned (ceiling check fires on every subsequent read).
-    if (isSessionCeilingReached(session.internal?.sessionExpiresAt)) {
+    // skipCeilingCheck is used by getAccessTokenForConnection — connection tokens
+    // follow the upstream IdP's own TTLs, not the IPSIE session ceiling.
+    if (
+      !skipCeilingCheck &&
+      isSessionCeilingReached(session.internal?.sessionExpiresAt)
+    ) {
       this.sessionStore.deleteByReqCookies(cookies).catch(() => undefined);
       return {
         error: null,
@@ -2952,18 +2958,6 @@ export class AuthClient {
       session,
       exists: true
     };
-  }
-
-  /**
-   * Reads the raw session from the store without applying the IPSIE ceiling check.
-   * Used by getAccessTokenForConnection so that connection tokens can still be
-   * fetched after the primary session ceiling — they follow the upstream IdP's
-   * own token TTLs, not the IPSIE session ceiling.
-   */
-  async getSessionWithoutCeilingCheck(
-    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
-  ): Promise<SessionData | null> {
-    return this.sessionStore.get(cookies);
   }
 
   /**
@@ -5432,7 +5426,10 @@ export class AuthClient {
       }
 
       // Return 401 for missing refresh token (cannot refresh expired token)
-      if (e?.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN) {
+      if (
+        e instanceof AccessTokenError &&
+        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      ) {
         return new NextResponse(e.message, { status: 401 });
       }
 
