@@ -1402,12 +1402,16 @@ export class AuthClient {
             idTokenClaims?.iat
           )
         ) {
+          const expiredError = new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          );
+          await this.onCallback(expiredError, onCallbackCtx, null);
           const popupResponse = createAuthCompletePostMessageResponse({
             success: false,
             error: {
               code: AccessTokenErrorCode.SESSION_EXPIRED,
-              message:
-                "The session has expired and the user must re-authenticate."
+              message: expiredError.message
             },
             nonce: this.cspNonce
           });
@@ -1923,10 +1927,7 @@ export class AuthClient {
       // IPSIE: when the ceiling fired, clean up the stored session so the next
       // request starts clean. For stateless sessions this is a no-op; for
       // stateful stores it removes the backing record.
-      if (
-        error instanceof AccessTokenError &&
-        error.code === AccessTokenErrorCode.SESSION_EXPIRED
-      ) {
+      if (error.code === AccessTokenErrorCode.SESSION_EXPIRED) {
         await this.sessionStore.delete(req.cookies, errorRes.cookies);
       }
 
@@ -2871,7 +2872,7 @@ export class AuthClient {
     // store stays clean; stateless sessions are self-contained in the cookie and
     // will be orphaned (ceiling check fires on every subsequent read).
     if (isSessionCeilingReached(session.internal?.sessionExpiresAt)) {
-      void this.sessionStore.deleteByReqCookies(cookies);
+      this.sessionStore.deleteByReqCookies(cookies).catch(() => undefined);
       return {
         error: null,
         session: null,
@@ -2951,6 +2952,18 @@ export class AuthClient {
       session,
       exists: true
     };
+  }
+
+  /**
+   * Reads the raw session from the store without applying the IPSIE ceiling check.
+   * Used by getAccessTokenForConnection so that connection tokens can still be
+   * fetched after the primary session ceiling — they follow the upstream IdP's
+   * own token TTLs, not the IPSIE session ceiling.
+   */
+  async getSessionWithoutCeilingCheck(
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+  ): Promise<SessionData | null> {
+    return this.sessionStore.get(cookies);
   }
 
   /**
@@ -5419,10 +5432,7 @@ export class AuthClient {
       }
 
       // Return 401 for missing refresh token (cannot refresh expired token)
-      if (
-        e instanceof AccessTokenError &&
-        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
-      ) {
+      if (e?.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN) {
         return new NextResponse(e.message, { status: 401 });
       }
 

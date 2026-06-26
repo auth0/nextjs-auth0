@@ -177,6 +177,45 @@ describe("buildSessionFromCallback — session_expiry stamping", () => {
     expect(session.internal.sessionExpiresAt).toBeUndefined();
   });
 
+  it("leaves sessionExpiresAt absent when session_expiry is a millisecond timestamp (>= 10_000_000_000) — common Action mistake", () => {
+    // Date.now() returns ms (13 digits). The guard rejects values >= 10_000_000_000
+    // so a year-57000 ceiling that would never fire is not silently stamped.
+    const msTimestamp = Date.now(); // e.g. 1_700_000_000_000
+    const session = buildSessionFromCallback(
+      { sub: "u", sid: "s", session_expiry: msTimestamp } as any,
+      fakeOidcRes,
+      fakeTxnState
+    );
+    expect(session.internal.sessionExpiresAt).toBeUndefined();
+  });
+
+  it("leaves sessionExpiresAt absent when session_expiry is NaN — typeof NaN === 'number' but NaN < guard fails", () => {
+    const session = buildSessionFromCallback(
+      { sub: "u", sid: "s", session_expiry: NaN } as any,
+      fakeOidcRes,
+      fakeTxnState
+    );
+    expect(session.internal.sessionExpiresAt).toBeUndefined();
+  });
+
+  it("leaves sessionExpiresAt absent when session_expiry is Infinity", () => {
+    const session = buildSessionFromCallback(
+      { sub: "u", sid: "s", session_expiry: Infinity } as any,
+      fakeOidcRes,
+      fakeTxnState
+    );
+    expect(session.internal.sessionExpiresAt).toBeUndefined();
+  });
+
+  it("leaves sessionExpiresAt absent when session_expiry is a boolean", () => {
+    const session = buildSessionFromCallback(
+      { sub: "u", sid: "s", session_expiry: true } as any,
+      fakeOidcRes,
+      fakeTxnState
+    );
+    expect(session.internal.sessionExpiresAt).toBeUndefined();
+  });
+
   it("ceiling is preserved independently of tokenSet fields — refresh grants do not overwrite it", () => {
     // session.internal is a separate field from session.tokenSet.
     // A token refresh updates tokenSet but never touches internal, so

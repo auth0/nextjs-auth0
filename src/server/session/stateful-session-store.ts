@@ -258,21 +258,37 @@ export class StatefulSessionStore extends AbstractSessionStore {
   override async deleteByReqCookies(
     reqCookies: cookies.RequestCookies
   ): Promise<void> {
-    const cookieValue =
-      reqCookies.get(this.sessionCookieName)?.value ||
-      reqCookies.get(LEGACY_COOKIE_NAME)?.value;
+    const cookie =
+      reqCookies.get(this.sessionCookieName) ||
+      reqCookies.get(LEGACY_COOKIE_NAME);
 
-    if (!cookieValue) {
+    if (!cookie?.value) {
       return;
     }
 
-    const session = await cookies.decrypt<SessionCookieValue>(
-      cookieValue,
-      this.secret
-    );
+    let sessionId: string | null | undefined = null;
+    try {
+      const sessionCookie = await cookies.decrypt<SessionCookieValue>(
+        cookie.value,
+        this.secret,
+        undefined,
+        true
+      );
+      if (sessionCookie) {
+        sessionId = sessionCookie.payload.id;
+      }
+    } catch (e: any) {
+      if (e.code === "ERR_JWE_INVALID") {
+        sessionId = await cookies.verifySigned(
+          cookie.name,
+          cookie.value,
+          this.secret
+        );
+      }
+    }
 
-    if (session) {
-      await this.store.delete(session.payload.id);
+    if (sessionId) {
+      await this.store.delete(sessionId);
     }
   }
 }

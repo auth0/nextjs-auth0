@@ -196,7 +196,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     );
   }
 
-  async deleteByReqCookies(): Promise<void> {
+  override async deleteByReqCookies(): Promise<void> {
     // Stateless sessions are stored in the cookie itself — clearing requires
     // response cookies, which are unavailable here. The ceiling check returns
     // null on every read, so the orphaned cookie is harmless.

@@ -1131,6 +1131,7 @@ describe("Auth0Client", () => {
           session: mockSession,
           error: null
         }),
+        getSessionWithoutCeilingCheck: vi.fn().mockResolvedValue(mockSession),
         getConnectionTokenSet: vi.fn().mockResolvedValue([
           null,
           {

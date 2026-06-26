@@ -3946,24 +3946,34 @@ A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` 
 
 ## Session Expiry from the Upstream IdP
 
-For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token, and the SDK enforces this ceiling automatically. Once it is reached, `getSession()` and `getUser()` return `null` (same as a logged-out user), and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`.
+For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token, and the SDK enforces this ceiling automatically. Once it is reached, `getSession()` returns `null` and `useUser()` reflects the logged-out state, and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`.
+
+To enable this, add a Post-Login Action on your Auth0 tenant that sets the `session_expiry` claim (see [Auth0 Actions documentation](https://auth0.com/docs/customize/actions)). The value must be a **Unix timestamp in seconds** — a common mistake is using `Date.now()` (milliseconds) instead of `Math.floor(Date.now() / 1000)`.
+
+> [!NOTE]
+> Once this feature is active, `getSession()` and `useUser()` can return `null` for a user who was previously logged in once the ceiling passes. If your app assumes a session always exists after login, add a null check and redirect back to login.
+>
+> The SDK enforces the ceiling 30 seconds early to absorb clock skew — a session is treated as expired slightly before the wall-clock ceiling, never after.
+>
+> The ceiling is stamped at login and survives access-token refreshes. Refreshing a token does not extend the upstream session; the original `session_expiry` value is preserved unchanged across all token grants.
 
 You should catch the `session_expired` error wherever you call `getAccessToken()` and redirect the user to re-authenticate:
 
 ```ts
 import { auth0 } from "@/lib/auth0";
-import { AccessTokenError, AccessTokenErrorCode } from "@auth0/nextjs-auth0/server";
+import { AccessTokenErrorCode } from "@auth0/nextjs-auth0/errors";
 
 try {
   const { token } = await auth0.getAccessToken();
   // use token...
-} catch (err) {
-  if (err instanceof AccessTokenError && err.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+} catch (err: any) {
+  if (err?.code === AccessTokenErrorCode.SESSION_EXPIRED) {
     // IdP session ceiling reached — the user must log in again
     redirect("/auth/login");
   }
   throw err;
 }
+```
 
 ## Combining middleware
 

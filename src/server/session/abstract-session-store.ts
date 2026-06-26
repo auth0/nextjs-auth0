@@ -192,9 +192,14 @@ export abstract class AbstractSessionStore {
    * the store record by session ID for hygiene.
    */
 
-  abstract deleteByReqCookies(
-    reqCookies: RequestCookies | ReadonlyRequestCookies
-  ): Promise<void>;
+  async deleteByReqCookies(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<void> {
+    // Default no-op. Stateless stores override to clear the cookie;
+    // stateful stores override to delete the backing record.
+    // Non-abstract so existing external subclasses are not broken.
+  }
 
   /**
    * isRolling returns true if rolling sessions are enabled.

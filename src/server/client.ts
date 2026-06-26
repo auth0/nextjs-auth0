@@ -1109,10 +1109,20 @@ export class Auth0Client {
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session = await this.getSessionFromAuthClient(
-      authClient,
-      normalizedReq
-    );
+    // Connection tokens follow the upstream IdP's own token TTLs and are not
+    // subject to the IPSIE primary session ceiling — bypass ceiling enforcement.
+    let reqCookies:
+      | RequestCookies
+      | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
+    }
+    const session = await authClient.getSessionWithoutCeilingCheck(reqCookies);
 
     if (!session) {
       throw new AccessTokenForConnectionError(

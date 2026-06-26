@@ -487,7 +487,7 @@ The SDK mounts 16 routes:
 
 ## Session Expiry from the Upstream IdP
 
-For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token, and the SDK enforces this ceiling on every session read. Once it is reached, `getSession()` and `getUser()` return `null`, and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`. If the asserted ceiling is already in the past at login, the callback returns a `session_expired` error response instead of persisting an already-expired session.
+For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token (set via a Post-Login Action, value must be Unix seconds), and the SDK enforces this ceiling on every session read. Once it is reached, `getSession()` returns `null`, `useUser()` reflects the logged-out state, and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`. If the ceiling is already in the past at login, the callback rejects the session immediately. Apps that assumed a session always exists after login should add a null check and redirect back to login.
 
 For more details, see [Session Expiry from the Upstream IdP](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-expiry-from-the-upstream-idp) in EXAMPLES.md.
 
