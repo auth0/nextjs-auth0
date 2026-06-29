@@ -10,8 +10,8 @@ export function UseUserPanel() {
       <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
         Calls <code>/auth/profile</code> via the <code>useUser()</code> SWR
         hook. After the ceiling passes, <code>handleProfile</code> returns 401
-        and the hook reflects a logged-out state — <code>user</code> becomes{" "}
-        <code>undefined</code>.
+        and the hook surfaces an error — <code>user</code> becomes{" "}
+        <code>null</code> and <code>error</code> is set.
       </p>
 
       {isLoading && (

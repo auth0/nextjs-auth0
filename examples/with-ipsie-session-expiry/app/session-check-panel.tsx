@@ -22,8 +22,8 @@ export function SessionCheckPanel() {
       <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
         Calls a server-side route that invokes <code>getSession()</code> and
         returns the result as JSON. After the ceiling passes, this returns{" "}
-        <code>{`{ "session": null, "expired": true }`}</code> — the same null
-        the page would receive before redirecting to login.
+        <code>{`{ "session": null }`}</code> — the same null the page would
+        receive before redirecting to login.
       </p>
       <button onClick={handleCheck} disabled={loading}>
         {loading ? "Checking…" : "Check Session"}

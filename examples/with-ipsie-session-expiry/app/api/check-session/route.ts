@@ -6,7 +6,7 @@ export async function GET() {
   const session = await auth0.getSession();
 
   if (!session) {
-    return NextResponse.json({ session: null, expired: true });
+    return NextResponse.json({ session: null });
   }
 
   const ceiling = session.internal?.sessionExpiresAt ?? null;
@@ -16,8 +16,7 @@ export async function GET() {
     session: {
       user: session.user,
       sessionExpiresAt: ceiling,
-      remainingSeconds: ceiling ? ceiling - now : null
-    },
-    expired: false
+      remainingSeconds: ceiling ? (ceiling - 30) - now : null
+    }
   });
 }

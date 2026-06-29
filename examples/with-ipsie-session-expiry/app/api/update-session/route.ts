@@ -18,9 +18,10 @@ export async function POST() {
       user: { ...session.user, updatedAt: new Date().toISOString() }
     });
     return NextResponse.json({ success: true, updatedAt: new Date().toISOString() });
-  } catch (err: any) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, error: message },
       { status: 500 }
     );
   }

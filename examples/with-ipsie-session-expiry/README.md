@@ -63,7 +63,7 @@ All cards should show healthy state.
 |---|---|
 | IPSIE Session Ceiling | Countdown ticking down, green **Active** badge |
 | Middleware — Rolling Session | `createdAt` value is stable; page loads normally on refresh |
-| getSession() | `{ "session": { ... }, "expired": false }` |
+| getSession() | `{ "session": { ... } }` |
 | useUser() | User object shown |
 | getAccessToken() — Browser | Access token displayed |
 | withApiAuthRequired() | `{ "status": 200, "body": { "protected": true } }` |
@@ -88,8 +88,8 @@ Work through each card **without refreshing the main page** (refreshing redirect
 
 | Card | What to click/do | Expected result |
 |---|---|---|
-| **getSession()** | Click **Check Session** | `{ "session": null, "expired": true }` — `getSession()` returns null, same as logged-out |
-| **useUser()** | Observe (auto-polls) or reload the component | `user: undefined (logged-out state)` — hook sees 401 from `/auth/profile` |
+| **getSession()** | Click **Check Session** | `{ "session": null }` — `getSession()` returns null, same as logged-out |
+| **useUser()** | Observe (auto-polls) or reload the component | `Hook error: Unauthorized` — 401 from `/auth/profile` sets `error`, `user` becomes `null` |
 | **getAccessToken() — Browser** | Click **Get Access Token** | Red error box: `session_expired — the IdP session ceiling has been reached` |
 | **withApiAuthRequired()** | Click **Call Protected API** | `{ "status": 401 }` — guard returns 401 before the handler runs |
 | **updateSession()** | Click **Update Session** | `{ "success": false, "error": "No active session..." }` — session is null, update blocked |
