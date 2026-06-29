@@ -207,6 +207,24 @@ describe("buildSessionFromCallback — session_expiry stamping", () => {
     expect(session.internal.sessionExpiresAt).toBeUndefined();
   });
 
+  it("leaves sessionExpiresAt absent when session_expiry is 0 — zero is not a valid Unix timestamp", () => {
+    const session = buildSessionFromCallback(
+      { sub: "u", sid: "s", session_expiry: 0 } as any,
+      fakeOidcRes,
+      fakeTxnState
+    );
+    expect(session.internal.sessionExpiresAt).toBeUndefined();
+  });
+
+  it("leaves sessionExpiresAt absent when session_expiry is negative — e.g. -3600", () => {
+    const session = buildSessionFromCallback(
+      { sub: "u", sid: "s", session_expiry: -3600 } as any,
+      fakeOidcRes,
+      fakeTxnState
+    );
+    expect(session.internal.sessionExpiresAt).toBeUndefined();
+  });
+
   it("leaves sessionExpiresAt absent when session_expiry is a boolean", () => {
     const session = buildSessionFromCallback(
       { sub: "u", sid: "s", session_expiry: true } as any,

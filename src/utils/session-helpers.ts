@@ -137,12 +137,11 @@ export function buildSessionFromCallback(
   oidcRes: oauth.TokenEndpointResponse,
   transactionState: TransactionState
 ): SessionData {
-  // Reject millisecond timestamps (13+ digits). A common Post-Login Action
-  // mistake is using Date.now() instead of Math.floor(Date.now() / 1000),
-  // which would stamp a year-57000 ceiling that never fires.
+  // Reject non-positive values (0, negatives), millisecond timestamps (13+ digits),
+  // NaN, Infinity, and non-numbers — all fall open to "no ceiling."
   const rawExpiry = idTokenClaims.session_expiry;
   const sessionExpiresAt =
-    typeof rawExpiry === "number" && rawExpiry < 10_000_000_000
+    typeof rawExpiry === "number" && rawExpiry > 0 && rawExpiry < 10_000_000_000
       ? rawExpiry
       : undefined;
 
