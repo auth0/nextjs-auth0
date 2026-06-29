@@ -237,6 +237,39 @@ When deploying to production:
 
 ---
 
+## Limitations
+
+### Intended Use Cases
+
+RFC 8705 mTLS was designed for **confidential server-side clients** — primarily:
+
+| Flow | mTLS support |
+|---|---|
+| Authorization code exchange | ✅ Full — `cnf.x5t#S256` issued |
+| Refresh token grant | ✅ Full — `cnf.x5t#S256` issued |
+| Client credentials (M2M) | ✅ Full — `cnf.x5t#S256` issued |
+| Token revocation on logout | ✅ Full — routes to mTLS alias |
+
+### Supported Interactive Flows
+
+Auth0 accepts mTLS client authentication on most interactive endpoints. The SDK routes all token exchanges through `mtls_endpoint_aliases.token_endpoint` automatically:
+
+| Flow | mTLS support | Notes |
+|---|---|---|
+| MFA step-up (`mfaVerify`) | ✅ | `/mfa/challenge` accepts mTLS; token exchange via mTLS alias |
+| Passkey login (`passkeyGetToken`) | ✅ | `/passkey/challenge` and `/passkey/register` accept mTLS |
+| Custom token exchange | ✅ | Token exchange via mTLS alias |
+
+### One Known Gap: Passwordless Start
+
+`POST /passwordless/start` is the only endpoint that does **not** accept mTLS client authentication — Auth0's passport strategy list for that route omits both mTLS strategies (`oauth2-ca-signed-mtls`, `oauth2-self-signed-mtls`). An mTLS-only client (no `clientSecret`) will receive `invalid_client` when calling `passwordlessStart`. The subsequent verify step (`passwordlessVerify`) routes through the token endpoint and works fine — but it is unreachable without a successful start.
+
+### `client_credentials` Gap
+
+The SDK does not currently expose a `clientCredentials()` method. Auth0 does issue `cnf.x5t#S256` for client credentials grants — this is the primary M2M use case. Support can be added when needed.
+
+---
+
 ## Additional Resources
 
 - [Auth0 mTLS Documentation](https://auth0.com/docs/get-started/applications/configure-mtls)
