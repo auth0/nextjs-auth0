@@ -198,7 +198,7 @@ export interface PasswordlessClient {
   /**
    * Exchange an `authSession` and user-entered OTP for tokens and establish a session.
    *
-   * Throws `PasswordlessLoginError` with `error: "invalid_request"` if the
+   * Throws `PasswordlessDbGetTokenError` with `error: "invalid_request"` if the
    * `authSession` was non-functional (blocked user, signup disabled for a non-existent
    * user, wrong OTP, or expired session).
    *
