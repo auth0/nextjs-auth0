@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  CustomTokenExchangeError
-} from "@auth0/nextjs-auth0/errors";
 import type { CustomTokenExchangeOptions } from "@auth0/nextjs-auth0/types";
 
 import { auth0 } from "@/lib/auth0";
@@ -45,21 +42,32 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof CustomTokenExchangeError) {
+  } catch (err: unknown) {
+    const sdkErr =
+      err && typeof err === "object" && "code" in err
+        ? (err as {
+            code: string;
+            message?: string;
+            cause?: { code?: string; message?: string };
+          })
+        : null;
+
+    if (sdkErr?.code) {
       return NextResponse.json(
         {
-          code: err.code,
-          message: err.message,
-          cause: err.cause
-            ? { code: err.cause.code, message: err.cause.message }
+          code: sdkErr.code,
+          message: sdkErr.message ?? "Token exchange failed.",
+          cause: sdkErr.cause
+            ? { code: sdkErr.cause.code, message: sdkErr.cause.message }
             : undefined,
         },
         { status: 400 }
       );
     }
+
+    console.error("CTE unexpected error", err);
     return NextResponse.json(
-      { code: "unexpected_error", message: String(err) },
+      { code: "unexpected_error", message: "Internal server error." },
       { status: 500 }
     );
   }

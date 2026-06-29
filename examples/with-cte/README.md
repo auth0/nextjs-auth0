@@ -108,7 +108,7 @@ const result = await auth0.customTokenExchange({
 
 ### Request flow
 
-```
+```text
 POST /api/cte
   → auth0.customTokenExchange(options)
       → validate inputs (subjectToken, subjectTokenType URI, actorTokenType URI)
@@ -138,20 +138,23 @@ console.log(result.act); // { sub: "agent|abc123" }
 ### Error handling
 
 ```ts
-import { CustomTokenExchangeError, CustomTokenExchangeErrorCode } from "@auth0/nextjs-auth0/errors";
+import { CustomTokenExchangeErrorCode } from "@auth0/nextjs-auth0/errors";
 
 try {
   const result = await auth0.customTokenExchange({ ... });
-} catch (err) {
-  if (err instanceof CustomTokenExchangeError) {
-    switch (err.code) {
-      case CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN:      break;
-      case CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE: break;
-      case CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE:   break;
-      case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
-        console.error(err.cause); // underlying OAuth2 error
-        break;
-    }
+} catch (err: unknown) {
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? (err as { code: string }).code
+      : null;
+
+  switch (code) {
+    case CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN:      break;
+    case CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE: break;
+    case CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE:   break;
+    case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
+      console.error((err as { cause?: unknown }).cause); // underlying OAuth2 error
+      break;
   }
 }
 ```
