@@ -77,12 +77,7 @@ export interface AuthorizationParameters {
    * @see https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
    */
   prompt?:
-    | "none"
-    | "login"
-    | "consent"
-    | "select_account"
-    | "create"
-    | (string & {});
+    "none" | "login" | "consent" | "select_account" | "create" | (string & {});
   /**
    * Requested Authentication Context Class Reference values.
    * Space-separated string indicating the authentication context the authorization
