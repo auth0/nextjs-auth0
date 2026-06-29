@@ -3,20 +3,18 @@ import { getScopeForAudience } from "./scope-helpers.js";
 
 /**
  * Parses a string value as a non-negative integer authorization parameter.
- * Returns the parsed number, or null if the value is not a valid non-negative integer.
+ * Accepts only strings matching /^\d+$/ (decimal digits only — rejects floats,
+ * scientific notation, negative values, empty strings, and whitespace).
+ * Returns the parsed number, or null if the value is invalid.
  */
 export function parseNonNegativeIntegerParam(
   name: string,
   value: string
 ): number | null {
-  if (value.trim() === "") {
+  if (!/^\d+$/.test(value)) {
     return null;
   }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return null;
-  }
-  return parsed;
+  return Number(value);
 }
 
 /**

@@ -107,5 +107,13 @@ describe("authorization-params-helpers", () => {
     it("should return null for a float", () => {
       expect(parseNonNegativeIntegerParam("max_age", "1.5")).toBeNull();
     });
+
+    it("should return null for scientific notation", () => {
+      expect(parseNonNegativeIntegerParam("max_age", "1e3")).toBeNull();
+    });
+
+    it("should return null for a value with leading whitespace", () => {
+      expect(parseNonNegativeIntegerParam("max_age", " 3600")).toBeNull();
+    });
   });
 });
