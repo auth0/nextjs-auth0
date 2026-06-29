@@ -1,14 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it
-} from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import type { PasswordlessClient } from "../../types/index.js";
 
@@ -63,7 +55,7 @@ afterAll(() => {
 describe("ClientPasswordlessClient — DB OTP methods", () => {
   let client: PasswordlessClient;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const { passwordless } = await import("./index.js");
     client = passwordless;
   });
@@ -214,6 +206,22 @@ describe("ClientPasswordlessClient — DB OTP methods", () => {
       });
 
       expect(capturedBody.deliveryMethod).toBe("voice");
+    });
+
+    it("succeeds silently for non-existent user with allowSignup false (200-always contract)", async () => {
+      server.use(
+        http.post(CHALLENGE_ROUTE, () =>
+          HttpResponse.json({ authSession: DEFAULT.authSession })
+        )
+      );
+
+      const result = await client.challengeWithPhoneNumber({
+        phoneNumber: "+10000000000",
+        connection: DEFAULT.connection,
+        allowSignup: false
+      });
+
+      expect(result.authSession).toBe(DEFAULT.authSession);
     });
 
     it("throws PasswordlessDbChallengeError on API error", async () => {
