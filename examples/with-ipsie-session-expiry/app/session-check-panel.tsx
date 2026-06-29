@@ -8,10 +8,13 @@ export function SessionCheckPanel() {
 
   async function handleCheck() {
     setLoading(true);
-    const res = await fetch("/api/check-session");
-    const data = await res.json();
-    setResult(data);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/check-session");
+      const data = await res.json().catch(() => ({ error: "Invalid response" }));
+      setResult(data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

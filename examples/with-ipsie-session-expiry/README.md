@@ -124,11 +124,11 @@ Restore the Action to `+ 120` when done.
 
 | # | Flow | Card / endpoint | Ceiling fires at |
 |---|---|---|---|
-| 1 | `getSession()` | getSession card → `/api/check-session` | `getSessionWithDomainCheck` (line 2874) |
+| 1 | `getSession()` | getSession card → `/api/check-session` | `getSessionWithDomainCheck` |
 | 2 | `useUser()` browser hook | useUser card → `/auth/profile` | `handleProfile` → `getSessionWithDomainCheck` |
-| 3 | `getAccessToken()` browser | getAccessToken card → `/auth/access-token` | `handleAccessToken` → `getTokenSet` (line 2236) |
-| 4 | `withApiAuthRequired()` | withApiAuthRequired card → `/api/protected` | `getSessionWithDomainCheck` (line 2874) |
+| 3 | `getAccessToken()` browser | getAccessToken card → `/auth/access-token` | `handleAccessToken` → `getTokenSet` |
+| 4 | `withApiAuthRequired()` | withApiAuthRequired card → `/api/protected` | `getSessionWithDomainCheck` |
 | 5 | `updateSession()` | updateSession card → `/api/update-session` | `getSession()` returns null before update |
-| 6 | `withPageAuthRequired()` | `/protected` page | `getSessionWithDomainCheck` (line 2874) |
-| 7 | Middleware rolling session | page refresh | `getSessionWithDomainCheck` (line 2874) |
-| 8 | `handleCallback` redirect | login flow (at-login rejection test) | `isSessionCeilingInPast` (line 1454) |
+| 6 | `withPageAuthRequired()` | `/protected` page | `getSessionWithDomainCheck` |
+| 7 | Middleware rolling session | page refresh | `getSessionWithDomainCheck` |
+| 8 | `handleCallback` redirect | login flow (at-login rejection test) | `isSessionCeilingInPast` |

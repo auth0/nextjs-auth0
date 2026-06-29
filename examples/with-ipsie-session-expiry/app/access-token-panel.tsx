@@ -4,9 +4,7 @@ import { useState } from "react";
 
 import { getAccessToken } from "@auth0/nextjs-auth0/client";
 
-const LEEWAY = 30;
-
-export function AccessTokenPanel({ ceiling }: { ceiling: number | null }) {
+export function AccessTokenPanel() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,16 +18,7 @@ export function AccessTokenPanel({ ceiling }: { ceiling: number | null }) {
       const t = await getAccessToken();
       setToken(t);
     } catch (err: any) {
-      // getAccessToken() throws MISSING_SESSION when getSession() returns null.
-      // If the ceiling has passed, the root cause is the IPSIE ceiling — not a
-      // genuinely missing session — so show a ceiling-specific message.
-      const isCeilingExpired =
-        err?.code === "session_expired" ||
-        (err?.code === "missing_session" &&
-          ceiling !== null &&
-          Math.floor(Date.now() / 1000) >= ceiling - LEEWAY);
-
-      if (isCeilingExpired) {
+      if (err?.code === "session_expired") {
         setError(
           "session_expired — the IdP session ceiling has been reached. The user must re-authenticate."
         );

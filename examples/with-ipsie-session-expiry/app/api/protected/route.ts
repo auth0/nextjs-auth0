@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth0 } from "@/lib/auth0";
 
-const protectedHandler = auth0.withApiAuthRequired(async (_req: Request | NextRequest) => {
+const handler = auth0.withApiAuthRequired(async () => {
   return NextResponse.json({ protected: true, message: "You have an active session." });
 });
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  return protectedHandler(req, {}) as Promise<NextResponse>;
+// withApiAuthRequired returns AppRouteHandlerFn whose declared return is
+// Promise<Response> | Response, but the inferred type comes through as
+// unknown due to the SDK's overloaded signature. The cast is safe — the
+// runtime always returns a Response.
+export async function GET(req: NextRequest): Promise<Response> {
+  return handler(req, {}) as Promise<Response>;
 }

@@ -9,21 +9,39 @@ const LEEWAY = 30;
 export function CeilingCountdown({ ceiling }: { ceiling: number }) {
   const enforcedAt = ceiling - LEEWAY;
 
-  const [remaining, setRemaining] = useState(
-    enforcedAt - Math.floor(Date.now() / 1000)
-  );
+  // Seed to null to avoid a server/client hydration mismatch on the first render.
+  // The interval fires immediately and sets the real value on the client.
+  const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    function tick() {
       setRemaining(enforcedAt - Math.floor(Date.now() / 1000));
-    }, 1000);
+    }
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [enforcedAt]);
 
-  const status = remaining <= 0 ? "expired" : "active";
+  const status =
+    remaining === null ? "loading" : remaining <= 0 ? "expired" : remaining <= 30 ? "warning" : "active";
 
   const badgeClass =
-    status === "active" ? "badge badge-green" : "badge badge-red";
+    status === "active"
+      ? "badge badge-green"
+      : status === "warning"
+        ? "badge badge-yellow"
+        : status === "expired"
+          ? "badge badge-red"
+          : "badge";
+
+  const badgeLabel =
+    status === "active"
+      ? "Active"
+      : status === "warning"
+        ? "Expiring soon"
+        : status === "expired"
+          ? "Expired"
+          : "…";
 
   return (
     <>
@@ -42,10 +60,8 @@ export function CeilingCountdown({ ceiling }: { ceiling: number }) {
         className="value"
         style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
       >
-        {remaining > 0 ? `${remaining}s` : "Enforced"}
-        <span className={badgeClass}>
-          {status === "active" ? "Active" : "Expired"}
-        </span>
+        {remaining === null ? "…" : remaining > 0 ? `${remaining}s` : "Enforced"}
+        <span className={badgeClass}>{badgeLabel}</span>
       </div>
 
       <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "0.75rem" }}>

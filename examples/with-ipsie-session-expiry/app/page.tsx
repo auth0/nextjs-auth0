@@ -15,17 +15,9 @@ export default async function Page() {
     redirect("/auth/login");
   }
 
-  const { user, tokenSet, internal } = session;
+  const { user, internal } = session;
   const ceiling = typeof internal.sessionExpiresAt === "number" ? internal.sessionExpiresAt : null;
   const createdAt = internal.createdAt;
-
-  let idTokenClaims: Record<string, unknown> | null = null;
-  if (tokenSet.idToken) {
-    try {
-      const payload = tokenSet.idToken.split(".")[1];
-      idTokenClaims = JSON.parse(Buffer.from(payload, "base64url").toString());
-    } catch { }
-  }
 
   const hasNoCeiling = ceiling === null;
 
@@ -119,7 +111,7 @@ export default async function Page() {
           Calls <code>/auth/access-token</code>. Once the ceiling is reached this
           returns a <code>session_expired</code> error without contacting Auth0.
         </p>
-        <AccessTokenPanel ceiling={ceiling} />
+        <AccessTokenPanel />
       </div>
 
       {/* ── 7. withApiAuthRequired ───────────────────────────── */}
@@ -151,16 +143,13 @@ export default async function Page() {
       <div className="card">
         <h2>ID Token Claims</h2>
         <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.75rem" }}>
-          Raw claims from the ID token. <code>session_expiry</code> should
-          appear here after adding the Post-Login Action and logging in fresh.
+          Verified claims from the ID token, sourced from <code>session.user</code>.{" "}
+          <code>session_expiry</code> should appear here after adding the Post-Login
+          Action and logging in fresh.
         </p>
-        {idTokenClaims ? (
-          <pre className="token" style={{ whiteSpace: "pre-wrap" }}>
-            {JSON.stringify(idTokenClaims, null, 2)}
-          </pre>
-        ) : (
-          <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>No ID token in session.</p>
-        )}
+        <pre className="token" style={{ whiteSpace: "pre-wrap" }}>
+          {JSON.stringify(user, null, 2)}
+        </pre>
       </div>
 
       <div style={{ marginTop: "1rem", fontSize: "0.875rem" }}>
