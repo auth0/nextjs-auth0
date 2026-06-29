@@ -1110,8 +1110,7 @@ export class Auth0Client {
     // subject to the IPSIE primary session ceiling — skip only the ceiling check,
     // MCD domain validation still applies.
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (normalizedReq) {
       reqCookies =
         normalizedReq instanceof NextRequest
