@@ -288,6 +288,7 @@ export function PasswordlessDbForm() {
               className={inputClass + " text-center text-2xl font-mono tracking-widest"}
               required
               autoFocus
+              disabled={loading}
             />
 
             {error && (
