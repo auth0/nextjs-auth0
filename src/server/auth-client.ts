@@ -1721,8 +1721,7 @@ export class AuthClient {
       if (connection === "email") {
         const email = validateStringFieldAndThrow(bodyRecord.email, "email");
         const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
-          | "code"
-          | "link";
+          "code" | "link";
 
         await this.passwordlessStart(
           { connection: "email", email, send, language },
@@ -3284,8 +3283,7 @@ export class AuthClient {
       // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
       act = tokenEndpointResponse.id_token
         ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
-            | ActClaim
-            | undefined)
+            ActClaim | undefined)
         : undefined;
     } catch (err: any) {
       const oauthErr = await extractOAuthErrorDetails(err);
@@ -4956,8 +4954,7 @@ export class AuthClient {
       );
 
       const audience = this.authorizationParameters.audience as
-        | string
-        | undefined;
+        string | undefined;
       const scope =
         getScopeForAudience(this.authorizationParameters.scope, audience) ||
         "openid email profile";

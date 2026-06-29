@@ -88,7 +88,7 @@ importers:
         specifier: 15.5.19
         version: 15.5.19(@playwright/test@1.61.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       prettier:
-        specifier: ^3.3.3
+        specifier: ^3.9.1
         version: 3.9.1
       typedoc:
         specifier: ^0.28.4
