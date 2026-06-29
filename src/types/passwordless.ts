@@ -73,8 +73,7 @@ export interface PasswordlessStartSmsOptions {
  * Use the `connection` field to discriminate between email and SMS.
  */
 export type PasswordlessStartOptions =
-  | PasswordlessStartEmailOptions
-  | PasswordlessStartSmsOptions;
+  PasswordlessStartEmailOptions | PasswordlessStartSmsOptions;
 
 /**
  * Options to verify an email passwordless OTP.
@@ -105,8 +104,7 @@ export interface PasswordlessVerifySmsOptions {
  * Use the `connection` field to discriminate between email and SMS.
  */
 export type PasswordlessVerifyOptions =
-  | PasswordlessVerifyEmailOptions
-  | PasswordlessVerifySmsOptions;
+  PasswordlessVerifyEmailOptions | PasswordlessVerifySmsOptions;
 
 /**
  * Token response returned by Auth0 after a successful passwordless OTP verification.

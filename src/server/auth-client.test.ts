@@ -2356,6 +2356,91 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
+    it("should store per-request maxAge=0 (step-up) in transaction state when not set in SDK config", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "0");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("0");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 0
+        })
+      );
+    });
+
+    it("should use per-request maxAge over SDK-level max_age in transaction state", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        authorizationParameters: { max_age: 3600 },
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "0");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("0");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 0
+        })
+      );
+    });
+
     it("should store the returnTo path in the transaction state", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -2464,6 +2549,52 @@ ca/T0LLtgmbMmxSv/MmzIg==
           returnTo: "/"
         })
       );
+    });
+
+    it("should return a 400 for a non-numeric max_age query param", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "abc");
+      const response = await authClient.handleLogin(
+        new NextRequest(loginUrl, { method: "GET" })
+      );
+      expect(response.status).toEqual(400);
+    });
+
+    it("should return a 400 for a negative max_age query param", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "-1");
+      const response = await authClient.handleLogin(
+        new NextRequest(loginUrl, { method: "GET" })
+      );
+      expect(response.status).toEqual(400);
     });
 
     describe("with pushed authorization requests", async () => {
@@ -4566,6 +4697,80 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       const response = await authClient.handleCallback(request);
+      expect(response.status).toEqual(500);
+      expect(await response.text()).toEqual(
+        "An error occurred while trying to exchange the authorization code."
+      );
+    });
+
+    it("should reject callback when max_age=0 was requested but auth_time in the token is stale", async () => {
+      const state = "transaction-state";
+      const code = "auth-code";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      // Build an ID token whose auth_time is 2 hours in the past.
+      // With max_age=0, oauth4webapi requires auth_time ≥ now − tolerance.
+      const staleAuthTime = Math.floor(Date.now() / 1000) - 7200;
+      const idToken = await new jose.SignJWT({
+        sid: DEFAULT.sid,
+        auth_time: staleAuthTime,
+        nonce: "nonce-value"
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject(DEFAULT.sub)
+        .setIssuedAt()
+        .setIssuer(_authorizationServerMetadata.issuer)
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: idToken,
+            expires_in: 86400
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      // TransactionState with maxAge=0 — the fix ensures this is now stored correctly
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        maxAge: 0,
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state,
+        returnTo: "/dashboard"
+      };
+      const expiration = Math.floor(Date.now() / 1000 + 3600);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, { method: "GET", headers });
+
+      const response = await authClient.handleCallback(request);
+      // oauth4webapi enforces auth_time + max_age ≥ now − tolerance and throws;
+      // the SDK surfaces this as a 500 AuthorizationCodeGrantError
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "An error occurred while trying to exchange the authorization code."
@@ -8715,6 +8920,24 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       await expect(
         authClient.startInteractiveLogin({}, request)
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
+    it("should throw InvalidConfigurationError for a non-numeric max_age authorization parameter", async () => {
+      const authClient = await createAuthClient();
+      await expect(
+        authClient.startInteractiveLogin({
+          authorizationParameters: { max_age: "abc" as unknown as number }
+        })
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
+    it("should throw InvalidConfigurationError for a negative max_age authorization parameter", async () => {
+      const authClient = await createAuthClient();
+      await expect(
+        authClient.startInteractiveLogin({
+          authorizationParameters: { max_age: -1 }
+        })
       ).rejects.toThrow(InvalidConfigurationError);
     });
 

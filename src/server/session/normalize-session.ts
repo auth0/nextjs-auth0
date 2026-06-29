@@ -114,8 +114,7 @@ export function normalizeStatefulSession(
 
 function convertFromLegacy(
   header:
-    | LegacyHeaders
-    | JWTDecryptResult<LegacySessionPayload>["protectedHeader"],
+    LegacyHeaders | JWTDecryptResult<LegacySessionPayload>["protectedHeader"],
   session: LegacySession
 ) {
   const userClaims = session.user as LegacyClaims;

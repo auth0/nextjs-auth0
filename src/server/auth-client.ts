@@ -102,7 +102,10 @@ import {
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
-import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
+import {
+  mergeAuthorizationParamsIntoSearchParams,
+  parseNonNegativeIntegerParam
+} from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -857,9 +860,27 @@ export class AuthClient {
     }
 
     // Prepare transaction state
+    // Read max_age from the already-merged authorizationParams (not the static SDK config)
+    // so that per-request values (e.g. max_age=0 for step-up auth) are preserved for
+    // auth_time validation at callback. Falls back to SDK-level config when absent.
+    const requestedMaxAgeStr = authorizationParams.get("max_age");
+    let resolvedMaxAge: number | undefined =
+      this.authorizationParameters.max_age;
+    if (requestedMaxAgeStr !== null) {
+      const parsed = parseNonNegativeIntegerParam(
+        "max_age",
+        requestedMaxAgeStr
+      );
+      if (parsed === null) {
+        throw new InvalidConfigurationError(
+          `Invalid max_age parameter: "${requestedMaxAgeStr}". Must be a non-negative integer.`
+        );
+      }
+      resolvedMaxAge = parsed;
+    }
     const transactionState: TransactionState = {
       nonce,
-      maxAge: this.authorizationParameters.max_age,
+      maxAge: resolvedMaxAge,
       codeVerifier,
       responseType: RESPONSE_TYPES.CODE,
       state,
@@ -910,6 +931,17 @@ export class AuthClient {
     ) {
       return new NextResponse(
         `Invalid challengeMode query param: ${queryChallengeMode}. Expected 'redirect', 'popup', or omit.`,
+        { status: 400 }
+      );
+    }
+
+    // Validate max_age query param value
+    if (
+      searchParams.max_age !== undefined &&
+      parseNonNegativeIntegerParam("max_age", searchParams.max_age) === null
+    ) {
+      return new NextResponse(
+        `Invalid max_age query param: "${searchParams.max_age}". Must be a non-negative integer.`,
         { status: 400 }
       );
     }
@@ -1735,8 +1767,7 @@ export class AuthClient {
       if (connection === "email") {
         const email = validateStringFieldAndThrow(bodyRecord.email, "email");
         const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
-          | "code"
-          | "link";
+          "code" | "link";
 
         await this.passwordlessStart(
           { connection: "email", email, send, language },
@@ -3339,8 +3370,7 @@ export class AuthClient {
       // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
       act = tokenEndpointResponse.id_token
         ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
-            | ActClaim
-            | undefined)
+            ActClaim | undefined)
         : undefined;
     } catch (err: any) {
       const oauthErr = await extractOAuthErrorDetails(err);
@@ -5011,8 +5041,7 @@ export class AuthClient {
       );
 
       const audience = this.authorizationParameters.audience as
-        | string
-        | undefined;
+        string | undefined;
       const scope =
         getScopeForAudience(this.authorizationParameters.scope, audience) ||
         "openid email profile";

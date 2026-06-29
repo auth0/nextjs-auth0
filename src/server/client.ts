@@ -509,8 +509,7 @@ export interface Auth0ClientOptions {
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
 export type PagesRouterResponse =
-  | ServerResponse<IncomingMessage>
-  | NextApiResponse;
+  ServerResponse<IncomingMessage> | NextApiResponse;
 
 export class Auth0Client {
   private transactionStore: TransactionStore;
@@ -842,8 +841,7 @@ export class Auth0Client {
 
     // extract cookies
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (normalizedReq) {
       reqCookies =
         normalizedReq instanceof NextRequest
@@ -868,8 +866,7 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (req) {
       reqCookies =
         req instanceof NextRequest
@@ -1609,8 +1606,7 @@ export class Auth0Client {
     return (
       req: NextRequest | NextApiRequest,
       resOrParams:
-        | withApiAuthRequired.AppRouteHandlerFnContext
-        | NextApiResponse
+        withApiAuthRequired.AppRouteHandlerFnContext | NextApiResponse
     ) => {
       if (isRequest(req)) {
         return appRouteHandler(
