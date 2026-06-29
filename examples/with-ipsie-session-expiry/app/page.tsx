@@ -143,12 +143,16 @@ export default async function Page() {
       <div className="card">
         <h2>ID Token Claims</h2>
         <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.75rem" }}>
-          Verified claims from the ID token, sourced from <code>session.user</code>.{" "}
-          <code>session_expiry</code> should appear here after adding the Post-Login
-          Action and logging in fresh.
+          Standard claims from <code>session.user</code>. The <code>session_expiry</code>{" "}
+          claim is a custom claim that the SDK moves to <code>session.internal.sessionExpiresAt</code>{" "}
+          at login — it does not appear in <code>session.user</code>.
         </p>
         <pre className="token" style={{ whiteSpace: "pre-wrap" }}>
-          {JSON.stringify(user, null, 2)}
+          {JSON.stringify(
+            { ...user, "session_expiry (→ internal.sessionExpiresAt)": ceiling ?? "not set" },
+            null,
+            2
+          )}
         </pre>
       </div>
 

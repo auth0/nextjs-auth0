@@ -9,10 +9,15 @@ export function WithApiAuthPanel() {
   async function handleCall() {
     setLoading(true);
     setResult(null);
-    const res = await fetch("/api/protected");
-    const data = await res.json().catch(() => ({ status: res.status }));
-    setResult(JSON.stringify({ status: res.status, body: data }, null, 2));
-    setLoading(false);
+    try {
+      const res = await fetch("/api/protected");
+      const data = await res.json().catch(() => ({ status: res.status }));
+      setResult(JSON.stringify({ status: res.status, body: data }, null, 2));
+    } catch (err: any) {
+      setResult(JSON.stringify({ error: err.message ?? "Failed to call API" }, null, 2));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
