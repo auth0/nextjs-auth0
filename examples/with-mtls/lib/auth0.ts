@@ -56,7 +56,9 @@ const tlsAgent = new Agent({
     cert: readCertFile("MTLS_CLIENT_CERT_PATH", certPath),
     key: readCertFile("MTLS_CLIENT_KEY_PATH", keyPath),
     ...(caPath ? { ca: readCertFile("MTLS_CA_CERT_PATH", caPath) } : {}),
-    rejectUnauthorized: false
+    // Only disable server cert verification when explicitly opted in (e.g. local dev with self-signed certs).
+    // Never set this in production.
+    rejectUnauthorized: process.env.MTLS_REJECT_UNAUTHORIZED !== "false"
   }
 });
 

@@ -5,7 +5,12 @@ import { RefreshButton } from "./refresh-button";
 
 async function forceRefresh() {
   "use server";
-  const tokenInfo = await auth0.getAccessToken({ refresh: true });
+  let tokenInfo;
+  try {
+    tokenInfo = await auth0.getAccessToken({ refresh: true });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
   if (!tokenInfo) return { error: "No token returned" };
   const parts = tokenInfo.token.split(".");
   let payload: Record<string, unknown> | null = null;

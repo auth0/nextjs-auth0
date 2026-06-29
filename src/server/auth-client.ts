@@ -1070,7 +1070,7 @@ export class AuthClient {
     // Revoke the refresh token before clearing the session so it cannot be
     // replayed after logout (e.g. from a stolen session cookie). Errors are
     // swallowed — a failed revocation must never block the logout redirect.
-    if (session?.tokenSet.refreshToken && !hasDomainMismatch) {
+    if (this.useMtls && session?.tokenSet.refreshToken && !hasDomainMismatch) {
       try {
         await this.revokeRefreshToken(
           authorizationServerMetadata,
@@ -2744,13 +2744,14 @@ export class AuthClient {
     refreshToken: string
   ): Promise<void> {
     const clientAuth = await this.getClientAuth();
-    await oauth.revocationRequest(
+    const response = await oauth.revocationRequest(
       as,
       this.clientMetadata,
       clientAuth,
       refreshToken,
-      { [oauth.customFetch]: this.fetch }
+      { [oauth.customFetch]: this.fetch, ...this.httpOptions() }
     );
+    await oauth.processRevocationResponse(response);
   }
 
   private warnIfNotCertificateBound(accessToken: string): void {

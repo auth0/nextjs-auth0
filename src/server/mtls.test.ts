@@ -21,6 +21,7 @@ vi.mock("oauth4webapi", async () => {
     revocationRequest: vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 200 })),
+    processRevocationResponse: vi.fn().mockResolvedValue(undefined),
     customFetch: Symbol("customFetch"),
     allowInsecureRequests: Symbol("allowInsecureRequests")
   };
@@ -59,6 +60,7 @@ describe("mTLS AuthClient", () => {
     secret = await generateSecret(32);
     vi.mocked(oauth.TlsClientAuth).mockClear();
     vi.mocked(oauth.revocationRequest).mockClear();
+    vi.mocked(oauth.processRevocationResponse).mockClear();
     setupDiscoveryMocks();
   });
 
@@ -330,7 +332,7 @@ describe("mTLS AuthClient", () => {
       expect(tokenArg).toBe("rt_mtls_123");
     });
 
-    it("calls oauth.revocationRequest with regular endpoint when useMtls=false", async () => {
+    it("does not call oauth.revocationRequest when useMtls=false", async () => {
       const { transactionStore, sessionStore } = makeStores(secret);
 
       const authClient = new AuthClient({
@@ -369,13 +371,7 @@ describe("mTLS AuthClient", () => {
 
       await authClient.handleLogout(request);
 
-      expect(oauth.revocationRequest).toHaveBeenCalledOnce();
-      const [, clientArg, , tokenArg] = vi.mocked(oauth.revocationRequest).mock
-        .calls[0];
-      expect(
-        (clientArg as oauth.Client).use_mtls_endpoint_aliases
-      ).toBeUndefined();
-      expect(tokenArg).toBe("rt_plain_123");
+      expect(oauth.revocationRequest).not.toHaveBeenCalled();
     });
   });
 

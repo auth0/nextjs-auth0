@@ -3826,7 +3826,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
 
     describe("refresh token revocation on logout", () => {
-      it("should call revocation endpoint when session has a refresh token", async () => {
+      it("should call revocation endpoint when session has a refresh token (mTLS)", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({ secret });
         const sessionStore = new StatelessSessionStore({ secret });
@@ -3840,11 +3840,20 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionStore,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
+          useMtls: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer({ onRevocationRequest })
+          fetch: getMockAuthorizationServer({
+            onRevocationRequest,
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
         });
 
         const session: SessionData = {
@@ -3878,7 +3887,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(params.get("token")).toEqual(DEFAULT.refreshToken);
       });
 
-      it("should not call revocation endpoint when session has no refresh token", async () => {
+      it("should not call revocation endpoint when session has no refresh token (mTLS)", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({ secret });
         const sessionStore = new StatelessSessionStore({ secret });
@@ -3892,11 +3901,20 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionStore,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
+          useMtls: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer({ onRevocationRequest })
+          fetch: getMockAuthorizationServer({
+            onRevocationRequest,
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
         });
 
         const session: SessionData = {
@@ -3926,7 +3944,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(onRevocationRequest).not.toHaveBeenCalled();
       });
 
-      it("should not block logout if revocation fails", async () => {
+      it("should not block logout if revocation fails (mTLS)", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({ secret });
         const sessionStore = new StatelessSessionStore({ secret });
@@ -3936,7 +3954,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionStore,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
+          useMtls: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
@@ -3944,7 +3962,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
             revocationErrorResponse: new Response(
               JSON.stringify({ error: "server_error" }),
               { status: 500 }
-            )
+            ),
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
           })
         });
 
