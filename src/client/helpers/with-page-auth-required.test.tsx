@@ -104,9 +104,9 @@ describe("with-page-auth-required csr", () => {
       mutate: vi.fn()
     }));
 
-    const ProtectedPage = withPageAuthRequired(
-      ({ user }): JSX.Element => <>{user.email}</>
-    );
+    const ProtectedPage = withPageAuthRequired(({ user }): JSX.Element => (
+      <>{user.email}</>
+    ));
 
     render(<ProtectedPage />, {
       wrapper: withAuth0Provider({ user })
