@@ -1980,6 +1980,9 @@ Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the
 
 ## Passwordless OTP on Database Connections
 
+> [!NOTE]
+> This feature is currently in **Early Access (EA)**. Contact your Auth0 account team to have it enabled on your tenant.
+
 Auth0 supports passwordless OTP login against standard **database connections** (`auth0` strategy) configured with `email_otp` or `phone_otp`. This is distinct from the legacy passwordless flow — it works with existing database connections that already hold user accounts, rather than requiring a dedicated email or SMS passwordless connection.
 
 The flow is two steps: request a challenge (OTP delivery) via `POST /otp/challenge`, then exchange the returned `auth_session` + the OTP the user enters for tokens via `POST /oauth/token`.
@@ -1997,15 +2000,9 @@ The flow is two steps: request a challenge (OTP delivery) via `POST /otp/challen
 
 ### Auth0 Setup
 
-#### 1. Enable feature flags
+#### 1. Enable the Passwordless OTP feature
 
-The following tenant feature flags must be enabled (contact your Auth0 account team for EA access):
-
-- `allow_otp_database_connection_flows` — enables the Universal Login OTP flows on DB connections
-- `allow_otp_database_connection_config` — unlocks OTP method settings on DB connections
-- `allow_otp_database_connection_auth_api` — enables the `/otp/challenge` endpoint
-- `allow_database_connection_auto_login_and_signup`
-- `allow_database_connection_user_existence_errors`
+This feature is in Early Access. Contact your Auth0 account team to have it enabled on your tenant.
 
 #### 2. Enable OTP on your database connection
 
@@ -2094,7 +2091,7 @@ await passwordless.loginWithOtp({
 ```
 
 > [!IMPORTANT]
-> The challenge endpoint always returns a valid-looking `authSession` regardless of whether the user exists (user-enumeration prevention). If `allowSignup` is `false` for a non-existent user, or the user is blocked, the returned `authSession` is non-functional and `loginWithOtp` will fail with `invalid_request`.
+> The challenge endpoint always returns a valid-looking `authSession` regardless of whether the user exists (user-enumeration prevention). If `allowSignup` is `false` for a non-existent user, or the user is blocked, no OTP is delivered — the `authSession` is silently non-functional. Calling `loginWithOtp` with it will fail with `invalid_request`.
 
 **Full form example with error handling:**
 

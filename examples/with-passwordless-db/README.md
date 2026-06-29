@@ -124,7 +124,7 @@ await passwordless.loginWithOtp({ authSession, otp: "123456" });
 
 The `authSession` returned by the challenge step is an opaque value — it is held in React state for the duration of the OTP entry step and never persisted or logged.
 
-The challenge endpoint always returns 200 regardless of whether the user exists (user-enumeration prevention). If `allowSignup` is `false` for a non-existent user, or the user is blocked, the returned `authSession` is non-functional and `loginWithOtp` will fail with `invalid_request`.
+The challenge endpoint always returns 200 regardless of whether the user exists (user-enumeration prevention). If `allowSignup` is `false` for a non-existent user, or the user is blocked, no OTP is delivered — the `authSession` is silently non-functional. Calling `loginWithOtp` with it will fail with `invalid_request`.
 
 Session protection on `/dashboard` is handled by `auth0.getSession()` in the Server Component — if no session exists it redirects to `/`. The `proxy.ts` middleware keeps the session rolling on every request.
 
