@@ -994,6 +994,7 @@ export class AuthClient {
 
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
+    const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
@@ -1012,6 +1013,10 @@ export class AuthClient {
       const url = new URL(authorizationServerMetadata.end_session_endpoint!);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
       url.searchParams.set("post_logout_redirect_uri", returnTo);
+
+      if (logoutState) {
+        url.searchParams.set("state", logoutState);
+      }
 
       if (session?.internal.sid) {
         url.searchParams.set("logout_hint", session.internal.sid);
