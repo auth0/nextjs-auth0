@@ -4,11 +4,6 @@ import { useState } from "react";
 
 type ExchangeResult = {
   accessToken: string;
-  idToken?: string;
-  refreshToken?: string;
-  tokenType: string;
-  expiresIn: number;
-  scope?: string;
   act?: { sub: string; act?: unknown };
 };
 
@@ -250,33 +245,18 @@ export function TokenExchangeForm() {
             Exchange successful
           </h2>
 
-          <dl className="divide-y divide-gray-100 rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm">
-            <ResultRow label="Token type" value={result.tokenType} />
-            <ResultRow label="Expires in" value={`${result.expiresIn}s`} />
-            {result.scope && <ResultRow label="Scope" value={result.scope} />}
-            {result.act && (
+          {result.act && (
+            <dl className="divide-y divide-gray-100 rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm">
               <ResultRow
                 label="act claim"
                 value={JSON.stringify(result.act, null, 2)}
                 mono
               />
-            )}
-            {result.refreshToken === undefined && (
-              <div className="py-2 text-xs text-gray-400">
-                No refresh token — suppressed by Auth0 when actor_token is
-                present.
-              </div>
-            )}
-          </dl>
+            </dl>
+          )}
 
           <div className="space-y-3">
             <TokenBlock label="Access token" value={result.accessToken} />
-            {result.idToken && (
-              <TokenBlock label="ID token" value={result.idToken} />
-            )}
-            {result.refreshToken && (
-              <TokenBlock label="Refresh token" value={result.refreshToken} />
-            )}
           </div>
         </div>
       )}

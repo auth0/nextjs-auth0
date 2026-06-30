@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
       actorTokenType: body.actorTokenType,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      accessToken: result.accessToken,
+      act: result.act,
+    });
   } catch (err: unknown) {
     const sdkErr =
       err && typeof err === "object" && "code" in err
