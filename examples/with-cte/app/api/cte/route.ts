@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
 
   if (!session) {
-    return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({ code: "unauthenticated", message: "Not authenticated." }, { status: 401 });
   }
 
   let body: Partial<CustomTokenExchangeOptions>;
