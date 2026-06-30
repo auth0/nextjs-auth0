@@ -8,7 +8,8 @@ import {
   describe,
   expect,
   it,
-  vi
+  vi,
+  type MockedFunction
 } from "vitest";
 
 import {
@@ -113,7 +114,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onBackchannelAuthRequest,
     onConnectAccountRequest,
     onCompleteConnectAccountRequest,
-    completeConnectAccountErrorResponse
+    completeConnectAccountErrorResponse,
+    onRevocationRequest,
+    revocationErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -127,6 +130,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onConnectAccountRequest?: (request: Request) => Promise<void>;
     onCompleteConnectAccountRequest?: (request: Request) => Promise<void>;
     completeConnectAccountErrorResponse?: Response;
+    onRevocationRequest?: (request: Request) => Promise<void>;
+    revocationErrorResponse?: Response;
   } = {}) {
     // this function acts as a mock authorization server
     return vi.fn(
@@ -275,6 +280,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
               status: 201
             }
           );
+        }
+
+        // Revocation endpoint
+        if (url.pathname === "/oauth/revoke") {
+          if (onRevocationRequest) {
+            await onRevocationRequest(new Request(input, init));
+          }
+          if (revocationErrorResponse) {
+            return revocationErrorResponse;
+          }
+          return new Response(null, { status: 200 });
         }
 
         return new Response(null, { status: 404 });
@@ -3806,6 +3822,184 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
           DEFAULT.sid
         );
+      });
+    });
+
+    describe("refresh token revocation on logout", () => {
+      it("should call revocation endpoint when session has a refresh token (mTLS)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const onRevocationRequest = vi.fn(
+          async () => {}
+        ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          useMtls: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            onRevocationRequest,
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(onRevocationRequest).toHaveBeenCalledOnce();
+
+        const body = await onRevocationRequest.mock.calls[0][0].clone().text();
+        const params = new URLSearchParams(body);
+        expect(params.get("token")).toEqual(DEFAULT.refreshToken);
+      });
+
+      it("should not call revocation endpoint when session has no refresh token (mTLS)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const onRevocationRequest = vi.fn(
+          async () => {}
+        ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          useMtls: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            onRevocationRequest,
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            // no refreshToken
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(onRevocationRequest).not.toHaveBeenCalled();
+      });
+
+      it("should not block logout if revocation fails (mTLS)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          useMtls: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            revocationErrorResponse: new Response(
+              JSON.stringify({ error: "server_error" }),
+              { status: 500 }
+            ),
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        // Revocation 500 must not throw — logout should still succeed
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        const cookie = response.cookies.get("__session");
+        expect(cookie?.maxAge).toEqual(0);
       });
     });
   });

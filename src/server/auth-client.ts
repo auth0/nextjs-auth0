@@ -555,6 +555,14 @@ export class AuthClient {
     this.useDPoP = options.useDPoP ?? false;
 
     this.useMtls = options.useMtls ?? false;
+    if (this.useMtls && this.useDPoP) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls and useDPoP cannot be used together. " +
+          "When both are present, the server always issues a DPoP-bound token (cnf.jkt) " +
+          "and the certificate is ignored for token binding."
+      );
+    }
     if (this.useMtls && !options.fetch) {
       throw new MtlsError(
         MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
@@ -1061,6 +1069,20 @@ export class AuthClient {
         logoutResponse = createV2LogoutResponse();
       } else {
         logoutResponse = createOIDCLogoutResponse();
+      }
+    }
+
+    // Revoke the refresh token before clearing the session so it cannot be
+    // replayed after logout (e.g. from a stolen session cookie). Errors are
+    // swallowed — a failed revocation must never block the logout redirect.
+    if (this.useMtls && session?.tokenSet.refreshToken && !hasDomainMismatch) {
+      try {
+        await this.revokeRefreshToken(
+          authorizationServerMetadata,
+          session.tokenSet.refreshToken
+        );
+      } catch {
+        // intentionally ignored
       }
     }
 
@@ -2368,10 +2390,6 @@ export class AuthClient {
         Math.floor(Date.now() / 1000) +
         Number(tokenEndpointResponse.expires_in);
 
-      if (this.useMtls) {
-        this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
-      }
-
       return [
         null,
         {
@@ -2717,6 +2735,30 @@ export class AuthClient {
     return [null, authorizationUrl];
   }
 
+  private withMtlsEndpoint(
+    as: oauth.AuthorizationServer
+  ): oauth.AuthorizationServer {
+    if (this.useMtls && as.mtls_endpoint_aliases?.token_endpoint) {
+      return { ...as, token_endpoint: as.mtls_endpoint_aliases.token_endpoint };
+    }
+    return as;
+  }
+
+  private async revokeRefreshToken(
+    as: oauth.AuthorizationServer,
+    refreshToken: string
+  ): Promise<void> {
+    const clientAuth = await this.getClientAuth();
+    const response = await oauth.revocationRequest(
+      as,
+      this.clientMetadata,
+      clientAuth,
+      refreshToken,
+      { [oauth.customFetch]: this.fetch, ...this.httpOptions() }
+    );
+    await oauth.processRevocationResponse(response);
+  }
+
   private warnIfNotCertificateBound(accessToken: string): void {
     try {
       const payload = jose.decodeJwt(accessToken);
@@ -2995,9 +3037,15 @@ export class AuthClient {
           ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
           : undefined;
 
+      // When useMtls=true, use the mTLS alias so the edge proxy forwards the
+      // Client-Certificate header. CNF is not issued for this grant type (auth-server behavior).
+      const connectionTokenMetadata = this.withMtlsEndpoint(
+        authorizationServerMetadata
+      );
+
       const genericTokenEndpointRequestCall = async () =>
         oauth.genericTokenEndpointRequest(
-          authorizationServerMetadata,
+          connectionTokenMetadata,
           this.clientMetadata,
           await this.getClientAuth(),
           GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
@@ -3014,7 +3062,7 @@ export class AuthClient {
       const processGenericTokenEndpointResponseCall = async () => {
         const httpResponse = await genericTokenEndpointRequestCall();
         return oauth.processGenericTokenEndpointResponse(
-          authorizationServerMetadata,
+          connectionTokenMetadata,
           this.clientMetadata,
           httpResponse
         );
@@ -3258,9 +3306,12 @@ export class AuthClient {
         : undefined;
 
     // Execute token exchange with DPoP retry support
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     const processTokenExchange = async () => {
       const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
+        tokenExchangeMetadata,
         this.clientMetadata,
         await this.getClientAuth(),
         GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
@@ -3272,7 +3323,7 @@ export class AuthClient {
         }
       );
       return oauth.processGenericTokenEndpointResponse(
-        authorizationServerMetadata,
+        tokenExchangeMetadata,
         this.clientMetadata,
         httpResponse
       );
@@ -3303,10 +3354,6 @@ export class AuthClient {
         ),
         null
       ];
-    }
-
-    if (this.useMtls) {
-      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
     }
 
     // Map response: snake_case → camelCase
@@ -4007,12 +4054,15 @@ export class AuthClient {
         : undefined;
 
     // Execute MFA token exchange with DPoP retry support
+    const mfaVerifyMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            mfaVerifyMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             verifyGrantType,
@@ -4027,7 +4077,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            mfaVerifyMetadata,
             this.clientMetadata,
             httpResponse
           );
@@ -4302,12 +4352,12 @@ export class AuthClient {
     // This means we cannot use oauth.genericTokenEndpointRequest (which only
     // sends URLSearchParams), so DPoP must be attached manually via the handle's
     // internal addProof method.
-    // When useMtls=true, prefer the mTLS alias so certificate-bound tokens are issued.
+    const passkeyTokenMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     const tokenUrl =
-      this.useMtls &&
-      authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
-        ? authorizationServerMetadata.mtls_endpoint_aliases.token_endpoint
-        : new URL("/oauth/token", this.issuer).toString();
+      passkeyTokenMetadata.token_endpoint ??
+      new URL("/oauth/token", this.issuer).toString();
 
     const jsonBody: Record<string, unknown> = {
       grant_type: GRANT_TYPE_PASSKEY,
@@ -4422,10 +4472,6 @@ export class AuthClient {
         "missing_id_token",
         "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
       );
-    }
-
-    if (this.useMtls) {
-      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
     }
 
     const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
@@ -5116,12 +5162,15 @@ export class AuthClient {
         ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
         : undefined;
 
+    const passwordlessMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            passwordlessMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             GRANT_TYPE_PASSWORDLESS_OTP,
@@ -5134,7 +5183,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            passwordlessMetadata,
             this.clientMetadata,
             httpResponse
           );
