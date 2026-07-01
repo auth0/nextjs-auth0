@@ -67,6 +67,14 @@
   - [Error Handling](#error-handling)
   - [Route Configuration](#route-configuration)
   - [Error Types](#error-types)
+- [Passwordless OTP on Database Connections](#passwordless-otp-on-database-connections)
+  - [How it differs from Passwordless Authentication](#how-it-differs-from-passwordless-authentication)
+  - [Auth0 Setup](#auth0-setup-2)
+  - [Route Handler Setup](#route-handler-setup-2)
+  - [Client-Side Usage](#client-side-usage-2)
+  - [Server-Side (Headless) Usage](#server-side-headless-usage-2)
+  - [Route Configuration](#route-configuration-2)
+  - [Error Types](#error-types-2)
 - [Passkey Authentication](#passkey-authentication)
   - [Auth0 Setup](#auth0-setup-1)
   - [Route Handler Setup](#route-handler-setup-1)
@@ -1970,6 +1978,249 @@ Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the
 | `PasswordlessStartError` | `client_error` | Network failure or unparseable response |
 | `PasswordlessVerifyError` | `invalid_grant` | Wrong or expired OTP |
 | `PasswordlessVerifyError` | `client_error` | Network failure or unparseable response |
+
+## Passwordless OTP on Database Connections
+
+> [!NOTE]
+> This feature is currently in **Early Access (EA)**. Contact your Auth0 account team to have it enabled on your tenant.
+
+Auth0 supports passwordless OTP login against standard **database connections** (`auth0` strategy) configured with `email_otp` or `phone_otp`. This is distinct from the legacy passwordless flow — it works with existing database connections that already hold user accounts, rather than requiring a dedicated email or SMS passwordless connection.
+
+The flow is two steps: request a challenge (OTP delivery) via `POST /otp/challenge`, then exchange the returned `auth_session` + the OTP the user enters for tokens via `POST /oauth/token`.
+
+### How it differs from Passwordless Authentication
+
+| | Passwordless Authentication | Passwordless OTP on DB Connections |
+|---|---|---|
+| Connection type | Dedicated `email` / `sms` passwordless connection | Any database connection with `email_otp` / `phone_otp` enabled |
+| Challenge endpoint | `POST /passwordless/start` | `POST /otp/challenge` |
+| Token exchange | `realm` + `username` params | `auth_session` + `otp` params |
+| Magic link support | Yes | No |
+| SDK methods | `passwordless.start()` / `passwordless.verify()` | `passwordless.challengeWithEmail()` / `challengeWithPhoneNumber()` / `loginWithOtp()` |
+| Signup on first login | Automatic | Controlled by `allowSignup` option (default `false`) |
+
+### Auth0 Setup
+
+#### 1. Enable the Passwordless OTP feature
+
+This feature is in Early Access. Contact your Auth0 account team to have it enabled on your tenant.
+
+#### 2. Enable OTP on your database connection
+
+**Enable Connection Attributes**
+
+1. Go to **Authentication → Database** and select your connection.
+2. Select the **Attributes** section.
+3. Click **Add attribute** and create attributes for **email** and/or **phone**.
+4. Click **Configure** on each created attribute.
+5. Enable the **Use as Identifier** option.
+6. Check **Allow signup** if you want new users to be able to sign up via OTP.
+
+**Enable Connection Authentication Methods**
+
+1. Still on your connection, select the **Authentication Methods** section.
+2. Click **Configure** against the **Email** or **Phone** option.
+3. Under **OTP for login**, select **Allow**.
+4. Save changes.
+
+For phone OTP, attach an SMS provider under **Branding → Phone Provider**.
+
+#### 3. Application setup
+
+1. Go to **Applications → your app → Settings**.
+2. Add `http://localhost:3000/auth/callback` to **Allowed Callback URLs** and `http://localhost:3000` to **Allowed Logout URLs**.
+3. Under **Connections**, confirm your database connection is enabled for this application.
+
+> [!NOTE]
+> Phone OTP signup (`allowSignup: true`) is not supported in non-interactive flows — Auth0 requires `phone_verified: true` before account creation. Pre-create users who will sign in via phone OTP, or use email OTP for the signup path.
+
+### Route Handler Setup
+
+The SDK registers two handlers automatically when you mount `auth0.handler`:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passwordless/otp/challenge` | Request an OTP for a DB connection user |
+| `POST` | `/auth/passwordless/otp/token` | Exchange `auth_session` + OTP for tokens and set session cookie |
+
+**App Router** — ensure `POST` is exported from your catch-all auth route:
+
+```typescript
+// app/auth/[auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.handler;
+export const POST = auth0.handler;
+```
+
+**Pages Router** — ensure the API route handles all methods:
+
+```typescript
+// pages/api/auth/[auth0].ts
+import { auth0 } from "@/lib/auth0";
+export default auth0.handler;
+```
+
+### Client-Side Usage
+
+Import the `passwordless` singleton from `@auth0/nextjs-auth0/client`. Call `challengeWithEmail()` or `challengeWithPhoneNumber()` to request an OTP, then `loginWithOtp()` after the user submits the code — the session cookie is set automatically on success.
+
+```tsx
+import { passwordless } from "@auth0/nextjs-auth0/client";
+
+// Step 1 — request OTP by email
+const { authSession } = await passwordless.challengeWithEmail({
+  email: "user@example.com",
+  connection: "Username-Password-Authentication",
+  allowSignup: true, // set false to prevent new account creation
+});
+
+// Step 1 — request OTP by phone
+const { authSession } = await passwordless.challengeWithPhoneNumber({
+  phoneNumber: "+14155550100",
+  connection: "Username-Password-Authentication",
+  deliveryMethod: "text", // "text" | "voice"
+  allowSignup: false,     // phone signup not supported in non-interactive flows
+});
+
+// Step 2 — verify OTP and create session
+await passwordless.loginWithOtp({
+  authSession, // opaque value returned by the challenge step — never log or persist
+  otp: "123456",
+});
+// session cookie is now set; redirect to dashboard
+```
+
+> [!IMPORTANT]
+> The challenge endpoint always returns a valid-looking `authSession` regardless of whether the user exists (user-enumeration prevention). If `allowSignup` is `false` for a non-existent user, or the user is blocked, no OTP is delivered — the `authSession` is silently non-functional. Calling `loginWithOtp` with it will fail with `invalid_request`.
+
+**Full form example with error handling:**
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { passwordless } from "@auth0/nextjs-auth0/client";
+import type { PasswordlessDbChallenge } from "@auth0/nextjs-auth0/types";
+
+export function PasswordlessDbForm() {
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [challenge, setChallenge] = useState<PasswordlessDbChallenge | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleChallenge(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const result = await passwordless.challengeWithEmail({
+        email,
+        connection: "Username-Password-Authentication",
+        allowSignup: true,
+      });
+      setChallenge(result);
+    } catch (err: unknown) {
+      const e = err as { error_description?: string };
+      setError(e.error_description ?? "Failed to send code.");
+    }
+  }
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!challenge) return;
+    try {
+      await passwordless.loginWithOtp({ authSession: challenge.authSession, otp });
+      window.location.href = "/dashboard";
+    } catch (err: unknown) {
+      const e = err as { error?: string; error_description?: string };
+      setError(e.error_description ?? "Invalid or expired code.");
+    }
+  }
+
+  if (challenge) {
+    return (
+      <form onSubmit={handleLogin}>
+        <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" />
+        {error && <p>{error}</p>}
+        <button type="submit">Verify</button>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={handleChallenge}>
+      <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+      {error && <p>{error}</p>}
+      <button type="submit">Send code</button>
+    </form>
+  );
+}
+```
+
+> [!NOTE]
+> If the user has MFA configured, `loginWithOtp` throws a raw `mfa_required` error with an encrypted `mfa_token`. Pass it to `mfa.getAuthenticators()` to continue — the full flow is identical to the [MFA handling in Passwordless Authentication](#error-handling) and [Passkey Authentication](#error-handling-3). See the [`with-passwordless-db`](examples/with-passwordless-db) example for a working implementation.
+
+### Server-Side (Headless) Usage
+
+Use `auth0.passwordless` directly in **Server Actions** or **API Routes** for full control:
+
+```typescript
+"use server";
+
+import { auth0 } from "@/lib/auth0";
+
+// Step 1 — request OTP
+export async function requestOtp(email: string) {
+  const challenge = await auth0.passwordless.challengeWithEmail({
+    email,
+    connection: "Username-Password-Authentication",
+    allowSignup: true,
+  });
+  return challenge; // { authSession: "..." }
+}
+
+// Step 2 — verify OTP and create session (App Router)
+export async function verifyOtp(authSession: string, otp: string) {
+  await auth0.passwordless.loginWithOtp({ authSession, otp });
+  redirect("/dashboard");
+}
+```
+
+**Pages Router** — pass `req` and `res` to write the session cookie:
+
+```typescript
+// pages/api/passwordless-db-login.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { authSession, otp } = req.body;
+  await auth0.passwordless.loginWithOtp(req, res, { authSession, otp });
+  res.status(200).json({ ok: true });
+}
+```
+
+### Route Configuration
+
+The default route paths can be overridden with environment variables:
+
+```bash
+# .env.local
+NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE=/auth/passwordless/otp/challenge
+NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE=/auth/passwordless/otp/token
+```
+
+Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+
+### Error Types
+
+| Error Class | `code` | `error` value | When Thrown |
+|-------------|--------|---------------|-------------|
+| `PasswordlessDbChallengeError` | `passwordless_challenge_error` | `invalid_connection` | Connection does not have OTP enabled or is not a DB connection |
+| `PasswordlessDbChallengeError` | `passwordless_challenge_error` | `invalid_request` | Malformed request body |
+| `PasswordlessDbGetTokenError` | `passwordless_login_error` | `invalid_request` | Wrong OTP, expired `auth_session`, blocked user, or signup disabled for non-existent user |
+| `PasswordlessDbGetTokenError` | `passwordless_login_error` | `invalid_grant` | OTP has already been used or has expired |
+
+Both error classes expose `error` and `error_description` fields matching the Auth0 API error shape and are importable from `@auth0/nextjs-auth0/errors`.
 
 ## Passkey Authentication
 
