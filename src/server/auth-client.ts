@@ -2956,7 +2956,11 @@ export class AuthClient {
       !skipCeilingCheck &&
       isSessionCeilingReached(session.internal?.sessionExpiresAt)
     ) {
-      this.sessionStore.deleteByReqCookies(cookies).catch(() => undefined);
+      this.sessionStore
+        .deleteByReqCookies(cookies)
+        .catch((e) =>
+          console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
+        );
       return {
         error: null,
         session: null,
