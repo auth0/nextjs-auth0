@@ -180,6 +180,28 @@ export abstract class AbstractSessionStore {
   ): Promise<void>;
 
   /**
+   * Deletes the backing-store record for the session identified by the request cookies,
+   * without needing a response object. Used by IPSIE ceiling enforcement where only
+   * reqCookies are available (e.g. getSessionWithDomainCheck).
+   *
+   * For stateless cookie sessions this is a no-op — the cookie is the session, and
+   * clearing it requires response cookies. Ceiling enforcement returns null on every
+   * read anyway, so the orphaned cookie is harmless until its natural max-age expires.
+   *
+   * Subclasses that own a backing store (stateful) SHOULD override this to delete
+   * the store record by session ID for hygiene.
+   */
+
+  async deleteByReqCookies(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<void> {
+    // Default no-op. Stateless stores override to clear the cookie;
+    // stateful stores override to delete the backing record.
+    // Non-abstract so existing external subclasses are not broken.
+  }
+
+  /**
    * isRolling returns true if rolling sessions are enabled.
    */
   get isRolling(): boolean {

@@ -146,45 +146,19 @@ class ClientPasswordlessClient implements PasswordlessClient {
   async challengeWithEmail(
     options: PasswordlessDbChallengeEmailOptions
   ): Promise<PasswordlessDbChallenge> {
-    const url = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
-        "/auth/passwordless/otp/challenge"
-    );
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(options)
-      });
-    } catch (e) {
-      throw new PasswordlessDbChallengeError(
-        "client_error",
-        e instanceof Error ? e.message : "Network error",
-        undefined
-      );
-    }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({
-        error: "client_error",
-        error_description: "Failed to parse error response"
-      }));
-      throw new PasswordlessDbChallengeError(
-        error.error ?? "client_error",
-        error.error_description ?? "OTP challenge failed",
-        undefined
-      );
-    }
-
-    const data = await response.json();
-    return { authSession: data.authSession };
+    return this.#sendChallenge(options);
   }
 
   async challengeWithPhoneNumber(
     options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    return this.#sendChallenge(options);
+  }
+
+  async #sendChallenge(
+    options:
+      | PasswordlessDbChallengeEmailOptions
+      | PasswordlessDbChallengePhoneOptions
   ): Promise<PasswordlessDbChallenge> {
     const url = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
@@ -251,6 +225,8 @@ class ClientPasswordlessClient implements PasswordlessClient {
         error_description: "Failed to parse error response"
       }));
       if (error.error === "mfa_required") {
+        // Thrown as a raw object so callers can access mfa_token directly
+        // to initiate the MFA challenge flow. Consistent with verify().
         throw error;
       }
       throw new PasswordlessDbGetTokenError(

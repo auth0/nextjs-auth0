@@ -8,7 +8,8 @@ import {
   describe,
   expect,
   it,
-  vi
+  vi,
+  type MockedFunction
 } from "vitest";
 
 import {
@@ -113,7 +114,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onBackchannelAuthRequest,
     onConnectAccountRequest,
     onCompleteConnectAccountRequest,
-    completeConnectAccountErrorResponse
+    completeConnectAccountErrorResponse,
+    onRevocationRequest,
+    revocationErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -127,6 +130,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onConnectAccountRequest?: (request: Request) => Promise<void>;
     onCompleteConnectAccountRequest?: (request: Request) => Promise<void>;
     completeConnectAccountErrorResponse?: Response;
+    onRevocationRequest?: (request: Request) => Promise<void>;
+    revocationErrorResponse?: Response;
   } = {}) {
     // this function acts as a mock authorization server
     return vi.fn(
@@ -275,6 +280,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
               status: 201
             }
           );
+        }
+
+        // Revocation endpoint
+        if (url.pathname === "/oauth/revoke") {
+          if (onRevocationRequest) {
+            await onRevocationRequest(new Request(input, init));
+          }
+          if (revocationErrorResponse) {
+            return revocationErrorResponse;
+          }
+          return new Response(null, { status: 200 });
         }
 
         return new Response(null, { status: 404 });
@@ -2356,6 +2372,91 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
+    it("should store per-request maxAge=0 (step-up) in transaction state when not set in SDK config", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "0");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("0");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 0
+        })
+      );
+    });
+
+    it("should use per-request maxAge over SDK-level max_age in transaction state", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        authorizationParameters: { max_age: 3600 },
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "0");
+      const request = new NextRequest(loginUrl, { method: "GET" });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("max_age")).toEqual("0");
+
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          maxAge: 0
+        })
+      );
+    });
+
     it("should store the returnTo path in the transaction state", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -2464,6 +2565,52 @@ ca/T0LLtgmbMmxSv/MmzIg==
           returnTo: "/"
         })
       );
+    });
+
+    it("should return a 400 for a non-numeric max_age query param", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "abc");
+      const response = await authClient.handleLogin(
+        new NextRequest(loginUrl, { method: "GET" })
+      );
+      expect(response.status).toEqual(400);
+    });
+
+    it("should return a 400 for a negative max_age query param", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("max_age", "-1");
+      const response = await authClient.handleLogin(
+        new NextRequest(loginUrl, { method: "GET" })
+      );
+      expect(response.status).toEqual(400);
     });
 
     describe("with pushed authorization requests", async () => {
@@ -3677,6 +3824,184 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       });
     });
+
+    describe("refresh token revocation on logout", () => {
+      it("should call revocation endpoint when session has a refresh token (mTLS)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const onRevocationRequest = vi.fn(
+          async () => {}
+        ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          useMtls: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            onRevocationRequest,
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(onRevocationRequest).toHaveBeenCalledOnce();
+
+        const body = await onRevocationRequest.mock.calls[0][0].clone().text();
+        const params = new URLSearchParams(body);
+        expect(params.get("token")).toEqual(DEFAULT.refreshToken);
+      });
+
+      it("should not call revocation endpoint when session has no refresh token (mTLS)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const onRevocationRequest = vi.fn(
+          async () => {}
+        ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          useMtls: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            onRevocationRequest,
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            // no refreshToken
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(onRevocationRequest).not.toHaveBeenCalled();
+      });
+
+      it("should not block logout if revocation fails (mTLS)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          useMtls: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            revocationErrorResponse: new Response(
+              JSON.stringify({ error: "server_error" }),
+              { status: 500 }
+            ),
+            discoveryResponse: Response.json({
+              ..._authorizationServerMetadata,
+              mtls_endpoint_aliases: {
+                token_endpoint: `https://mtls.${DEFAULT.domain}/oauth/token`,
+                revocation_endpoint: `https://mtls.${DEFAULT.domain}/oauth/revoke`
+              }
+            })
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        // Revocation 500 must not throw — logout should still succeed
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        const cookie = response.cookies.get("__session");
+        expect(cookie?.maxAge).toEqual(0);
+      });
+    });
   });
 
   describe("handleProfile", async () => {
@@ -3909,6 +4234,168 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
       expect(transactionCookie!.maxAge).toEqual(0);
+    });
+
+    it("should reject at login when session_expiry is already in the past — no session cookie, no redirect to returnTo", async () => {
+      // IPSIE: if the upstream IdP asserts a ceiling that is already expired at
+      // the moment of login, handleCallback must not persist the session.
+      const state = "transaction-state";
+      const code = "auth-code";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      // Build an ID token whose session_expiry is already in the past
+      const pastCeiling = Math.floor(Date.now() / 1000) - 3600;
+      const idToken = await new jose.SignJWT({
+        sid: DEFAULT.sid,
+        auth_time: Date.now(),
+        nonce: "nonce-value",
+        session_expiry: pastCeiling
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject(DEFAULT.sub)
+        .setIssuedAt()
+        .setIssuer(_authorizationServerMetadata.issuer)
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: idToken,
+            expires_in: 86400
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        maxAge: 3600,
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state: state,
+        returnTo: "/dashboard"
+      };
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, { method: "GET", headers });
+
+      const response = await authClient.handleCallback(request);
+
+      // Must NOT redirect to /dashboard — session was rejected
+      const location = response.headers.get("Location");
+      expect(!location || !location.includes("/dashboard")).toBe(true);
+
+      // Must NOT set a session cookie
+      const sessionCookie = response.cookies.get("__session");
+      const sessionCookieSet =
+        sessionCookie &&
+        sessionCookie.value !== "" &&
+        sessionCookie.maxAge !== 0;
+      expect(sessionCookieSet).toBeFalsy();
+    });
+
+    it("should stamp sessionExpiresAt on session when session_expiry is valid and in the future", async () => {
+      const state = "transaction-state";
+      const code = "auth-code";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const futureCeiling = Math.floor(Date.now() / 1000) + 7200;
+      const idToken = await new jose.SignJWT({
+        sid: DEFAULT.sid,
+        auth_time: Date.now(),
+        nonce: "nonce-value",
+        session_expiry: futureCeiling
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject(DEFAULT.sub)
+        .setIssuedAt()
+        .setIssuer(_authorizationServerMetadata.issuer)
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: idToken,
+            expires_in: 86400
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        maxAge: 3600,
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state: state,
+        returnTo: "/dashboard"
+      };
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, { method: "GET", headers });
+
+      const response = await authClient.handleCallback(request);
+
+      // Should succeed and redirect to /dashboard
+      expect(response.status).toEqual(307);
+      expect(response.headers.get("Location")).toContain("/dashboard");
+
+      // Session cookie must contain sessionExpiresAt
+      const sessionCookie = response.cookies.get("__session");
+      expect(sessionCookie).toBeDefined();
+      const { payload: session } = (await decrypt(
+        sessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult;
+      expect((session as any).internal?.sessionExpiresAt).toBe(futureCeiling);
     });
 
     it("should persist act claim from ID token into session.user", async () => {
@@ -4404,6 +4891,80 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       const response = await authClient.handleCallback(request);
+      expect(response.status).toEqual(500);
+      expect(await response.text()).toEqual(
+        "An error occurred while trying to exchange the authorization code."
+      );
+    });
+
+    it("should reject callback when max_age=0 was requested but auth_time in the token is stale", async () => {
+      const state = "transaction-state";
+      const code = "auth-code";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      // Build an ID token whose auth_time is 2 hours in the past.
+      // With max_age=0, oauth4webapi requires auth_time ≥ now − tolerance.
+      const staleAuthTime = Math.floor(Date.now() / 1000) - 7200;
+      const idToken = await new jose.SignJWT({
+        sid: DEFAULT.sid,
+        auth_time: staleAuthTime,
+        nonce: "nonce-value"
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject(DEFAULT.sub)
+        .setIssuedAt()
+        .setIssuer(_authorizationServerMetadata.issuer)
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: idToken,
+            expires_in: 86400
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      // TransactionState with maxAge=0 — the fix ensures this is now stored correctly
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        maxAge: 0,
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state,
+        returnTo: "/dashboard"
+      };
+      const expiration = Math.floor(Date.now() / 1000 + 3600);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, { method: "GET", headers });
+
+      const response = await authClient.handleCallback(request);
+      // oauth4webapi enforces auth_time + max_age ≥ now − tolerance and throws;
+      // the SDK surfaces this as a 500 AuthorizationCodeGrantError
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "An error occurred while trying to exchange the authorization code."
@@ -8254,6 +8815,86 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
       });
     });
+
+    // ── IPSIE session ceiling ─────────────────────────────────────────────────
+
+    it("should return SESSION_EXPIRED when the IPSIE ceiling has passed", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const fetchSpy = getMockAuthorizationServer();
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+
+      const pastCeiling = Math.floor(Date.now() / 1000) - 60;
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      };
+      const sessionData = createSessionData({
+        tokenSet,
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000),
+          sessionExpiresAt: pastCeiling
+        }
+      });
+
+      const [error, result] = await authClient.getTokenSet(sessionData);
+
+      expect(error?.code).toBe(AccessTokenErrorCode.SESSION_EXPIRED);
+      expect(result).toBeNull();
+      // Must not attempt a token endpoint call
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("/oauth/token"),
+        expect.anything()
+      );
+    });
+
+    it("should NOT return SESSION_EXPIRED when ceiling is comfortably in the future", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const futureCeiling = Math.floor(Date.now() / 1000) + 7200;
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      };
+      const sessionData = createSessionData({
+        tokenSet,
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000),
+          sessionExpiresAt: futureCeiling
+        }
+      });
+
+      const [error] = await authClient.getTokenSet(sessionData);
+      expect(error).toBeNull();
+    });
   });
 
   describe("startInteractiveLogin", async () => {
@@ -8473,6 +9114,24 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       await expect(
         authClient.startInteractiveLogin({}, request)
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
+    it("should throw InvalidConfigurationError for a non-numeric max_age authorization parameter", async () => {
+      const authClient = await createAuthClient();
+      await expect(
+        authClient.startInteractiveLogin({
+          authorizationParameters: { max_age: "abc" as unknown as number }
+        })
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
+    it("should throw InvalidConfigurationError for a negative max_age authorization parameter", async () => {
+      const authClient = await createAuthClient();
+      await expect(
+        authClient.startInteractiveLogin({
+          authorizationParameters: { max_age: -1 }
+        })
       ).rejects.toThrow(InvalidConfigurationError);
     });
 
@@ -9656,6 +10315,158 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       expect(error).toBeNull();
+    });
+  });
+
+  // ── IPSIE ceiling enforcement in getSessionWithDomainCheck ──────────────────
+  describe("getSessionWithDomainCheck — IPSIE ceiling enforcement", () => {
+    type MockSessionStore = {
+      get: ReturnType<typeof vi.fn>;
+      set: ReturnType<typeof vi.fn>;
+      deleteByReqCookies: ReturnType<typeof vi.fn>;
+    };
+    type MockCookies = { getAll: ReturnType<typeof vi.fn> };
+
+    const makeStore = (
+      session: ReturnType<typeof createSessionData> | null
+    ): MockSessionStore => ({
+      get: vi.fn().mockResolvedValue(session),
+      set: vi.fn().mockResolvedValue(undefined),
+      deleteByReqCookies: vi.fn().mockResolvedValue(undefined)
+    });
+
+    const makeCookies = (): MockCookies => ({
+      getAll: vi.fn().mockReturnValue([])
+    });
+
+    it("returns { error: null, session: null, exists: false } when ceiling has passed", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const pastCeiling = Math.floor(Date.now() / 1000) - 60;
+      const session = createSessionData({
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000),
+          sessionExpiresAt: pastCeiling
+        }
+      });
+      const store = makeStore(session);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: store as any,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        makeCookies() as any
+      );
+
+      expect(result.error).toBeNull();
+      expect(result.session).toBeNull();
+      expect(result.exists).toBe(false);
+    });
+
+    it("calls deleteByReqCookies when ceiling fires — cleans up backing store", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const pastCeiling = Math.floor(Date.now() / 1000) - 60;
+      const session = createSessionData({
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000),
+          sessionExpiresAt: pastCeiling
+        }
+      });
+      const store = makeStore(session);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: store as any,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const cookies = makeCookies();
+      await authClient.getSessionWithDomainCheck(cookies as any);
+
+      expect(store.deleteByReqCookies).toHaveBeenCalledOnce();
+    });
+
+    it("returns the session normally when ceiling is comfortably in the future", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const futureCeiling = Math.floor(Date.now() / 1000) + 7200;
+      const session = createSessionData({
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000),
+          sessionExpiresAt: futureCeiling
+        }
+      });
+      const store = makeStore(session);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: store as any,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        makeCookies() as any
+      );
+
+      expect(result.error).toBeNull();
+      expect(result.session).not.toBeNull();
+      expect(result.exists).toBe(true);
+      expect(store.deleteByReqCookies).not.toHaveBeenCalled();
+    });
+
+    it("returns the session normally when sessionExpiresAt is absent — no ceiling, legacy sessions unaffected", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      // No sessionExpiresAt — pre-feature session or non-enterprise connection
+      const session = createSessionData({
+        internal: { sid: DEFAULT.sid, createdAt: Math.floor(Date.now() / 1000) }
+      });
+      const store = makeStore(session);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: store as any,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        makeCookies() as any
+      );
+
+      expect(result.error).toBeNull();
+      expect(result.session).not.toBeNull();
+      expect(store.deleteByReqCookies).not.toHaveBeenCalled();
     });
   });
 
