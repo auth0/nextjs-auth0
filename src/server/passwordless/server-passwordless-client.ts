@@ -172,22 +172,117 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     }
   }
 
+  /**
+   * Request an OTP challenge for a database connection user identified by email.
+   * App Router overload — reads headers from `next/headers`.
+   */
   async challengeWithEmail(
     options: PasswordlessDbChallengeEmailOptions
+  ): Promise<PasswordlessDbChallenge>;
+
+  /**
+   * Request an OTP challenge for a database connection user identified by email.
+   * Pages Router overload — explicit req for MCD domain resolution.
+   */
+  async challengeWithEmail(
+    req: NextRequest,
+    options: PasswordlessDbChallengeEmailOptions
+  ): Promise<PasswordlessDbChallenge>;
+
+  async challengeWithEmail(
+    arg1: PasswordlessDbChallengeEmailOptions | NextRequest,
+    arg2?: PasswordlessDbChallengeEmailOptions
   ): Promise<PasswordlessDbChallenge> {
-    void options;
-    throw new Error("Not implemented");
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "challengeWithEmail(req, options): Both arguments required for Pages Router"
+        );
+      }
+      const authClient = await this.getAuthClient(arg1);
+      return authClient.passwordlessDbOtpChallenge(arg2);
+    }
+    const authClient = await this.getAuthClient();
+    return authClient.passwordlessDbOtpChallenge(arg1);
   }
 
+  /**
+   * Request an OTP challenge for a database connection user identified by phone number.
+   * App Router overload — reads headers from `next/headers`.
+   */
   async challengeWithPhoneNumber(
     options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge>;
+
+  /**
+   * Request an OTP challenge for a database connection user identified by phone number.
+   * Pages Router overload — explicit req for MCD domain resolution.
+   */
+  async challengeWithPhoneNumber(
+    req: NextRequest,
+    options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge>;
+
+  async challengeWithPhoneNumber(
+    arg1: PasswordlessDbChallengePhoneOptions | NextRequest,
+    arg2?: PasswordlessDbChallengePhoneOptions
   ): Promise<PasswordlessDbChallenge> {
-    void options;
-    throw new Error("Not implemented");
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "challengeWithPhoneNumber(req, options): Both arguments required for Pages Router"
+        );
+      }
+      const authClient = await this.getAuthClient(arg1);
+      return authClient.passwordlessDbOtpChallenge(arg2);
+    }
+    const authClient = await this.getAuthClient();
+    return authClient.passwordlessDbOtpChallenge(arg1);
   }
 
-  async loginWithOtp(options: PasswordlessDbGetTokenOptions): Promise<void> {
-    void options;
-    throw new Error("Not implemented");
+  /**
+   * Exchange an auth_session + OTP for tokens and establish a session.
+   * App Router overload — reads and writes cookies from `next/headers`.
+   */
+  async loginWithOtp(options: PasswordlessDbGetTokenOptions): Promise<void>;
+
+  /**
+   * Exchange an auth_session + OTP for tokens and establish a session.
+   * Pages Router overload — explicit req/res for cookie handling.
+   */
+  async loginWithOtp(
+    req: NextRequest,
+    res: NextResponse,
+    options: PasswordlessDbGetTokenOptions
+  ): Promise<void>;
+
+  async loginWithOtp(
+    arg1: PasswordlessDbGetTokenOptions | NextRequest,
+    arg2?: NextResponse,
+    arg3?: PasswordlessDbGetTokenOptions
+  ): Promise<void> {
+    if (arg1 instanceof NextRequest) {
+      if (!arg2 || !arg3) {
+        throw new TypeError(
+          "loginWithOtp(req, res, options): All three arguments required for Pages Router"
+        );
+      }
+      const authClient = await this.getAuthClient(arg1);
+      const tokenResponse = await authClient.passwordlessDbGetToken(arg3);
+      await authClient.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        arg1.cookies,
+        arg2.cookies
+      );
+      return;
+    }
+    const authClient = await this.getAuthClient();
+    const tokenResponse = await authClient.passwordlessDbGetToken(arg1);
+    const cookiesLib = await getCookies();
+    await authClient.createSessionFromPasswordlessVerify(
+      tokenResponse,
+      cookiesLib as any,
+      cookiesLib as any
+    );
   }
 }
