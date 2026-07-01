@@ -225,6 +225,8 @@ class ClientPasswordlessClient implements PasswordlessClient {
         error_description: "Failed to parse error response"
       }));
       if (error.error === "mfa_required") {
+        // Thrown as a raw object so callers can access mfa_token directly
+        // to initiate the MFA challenge flow. Consistent with verify().
         throw error;
       }
       throw new PasswordlessDbGetTokenError(

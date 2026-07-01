@@ -299,7 +299,7 @@ describe("ClientPasswordlessClient — DB OTP methods", () => {
               error: "invalid_request",
               error_description: "Invalid or expired OTP code."
             },
-            { status: 403 }
+            { status: 400 }
           )
         )
       );
@@ -323,7 +323,7 @@ describe("ClientPasswordlessClient — DB OTP methods", () => {
               error: "invalid_request",
               error_description: "Invalid or expired OTP code."
             },
-            { status: 403 }
+            { status: 400 }
           )
         )
       );

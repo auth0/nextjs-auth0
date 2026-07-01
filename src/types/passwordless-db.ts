@@ -65,7 +65,7 @@ export interface PasswordlessDbChallenge {
 /**
  * Options to exchange a challenge `auth_session` and user-entered OTP for tokens.
  *
- * Throws `PasswordlessLoginError` with `error: "invalid_request"` if the
+ * Throws `PasswordlessDbGetTokenError` with `error: "invalid_request"` if the
  * `auth_session` was non-functional (blocked user, signup disabled for a
  * non-existent user, wrong OTP, or expired session).
  */

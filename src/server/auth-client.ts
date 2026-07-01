@@ -1982,7 +1982,7 @@ export class AuthClient {
             { status: 500 }
           );
         }
-        return NextResponse.json(e.toJSON(), { status: 403 });
+        return NextResponse.json(e.toJSON(), { status: 400 });
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
