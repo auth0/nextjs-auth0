@@ -1,5 +1,22 @@
 # Change Log
 
+## [v4.24.0](https://github.com/auth0/nextjs-auth0/tree/v4.24.0) (2026-07-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.23.1...v4.24.0)
+
+**Added**
+- feat: enforce IPSIE session_expiry ceiling on enterprise connections [\#2708](https://github.com/auth0/nextjs-auth0/pull/2708) ([Piyush-85](https://github.com/Piyush-85))
+
+## [v4.23.1](https://github.com/auth0/nextjs-auth0/tree/v4.23.1) (2026-06-30)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.23.0...v4.23.1)
+
+**Fixed**
+- adding example for CTE & CTE impersonation & delegation [\#2692](https://github.com/auth0/nextjs-auth0/pull/2692) ([Piyush-85](https://github.com/Piyush-85))
+- fix: forward state param to OIDC end-session URL in handleLogout [\#2728](https://github.com/auth0/nextjs-auth0/pull/2728) ([Piyush-85](https://github.com/Piyush-85))
+-  fix(mtls): revoke refresh token on logout and fix interactive flow routing [\#2727](https://github.com/auth0/nextjs-auth0/pull/2727) ([Piyush-85](https://github.com/Piyush-85))
+
+**Security**
+- fix: persist per-request max_age in TransactionState to enforce auth_… [\#2707](https://github.com/auth0/nextjs-auth0/pull/2707) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.23.0](https://github.com/auth0/nextjs-auth0/tree/v4.23.0) (2026-06-22)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.22.0...v4.23.0)
 

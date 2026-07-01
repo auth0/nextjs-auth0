@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.23.0",
+  "version": "4.24.0",
   "description": "Auth0 Next.js SDK",
   "type": "module",
   "scripts": {
@@ -53,7 +53,7 @@
     "jsdom": "^26.1.0",
     "msw": "^2.7.5",
     "next": "15.5.19",
-    "prettier": "^3.3.3",
+    "prettier": "^3.9.1",
     "typedoc": "^0.28.4",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.23.0",

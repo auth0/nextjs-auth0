@@ -509,8 +509,7 @@ export interface Auth0ClientOptions {
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
 export type PagesRouterResponse =
-  | ServerResponse<IncomingMessage>
-  | NextApiResponse;
+  ServerResponse<IncomingMessage> | NextApiResponse;
 
 export class Auth0Client {
   private transactionStore: TransactionStore;
@@ -848,8 +847,7 @@ export class Auth0Client {
 
     // extract cookies
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (normalizedReq) {
       reqCookies =
         normalizedReq instanceof NextRequest
@@ -874,8 +872,7 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (req) {
       reqCookies =
         req instanceof NextRequest
@@ -1115,10 +1112,24 @@ export class Auth0Client {
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session = await this.getSessionFromAuthClient(
-      authClient,
-      normalizedReq
-    );
+    // Connection tokens follow the upstream IdP's own token TTLs and are not
+    // subject to the IPSIE primary session ceiling — skip only the ceiling check,
+    // MCD domain validation still applies.
+    let reqCookies:
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
+    }
+    const { error: sessionError, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies, {
+        skipCeilingCheck: true
+      });
+    if (sessionError) throw sessionError;
 
     if (!session) {
       throw new AccessTokenForConnectionError(
@@ -1600,8 +1611,7 @@ export class Auth0Client {
     return (
       req: NextRequest | NextApiRequest,
       resOrParams:
-        | withApiAuthRequired.AppRouteHandlerFnContext
-        | NextApiResponse
+        withApiAuthRequired.AppRouteHandlerFnContext | NextApiResponse
     ) => {
       if (isRequest(req)) {
         return appRouteHandler(
