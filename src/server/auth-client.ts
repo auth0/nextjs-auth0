@@ -148,6 +148,8 @@ import {
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   buildSessionFromCallback,
+  isSessionCeilingInPast,
+  isSessionCeilingReached,
   mergePopupTokenIntoSession
 } from "../utils/session-helpers.js";
 import {
@@ -555,6 +557,14 @@ export class AuthClient {
     this.useDPoP = options.useDPoP ?? false;
 
     this.useMtls = options.useMtls ?? false;
+    if (this.useMtls && this.useDPoP) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls and useDPoP cannot be used together. " +
+          "When both are present, the server always issues a DPoP-bound token (cnf.jkt) " +
+          "and the certificate is ignored for token binding."
+      );
+    }
     if (this.useMtls && !options.fetch) {
       throw new MtlsError(
         MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
@@ -986,6 +996,7 @@ export class AuthClient {
 
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
+    const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
@@ -1004,6 +1015,10 @@ export class AuthClient {
       const url = new URL(authorizationServerMetadata.end_session_endpoint!);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
       url.searchParams.set("post_logout_redirect_uri", returnTo);
+
+      if (logoutState) {
+        url.searchParams.set("state", logoutState);
+      }
 
       if (session?.internal.sid) {
         url.searchParams.set("logout_hint", session.internal.sid);
@@ -1056,6 +1071,20 @@ export class AuthClient {
         logoutResponse = createV2LogoutResponse();
       } else {
         logoutResponse = createOIDCLogoutResponse();
+      }
+    }
+
+    // Revoke the refresh token before clearing the session so it cannot be
+    // replayed after logout (e.g. from a stolen session cookie). Errors are
+    // swallowed — a failed revocation must never block the logout redirect.
+    if (this.useMtls && session?.tokenSet.refreshToken && !hasDomainMismatch) {
+      try {
+        await this.revokeRefreshToken(
+          authorizationServerMetadata,
+          session.tokenSet.refreshToken
+        );
+      } catch {
+        // intentionally ignored
       }
     }
 
@@ -1424,6 +1453,31 @@ export class AuthClient {
           oidcRes,
           transactionState
         );
+
+        // IPSIE: reject a session whose ceiling is already in the past at login.
+        if (
+          isSessionCeilingInPast(
+            fallbackSession.internal.sessionExpiresAt,
+            idTokenClaims?.iat
+          )
+        ) {
+          const expiredError = new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          );
+          await this.onCallback(expiredError, onCallbackCtx, null);
+          const popupResponse = createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: AccessTokenErrorCode.SESSION_EXPIRED,
+              message: expiredError.message
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+
         const mergedSession = await this.finalizeSession(
           fallbackSession,
           oidcRes.id_token
@@ -1458,6 +1512,25 @@ export class AuthClient {
       oidcRes,
       transactionState
     );
+
+    // IPSIE: reject a session whose ceiling is already in the past at login.
+    if (
+      isSessionCeilingInPast(
+        session.internal.sessionExpiresAt,
+        idTokenClaims?.iat
+      )
+    ) {
+      return this.handleCallbackError(
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
 
     // Add MCD metadata when in resolver mode
     if (this.provider?.isResolverMode) {
@@ -1897,7 +1970,7 @@ export class AuthClient {
         return this.#createMfaRequiredResponse(req, session, error);
       }
 
-      return NextResponse.json(
+      const errorRes = NextResponse.json(
         {
           error: {
             message: error.message,
@@ -1908,6 +1981,15 @@ export class AuthClient {
           status: 401
         }
       );
+
+      // IPSIE: when the ceiling fired, clean up the stored session so the next
+      // request starts clean. For stateless sessions this is a no-op; for
+      // stateful stores it removes the backing record.
+      if (error.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+        await this.sessionStore.delete(req.cookies, errorRes.cookies);
+      }
+
+      return errorRes;
     }
 
     const { tokenSet: updatedTokenSet } = getTokenSetResponse;
@@ -2207,6 +2289,18 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    // IPSIE: hard pre-check before any cached-token serve or refresh attempt.
+    // Once the upstream IdP-asserted ceiling passes, refresh must not be attempted.
+    if (isSessionCeilingReached(sessionData.internal?.sessionExpiresAt)) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        null
+      ];
+    }
+
     // Scope resolution:
     // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
     // When mergeScopes === false: use ONLY options.scope (no global merge)
@@ -2362,10 +2456,6 @@ export class AuthClient {
       const accessTokenExpiresAt =
         Math.floor(Date.now() / 1000) +
         Number(tokenEndpointResponse.expires_in);
-
-      if (this.useMtls) {
-        this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
-      }
 
       return [
         null,
@@ -2712,6 +2802,30 @@ export class AuthClient {
     return [null, authorizationUrl];
   }
 
+  private withMtlsEndpoint(
+    as: oauth.AuthorizationServer
+  ): oauth.AuthorizationServer {
+    if (this.useMtls && as.mtls_endpoint_aliases?.token_endpoint) {
+      return { ...as, token_endpoint: as.mtls_endpoint_aliases.token_endpoint };
+    }
+    return as;
+  }
+
+  private async revokeRefreshToken(
+    as: oauth.AuthorizationServer,
+    refreshToken: string
+  ): Promise<void> {
+    const clientAuth = await this.getClientAuth();
+    const response = await oauth.revocationRequest(
+      as,
+      this.clientMetadata,
+      clientAuth,
+      refreshToken,
+      { [oauth.customFetch]: this.fetch, ...this.httpOptions() }
+    );
+    await oauth.processRevocationResponse(response);
+  }
+
   private warnIfNotCertificateBound(accessToken: string): void {
     try {
       const payload = jose.decodeJwt(accessToken);
@@ -2816,13 +2930,37 @@ export class AuthClient {
    * @internal
    */
   async getSessionWithDomainCheck(
-    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies,
+    { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
     // Read session from store
     const session = await this.sessionStore.get(cookies);
 
     // No session found
     if (!session) {
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // IPSIE: treat as no session once the upstream IdP-asserted ceiling passes.
+    // Returns the same shape as "no session" so existing redirect-to-login paths
+    // fire transparently. For stateful stores, delete the backing record so the
+    // store stays clean; stateless sessions are self-contained in the cookie and
+    // will be orphaned (ceiling check fires on every subsequent read).
+    // skipCeilingCheck is used by getAccessTokenForConnection — connection tokens
+    // follow the upstream IdP's own TTLs, not the IPSIE session ceiling.
+    if (
+      !skipCeilingCheck &&
+      isSessionCeilingReached(session.internal?.sessionExpiresAt)
+    ) {
+      this.sessionStore
+        .deleteByReqCookies(cookies)
+        .catch((e) =>
+          console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
+        );
       return {
         error: null,
         session: null,
@@ -2990,9 +3128,15 @@ export class AuthClient {
           ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
           : undefined;
 
+      // When useMtls=true, use the mTLS alias so the edge proxy forwards the
+      // Client-Certificate header. CNF is not issued for this grant type (auth-server behavior).
+      const connectionTokenMetadata = this.withMtlsEndpoint(
+        authorizationServerMetadata
+      );
+
       const genericTokenEndpointRequestCall = async () =>
         oauth.genericTokenEndpointRequest(
-          authorizationServerMetadata,
+          connectionTokenMetadata,
           this.clientMetadata,
           await this.getClientAuth(),
           GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
@@ -3009,7 +3153,7 @@ export class AuthClient {
       const processGenericTokenEndpointResponseCall = async () => {
         const httpResponse = await genericTokenEndpointRequestCall();
         return oauth.processGenericTokenEndpointResponse(
-          authorizationServerMetadata,
+          connectionTokenMetadata,
           this.clientMetadata,
           httpResponse
         );
@@ -3253,9 +3397,12 @@ export class AuthClient {
         : undefined;
 
     // Execute token exchange with DPoP retry support
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     const processTokenExchange = async () => {
       const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
+        tokenExchangeMetadata,
         this.clientMetadata,
         await this.getClientAuth(),
         GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
@@ -3267,7 +3414,7 @@ export class AuthClient {
         }
       );
       return oauth.processGenericTokenEndpointResponse(
-        authorizationServerMetadata,
+        tokenExchangeMetadata,
         this.clientMetadata,
         httpResponse
       );
@@ -3298,10 +3445,6 @@ export class AuthClient {
         ),
         null
       ];
-    }
-
-    if (this.useMtls) {
-      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
     }
 
     // Map response: snake_case → camelCase
@@ -4002,12 +4145,15 @@ export class AuthClient {
         : undefined;
 
     // Execute MFA token exchange with DPoP retry support
+    const mfaVerifyMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            mfaVerifyMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             verifyGrantType,
@@ -4022,7 +4168,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            mfaVerifyMetadata,
             this.clientMetadata,
             httpResponse
           );
@@ -4297,12 +4443,12 @@ export class AuthClient {
     // This means we cannot use oauth.genericTokenEndpointRequest (which only
     // sends URLSearchParams), so DPoP must be attached manually via the handle's
     // internal addProof method.
-    // When useMtls=true, prefer the mTLS alias so certificate-bound tokens are issued.
+    const passkeyTokenMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     const tokenUrl =
-      this.useMtls &&
-      authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
-        ? authorizationServerMetadata.mtls_endpoint_aliases.token_endpoint
-        : new URL("/oauth/token", this.issuer).toString();
+      passkeyTokenMetadata.token_endpoint ??
+      new URL("/oauth/token", this.issuer).toString();
 
     const jsonBody: Record<string, unknown> = {
       grant_type: GRANT_TYPE_PASSKEY,
@@ -4417,10 +4563,6 @@ export class AuthClient {
         "missing_id_token",
         "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
       );
-    }
-
-    if (this.useMtls) {
-      this.warnIfNotCertificateBound(tokenEndpointResponse.access_token);
     }
 
     const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
@@ -5111,12 +5253,15 @@ export class AuthClient {
         ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
         : undefined;
 
+    const passwordlessMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            passwordlessMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             GRANT_TYPE_PASSWORDLESS_OTP,
@@ -5129,7 +5274,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            passwordlessMetadata,
             this.clientMetadata,
             httpResponse
           );
