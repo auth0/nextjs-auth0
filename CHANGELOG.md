@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.24.0](https://github.com/auth0/nextjs-auth0/tree/v4.24.0) (2026-07-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.23.1...v4.24.0)
+
+**Added**
+- feat: enforce IPSIE session_expiry ceiling on enterprise connections [\#2708](https://github.com/auth0/nextjs-auth0/pull/2708) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.23.1](https://github.com/auth0/nextjs-auth0/tree/v4.23.1) (2026-06-30)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.23.0...v4.23.1)
 
