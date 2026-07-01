@@ -132,7 +132,8 @@ export class BackchannelAuthenticationError extends SdkError {
 export enum AccessTokenErrorCode {
   MISSING_SESSION = "missing_session",
   MISSING_REFRESH_TOKEN = "missing_refresh_token",
-  FAILED_TO_REFRESH_TOKEN = "failed_to_refresh_token"
+  FAILED_TO_REFRESH_TOKEN = "failed_to_refresh_token",
+  SESSION_EXPIRED = "session_expired"
 }
 
 export class AccessTokenError extends SdkError {

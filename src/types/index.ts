@@ -32,6 +32,9 @@ export interface SessionData {
     createdAt: number;
     // MCD metadata: domain and issuer used to authenticate this session
     mcd?: import("./mcd.js").MCDMetadata;
+    // IPSIE session_expiry ceiling (Unix seconds) stamped at login from the ID token.
+    // Absent when the connection has no session_expiry claim — existing behavior is unchanged.
+    sessionExpiresAt?: number;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -99,6 +102,13 @@ export interface User {
    * Set by an Auth0 Action via `api.authentication.setActor()`.
    */
   act?: ActClaim;
+  /**
+   * IPSIE session ceiling — absolute Unix timestamp (seconds) after which the
+   * upstream IdP session has expired. Present only when the enterprise connection
+   * has `id_token_session_expiry_supported: true`. The SDK enforces this as a hard
+   * ceiling on the local session; reads return no-session once it passes.
+   */
+  session_expiry?: number;
 
   [key: string]: any;
 }

@@ -148,6 +148,8 @@ import {
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   buildSessionFromCallback,
+  isSessionCeilingInPast,
+  isSessionCeilingReached,
   mergePopupTokenIntoSession
 } from "../utils/session-helpers.js";
 import {
@@ -1451,6 +1453,31 @@ export class AuthClient {
           oidcRes,
           transactionState
         );
+
+        // IPSIE: reject a session whose ceiling is already in the past at login.
+        if (
+          isSessionCeilingInPast(
+            fallbackSession.internal.sessionExpiresAt,
+            idTokenClaims?.iat
+          )
+        ) {
+          const expiredError = new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          );
+          await this.onCallback(expiredError, onCallbackCtx, null);
+          const popupResponse = createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: AccessTokenErrorCode.SESSION_EXPIRED,
+              message: expiredError.message
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+
         const mergedSession = await this.finalizeSession(
           fallbackSession,
           oidcRes.id_token
@@ -1485,6 +1512,25 @@ export class AuthClient {
       oidcRes,
       transactionState
     );
+
+    // IPSIE: reject a session whose ceiling is already in the past at login.
+    if (
+      isSessionCeilingInPast(
+        session.internal.sessionExpiresAt,
+        idTokenClaims?.iat
+      )
+    ) {
+      return this.handleCallbackError(
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
 
     // Add MCD metadata when in resolver mode
     if (this.provider?.isResolverMode) {
@@ -1924,7 +1970,7 @@ export class AuthClient {
         return this.#createMfaRequiredResponse(req, session, error);
       }
 
-      return NextResponse.json(
+      const errorRes = NextResponse.json(
         {
           error: {
             message: error.message,
@@ -1935,6 +1981,15 @@ export class AuthClient {
           status: 401
         }
       );
+
+      // IPSIE: when the ceiling fired, clean up the stored session so the next
+      // request starts clean. For stateless sessions this is a no-op; for
+      // stateful stores it removes the backing record.
+      if (error.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+        await this.sessionStore.delete(req.cookies, errorRes.cookies);
+      }
+
+      return errorRes;
     }
 
     const { tokenSet: updatedTokenSet } = getTokenSetResponse;
@@ -2234,6 +2289,18 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    // IPSIE: hard pre-check before any cached-token serve or refresh attempt.
+    // Once the upstream IdP-asserted ceiling passes, refresh must not be attempted.
+    if (isSessionCeilingReached(sessionData.internal?.sessionExpiresAt)) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        null
+      ];
+    }
+
     // Scope resolution:
     // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
     // When mergeScopes === false: use ONLY options.scope (no global merge)
@@ -2863,13 +2930,37 @@ export class AuthClient {
    * @internal
    */
   async getSessionWithDomainCheck(
-    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies,
+    { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
     // Read session from store
     const session = await this.sessionStore.get(cookies);
 
     // No session found
     if (!session) {
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // IPSIE: treat as no session once the upstream IdP-asserted ceiling passes.
+    // Returns the same shape as "no session" so existing redirect-to-login paths
+    // fire transparently. For stateful stores, delete the backing record so the
+    // store stays clean; stateless sessions are self-contained in the cookie and
+    // will be orphaned (ceiling check fires on every subsequent read).
+    // skipCeilingCheck is used by getAccessTokenForConnection — connection tokens
+    // follow the upstream IdP's own TTLs, not the IPSIE session ceiling.
+    if (
+      !skipCeilingCheck &&
+      isSessionCeilingReached(session.internal?.sessionExpiresAt)
+    ) {
+      this.sessionStore
+        .deleteByReqCookies(cookies)
+        .catch((e) =>
+          console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
+        );
       return {
         error: null,
         session: null,
