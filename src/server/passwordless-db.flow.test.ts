@@ -271,6 +271,27 @@ describe("AuthClient passwordless DB methods", () => {
         error: "unexpected_error"
       });
     });
+
+    it("throws PasswordlessDbChallengeError with unexpected_error on 200 with non-JSON body", async () => {
+      server.use(
+        http.post(CHALLENGE_URL, () =>
+          new HttpResponse("<!DOCTYPE html><html>error</html>", {
+            status: 200,
+            headers: { "Content-Type": "text/html" }
+          })
+        )
+      );
+
+      await expect(
+        authClient.passwordlessDbOtpChallenge({
+          email: DEFAULT.email,
+          connection: DEFAULT.connection
+        })
+      ).rejects.toMatchObject({
+        name: "PasswordlessDbChallengeError",
+        error: "unexpected_error"
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------

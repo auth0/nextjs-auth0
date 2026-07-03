@@ -1991,12 +1991,15 @@ export class AuthClient {
         bodyRecord.phoneNumber
       ) {
         const deliveryMethod =
-          bodyRecord.deliveryMethod === "voice" ? "voice" : "text";
+          bodyRecord.deliveryMethod === "voice" ||
+          bodyRecord.deliveryMethod === "text"
+            ? bodyRecord.deliveryMethod
+            : undefined;
         challenge = await this.passwordlessDbOtpChallenge({
           phoneNumber: bodyRecord.phoneNumber,
           connection,
           allowSignup,
-          deliveryMethod
+          ...(deliveryMethod && { deliveryMethod })
         });
       } else {
         return NextResponse.json(

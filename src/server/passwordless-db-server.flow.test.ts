@@ -143,6 +143,59 @@ describe("AuthClient passwordless DB route handlers", () => {
       expect(body.authSession).toBe(DEFAULT.authSession);
     });
 
+    it("does not forward delivery_method to Auth0 when not provided in request", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(CHALLENGE_URL, async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ auth_session: DEFAULT.authSession });
+        })
+      );
+
+      const req = new NextRequest(
+        new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            phoneNumber: DEFAULT.phoneNumber,
+            connection: DEFAULT.connection
+          }),
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+
+      await authClient.handler(req);
+      expect(capturedBody.delivery_method).toBeUndefined();
+    });
+
+    it("forwards delivery_method to Auth0 when explicitly provided", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(CHALLENGE_URL, async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ auth_session: DEFAULT.authSession });
+        })
+      );
+
+      const req = new NextRequest(
+        new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            phoneNumber: DEFAULT.phoneNumber,
+            connection: DEFAULT.connection,
+            deliveryMethod: "voice"
+          }),
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+
+      await authClient.handler(req);
+      expect(capturedBody.delivery_method).toBe("voice");
+    });
+
     it("returns 400 with missing_identifier when neither email nor phoneNumber is provided", async () => {
       const req = new NextRequest(
         new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
