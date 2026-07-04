@@ -4018,20 +4018,49 @@ const authClient = new Auth0Client({
 
 **Use Single Transaction Mode When:**
 
-- You want to prevent cookie accumulation issues in applications with frequent login attempts
-- You prefer simpler transaction management
+- You want the simplest possible transaction management
 - Users typically don't need multiple concurrent login flows
-- You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
 
 ### Transaction Cookie Options
 
-| Option                 | Type                          | Description                                                                                                                                                    |
-| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| cookieOptions.maxAge   | `number`                      | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically. |
-| cookieOptions.prefix   | `string`                      | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.             |
-| cookieOptions.sameSite | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                |
-| cookieOptions.secure   | `boolean`                     | When `true`, the cookie will only be sent over HTTPS connections. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted. |
-| cookieOptions.path     | `string`                      | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                       |
+| Option                                    | Type                          | Description                                                                                                                                                                                                                                         |
+| ----------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transactionCookie.maxAge`                | `number`                      | Expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned cookies expire automatically.                                                                                                           |
+| `transactionCookie.maxSizeBytes`          | `number`                      | Maximum total byte size of all `__txn_*` cookies combined. Defaults to `4096`. When exceeded, the SDK evicts prefetch cookies first (phase 1), then oldest real login cookies (phase 2), before writing the new cookie. One JWE is ~450–555 bytes. |
+| `transactionCookie.prefix`                | `string`                      | Prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`; in single mode, just `__txn_`.                                                                                                     |
+| `transactionCookie.sameSite`              | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                                                     |
+| `transactionCookie.secure`                | `boolean`                     | When `true`, the cookie is only sent over HTTPS. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted.                                                                                                     |
+| `transactionCookie.path`                  | `string`                      | URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                                                                          |
+| `dangerouslyAllowLoginPrefetch`           | `boolean`                     | Defaults to `false`. When `false`, the SDK returns a `401` on non-navigational requests to `/auth/login` (Next.js prefetch, XHR), preventing prefetch cookies from accumulating. Set to `true` only for apps with custom login pages worth caching. |
+
+### Troubleshooting: 431 / cookie header too large
+
+If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookies have grown beyond your server's header size limit.
+
+**This is fixed in the current SDK version.** The SDK now:
+
+1. Returns `401` on Next.js prefetch requests to `/auth/login` so no cookie is written (`dangerouslyAllowLoginPrefetch: false` by default).
+2. Automatically evicts accumulated cookies when the `maxSizeBytes` limit is reached — prefetch cookies first, then oldest real login cookies.
+
+If you are running an older version, adding `prefetch={false}` to `<Link>` components pointing to your login route is a safe fallback:
+
+```tsx
+// Optional safety net — not required in current SDK versions
+<Link href="/auth/login" prefetch={false}>
+  Sign In
+</Link>
+```
+
+If accumulation persists after upgrading, increase the byte limit or reduce `maxAge`:
+
+```ts
+export const auth0 = new Auth0Client({
+  transactionCookie: {
+    maxSizeBytes: 8192, // raise the ceiling (default 4096)
+    maxAge: 600, // shorten TTL to 10 minutes (default 3600)
+  },
+});
+```
 
 ## Database sessions
 
