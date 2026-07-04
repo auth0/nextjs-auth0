@@ -22,7 +22,7 @@ import {
   MyAccountApiError
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
 import {
   AccessTokenSet,
   RESPONSE_TYPES,
@@ -1672,7 +1672,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2002,7 +2002,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(
           (
             (await decrypt(
-              transactionCookie!.value,
+              stripTransactionValuePrefix(transactionCookie!.value),
               secret
             )) as jose.JWTDecryptResult
           ).payload
@@ -2356,7 +2356,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2403,7 +2403,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2446,7 +2446,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2497,7 +2497,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2552,7 +2552,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2742,7 +2742,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(
           (
             (await decrypt(
-              transactionCookie.value,
+              stripTransactionValuePrefix(transactionCookie.value),
               secret
             )) as jose.JWTDecryptResult
           ).payload
@@ -2906,7 +2906,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(
             (
               (await decrypt(
-                transactionCookie.value,
+                stripTransactionValuePrefix(transactionCookie.value),
                 secret
               )) as jose.JWTDecryptResult
             ).payload
@@ -2993,7 +2993,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
           expect(
-            (await decrypt(transactionCookie!.value, secret))!.payload
+            (await decrypt(
+              stripTransactionValuePrefix(transactionCookie!.value),
+              secret
+            ))!.payload
           ).toEqual(
             expect.objectContaining({
               nonce: expect.any(String),
@@ -7373,7 +7376,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -7520,7 +7523,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -7963,7 +7966,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload

@@ -274,6 +274,21 @@ export interface Auth0ClientOptions {
   enableParallelTransactions?: boolean;
 
   /**
+   * When `false` (default), the SDK returns a `401` on prefetch requests to the
+   * login route (`/auth/login`), preventing `__txn_*` transaction cookies from
+   * being created for OAuth flows that will never complete.
+   *
+   * The standard login route immediately redirects to Auth0's hosted login page —
+   * there is no page content to prefetch, so blocking prefetch has no user-visible cost.
+   *
+   * Set to `true` only if you have overridden the login route to render custom
+   * page content (e.g. an embedded login form) that is worth prefetching.
+   *
+   * @default false
+   */
+  dangerouslyAllowLoginPrefetch?: boolean;
+
+  /**
    * If true, the `/auth/connect` endpoint will be mounted to enable users to connect additional accounts.
    */
   enableConnectAccountEndpoint?: boolean;
@@ -612,7 +627,8 @@ export class Auth0Client {
       path: options.transactionCookie?.path ?? basePath ?? "/",
       maxAge: options.transactionCookie?.maxAge ?? 3600,
       domain:
-        options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
+        options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN,
+      maxSizeBytes: options.transactionCookie?.maxSizeBytes
     };
 
     if (appBaseUrl) {
@@ -705,7 +721,9 @@ export class Auth0Client {
     this.transactionStore = new TransactionStore({
       secret,
       cookieOptions: transactionCookieOptions,
-      enableParallelTransactions: options.enableParallelTransactions ?? true
+      enableParallelTransactions: options.enableParallelTransactions ?? true,
+      dangerouslyAllowLoginPrefetch:
+        options.dangerouslyAllowLoginPrefetch ?? false
     });
 
     this.sessionStore = options.sessionStore
@@ -793,6 +811,8 @@ export class Auth0Client {
           fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
+          dangerouslyAllowLoginPrefetch:
+            options.dangerouslyAllowLoginPrefetch ?? false,
 
           discoveryCache,
           provider: this.provider
