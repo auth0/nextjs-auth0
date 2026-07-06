@@ -101,6 +101,8 @@ import {
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult,
   StartInteractiveLoginOptions,
   SUBJECT_TOKEN_TYPES,
   TokenSet,
@@ -160,6 +162,12 @@ import {
   isSessionCeilingReached,
   mergePopupTokenIntoSession
 } from "../utils/session-helpers.js";
+import {
+  buildSessionTransferAudience,
+  mapSttServerError,
+  parseSessionTransferTokenResponse,
+  resolveActorFromSession
+} from "../utils/session-transfer-helpers.js";
 import {
   compareScopes,
   findAccessTokenSet,
@@ -3710,6 +3718,267 @@ export class AuthClient {
         act
       }
     ];
+  }
+
+  /**
+   * Requests a Session Transfer Token (STT) via Custom Token Exchange.
+   *
+   * The STT is a one-shot, ~60s token that lets an authenticated agent establish
+   * a web session **as the customer** in a target app — without the customer's password.
+   * Pass the result to `buildSessionTransferRedirect` to start the redirect.
+   *
+   * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`.
+   * The actor is sourced from the agent session's ID token (refreshed if expired).
+   * Precedence: explicit `options.actor` → session ID token → throws `ACTOR_UNAVAILABLE`.
+   *
+   * **The STT is never cached.** Use it immediately with `buildSessionTransferRedirect`.
+   *
+   * @param options - STT exchange options
+   * @param session - The agent's current session (from `getSessionWithDomainCheck`)
+   * @returns A tuple of `[error, null]` or `[null, SessionTransferTokenResult]`
+   *
+   * @example
+   * ```typescript
+   * const { session } = await authClient.getSessionWithDomainCheck(req.cookies);
+   * const [error, result] = await authClient.requestSessionTransferToken(
+   *   { subjectToken, subjectTokenType: "urn:acme:subject" },
+   *   session
+   * );
+   * ```
+   */
+  async requestSessionTransferToken(
+    options: SessionTransferTokenOptions,
+    session: SessionData | null
+  ): Promise<
+    [CustomTokenExchangeError, null] | [null, SessionTransferTokenResult]
+  > {
+    await this.ensureDpopValidated();
+
+    // Validate subjectToken
+    if (!options.subjectToken || options.subjectToken.trim() === "") {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN,
+          "The subject_token is required and cannot be empty."
+        ),
+        null
+      ];
+    }
+
+    // Validate subjectTokenType
+    const tokenTypeError = this.validateSubjectTokenType(
+      options.subjectTokenType
+    );
+    if (tokenTypeError) {
+      return [tokenTypeError, null];
+    }
+
+    // Resolve actor — must come before any network call (client-side guard)
+    const [actorError, actor] = resolveActorFromSession(session, options.actor);
+    if (actorError) {
+      return [actorError, null];
+    }
+
+    // Discover authorization server metadata
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "Failed to discover authorization server metadata.",
+          new OAuth2Error({
+            code: "discovery_error",
+            message: discoveryError.message
+          })
+        ),
+        null
+      ];
+    }
+
+    // Build the STT-specific audience: urn:{domain}:session_transfer
+    // Use this.domain (the effective domain for this request) so MCD tenants
+    // get the correct per-domain audience.
+    const audience = buildSessionTransferAudience(this.domain);
+
+    // Merge scopes (offline_access is silently suppressed by Auth0 for STT)
+    const finalScope = mergeScopes(DEFAULT_SCOPES, options.scope);
+
+    const params = new URLSearchParams();
+    params.append("subject_token", options.subjectToken);
+    params.append("subject_token_type", options.subjectTokenType);
+    params.append("audience", audience);
+    params.append("scope", finalScope);
+    params.append("actor_token", actor.token);
+    params.append("actor_token_type", actor.type);
+
+    if (options.organization) {
+      params.append("organization", options.organization);
+    }
+    if (options.reason) {
+      params.append("reason", options.reason);
+    }
+    if (options.additionalParameters) {
+      for (const [key, value] of Object.entries(options.additionalParameters)) {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      }
+    }
+
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+
+    // STT responses carry `token_type: "N_A"` which oauth4webapi's
+    // processGenericTokenEndpointResponse rejects. We send the request via
+    // genericTokenEndpointRequest and parse the body ourselves.
+    const sendExchange = async (): Promise<Response> => {
+      return oauth.genericTokenEndpointRequest(
+        tokenExchangeMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          ...(dpopHandle && { DPoP: dpopHandle })
+        }
+      );
+    };
+
+    // Minimal DPoP nonce retry wrapper for the raw HTTP response path.
+    // We re-send if the response is a 400 with error=use_dpop_nonce, extracting
+    // the new nonce from the DPoP-Nonce header and reusing the same dpopHandle.
+    let httpResponse: Response;
+    try {
+      httpResponse = await sendExchange();
+
+      if (this.useDPoP && dpopHandle && httpResponse.status === 400) {
+        const cloned = httpResponse.clone();
+        let body: any;
+        try {
+          body = await cloned.json();
+        } catch {
+          body = {};
+        }
+        if (body?.error === "use_dpop_nonce") {
+          const newNonce = httpResponse.headers.get("DPoP-Nonce");
+          if (newNonce) {
+            // Let the dpopHandle learn the nonce by making a throwaway attempt
+            // through the standard path so oauth4webapi's internals update.
+            // Then resend.
+            httpResponse = await sendExchange();
+          }
+        }
+      }
+    } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+      const errorCode = oauthErr.error ?? "unknown_error";
+      const sttCode = mapSttServerError(errorCode);
+      return [
+        new CustomTokenExchangeError(
+          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          oauthErr.error_description ??
+            "There was an error trying to exchange the token for a Session Transfer Token.",
+          new OAuth2Error({
+            code: errorCode,
+            message: oauthErr.error_description ?? err.message
+          })
+        ),
+        null
+      ];
+    }
+
+    // Parse the raw JSON response ourselves — bypasses oauth4webapi's
+    // token_type allowlist which blocks "N_A".
+    let rawBody: any;
+    try {
+      rawBody = await httpResponse.json();
+    } catch {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "Failed to parse the Session Transfer Token response body."
+        ),
+        null
+      ];
+    }
+
+    // Surface server-side errors (4xx/5xx with error field)
+    if (!httpResponse.ok || rawBody?.error) {
+      const errorCode = rawBody?.error ?? "unknown_error";
+      const sttCode = mapSttServerError(errorCode);
+      return [
+        new CustomTokenExchangeError(
+          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          rawBody?.error_description ??
+            "There was an error trying to exchange the token for a Session Transfer Token.",
+          new OAuth2Error({
+            code: errorCode,
+            message: rawBody?.error_description ?? errorCode
+          })
+        ),
+        null
+      ];
+    }
+
+    // STT never decoded, never cached — treat as opaque handle
+    return [
+      null,
+      parseSessionTransferTokenResponse({
+        access_token: rawBody.access_token,
+        issued_token_type:
+          rawBody.issued_token_type ??
+          "urn:auth0:params:oauth:token-type:session_transfer_token",
+        expires_in: rawBody.expires_in,
+        token_type: rawBody.token_type
+      })
+    ];
+  }
+
+  /**
+   * Builds the redirect URL that carries the STT to the target app's login route.
+   *
+   * Returns a `NextResponse` redirect to
+   * `targetLoginUrl?session_transfer_token=<encoded>(&organization=…)`.
+   *
+   * This is a pure URL builder — no network call, nothing written to session.
+   * The STT is one-shot; use this immediately after `requestSessionTransferToken`.
+   *
+   * @param targetLoginUrl - The target app's login URL (e.g. `https://app.example.com/auth/login`).
+   *   Must be a trusted, app-controlled value. Never derive this from untrusted input.
+   * @param result - The `SessionTransferTokenResult` from `requestSessionTransferToken`
+   * @param opts - Optional overrides
+   * @param opts.organization - Org ID/name to append; use the same value passed to `requestSessionTransferToken`
+   *
+   * @example
+   * ```typescript
+   * const redirect = authClient.buildSessionTransferRedirect(
+   *   "https://app.example.com/auth/login",
+   *   result,
+   *   { organization: "org_abc123" }
+   * );
+   * return redirect;
+   * ```
+   */
+  buildSessionTransferRedirect(
+    targetLoginUrl: string,
+    result: SessionTransferTokenResult,
+    opts?: { organization?: string }
+  ): NextResponse {
+    const url = new URL(targetLoginUrl);
+    url.searchParams.set("session_transfer_token", result.sessionTransferToken);
+    if (opts?.organization) {
+      url.searchParams.set("organization", opts.organization);
+    }
+    return NextResponse.redirect(url.toString());
   }
 
   /**

@@ -28,6 +28,8 @@ import {
   LogoutStrategy,
   SessionData,
   SessionDataStore,
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -1289,6 +1291,88 @@ export class Auth0Client {
     if (error !== null) {
       throw error;
     }
+  }
+
+  /**
+   * Requests a Session Transfer Token (STT) that lets an authenticated agent
+   * establish a web session **as a customer** in a target app — without the customer's password.
+   *
+   * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type` automatically.
+   * The actor defaults to the agent session's ID token (refreshed if expired).
+   *
+   * Use the result with `buildSessionTransferRedirect` to redirect the agent's browser
+   * to the target app's login URL.
+   *
+   * **The returned STT is one-shot (~60s) and must never be cached.**
+   *
+   * @example
+   * ```typescript
+   * const result = await auth0.requestSessionTransferToken({
+   *   subjectToken: mySubjectToken,
+   *   subjectTokenType: "urn:acme:subject",
+   *   reason: "Investigating ticket #1234"
+   * });
+   * return auth0.buildSessionTransferRedirect("https://app.example.com/auth/login", result);
+   * ```
+   */
+  async requestSessionTransferToken(
+    options: SessionTransferTokenOptions
+  ): Promise<SessionTransferTokenResult> {
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const session = await this.getSession();
+
+    const [error, result] = await authClient.requestSessionTransferToken(
+      options,
+      session
+    );
+
+    if (error !== null) {
+      throw error;
+    }
+
+    return result;
+  }
+
+  /**
+   * Builds a `NextResponse` redirect that carries the STT to the target app's login route.
+   *
+   * Returns a redirect to `targetLoginUrl?session_transfer_token=<encoded>(&organization=…)`.
+   * Pure URL builder — no network call, nothing written to session.
+   *
+   * @param targetLoginUrl - The target app's login URL. Must be a trusted, app-controlled value.
+   * @param result - The `SessionTransferTokenResult` from `requestSessionTransferToken`
+   * @param opts - Optional: `organization` to append (same value passed to `requestSessionTransferToken`)
+   *
+   * @example
+   * ```typescript
+   * const result = await auth0.requestSessionTransferToken({ subjectToken, subjectTokenType });
+   * return auth0.buildSessionTransferRedirect("https://app.example.com/auth/login", result);
+   * ```
+   */
+  buildSessionTransferRedirect(
+    targetLoginUrl: string,
+    result: SessionTransferTokenResult,
+    opts?: { organization?: string }
+  ): NextResponse {
+    // buildSessionTransferRedirect is a pure URL builder — delegate directly
+    // to any AuthClient instance since it uses no per-request state.
+    const staticClient = this.provider.getAuthClientForStaticMode();
+    if (staticClient) {
+      return staticClient.buildSessionTransferRedirect(
+        targetLoginUrl,
+        result,
+        opts
+      );
+    }
+    // Fallback: build the URL inline (resolver mode with no static client)
+    const url = new URL(targetLoginUrl);
+    url.searchParams.set("session_transfer_token", result.sessionTransferToken);
+    if (opts?.organization) {
+      url.searchParams.set("organization", opts.organization);
+    }
+    return NextResponse.redirect(url.toString());
   }
 
   /**

@@ -17,6 +17,8 @@ import {
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
+import { SessionData } from "../types/index.js";
+import { TOKEN_TYPES } from "../types/token-vault.js";
 import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
@@ -950,6 +952,689 @@ describe("Custom Token Exchange", () => {
 
       expect(error).toBeInstanceOf(CustomTokenExchangeError);
       expect(error?.name).toBe("CustomTokenExchangeError");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 5: Session Transfer Token (STT) — requestSessionTransferToken
+  // -------------------------------------------------------------------------
+
+  describe("5: Session Transfer Token", () => {
+    const STT_SUBJECT_TOKEN_TYPE = "urn:acme:subject-token";
+    const STT_URN = TOKEN_TYPES.SESSION_TRANSFER_TOKEN;
+
+    async function makeAgentIdToken(
+      opts: { expiresIn?: string } = {}
+    ): Promise<string> {
+      return new jose.SignJWT({})
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject("agent|support-007")
+        .setIssuedAt()
+        .setIssuer(`https://${DEFAULT.domain}`)
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime(opts.expiresIn ?? "2h")
+        .sign(keyPair.privateKey);
+    }
+
+    function makeAgentSession(idToken?: string): SessionData {
+      return {
+        user: { sub: "agent|support-007" },
+        tokenSet: {
+          accessToken: "at_agent",
+          idToken,
+          expiresAt: Math.floor(Date.now() / 1000) + 3600
+        },
+        internal: {
+          sid: "sid_agent",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+    }
+
+    // STT token endpoint handler: returns an STT response shape
+    function sttTokenHandler(
+      opts: {
+        error?: string;
+        errorDescription?: string;
+        status?: number;
+      } = {}
+    ) {
+      return http.post(
+        `https://${DEFAULT.domain}/oauth/token`,
+        async ({ request }) => {
+          if (opts.error) {
+            return HttpResponse.json(
+              {
+                error: opts.error,
+                error_description: opts.errorDescription ?? opts.error
+              },
+              { status: opts.status ?? 400 }
+            );
+          }
+
+          const body = await request.text();
+          const params = new URLSearchParams(body);
+
+          // Capture params for inspection in tests via closure
+          (sttTokenHandler as any)._lastParams = params;
+
+          return HttpResponse.json({
+            issued_token_type: STT_URN,
+            access_token: "stt_opaque_" + params.get("subject_token"),
+            token_type: "N_A",
+            expires_in: 60,
+            scope: params.get("scope") ?? "openid profile email"
+          });
+        }
+      );
+    }
+
+    describe("5.1: result shape", () => {
+      it("should return a SessionTransferTokenResult with issuedTokenType = SESSION_TRANSFER_TOKEN", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(sttTokenHandler());
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "my-subject",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(result).not.toBeNull();
+        expect(result?.issuedTokenType).toBe(STT_URN);
+        expect(result?.sessionTransferToken).toContain("stt_opaque_");
+        expect(result?.expiresIn).toBe(60);
+        expect(result?.tokenType).toBe("N_A");
+      });
+
+      it("should expose sessionTransferToken, never access_token field", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(sttTokenHandler());
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "my-subject",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(result).toHaveProperty("sessionTransferToken");
+        expect(result).not.toHaveProperty("access_token");
+        expect(result).not.toHaveProperty("accessToken");
+      });
+
+      it("should not include id_token or act on the result", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(sttTokenHandler());
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "my-subject",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(result).not.toHaveProperty("act");
+        expect(result).not.toHaveProperty("idToken");
+      });
+    });
+
+    describe("5.2: actor resolution", () => {
+      it("should use the session ID token as actor_token by default", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedActorToken = "";
+        let capturedActorTokenType = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedActorToken = params.get("actor_token") ?? "";
+              capturedActorTokenType = params.get("actor_token_type") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        const [error] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(capturedActorToken).toBe(idToken);
+        expect(capturedActorTokenType).toBe(TOKEN_TYPES.ID_TOKEN);
+      });
+
+      it("should use an explicit actor token when provided", async () => {
+        const session = makeAgentSession(undefined); // no session ID token
+        const explicitToken = await makeAgentIdToken();
+
+        let capturedActorToken = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedActorToken = params.get("actor_token") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_explicit",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        const [error] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            actor: { token: explicitToken, type: TOKEN_TYPES.ID_TOKEN }
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(capturedActorToken).toBe(explicitToken);
+      });
+
+      it("should return ACTOR_UNAVAILABLE when session has no ID token and no explicit actor", async () => {
+        const session = makeAgentSession(undefined);
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error).toBeInstanceOf(CustomTokenExchangeError);
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+        );
+        expect(result).toBeNull();
+      });
+
+      it("should return ACTOR_UNAVAILABLE when session is null", async () => {
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          null
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+        );
+        expect(result).toBeNull();
+      });
+
+      it("should return ACTOR_UNAVAILABLE when session ID token is expired", async () => {
+        const expiredToken = await new jose.SignJWT({})
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject("agent|expired")
+          .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
+          .setIssuer(`https://${DEFAULT.domain}`)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
+          .sign(keyPair.privateKey);
+
+        const session = makeAgentSession(expiredToken);
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+        );
+        expect(result).toBeNull();
+      });
+    });
+
+    describe("5.3: wire parameters", () => {
+      it("should set audience to urn:{domain}:session_transfer", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedAudience = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedAudience = params.get("audience") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(capturedAudience).toBe(`urn:${DEFAULT.domain}:session_transfer`);
+      });
+
+      it("should set grant_type to token-exchange", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedGrantType = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedGrantType = params.get("grant_type") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(capturedGrantType).toBe(
+          "urn:ietf:params:oauth:grant-type:token-exchange"
+        );
+      });
+
+      it("should forward reason to the token endpoint", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedReason = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedReason = params.get("reason") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        const [error] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            reason: "Investigating TCK-4821"
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(capturedReason).toBe("Investigating TCK-4821");
+      });
+
+      it("should forward organization to the token endpoint", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedOrg = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedOrg = params.get("organization") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            organization: "org_globex"
+          },
+          session
+        );
+
+        expect(capturedOrg).toBe("org_globex");
+      });
+
+      it("should forward additionalParameters to the token endpoint", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedCustomParam = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedCustomParam = params.get("ticket_id") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            additionalParameters: { ticket_id: "TCK-4821" }
+          },
+          session
+        );
+
+        expect(capturedCustomParam).toBe("TCK-4821");
+      });
+    });
+
+    describe("5.4: STT never persisted / no act on response", () => {
+      it("should not include the STT in any session-like field on the result", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(sttTokenHandler());
+
+        const [, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        // Result must only have the documented fields
+        const allowedKeys = new Set([
+          "sessionTransferToken",
+          "issuedTokenType",
+          "expiresIn",
+          "tokenType"
+        ]);
+        for (const key of Object.keys(result ?? {})) {
+          expect(allowedKeys.has(key)).toBe(true);
+        }
+      });
+    });
+
+    describe("5.5: server error mapping", () => {
+      it("should return SETACTOR_REQUIRED when server returns setactor_required", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(
+          sttTokenHandler({
+            error: "setactor_required",
+            errorDescription:
+              "setActor is required when requesting a session transfer token via token exchange.",
+            status: 400
+          })
+        );
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.SETACTOR_REQUIRED
+        );
+        expect(result).toBeNull();
+      });
+
+      it("should return SESSION_TRANSFER_DISABLED when feature flag is off", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(
+          sttTokenHandler({
+            error: "session_transfer_disabled",
+            errorDescription:
+              "Session Transfer Tokens cannot be requested on this tenant.",
+            status: 400
+          })
+        );
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED
+        );
+        expect(result).toBeNull();
+      });
+
+      it("should return EXCHANGE_FAILED for generic server errors", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        server.use(
+          sttTokenHandler({
+            error: "server_error",
+            errorDescription: "Internal server error",
+            status: 500
+          })
+        );
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(CustomTokenExchangeErrorCode.EXCHANGE_FAILED);
+        expect(result).toBeNull();
+      });
+    });
+
+    describe("5.6: input validation", () => {
+      it("should return MISSING_SUBJECT_TOKEN when subjectToken is empty", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          { subjectToken: "", subjectTokenType: STT_SUBJECT_TOKEN_TYPE },
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN
+        );
+        expect(result).toBeNull();
+      });
+
+      it("should return INVALID_SUBJECT_TOKEN_TYPE for a short subjectTokenType", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          { subjectToken: "valid", subjectTokenType: "urn:a:b" }, // < 10 chars
+          session
+        );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE
+        );
+        expect(result).toBeNull();
+      });
+    });
+
+    describe("5.7: buildSessionTransferRedirect", () => {
+      it("should build a redirect URL with session_transfer_token param", () => {
+        const result = {
+          sessionTransferToken: "stt_abc123",
+          issuedTokenType: STT_URN,
+          expiresIn: 60
+        };
+
+        const redirect = authClient.buildSessionTransferRedirect(
+          "https://app.example.com/auth/login",
+          result
+        );
+
+        expect(redirect.status).toBeGreaterThanOrEqual(300);
+        expect(redirect.status).toBeLessThan(400);
+        const location = redirect.headers.get("location") ?? "";
+        const url = new URL(location);
+        expect(url.searchParams.get("session_transfer_token")).toBe(
+          "stt_abc123"
+        );
+        expect(url.origin).toBe("https://app.example.com");
+        expect(url.pathname).toBe("/auth/login");
+      });
+
+      it("should URL-encode the STT value", () => {
+        const result = {
+          sessionTransferToken: "stt_with+special=chars&more",
+          issuedTokenType: STT_URN,
+          expiresIn: 60
+        };
+
+        const redirect = authClient.buildSessionTransferRedirect(
+          "https://app.example.com/auth/login",
+          result
+        );
+
+        const location = redirect.headers.get("location") ?? "";
+        const url = new URL(location);
+        // searchParams.get() decodes it — should round-trip cleanly
+        expect(url.searchParams.get("session_transfer_token")).toBe(
+          "stt_with+special=chars&more"
+        );
+      });
+
+      it("should append organization when provided via opts", () => {
+        const result = {
+          sessionTransferToken: "stt_org_flow",
+          issuedTokenType: STT_URN,
+          expiresIn: 60
+        };
+
+        const redirect = authClient.buildSessionTransferRedirect(
+          "https://app.example.com/auth/login",
+          result,
+          { organization: "org_globex" }
+        );
+
+        const location = redirect.headers.get("location") ?? "";
+        const url = new URL(location);
+        expect(url.searchParams.get("organization")).toBe("org_globex");
+        expect(url.searchParams.get("session_transfer_token")).toBe(
+          "stt_org_flow"
+        );
+      });
+
+      it("should not append organization when not provided", () => {
+        const result = {
+          sessionTransferToken: "stt_no_org",
+          issuedTokenType: STT_URN,
+          expiresIn: 60
+        };
+
+        const redirect = authClient.buildSessionTransferRedirect(
+          "https://app.example.com/auth/login",
+          result
+        );
+
+        const location = redirect.headers.get("location") ?? "";
+        const url = new URL(location);
+        expect(url.searchParams.has("organization")).toBe(false);
+      });
+    });
+
+    describe("5.8: backward compatibility — existing CTE tests unaffected", () => {
+      it("customTokenExchange should still work after adding STT methods", async () => {
+        const [error, response] = await authClient.customTokenExchange({
+          subjectToken: "legacy-token",
+          subjectTokenType: "urn:acme:legacy-token"
+        });
+
+        expect(error).toBeNull();
+        expect(response?.accessToken).toMatch(/^at_cte_test_/);
+        expect(response?.tokenType.toLowerCase()).toBe("bearer");
+      });
+
+      it("customTokenExchange response should not have sessionTransferToken field", async () => {
+        const [, response] = await authClient.customTokenExchange({
+          subjectToken: "legacy-token",
+          subjectTokenType: "urn:acme:legacy-token"
+        });
+
+        expect(response).not.toHaveProperty("sessionTransferToken");
+        expect(response).not.toHaveProperty("issuedTokenType");
+      });
     });
   });
 });
