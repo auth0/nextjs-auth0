@@ -29,12 +29,14 @@ export function PasswordlessDbForm() {
   const [mfaToken, setMfaToken] = useState("");
   const [oobCode, setOobCode] = useState("");
   const [barcodeUri, setBarcodeUri] = useState("");
+  const [totpSecret, setTotpSecret] = useState("");
   const [mfaCode, setMfaCode] = useState("");
 
   function resetMfaState() {
     setMfaToken("");
     setOobCode("");
     setBarcodeUri("");
+    setTotpSecret("");
     setMfaCode("");
   }
 
@@ -100,6 +102,7 @@ export function PasswordlessDbForm() {
             });
             if ("barcodeUri" in enrollment && enrollment.barcodeUri) {
               setBarcodeUri(enrollment.barcodeUri);
+              setTotpSecret(enrollment.secret ?? "");
             }
             setMfaToken(e.mfa_token);
             setStep("mfa-enroll");
@@ -178,7 +181,7 @@ export function PasswordlessDbForm() {
 
         {barcodeUri && (
           <div className="flex justify-center rounded-lg border border-gray-200 bg-white p-4">
-            <QrCode value={barcodeUri} />
+            <QrCode value={barcodeUri} secret={totpSecret} />
           </div>
         )}
 
@@ -187,9 +190,10 @@ export function PasswordlessDbForm() {
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
+            aria-label="MFA code"
             maxLength={6}
             value={mfaCode}
-            onChange={(e) => setMfaCode(e.target.value)}
+            onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="000000"
             required
             autoFocus
@@ -236,9 +240,10 @@ export function PasswordlessDbForm() {
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
+            aria-label="MFA code"
             maxLength={6}
             value={mfaCode}
-            onChange={(e) => setMfaCode(e.target.value)}
+            onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="000000"
             required
             autoFocus
@@ -282,6 +287,7 @@ export function PasswordlessDbForm() {
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
+              aria-label="One-time password"
               placeholder="123456"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -350,6 +356,7 @@ export function PasswordlessDbForm() {
             <input
               key="email"
               type="email"
+              aria-label="Email address"
               placeholder="you@example.com"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
@@ -362,6 +369,7 @@ export function PasswordlessDbForm() {
             <input
               key="phone"
               type="tel"
+              aria-label="Phone number"
               placeholder="+14155550100"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}

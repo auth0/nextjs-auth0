@@ -21,11 +21,7 @@ A Next.js App Router example demonstrating passwordless OTP authentication again
 
 ### 1. Enable feature flags
 
-The following tenant feature flags must be enabled. Contact your Auth0 account team or use an internal tooling CLI if available:
-
-- `allow_otp_database_connection_config` — unlocks OTP method settings on DB connections
-- `allow_otp_database_connection_auth_api` — enables the `/otp/challenge` endpoint
-- `allow_otp_database_connection_flows` — enables OTP flows on DB connections end-to-end
+This feature is currently in **Early Access (EA)**. Contact your Auth0 account team to have the required feature flags enabled on your tenant.
 
 ### 2. Create an application
 

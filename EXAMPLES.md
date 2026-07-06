@@ -2180,8 +2180,8 @@ export async function requestOtp(email: string) {
 
 // Step 2 — verify OTP and create session (App Router)
 export async function verifyOtp(authSession: string, otp: string) {
+  // Sets the session cookie via next/headers; navigate the user after this resolves
   await auth0.passwordless.loginWithOtp({ authSession, otp });
-  redirect("/dashboard");
 }
 ```
 
