@@ -100,9 +100,9 @@ export function PasswordlessDbForm() {
               mfaToken: e.mfa_token,
               authenticatorTypes: ["otp"],
             });
-            if ("barcodeUri" in enrollment && enrollment.barcodeUri) {
+            if ("secret" in enrollment && enrollment.barcodeUri) {
               setBarcodeUri(enrollment.barcodeUri);
-              setTotpSecret(enrollment.secret ?? "");
+              setTotpSecret(enrollment.secret);
             }
             setMfaToken(e.mfa_token);
             setStep("mfa-enroll");
