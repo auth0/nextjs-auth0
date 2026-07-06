@@ -60,6 +60,12 @@ export default async function Dashboard() {
               Try Token Exchange →
             </a>
             <a
+              href="/stt"
+              className="flex-1 rounded-lg bg-violet-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-violet-700"
+            >
+              Session Transfer →
+            </a>
+            <a
               href="/auth/logout"
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
