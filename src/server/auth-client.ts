@@ -1991,12 +1991,15 @@ export class AuthClient {
         bodyRecord.phoneNumber
       ) {
         const deliveryMethod =
-          bodyRecord.deliveryMethod === "voice" ? "voice" : "text";
+          bodyRecord.deliveryMethod === "voice" ||
+          bodyRecord.deliveryMethod === "text"
+            ? bodyRecord.deliveryMethod
+            : undefined;
         challenge = await this.passwordlessDbOtpChallenge({
           phoneNumber: bodyRecord.phoneNumber,
           connection,
           allowSignup,
-          deliveryMethod
+          ...(deliveryMethod && { deliveryMethod })
         });
       } else {
         return NextResponse.json(
@@ -5519,8 +5522,7 @@ export class AuthClient {
    */
   async passwordlessDbOtpChallenge(
     options:
-      | PasswordlessDbChallengeEmailOptions
-      | PasswordlessDbChallengePhoneOptions
+      PasswordlessDbChallengeEmailOptions | PasswordlessDbChallengePhoneOptions
   ): Promise<PasswordlessDbChallenge> {
     const url = new URL("/otp/challenge", this.issuer).toString();
     const httpOptions = this.httpOptions();
@@ -5612,10 +5614,6 @@ export class AuthClient {
     params.append("otp", options.otp);
     params.append("scope", scope);
 
-    if (this.clientSecret) {
-      params.append("client_secret", this.clientSecret);
-    }
-
     if (this.authorizationParameters.audience) {
       params.append(
         "audience",
@@ -5628,12 +5626,13 @@ export class AuthClient {
         ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
         : undefined;
 
+    const tokenMetadata = this.withMtlsEndpoint(authorizationServerMetadata);
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            tokenMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             GRANT_TYPE_PASSWORDLESS_OTP,
@@ -5646,7 +5645,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            tokenMetadata,
             this.clientMetadata,
             httpResponse
           );

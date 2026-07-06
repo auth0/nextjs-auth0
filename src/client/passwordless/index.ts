@@ -157,8 +157,7 @@ class ClientPasswordlessClient implements PasswordlessClient {
 
   async #sendChallenge(
     options:
-      | PasswordlessDbChallengeEmailOptions
-      | PasswordlessDbChallengePhoneOptions
+      PasswordlessDbChallengeEmailOptions | PasswordlessDbChallengePhoneOptions
   ): Promise<PasswordlessDbChallenge> {
     const url = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
@@ -193,7 +192,13 @@ class ClientPasswordlessClient implements PasswordlessClient {
       );
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => {
+      throw new PasswordlessDbChallengeError(
+        "client_error",
+        "Failed to parse challenge response",
+        undefined
+      );
+    });
     return { authSession: data.authSession };
   }
 
