@@ -2,4 +2,4 @@ allowBuilds:
   "@evilmartians/lefthook": true
   esbuild: true
   msw: true
-  sharp: true
+  sharp: false
