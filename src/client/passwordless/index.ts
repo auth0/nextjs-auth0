@@ -1,9 +1,15 @@
 import {
+  PasswordlessDbChallengeError,
+  PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError
 } from "../../errors/index.js";
 import type {
   PasswordlessClient,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions
 } from "../../types/index.js";
@@ -132,6 +138,105 @@ class ClientPasswordlessClient implements PasswordlessClient {
       throw new PasswordlessVerifyError(
         error.error ?? "client_error",
         error.error_description ?? "Passwordless verify failed",
+        undefined
+      );
+    }
+  }
+
+  async challengeWithEmail(
+    options: PasswordlessDbChallengeEmailOptions
+  ): Promise<PasswordlessDbChallenge> {
+    return this.#sendChallenge(options);
+  }
+
+  async challengeWithPhoneNumber(
+    options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    return this.#sendChallenge(options);
+  }
+
+  async #sendChallenge(
+    options:
+      PasswordlessDbChallengeEmailOptions | PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    const url = normalizeWithBasePath(
+      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
+        "/auth/passwordless/otp/challenge"
+    );
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(options)
+      });
+    } catch (e) {
+      throw new PasswordlessDbChallengeError(
+        "client_error",
+        e instanceof Error ? e.message : "Network error",
+        undefined
+      );
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: "client_error",
+        error_description: "Failed to parse error response"
+      }));
+      throw new PasswordlessDbChallengeError(
+        error.error ?? "client_error",
+        error.error_description ?? "OTP challenge failed",
+        undefined
+      );
+    }
+
+    const data = await response.json().catch(() => {
+      throw new PasswordlessDbChallengeError(
+        "client_error",
+        "Failed to parse challenge response",
+        undefined
+      );
+    });
+    return { authSession: data.authSession };
+  }
+
+  async loginWithOtp(options: PasswordlessDbGetTokenOptions): Promise<void> {
+    const url = normalizeWithBasePath(
+      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE ||
+        "/auth/passwordless/otp/token"
+    );
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(options)
+      });
+    } catch (e) {
+      throw new PasswordlessDbGetTokenError(
+        "client_error",
+        e instanceof Error ? e.message : "Network error",
+        undefined
+      );
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: "client_error",
+        error_description: "Failed to parse error response"
+      }));
+      if (error.error === "mfa_required") {
+        // Thrown as a raw object so callers can access mfa_token directly
+        // to initiate the MFA challenge flow. Consistent with verify().
+        throw error;
+      }
+      throw new PasswordlessDbGetTokenError(
+        error.error ?? "client_error",
+        error.error_description ?? "OTP token exchange failed",
         undefined
       );
     }

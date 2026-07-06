@@ -1,3 +1,18 @@
+import type {
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions
+} from "./passwordless-db.js";
+
+export type {
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbDeliveryMethod,
+  PasswordlessDbGetTokenOptions
+} from "./passwordless-db.js";
+
 /**
  * Grant type for passwordless OTP verification.
  * Used to exchange a one-time password for access/refresh tokens.
@@ -148,4 +163,44 @@ export interface PasswordlessClient {
    * @param options - Connection type, user identifier, and OTP code.
    */
   verify(options: PasswordlessVerifyOptions): Promise<void>;
+
+  /**
+   * Request a one-time password for a **database connection** user identified by email.
+   *
+   * Calls `POST /otp/challenge` and returns an opaque `authSession` token. The challenge
+   * always returns successfully regardless of whether the user exists
+   * (user-enumeration prevention). If the user does not exist and `allowSignup` is
+   * `false`, or if the user is blocked, the returned `authSession` will be non-functional
+   * and `loginWithOtp` will fail with `invalid_request`.
+   *
+   * A successful response does not guarantee an OTP was delivered.
+   *
+   * @param options - Database connection name, email address, and optional signup flag.
+   */
+  challengeWithEmail(
+    options: PasswordlessDbChallengeEmailOptions
+  ): Promise<PasswordlessDbChallenge>;
+
+  /**
+   * Request a one-time password for a **database connection** user identified by
+   * phone number.
+   *
+   * Same 200-always contract as `challengeWithEmail`.
+   *
+   * @param options - Database connection name, phone number, optional delivery method, and signup flag.
+   */
+  challengeWithPhoneNumber(
+    options: PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge>;
+
+  /**
+   * Exchange an `authSession` and user-entered OTP for tokens and establish a session.
+   *
+   * Throws `PasswordlessDbGetTokenError` with `error: "invalid_request"` if the
+   * `authSession` was non-functional (blocked user, signup disabled for a non-existent
+   * user, wrong OTP, or expired session).
+   *
+   * @param options - The `authSession` from a prior challenge call and the user's OTP.
+   */
+  loginWithOtp(options: PasswordlessDbGetTokenOptions): Promise<void>;
 }
