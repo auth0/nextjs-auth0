@@ -182,6 +182,12 @@
   - [Token Type Requirements](#token-type-requirements)
   - [Limitations](#limitations)
   - [DPoP Support](#dpop-support)
+- [Session Transfer Token](#session-transfer-token)
+  - [Basic Usage](#basic-usage-1)
+  - [Actor Override](#actor-override)
+  - [With Organization](#with-organization-1)
+  - [Error Handling](#error-handling-6)
+  - [Limitations](#limitations-1)
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
@@ -4928,6 +4934,105 @@ const result = await auth0.customTokenExchange({
 
 // result.tokenType will be "DPoP"
 ```
+
+## Session Transfer Token
+
+Session Transfer Token (STT) is CTE Phase 2. An authenticated agent establishes a web session **as a customer** in a target app — without the customer's password. The agent app requests a one-shot STT for the customer, then redirects the agent's browser to the target app's login URL carrying the token. Auth0 validates the STT and creates an ephemeral session for the agent.
+
+> [!IMPORTANT]
+> Session Transfer requires the `session_transfer` feature flag to be enabled on your tenant. Both the agent app and target app must be on the same Auth0 tenant. Contact Auth0 support or raise an ESD to enable the flag.
+
+### Basic Usage
+
+```ts
+import { TOKEN_TYPES } from "@auth0/nextjs-auth0/server";
+
+// app/api/stt/route.ts — runs in the agent app
+export async function POST(req: NextRequest) {
+  const { subjectToken, subjectTokenType, targetLoginUrl } = await req.json();
+
+  // Request a one-shot STT for the customer
+  const result = await auth0.requestSessionTransferToken({
+    subjectToken,                  // customer's ID or access token
+    subjectTokenType,              // TOKEN_TYPES.ID_TOKEN or TOKEN_TYPES.ACCESS_TOKEN
+    reason: "Support investigation #1234"
+  });
+
+  // Redirect the agent's browser to the target app's login URL
+  return auth0.buildSessionTransferRedirect(targetLoginUrl, result);
+  // → 307 to https://target-app.example.com/auth/login?session_transfer_token=<stt>
+}
+```
+
+The target app needs no changes — `handleLogin()` already forwards all query params to `/authorize`, so `session_transfer_token` passes through automatically.
+
+### Actor Override
+
+The actor (the party making the request on the customer's behalf) defaults to the agent session's ID token. Pass `actor` explicitly to override:
+
+```ts
+import { TOKEN_TYPES } from "@auth0/nextjs-auth0/server";
+
+const result = await auth0.requestSessionTransferToken({
+  subjectToken: customerIdToken,
+  subjectTokenType: TOKEN_TYPES.ID_TOKEN,
+  actor: { token: agentIdToken, type: TOKEN_TYPES.ID_TOKEN }
+});
+```
+
+### With Organization
+
+```ts
+const result = await auth0.requestSessionTransferToken({
+  subjectToken: customerIdToken,
+  subjectTokenType: TOKEN_TYPES.ID_TOKEN,
+  organization: "org_abc123"
+});
+
+return auth0.buildSessionTransferRedirect(
+  "https://target-app.example.com/auth/login",
+  result,
+  { organization: "org_abc123" }
+);
+```
+
+### Error Handling
+
+```ts
+import {
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode
+} from "@auth0/nextjs-auth0/server";
+
+try {
+  const result = await auth0.requestSessionTransferToken({ ... });
+} catch (error) {
+  if (error instanceof CustomTokenExchangeError) {
+    switch (error.code) {
+      case CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE:
+        // No usable actor token — agent session has no ID token or it is expired
+        break;
+      case CustomTokenExchangeErrorCode.SETACTOR_REQUIRED:
+        // Tenant requires api.authentication.setActor() to be called in an Action
+        break;
+      case CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED:
+        // session_transfer feature flag not enabled on this tenant
+        break;
+      case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
+        // Generic server error — check error.cause for details
+        console.error("STT exchange failed:", error.cause);
+        break;
+    }
+  }
+}
+```
+
+### Limitations
+
+- **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side.
+- **One-shot, ~60 s**: The STT expires quickly and must never be cached or reused.
+- **Same tenant**: Both agent and target app must be on the same Auth0 tenant.
+- **No session modification**: The agent's own session is not modified; no tokens are written to `session.tokenSet`.
 
 ## Customizing Auth Handlers
 
