@@ -9,12 +9,16 @@ export function QrCode({ value, secret }: { value: string; secret?: string }) {
   const [renderError, setRenderError] = useState(false);
 
   useEffect(() => {
-    if (canvasRef.current) {
+    setRenderError(false);
+  }, [value]);
+
+  useEffect(() => {
+    if (!renderError && canvasRef.current) {
       QRCode.toCanvas(canvasRef.current, value, { width: 160, margin: 2 }).catch(() => {
         setRenderError(true);
       });
     }
-  }, [value]);
+  }, [value, renderError]);
 
   return (
     <div className="space-y-3 text-center">
