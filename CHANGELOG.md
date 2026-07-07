@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.25.0](https://github.com/auth0/nextjs-auth0/tree/v4.25.0) (2026-07-06)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.24.0...v4.25.0)
+
+**Added**
+- Passwordless DB Implementation [\#2721](https://github.com/auth0/nextjs-auth0/pull/2721) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: skip sharp native build across all pnpm workspaces [\#2737](https://github.com/auth0/nextjs-auth0/pull/2737) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.24.0](https://github.com/auth0/nextjs-auth0/tree/v4.24.0) (2026-07-01)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.23.1...v4.24.0)
 
