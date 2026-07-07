@@ -193,7 +193,6 @@ export abstract class AbstractSessionStore {
    */
 
   async deleteByReqCookies(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _reqCookies: RequestCookies | ReadonlyRequestCookies
   ): Promise<void> {
     // Default no-op. Stateless stores override to clear the cookie;

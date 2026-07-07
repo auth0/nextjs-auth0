@@ -429,3 +429,310 @@ describe("ServerPasswordlessClient.verify() — App Router", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// challengeWithEmail()
+// ---------------------------------------------------------------------------
+
+describe("ServerPasswordlessClient.challengeWithEmail() — App Router", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("returns authSession from Auth0 OTP challenge endpoint", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/otp/challenge`, () =>
+        HttpResponse.json({ auth_session: "auth-session-abc" })
+      )
+    );
+
+    const result = await makePasswordlessClient().challengeWithEmail({
+      connection: "Username-Password-Authentication",
+      email: DEFAULT.email
+    });
+
+    expect(result).toEqual({ authSession: "auth-session-abc" });
+  });
+
+  it("throws PasswordlessDbChallengeError on Auth0 failure", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/otp/challenge`, () =>
+        HttpResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "Connection not found."
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    await expect(
+      makePasswordlessClient().challengeWithEmail({
+        connection: "Username-Password-Authentication",
+        email: DEFAULT.email
+      })
+    ).rejects.toMatchObject({
+      name: "PasswordlessDbChallengeError",
+      error: "invalid_request"
+    });
+  });
+});
+
+describe("ServerPasswordlessClient.challengeWithEmail() — Pages Router", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("succeeds with explicit req and does not touch next/headers", async () => {
+    const { cookies } = await import("next/headers.js");
+    vi.mocked(cookies).mockClear();
+
+    server.use(
+      http.post(`https://${DEFAULT.domain}/otp/challenge`, () =>
+        HttpResponse.json({ auth_session: "auth-session-pages" })
+      )
+    );
+
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+
+    const result = await makePasswordlessClient().challengeWithEmail(req, {
+      connection: "Username-Password-Authentication",
+      email: DEFAULT.email
+    });
+
+    expect(result).toEqual({ authSession: "auth-session-pages" });
+    expect(vi.mocked(cookies)).not.toHaveBeenCalled();
+  });
+
+  it("throws TypeError when options argument is missing", async () => {
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+
+    await expect(
+      (makePasswordlessClient().challengeWithEmail as any)(req, undefined)
+    ).rejects.toThrow(TypeError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// challengeWithPhoneNumber()
+// ---------------------------------------------------------------------------
+
+describe("ServerPasswordlessClient.challengeWithPhoneNumber() — App Router", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("returns authSession for phone number challenge", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/otp/challenge`, () =>
+        HttpResponse.json({ auth_session: "auth-session-phone" })
+      )
+    );
+
+    const result = await makePasswordlessClient().challengeWithPhoneNumber({
+      connection: "sms",
+      phoneNumber: DEFAULT.phoneNumber
+    });
+
+    expect(result).toEqual({ authSession: "auth-session-phone" });
+  });
+
+  it("throws PasswordlessDbChallengeError on Auth0 failure", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/otp/challenge`, () =>
+        HttpResponse.json(
+          {
+            error: "bad_phone_number",
+            error_description: "Invalid phone number."
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    await expect(
+      makePasswordlessClient().challengeWithPhoneNumber({
+        connection: "sms",
+        phoneNumber: DEFAULT.phoneNumber
+      })
+    ).rejects.toMatchObject({
+      name: "PasswordlessDbChallengeError",
+      error: "bad_phone_number"
+    });
+  });
+});
+
+describe("ServerPasswordlessClient.challengeWithPhoneNumber() — Pages Router", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("succeeds with explicit req and does not touch next/headers", async () => {
+    const { cookies } = await import("next/headers.js");
+    vi.mocked(cookies).mockClear();
+
+    server.use(
+      http.post(`https://${DEFAULT.domain}/otp/challenge`, () =>
+        HttpResponse.json({ auth_session: "auth-session-phone-pages" })
+      )
+    );
+
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+
+    const result = await makePasswordlessClient().challengeWithPhoneNumber(
+      req,
+      {
+        connection: "sms",
+        phoneNumber: DEFAULT.phoneNumber
+      }
+    );
+
+    expect(result).toEqual({ authSession: "auth-session-phone-pages" });
+    expect(vi.mocked(cookies)).not.toHaveBeenCalled();
+  });
+
+  it("throws TypeError when options argument is missing", async () => {
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/challenge", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+
+    await expect(
+      (makePasswordlessClient().challengeWithPhoneNumber as any)(req, undefined)
+    ).rejects.toThrow(TypeError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loginWithOtp()
+// ---------------------------------------------------------------------------
+
+describe("ServerPasswordlessClient.loginWithOtp() — App Router", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("creates a session cookie in next/headers on success", async () => {
+    const idToken = await makeIdToken({ email: DEFAULT.email });
+
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+        HttpResponse.json({
+          access_token: "test-access-token",
+          token_type: "Bearer",
+          expires_in: 86400,
+          scope: "openid profile email",
+          id_token: idToken
+        })
+      )
+    );
+
+    await makePasswordlessClient().loginWithOtp({
+      authSession: "auth-session-abc",
+      otp: DEFAULT.verificationCode
+    });
+
+    const setCookie = mockCookieHeaders.get("set-cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toMatch(/__session=/);
+  });
+
+  it("throws PasswordlessDbGetTokenError on Auth0 failure", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+        HttpResponse.json(
+          {
+            error: "invalid_grant",
+            error_description: "Invalid OTP code."
+          },
+          { status: 403 }
+        )
+      )
+    );
+
+    await expect(
+      makePasswordlessClient().loginWithOtp({
+        authSession: "auth-session-abc",
+        otp: "wrong-otp"
+      })
+    ).rejects.toMatchObject({
+      name: "PasswordlessDbGetTokenError",
+      error: "invalid_grant"
+    });
+  });
+});
+
+describe("ServerPasswordlessClient.loginWithOtp() — Pages Router", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("writes session cookie to res and does not touch next/headers", async () => {
+    const { cookies } = await import("next/headers.js");
+    vi.mocked(cookies).mockClear();
+
+    const idToken = await makeIdToken({ email: DEFAULT.email });
+
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+        HttpResponse.json({
+          access_token: "test-access-token",
+          token_type: "Bearer",
+          expires_in: 86400,
+          scope: "openid profile email",
+          id_token: idToken
+        })
+      )
+    );
+
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/token", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+    const res = new NextResponse();
+
+    await makePasswordlessClient().loginWithOtp(req, res, {
+      authSession: "auth-session-abc",
+      otp: DEFAULT.verificationCode
+    });
+
+    expect(res.headers.get("set-cookie")).toBeTruthy();
+    expect(vi.mocked(cookies)).not.toHaveBeenCalled();
+  });
+
+  it("throws TypeError when res is missing", async () => {
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/token", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+
+    await expect(
+      (makePasswordlessClient().loginWithOtp as any)(req, undefined, {
+        authSession: "auth-session-abc",
+        otp: "123456"
+      })
+    ).rejects.toThrow(TypeError);
+  });
+
+  it("throws TypeError when options is missing", async () => {
+    const req = new NextRequest(
+      new URL("/auth/passwordless/otp/token", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+    const res = new NextResponse();
+
+    await expect(
+      (makePasswordlessClient().loginWithOtp as any)(req, res, undefined)
+    ).rejects.toThrow(TypeError);
+  });
+});

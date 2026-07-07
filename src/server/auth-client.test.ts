@@ -19,6 +19,7 @@ import {
   ConnectAccountError,
   ConnectAccountErrorCodes,
   InvalidConfigurationError,
+  IssuerValidationError,
   MyAccountApiError
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
@@ -30,7 +31,7 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient } from "./auth-client.js";
+import { AuthClient, buildConnectAccountErrorResponse } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -6354,6 +6355,482 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       });
     });
+
+    describe("popup flow (challengeMode: 'popup')", async () => {
+      async function makePopupAuthClient(secret: string) {
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        return new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+      }
+
+      async function makePopupRequest(
+        secret: string,
+        extraTxnFields: Partial<TransactionState> = {},
+        existingSessionCookie?: string
+      ) {
+        const state = "popup-state";
+        const code = "popup-code";
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+
+        const txn: TransactionState = {
+          nonce: "nonce-value",
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo: "/dashboard",
+          challengeMode: "popup",
+          ...extraTxnFields
+        };
+        const expiration = Math.floor(Date.now() / 1000) + 3600;
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(txn, secret, expiration)}${existingSessionCookie ? `; __session=${existingSessionCookie}` : ""}`
+        );
+        return new NextRequest(url, { method: "GET", headers });
+      }
+
+      it("happy path: merges new token into existing session and returns postMessage HTML", async () => {
+        const secret = await generateSecret(32);
+        const authClient = await makePopupAuthClient(secret);
+
+        // Create an existing session
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: "old-at",
+            refreshToken: "old-rt",
+            expiresAt: Math.floor(Date.now() / 1000) + 3600
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const sessionCookie = await encrypt(
+          session,
+          secret,
+          Math.floor(Date.now() / 1000) + 3600
+        );
+        const request = await makePopupRequest(secret, {}, sessionCookie);
+
+        const response = await authClient.handleCallback(request);
+
+        // Popup response is HTML, not a redirect
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/html");
+        const body = await response.text();
+        expect(body).toContain("auth_complete");
+        expect(body).toContain('"success":true');
+        // Session cookie should be updated
+        expect(response.cookies.get("__session")).toBeDefined();
+      });
+
+      it("no existing session + id_token present: creates fallback session and returns postMessage success HTML", async () => {
+        const secret = await generateSecret(32);
+        const authClient = await makePopupAuthClient(secret);
+
+        // No session cookie in the request
+        const request = await makePopupRequest(secret);
+
+        const response = await authClient.handleCallback(request);
+
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).toContain("auth_complete");
+        expect(body).toContain('"success":true');
+        expect(response.cookies.get("__session")).toBeDefined();
+      });
+
+      it("no existing session + no id_token: returns postMessage error HTML with session_expired code", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        // Return a token response with no id_token
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "bearer",
+              access_token: DEFAULT.accessToken,
+              refresh_token: DEFAULT.refreshToken,
+              // no id_token — API-only audience, popup flow without OIDC
+              expires_in: 86400
+            }
+          })
+        });
+
+        // No nonce in the transaction: oauth4webapi routes to OAuth2 (not OIDC) processing
+        // when nonce is absent, so processAuthorizationCodeResponse succeeds even without id_token
+        const request = await makePopupRequest(secret, { nonce: undefined });
+
+        const response = await authClient.handleCallback(request);
+
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).toContain("auth_complete");
+        expect(body).toContain('"success":false');
+        expect(body).toContain("session_expired");
+        // No session cookie should be set
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("MCD domain mismatch: returns postMessage error HTML with session_domain_mismatch code", async () => {
+        // Arrange: session was created for a DIFFERENT domain than the AuthClient's domain.
+        // getSessionWithDomainCheck returns a SessionDomainMismatchError.
+        const secret = await generateSecret(32);
+        const authClient = await makePopupAuthClient(secret);
+
+        // Build a session whose internal.mcd.domain is different from DEFAULT.domain
+        const mismatchedSession: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: "old-at",
+            expiresAt: Math.floor(Date.now() / 1000) + 3600
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000),
+            mcd: {
+              domain: "other-domain.auth0.com",
+              issuer: "https://other-domain.auth0.com/"
+            }
+          }
+        };
+        const sessionCookie = await encrypt(
+          mismatchedSession,
+          secret,
+          Math.floor(Date.now() / 1000) + 3600
+        );
+        const request = await makePopupRequest(secret, {}, sessionCookie);
+
+        const response = await authClient.handleCallback(request);
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/html");
+        const body = await response.text();
+        expect(body).toContain("auth_complete");
+        expect(body).toContain('"success":false');
+        expect(body).toContain("session_domain_mismatch");
+        // No session cookie should be updated
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("IPSIE ceiling in the past on fallback session: returns postMessage error HTML with session_expired code", async () => {
+        // Arrange: no existing session + id_token carries a session_expiry already in the past.
+        // buildSessionFromCallback picks up the past ceiling → isSessionCeilingInPast → error response.
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const pastCeiling = Math.floor(Date.now() / 1000) - 3600;
+        const idToken = await new jose.SignJWT({
+          sid: DEFAULT.sid,
+          auth_time: Math.floor(Date.now() / 1000),
+          nonce: "nonce-value",
+          session_expiry: pastCeiling
+        })
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject(DEFAULT.sub)
+          .setIssuedAt()
+          .setIssuer(_authorizationServerMetadata.issuer)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime("2h")
+          .sign(DEFAULT.keyPair.privateKey);
+
+        const onCallbackSpy = vi.fn().mockResolvedValue(undefined);
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          onCallback: onCallbackSpy,
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: DEFAULT.accessToken,
+              refresh_token: DEFAULT.refreshToken,
+              id_token: idToken,
+              expires_in: 86400
+            } as oauth.TokenEndpointResponse
+          })
+        });
+
+        // No existing session cookie — forces the fallback path
+        const request = await makePopupRequest(secret);
+
+        const response = await authClient.handleCallback(request);
+
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).toContain("auth_complete");
+        expect(body).toContain('"success":false');
+        expect(body).toContain("session_expired");
+        // onCallback should be called with the expiry error
+        expect(onCallbackSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            code: AccessTokenErrorCode.SESSION_EXPIRED
+          }),
+          expect.anything(),
+          null
+        );
+        // No session cookie should be set
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+    });
+
+    describe("MCD issuer-delegation in handleCallback", async () => {
+      it("delegates callback to the correct client when originIssuer differs from this.issuer", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        // originIssuer stored in the transaction cookie is the client's own domain issuer
+        const originIssuer = `https://${DEFAULT.domain}/`;
+
+        // The authClient is constructed for a DIFFERENT domain — so this.issuer !== originIssuer
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: "other-domain.auth0.com", // issuer = "https://other-domain.auth0.com/"
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        // delegatedClient will handle the callback
+        const delegatedHandleSpy = vi.fn().mockResolvedValue(
+          new NextResponse(null, {
+            status: 307,
+            headers: { Location: "/delegated" }
+          })
+        );
+        const mockProvider = {
+          isResolverMode: true,
+          forDomainSync: vi
+            .fn()
+            .mockReturnValue({ handleCallback: delegatedHandleSpy })
+        } as any;
+        (authClient as any).provider = mockProvider;
+
+        const state = "mcd-state";
+        const code = "mcd-code";
+        const txn: TransactionState = {
+          nonce: "nonce-value",
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo: "/dashboard",
+          originIssuer
+        };
+        const expiration = Math.floor(Date.now() / 1000) + 3600;
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(txn, secret, expiration)}`
+        );
+        const request = new NextRequest(url, { method: "GET", headers });
+
+        const response = await authClient.handleCallback(request);
+
+        // Delegation must have happened
+        expect(mockProvider.forDomainSync).toHaveBeenCalledWith(originIssuer);
+        expect(delegatedHandleSpy).toHaveBeenCalledWith(request);
+        expect(response.headers.get("Location")).toBe("/delegated");
+      });
+
+      it("does NOT delegate when originIssuer matches this.issuer", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        // authClient is on DEFAULT.domain — issuer = "https://guabu.us.auth0.com/"
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const forDomainSyncSpy = vi.fn();
+        const mockProvider = {
+          isResolverMode: true,
+          forDomainSync: forDomainSyncSpy
+        } as any;
+        (authClient as any).provider = mockProvider;
+
+        const state = "no-delegate-state";
+        const code = "no-delegate-code";
+        const txn: TransactionState = {
+          nonce: "nonce-value",
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo: "/dashboard",
+          // originIssuer matches authClient.issuer exactly → no delegation
+          originIssuer: `https://${DEFAULT.domain}/`
+        };
+        const expiration = Math.floor(Date.now() / 1000) + 3600;
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(txn, secret, expiration)}`
+        );
+        const request = new NextRequest(url, { method: "GET", headers });
+
+        const response = await authClient.handleCallback(request);
+
+        // forDomainSync must NOT be called since issuers match
+        expect(forDomainSyncSpy).not.toHaveBeenCalled();
+        // Normal callback flow: session created, redirect to returnTo
+        expect(response.status).toBe(307);
+      });
+    });
+
+    describe("MCD issuer-validation error in handleCallback", async () => {
+      it("returns an error when idTokenClaims.iss does not match transactionState.originIssuer", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        // The mock server signs tokens with DEFAULT.domain as issuer,
+        // but we store a different originIssuer in the transaction.
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const state = "issuer-mismatch-state";
+        const code = "issuer-mismatch-code";
+        const txn: TransactionState = {
+          nonce: "nonce-value",
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo: "/dashboard",
+          // token issuer will be DEFAULT.domain; originIssuer is different
+          originIssuer: "https://different-tenant.auth0.com/"
+        };
+        const expiration = Math.floor(Date.now() / 1000) + 3600;
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(txn, secret, expiration)}`
+        );
+        const request = new NextRequest(url, { method: "GET", headers });
+
+        const mockOnCallback = vi.fn().mockImplementation(
+          async (_err, _ctx, _session) =>
+            new NextResponse(null, {
+              status: 302,
+              headers: { Location: "/error" }
+            })
+        );
+        (authClient as any).onCallback = mockOnCallback;
+
+        await authClient.handleCallback(request);
+
+        // IssuerValidationError should have been passed to onCallback
+        expect(mockOnCallback).toHaveBeenCalled();
+        const callbackError = mockOnCallback.mock.calls[0][0];
+        expect(callbackError).toBeInstanceOf(IssuerValidationError);
+      });
+
+      it("does NOT trigger issuer validation when originIssuer is absent from transaction state", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const state = "no-origin-issuer-state";
+        const code = "no-origin-issuer-code";
+        const txn: TransactionState = {
+          nonce: "nonce-value",
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo: "/dashboard"
+          // no originIssuer
+        };
+        const expiration = Math.floor(Date.now() / 1000) + 3600;
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(txn, secret, expiration)}`
+        );
+        const request = new NextRequest(url, { method: "GET", headers });
+
+        const response = await authClient.handleCallback(request);
+
+        // Normal callback: should produce a redirect to returnTo
+        expect(response.status).toBe(307);
+        expect(new URL(response.headers.get("Location")!).pathname).toBe(
+          "/dashboard"
+        );
+      });
+    });
   });
 
   describe("handleAccessToken", async () => {
@@ -10929,6 +11406,248 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(result.session).toBeDefined();
       expect(result.exists).toBe(true);
       expect(result.session?.internal.mcd).toBeUndefined();
+    });
+  });
+
+  describe("buildConnectAccountErrorResponse", () => {
+    it("returns a ConnectAccountError with parsed JSON body on success", async () => {
+      const res = new Response(
+        JSON.stringify({
+          type: "validation_error",
+          title: "Validation failed",
+          detail: "Email required",
+          validation_errors: []
+        }),
+        { status: 400 }
+      );
+      const [error, result] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_INITIATE
+      );
+      expect(error).toBeInstanceOf(ConnectAccountError);
+      expect(result).toBeNull();
+      expect(error?.message).toContain("initiate");
+    });
+
+    it("returns a ConnectAccountError without cause when res.json() fails", async () => {
+      const res = new Response("not-json", { status: 500 });
+      const [error, result] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+      );
+      expect(error).toBeInstanceOf(ConnectAccountError);
+      expect(result).toBeNull();
+      expect(error?.message).toContain("complete");
+      // cause should be undefined since JSON parsing failed
+      expect(error?.cause).toBeUndefined();
+    });
+  });
+
+  describe("logoutStrategy", () => {
+    it("logs an error and falls back to 'auto' when an invalid logoutStrategy is provided", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          logoutStrategy: "invalid-strategy" as any,
+          fetch: getMockAuthorizationServer()
+        });
+
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Invalid logoutStrategy: invalid-strategy")
+        );
+        expect((authClient as any).logoutStrategy).toBe("auto");
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    it("does not log an error when a valid logoutStrategy 'oidc' is provided", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          logoutStrategy: "oidc",
+          fetch: getMockAuthorizationServer()
+        });
+
+        expect(errorSpy).not.toHaveBeenCalled();
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("handler — MFA and passwordless route dispatch", () => {
+    async function makeHandlerAuthClient(secret: string) {
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      return new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+    }
+
+    it("calls handleChallenge when POST /auth/mfa/challenge is requested", async () => {
+      const secret = await generateSecret(32);
+      const authClient = await makeHandlerAuthClient(secret);
+      authClient.handleChallenge = vi
+        .fn()
+        .mockResolvedValue(new NextResponse());
+      const request = new NextRequest(
+        "https://example.com/auth/mfa/challenge",
+        { method: "POST" }
+      );
+      await authClient.handler(request);
+      expect(authClient.handleChallenge).toHaveBeenCalled();
+    });
+
+    it("calls handleAssociate when POST /auth/mfa/associate is requested", async () => {
+      const secret = await generateSecret(32);
+      const authClient = await makeHandlerAuthClient(secret);
+      authClient.handleAssociate = vi
+        .fn()
+        .mockResolvedValue(new NextResponse());
+      const request = new NextRequest(
+        "https://example.com/auth/mfa/associate",
+        { method: "POST" }
+      );
+      await authClient.handler(request);
+      expect(authClient.handleAssociate).toHaveBeenCalled();
+    });
+
+    it("calls handlePasswordlessStart when POST /auth/passwordless/start is requested", async () => {
+      const secret = await generateSecret(32);
+      const authClient = await makeHandlerAuthClient(secret);
+      authClient.handlePasswordlessStart = vi
+        .fn()
+        .mockResolvedValue(new NextResponse());
+      const request = new NextRequest(
+        "https://example.com/auth/passwordless/start",
+        { method: "POST" }
+      );
+      await authClient.handler(request);
+      expect(authClient.handlePasswordlessStart).toHaveBeenCalled();
+    });
+  });
+
+  describe("extractIssuerDomainFromToken (via back-channel logout)", () => {
+    async function makeStatefulAuthClient(secret: string, overrides?: any) {
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store: {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+          deleteByLogoutToken: vi.fn()
+        }
+      });
+      return new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer(),
+        discoveryCache: await getDiscoveryCacheWithJWKS(),
+        ...overrides
+      });
+    }
+
+    it("returns 403 (static mode) when logout token iss does not match configured domain", async () => {
+      const secret = await generateSecret(32);
+      const authClient = await makeStatefulAuthClient(secret);
+
+      const wrongIssToken = await generateLogoutToken({
+        issuer: "https://attacker.example.com/"
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: new URLSearchParams({ logout_token: wrongIssToken })
+        }
+      );
+
+      const response = await authClient.handleBackChannelLogout(request);
+      // extractIssuerDomainFromToken extracts "attacker.example.com"
+      // which !== configured domain "guabu.us.auth0.com" → 403
+      expect(response.status).toBe(403);
+    });
+
+    it("returns 400 (resolver mode) when logout token has a missing iss claim", async () => {
+      const secret = await generateSecret(32);
+
+      // Create the AuthClient first, then set up a mock resolver that references it
+      const authClient = await makeStatefulAuthClient(secret);
+
+      // In resolver mode, extractIssuerDomainFromToken is called first.
+      // If iss is missing → [Error, null] → bcloErrorResponse("Missing 'iss' claim...", 400)
+      const mockResolverProvider = {
+        isResolverMode: true,
+        forRequest: vi.fn().mockResolvedValue(authClient)
+      } as any;
+      (authClient as any).provider = mockResolverProvider;
+
+      // Build a JWT signed with the correct key but no iss claim
+      const noIssToken = await new jose.SignJWT({
+        events: { "http://schemas.openid.net/event/backchannel-logout": {} },
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg, typ: "logout+jwt" })
+        .setIssuedAt()
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setJti("some-jti")
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const request = new NextRequest(
+        new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: new URLSearchParams({ logout_token: noIssToken })
+        }
+      );
+
+      const response = await authClient.handleBackChannelLogout(request);
+      // Missing iss: extractIssuerDomainFromToken returns [new Error(...), null]
+      // (lines 6281-6284 are executed) → resolver mode returns 400
+      expect(response.status).toBe(400);
     });
   });
 

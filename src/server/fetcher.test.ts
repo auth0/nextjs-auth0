@@ -444,4 +444,235 @@ describe("Fetcher", () => {
       ).rejects.toThrow("Token error");
     });
   });
+
+  describe("buildUrl", () => {
+    class TestableFetcher2 extends Fetcher<Response> {
+      testBuildUrl(baseUrl: string | undefined, url: string | undefined) {
+        return this.buildUrl(baseUrl, url);
+      }
+    }
+
+    function makeTestableFetcher2(mockFetch: any) {
+      const hooks = {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      };
+      return new TestableFetcher2(
+        {
+          baseUrl: "https://api.example.com",
+          fetch: mockFetch,
+          httpOptions: () => ({})
+        },
+        hooks
+      );
+    }
+
+    it("returns a relative url joined to baseUrl", () => {
+      const f = makeTestableFetcher2(mockFetch);
+      expect(f.testBuildUrl("https://api.example.com", "/users")).toBe(
+        "https://api.example.com/users"
+      );
+    });
+
+    it("returns an absolute url unchanged", () => {
+      const f = makeTestableFetcher2(mockFetch);
+      expect(
+        f.testBuildUrl(
+          "https://api.example.com",
+          "https://other.example.com/data"
+        )
+      ).toBe("https://other.example.com/data");
+    });
+
+    it("throws TypeError when url is relative and baseUrl is not provided", () => {
+      const f = makeTestableFetcher2(mockFetch);
+      expect(() => f.testBuildUrl(undefined, "/relative")).toThrow(TypeError);
+    });
+
+    it("throws TypeError when both url and baseUrl are undefined", () => {
+      const f = makeTestableFetcher2(mockFetch);
+      expect(() => f.testBuildUrl(undefined, undefined)).toThrow(TypeError);
+    });
+  });
+
+  describe("getHeader", () => {
+    it("extracts a header value from an array of [name, value] tuples", async () => {
+      // Subclass to expose protected method for testing
+      class TestableFetcher extends Fetcher<Response> {
+        testGetHeader(headers: any, name: string) {
+          return this.getHeader(headers, name);
+        }
+      }
+      const hooks = {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      };
+      const testFetcher = new TestableFetcher(
+        {
+          baseUrl: "https://api.example.com",
+          fetch: mockFetch,
+          httpOptions: () => ({})
+        },
+        hooks
+      );
+
+      const result = testFetcher.testGetHeader(
+        [
+          ["content-type", "application/json"],
+          ["x-custom", "value"]
+        ],
+        "content-type"
+      );
+      expect(result).toBe("application/json");
+    });
+
+    it("returns empty string when header is not in the array", async () => {
+      class TestableFetcher extends Fetcher<Response> {
+        testGetHeader(headers: any, name: string) {
+          return this.getHeader(headers, name);
+        }
+      }
+      const hooks = {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      };
+      const testFetcher = new TestableFetcher(
+        {
+          baseUrl: "https://api.example.com",
+          fetch: mockFetch,
+          httpOptions: () => ({})
+        },
+        hooks
+      );
+
+      const result = testFetcher.testGetHeader([], "missing-header");
+      expect(result).toBe("");
+    });
+
+    it("extracts a header value from a Headers object with .get()", async () => {
+      class TestableFetcher extends Fetcher<Response> {
+        testGetHeader(headers: any, name: string) {
+          return this.getHeader(headers, name);
+        }
+      }
+      const hooks = {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      };
+      const testFetcher = new TestableFetcher(
+        {
+          baseUrl: "https://api.example.com",
+          fetch: mockFetch,
+          httpOptions: () => ({})
+        },
+        hooks
+      );
+
+      const headers = new Headers({ "x-request-id": "abc123" });
+      const result = testFetcher.testGetHeader(headers, "x-request-id");
+      expect(result).toBe("abc123");
+    });
+
+    it("extracts a header value from a plain Record object", async () => {
+      class TestableFetcher extends Fetcher<Response> {
+        testGetHeader(headers: any, name: string) {
+          return this.getHeader(headers, name);
+        }
+      }
+      const hooks = {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      };
+      const testFetcher = new TestableFetcher(
+        {
+          baseUrl: "https://api.example.com",
+          fetch: mockFetch,
+          httpOptions: () => ({})
+        },
+        hooks
+      );
+
+      const result = testFetcher.testGetHeader(
+        { "content-type": "text/plain" },
+        "content-type"
+      );
+      expect(result).toBe("text/plain");
+    });
+
+    it("returns empty string when plain Record header value is null", async () => {
+      class TestableFetcher extends Fetcher<Response> {
+        testGetHeader(headers: any, name: string) {
+          return this.getHeader(headers, name);
+        }
+      }
+      const hooks = {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      };
+      const testFetcher = new TestableFetcher(
+        {
+          baseUrl: "https://api.example.com",
+          fetch: mockFetch,
+          httpOptions: () => ({})
+        },
+        hooks
+      );
+
+      const result = testFetcher.testGetHeader(
+        { "x-missing": null },
+        "x-missing"
+      );
+      expect(result).toBe("");
+    });
+  });
+
+  describe("DPoP retry — non-DPoP error rethrows", () => {
+    it("rethrows non-DPoP errors from the retry attempt without wrapping them", async () => {
+      // Set up a fetcher with DPoP enabled via a dpopHandle
+      const dpopHandle = {
+        privateKey: "key",
+        publicKey: "pub-key",
+        calculateThumbprint: vi.fn().mockResolvedValue("thumbprint-abc")
+      };
+      const dpopHooks = {
+        getAccessToken: vi.fn().mockResolvedValue({
+          accessToken: "dpop-token",
+          token_type: "DPoP"
+        }),
+        isDpopEnabled: vi.fn().mockReturnValue(true)
+      };
+      const dpopConfig = {
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        dpopHandle
+      };
+      const dpopFetcher = new Fetcher(dpopConfig, dpopHooks);
+
+      const nonDpopError = new Error("network failure");
+
+      // First call triggers onUseDpopNonceError callback path; second call (retry) throws non-DPoP error
+      let callCount = 0;
+      (oauth.protectedResourceRequest as any).mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          // Simulate a response that triggers onUseDpopNonceError
+          throw Object.assign(new Error("use_dpop_nonce"), {
+            error: "use_dpop_nonce"
+          });
+        }
+        throw nonDpopError;
+      });
+
+      // First call: isDPoPNonceError returns true → triggers retry callback
+      // Retry call: isDPoPNonceError returns false → non-DPoP error should rethrow as-is
+      (oauth.isDPoPNonceError as any)
+        .mockReturnValueOnce(true) // first error → triggers retry
+        .mockReturnValueOnce(false); // retry error → NOT a DPoP nonce error → rethrow
+
+      await expect(
+        dpopFetcher.fetchWithAuth("https://api.example.com/data")
+      ).rejects.toThrow("network failure");
+    });
+  });
 });

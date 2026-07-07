@@ -44,7 +44,8 @@ export default [
           caughtErrors: "none",
           ignoreRestSiblings: false,
           reportUsedIgnorePattern: false,
-          varsIgnorePattern: "^_"
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_"
         }
       ]
     }

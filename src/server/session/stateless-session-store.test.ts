@@ -177,6 +177,28 @@ describe("Stateless Session Store", async () => {
       expect(await sessionStore.get(requestCookies)).toBeNull();
     });
 
+    it("should return null when the cookie value cannot be decrypted (wrong secret)", async () => {
+      const secret = await generateSecret(32);
+      const wrongSecret = await generateSecret(32);
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedWithWrongSecret = await encrypt(
+        {
+          user: { sub: "u" },
+          tokenSet: { accessToken: "at", expiresAt: 1 },
+          internal: { sid: "s", createdAt: 1 }
+        },
+        wrongSecret,
+        expiration
+      );
+      const headers = new Headers();
+      headers.append("cookie", `__session=${encryptedWithWrongSecret}`);
+      const requestCookies = new RequestCookies(headers);
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      expect(await sessionStore.get(requestCookies)).toBeNull();
+    });
+
     describe("migrate legacy session", async () => {
       it("should convert the legacy session to the new format", async () => {
         const secret = await generateSecret(32);
@@ -951,6 +973,172 @@ describe("Stateless Session Store", async () => {
     });
   });
 
+  describe("set — with connectionTokenSets", async () => {
+    it("should store each connection token set in its own __FC_N cookie", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: { accessToken: "at_123", expiresAt: 123456 },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        connectionTokenSets: [
+          {
+            connection: "google-oauth2",
+            accessToken: "google-at",
+            expiresAt: 9999
+          },
+          { connection: "github", accessToken: "github-at", expiresAt: 8888 }
+        ]
+      };
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        rolling: false,
+        absoluteDuration: 3600
+      });
+
+      await sessionStore.set(requestCookies, responseCookies, session);
+
+      // main session cookie must NOT contain connectionTokenSets
+      const sessionCookie = responseCookies.get("__session");
+      expect(sessionCookie).toBeDefined();
+      const decrypted = (await decrypt(
+        sessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult;
+      expect(decrypted.payload).not.toHaveProperty("connectionTokenSets");
+
+      // each connection token set gets its own __FC_N cookie
+      const fc0 = responseCookies.get("__FC_0");
+      const fc1 = responseCookies.get("__FC_1");
+      expect(fc0).toBeDefined();
+      expect(fc1).toBeDefined();
+
+      const fc0Decrypted = (await decrypt(
+        fc0!.value,
+        secret
+      )) as jose.JWTDecryptResult;
+      const fc1Decrypted = (await decrypt(
+        fc1!.value,
+        secret
+      )) as jose.JWTDecryptResult;
+      expect(fc0Decrypted.payload).toMatchObject({
+        connection: "google-oauth2",
+        accessToken: "google-at"
+      });
+      expect(fc1Decrypted.payload).toMatchObject({
+        connection: "github",
+        accessToken: "github-at"
+      });
+    });
+
+    it("should not write any __FC_N cookie when connectionTokenSets is empty", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: { accessToken: "at_123", expiresAt: 123456 },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        connectionTokenSets: []
+      };
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      await sessionStore.set(requestCookies, responseCookies, session);
+
+      const allCookies = responseCookies.getAll();
+      const fcCookies = allCookies.filter((c) => c.name.startsWith("__FC"));
+      expect(fcCookies).toHaveLength(0);
+    });
+
+    it("should write __FC_N cookies with the same cookie options as the session cookie", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: { accessToken: "at_123", expiresAt: 123456 },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        connectionTokenSets: [
+          {
+            connection: "google-oauth2",
+            accessToken: "google-at",
+            expiresAt: 9999
+          }
+        ]
+      };
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        rolling: false,
+        absoluteDuration: 3600,
+        cookieOptions: { secure: true, sameSite: "strict" }
+      });
+
+      await sessionStore.set(requestCookies, responseCookies, session);
+
+      const fc0 = responseCookies.get("__FC_0");
+      expect(fc0?.secure).toBe(true);
+      expect(fc0?.sameSite).toBe("strict");
+      expect(fc0?.httpOnly).toBe(true);
+      expect(fc0?.maxAge).toBe(3600);
+    });
+
+    it("should emit a __FC_N-specific console.warn when a __FC_N cookie exceeds 4096 bytes", async () => {
+      const secret = await generateSecret(32);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const largeAccessToken = "x".repeat(4000);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: { accessToken: "at_123", expiresAt: 123456 },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          },
+          connectionTokenSets: [
+            {
+              connection: "google-oauth2",
+              accessToken: largeAccessToken,
+              expiresAt: 9999
+            }
+          ]
+        };
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          rolling: false,
+          absoluteDuration: 3600
+        });
+
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "You can use a stateful session implementation"
+          )
+        );
+        // must NOT emit the session-specific advice for a __FC_N cookie
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining(
+            "Consider removing any unnecessary custom claims"
+          )
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
+
   describe("delete", async () => {
     it("should remove the cookie", async () => {
       const secret = await generateSecret(32);
@@ -1022,6 +1210,55 @@ describe("Stateless Session Store", async () => {
         sameSite: "lax",
         secure: false
       });
+    });
+
+    it("should delete all __FC_N connection token set cookies present in the request", async () => {
+      const secret = await generateSecret(32);
+      // put two __FC_N cookies in the request
+      const headers = new Headers();
+      headers.append("cookie", "__FC_0=some_value; __FC_1=other_value");
+      const requestCookies = new RequestCookies(headers);
+      const responseCookies = new ResponseCookies(new Headers());
+      const setSpy = vi.spyOn(responseCookies, "set");
+
+      const sessionStore = new StatelessSessionStore({ secret });
+      await sessionStore.delete(requestCookies, responseCookies);
+
+      // both __FC_N cookies must be cleared
+      const fcDeletes = setSpy.mock.calls.filter(
+        (call) =>
+          (call[0] as string).startsWith("__FC") &&
+          call[1] === "" &&
+          (call[2] as any)?.maxAge === 0
+      );
+      expect(fcDeletes).toHaveLength(2);
+      const deletedNames = fcDeletes.map((call) => call[0]);
+      expect(deletedNames).toContain("__FC_0");
+      expect(deletedNames).toContain("__FC_1");
+    });
+
+    it("should do nothing for __FC_N cookies when none are present", async () => {
+      const secret = await generateSecret(32);
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+      const setSpy = vi.spyOn(responseCookies, "set");
+
+      const sessionStore = new StatelessSessionStore({ secret });
+      await sessionStore.delete(requestCookies, responseCookies);
+
+      const fcDeletes = setSpy.mock.calls.filter((call) =>
+        (call[0] as string).startsWith("__FC")
+      );
+      expect(fcDeletes).toHaveLength(0);
+    });
+  });
+
+  describe("deleteByReqCookies", async () => {
+    it("should resolve without throwing (stateless sessions cannot be cleared without response cookies)", async () => {
+      const secret = await generateSecret(32);
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      await expect(sessionStore.deleteByReqCookies()).resolves.toBeUndefined();
     });
   });
 });
