@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createRouteUrl,
   ensureLeadingSlash,
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -120,6 +121,45 @@ describe("pathUtils", () => {
           "/path/to/resource"
         );
       });
+    });
+  });
+
+  describe("createRouteUrl", () => {
+    afterEach(() => {
+      delete process.env.NEXT_PUBLIC_BASE_PATH;
+    });
+
+    it("creates a fully-qualified URL from a path and base URL", () => {
+      const url = createRouteUrl("/auth/login", "https://myapp.example.com");
+      expect(url.href).toBe("https://myapp.example.com/auth/login");
+    });
+
+    it("handles base URL without trailing slash", () => {
+      const url = createRouteUrl("/auth/callback", "https://myapp.example.com");
+      expect(url.href).toBe("https://myapp.example.com/auth/callback");
+    });
+
+    it("handles base URL with trailing slash", () => {
+      const url = createRouteUrl("/auth/logout", "https://myapp.example.com/");
+      expect(url.href).toBe("https://myapp.example.com/auth/logout");
+    });
+
+    it("incorporates NEXT_PUBLIC_BASE_PATH when set", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "/app";
+      const url = createRouteUrl("/auth/login", "https://myapp.example.com");
+      expect(url.href).toBe("https://myapp.example.com/app/auth/login");
+    });
+
+    it("throws InvalidConfigurationError when baseUrl is undefined", () => {
+      expect(() => createRouteUrl("/auth/login", undefined)).toThrow(
+        "appBaseUrl is required"
+      );
+    });
+
+    it("throws InvalidConfigurationError when baseUrl is empty string", () => {
+      expect(() => createRouteUrl("/auth/login", "")).toThrow(
+        "appBaseUrl is required"
+      );
     });
   });
 });

@@ -64,7 +64,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     return vi.fn(
       async (
         input: RequestInfo | URL,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         _init?: RequestInit
       ): Promise<Response> => {
         let url: URL;
@@ -1034,7 +1034,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
         discoveryCache,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         onCallback: async (_error, ctx, _session) => {
           capturedCtx = ctx;
           return NextResponse.redirect(
@@ -1101,7 +1101,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
         discoveryCache,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         onCallback: async (_error, ctx, _session) => {
           capturedCtx = ctx;
           return NextResponse.redirect(

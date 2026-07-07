@@ -14,14 +14,12 @@ import {
   TokenRevocationError,
   TokenRevocationErrorCode
 } from "../errors/index.js";
+import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { Auth0Client } from "./client.js";
 
-vi.mock("next/headers.js", () => ({
-  headers: vi.fn().mockResolvedValue(new Headers()),
-  cookies: vi.fn().mockResolvedValue({ getAll: () => [] })
-}));
+vi.mock("next/headers.js", () => createNextHeadersMock());
 
 vi.mock("../utils/webfingerCache.js", () => ({
   isFederatedDomain: vi.fn()
@@ -2721,6 +2719,91 @@ describe("Auth0Client", () => {
         .enableParallelTransactions;
       expect(enableParallelTransactions).toBe(true);
     });
+
+    describe("mfaTokenTtl", () => {
+      it("accepts a valid mfaTokenTtl option without warning", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        new Auth0Client({ mfaTokenTtl: 600 });
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("mfaTokenTtl")
+        );
+        warnSpy.mockRestore();
+      });
+
+      it("warns and falls back to default when mfaTokenTtl option is 0", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        new Auth0Client({ mfaTokenTtl: 0 });
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Invalid mfaTokenTtl option value: 0")
+        );
+        warnSpy.mockRestore();
+      });
+
+      it("warns and falls back to default when mfaTokenTtl option is negative", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        new Auth0Client({ mfaTokenTtl: -100 });
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Invalid mfaTokenTtl option value: -100")
+        );
+        warnSpy.mockRestore();
+      });
+
+      it("warns and falls back to default when mfaTokenTtl option is NaN", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        new Auth0Client({ mfaTokenTtl: NaN });
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Invalid mfaTokenTtl option value")
+        );
+        warnSpy.mockRestore();
+      });
+
+      it("accepts a valid AUTH0_MFA_TOKEN_TTL env var without warning", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        process.env.AUTH0_MFA_TOKEN_TTL = "900";
+        new Auth0Client();
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("AUTH0_MFA_TOKEN_TTL")
+        );
+        delete process.env.AUTH0_MFA_TOKEN_TTL;
+        warnSpy.mockRestore();
+      });
+
+      it("warns and falls back to default when AUTH0_MFA_TOKEN_TTL is not a number", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        process.env.AUTH0_MFA_TOKEN_TTL = "not-a-number";
+        new Auth0Client();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "Invalid AUTH0_MFA_TOKEN_TTL environment variable"
+          )
+        );
+        delete process.env.AUTH0_MFA_TOKEN_TTL;
+        warnSpy.mockRestore();
+      });
+
+      it("warns and falls back to default when AUTH0_MFA_TOKEN_TTL is zero", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        process.env.AUTH0_MFA_TOKEN_TTL = "0";
+        new Auth0Client();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "Invalid AUTH0_MFA_TOKEN_TTL environment variable"
+          )
+        );
+        delete process.env.AUTH0_MFA_TOKEN_TTL;
+        warnSpy.mockRestore();
+      });
+
+      it("uses the default TTL without warning when neither option nor env var is set", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        delete process.env.AUTH0_MFA_TOKEN_TTL;
+        new Auth0Client();
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("mfaTokenTtl")
+        );
+        warnSpy.mockRestore();
+      });
+    });
   });
 
   describe("cookie security when appBaseUrl is omitted", () => {
@@ -3282,6 +3365,42 @@ describe("Auth0Client", () => {
       await fetcher.fetchWithAuth("https://api.example.com");
       expect(fetcher.fetchWithAuth).toHaveBeenCalledWith(
         "https://api.example.com"
+      );
+    });
+
+    it("createFetcher — getAccessToken lambda throws when getTokenSet returns an error", async () => {
+      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+
+      const tokenError = new Error("Token refresh failed");
+      let capturedGetAccessToken: ((opts: any) => Promise<any>) | undefined;
+
+      const authClient = await client["provider"].forRequest(new Headers());
+      vi.spyOn(authClient, "fetcherFactory").mockImplementation(
+        async (opts: any) => {
+          capturedGetAccessToken = opts.getAccessToken;
+          return { fetchWithAuth: vi.fn() } as any;
+        }
+      );
+      vi.spyOn(authClient, "getTokenSet").mockResolvedValue([
+        tokenError as any,
+        null as any
+      ]);
+
+      const req = new Request("https://myapp.test/api", { method: "GET" });
+      await client.createFetcher(req as any, {});
+
+      expect(capturedGetAccessToken).toBeDefined();
+      await expect(capturedGetAccessToken!({})).rejects.toThrow(
+        "Token refresh failed"
+      );
+    });
+
+    it("createFetcher — throws AccessTokenError MISSING_SESSION when no session exists", async () => {
+      vi.spyOn(client, "getSession").mockResolvedValue(null);
+
+      const req = new Request("https://myapp.test/api", { method: "GET" });
+      await expect(client.createFetcher(req as any, {})).rejects.toThrow(
+        "The user does not have an active session."
       );
     });
 
