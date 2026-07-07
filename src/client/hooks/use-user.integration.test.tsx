@@ -198,6 +198,33 @@ describe("useUser Integration with SWR Cache", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/custom/profile");
   });
 
+  it("throws Unauthorized when fetch returns a non-ok response", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 401
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <swrModule.SWRConfig
+        value={{
+          provider: () => new Map(),
+          shouldRetryOnError: false
+        }}
+      >
+        {children}
+      </swrModule.SWRConfig>
+    );
+
+    const { result } = renderHook(() => useUser(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.error?.message).toBe("Unauthorized");
+    expect(result.current.user).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
   it("should use custom route and invalidate correctly", async () => {
     // Mock fetch to return initial data first
     fetchSpy.mockResolvedValueOnce(

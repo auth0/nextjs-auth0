@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";

@@ -1362,4 +1362,197 @@ describe("Stateful Session Store", async () => {
       expect(legacyCalls).toHaveLength(1);
     });
   });
+
+  describe("get — decrypt failure paths", async () => {
+    it("should return null when the cookie value cannot be decrypted and is not a legacy signed cookie", async () => {
+      const secret = await generateSecret(32);
+      const wrongSecret = await generateSecret(32);
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      // encrypt with a different secret so decryption fails and it is not a signed legacy cookie
+      const encryptedWithWrongSecret = await encrypt(
+        { id: "ses_wrong" },
+        wrongSecret,
+        expiration
+      );
+      const headers = new Headers();
+      headers.append("cookie", `__session=${encryptedWithWrongSecret}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      expect(await sessionStore.get(requestCookies)).toBeNull();
+      expect(store.get).not.toHaveBeenCalled();
+    });
+
+    it("should return null when the legacy signed cookie signature is invalid", async () => {
+      const secret = await generateSecret(32);
+      const wrongSecret = await generateSecret(32);
+      // sign with wrong secret so verifySigned returns null
+      const badSig = await sign("appSession", "ses_123", wrongSecret);
+      const headers = new Headers();
+      headers.append("cookie", `appSession=${badSig}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      expect(await sessionStore.get(requestCookies)).toBeNull();
+      expect(store.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("delete — decrypt failure paths", async () => {
+    it("should clear the response cookie but not call store.delete when the cookie value cannot be decrypted", async () => {
+      const secret = await generateSecret(32);
+      const wrongSecret = await generateSecret(32);
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const badCookieValue = await encrypt(
+        { id: "ses_bad" },
+        wrongSecret,
+        expiration
+      );
+      const headers = new Headers();
+      headers.append("cookie", `__session=${badCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+      const responseCookies = new ResponseCookies(new Headers());
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      await sessionStore.delete(requestCookies, responseCookies);
+
+      // cookie must be cleared even though decryption failed
+      const cookie = responseCookies.get("__session");
+      expect(cookie?.value).toEqual("");
+      expect(cookie?.maxAge).toEqual(0);
+      // store.delete must NOT be called — no valid session ID
+      expect(store.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteByReqCookies", async () => {
+    it("should delete the session from the store using the session ID from the encrypted cookie", async () => {
+      const sessionId = "ses_bclo_123";
+      const secret = await generateSecret(32);
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(
+        { id: sessionId },
+        secret,
+        expiration
+      );
+      const headers = new Headers();
+      headers.append("cookie", `__session=${encryptedCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      await sessionStore.deleteByReqCookies(requestCookies);
+
+      expect(store.delete).toHaveBeenCalledOnce();
+      expect(store.delete).toHaveBeenCalledWith(sessionId);
+    });
+
+    it("should delete the session from the store for a legacy signed cookie", async () => {
+      const sessionId = "ses_legacy_bclo";
+      const secret = await generateSecret(32);
+      const signedCookieValue = await sign("appSession", sessionId, secret);
+      const headers = new Headers();
+      headers.append("cookie", `appSession=${signedCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      await sessionStore.deleteByReqCookies(requestCookies);
+
+      expect(store.delete).toHaveBeenCalledOnce();
+      expect(store.delete).toHaveBeenCalledWith(sessionId);
+    });
+
+    it("should do nothing when no session cookie is present", async () => {
+      const secret = await generateSecret(32);
+      const requestCookies = new RequestCookies(new Headers());
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      await sessionStore.deleteByReqCookies(requestCookies);
+
+      expect(store.delete).not.toHaveBeenCalled();
+    });
+
+    it("should do nothing when the cookie value is present but cannot be decrypted and is not a valid legacy cookie", async () => {
+      const secret = await generateSecret(32);
+      const wrongSecret = await generateSecret(32);
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const badCookieValue = await encrypt(
+        { id: "ses_bad" },
+        wrongSecret,
+        expiration
+      );
+      const headers = new Headers();
+      headers.append("cookie", `__session=${badCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({ secret, store });
+
+      await sessionStore.deleteByReqCookies(requestCookies);
+
+      expect(store.delete).not.toHaveBeenCalled();
+    });
+
+    it("should use the custom session cookie name when looking up the cookie", async () => {
+      const sessionId = "ses_custom_bclo";
+      const cookieName = "my-session";
+      const secret = await generateSecret(32);
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(
+        { id: sessionId },
+        secret,
+        expiration
+      );
+      const headers = new Headers();
+      headers.append("cookie", `${cookieName}=${encryptedCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store,
+        cookieOptions: { name: cookieName }
+      });
+
+      await sessionStore.deleteByReqCookies(requestCookies);
+
+      expect(store.delete).toHaveBeenCalledOnce();
+      expect(store.delete).toHaveBeenCalledWith(sessionId);
+    });
+
+    it("should fall back to the legacy cookie when the primary cookie is absent", async () => {
+      const sessionId = "ses_legacy_fallback";
+      const secret = await generateSecret(32);
+      // custom session name that differs from LEGACY_COOKIE_NAME
+      const cookieName = "my-session";
+      const signedCookieValue = await sign(
+        LEGACY_COOKIE_NAME,
+        sessionId,
+        secret
+      );
+      const headers = new Headers();
+      // only set the legacy cookie, not the primary one
+      headers.append("cookie", `${LEGACY_COOKIE_NAME}=${signedCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+      const store = { get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store,
+        cookieOptions: { name: cookieName }
+      });
+
+      await sessionStore.deleteByReqCookies(requestCookies);
+
+      expect(store.delete).toHaveBeenCalledOnce();
+      expect(store.delete).toHaveBeenCalledWith(sessionId);
+    });
+  });
 });
