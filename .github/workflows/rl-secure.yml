@@ -57,8 +57,10 @@ jobs:
           node: ${{ inputs.node-version }}
 
       - name: Create tgz build artifact
+        env:
+          ARTIFACT_NAME: ${{ inputs.artifact-name }}
         run: |
-          tar -czvf ${{ inputs.artifact-name }} *
+          tar -czvf "$ARTIFACT_NAME" *
 
       - id: get_version
         uses: ./.github/actions/get-version
@@ -78,4 +80,6 @@ jobs:
           PRODSEC_TOOLS_ARN: ${{ secrets.PRODSEC_TOOLS_ARN }}
 
       - name: Output scan result
-        run: echo "scan-status=${{ steps.rl-scan-conclusion.outcome }}" >> $GITHUB_ENV
+        env:
+          SCAN_OUTCOME: ${{ steps.rl-scan-conclusion.outcome }}
+        run: echo "scan-status=$SCAN_OUTCOME" >> "$GITHUB_ENV"
