@@ -58,6 +58,11 @@ export {
   type PasswordlessApiErrorResponse
 } from "./passwordless-errors.js";
 
+export {
+  PasswordlessDbChallengeError,
+  PasswordlessDbGetTokenError
+} from "./passwordless-db-errors.js";
+
 // MCD (Multiple Custom Domains) error classes
 export {
   DomainResolutionError,

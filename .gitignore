@@ -138,6 +138,7 @@ dist
 .memory/
 .dev-files/
 *.env.*
+!**/.env.example
 *.tmp
 *PLAN*.md
 .yalc/

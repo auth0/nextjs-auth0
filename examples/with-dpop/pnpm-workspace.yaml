@@ -1,3 +1,5 @@
 allowBuilds:
-  sharp: true
+  cypress: true
+  esbuild: true
+  sharp: false
   unrs-resolver: true
