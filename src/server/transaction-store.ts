@@ -5,7 +5,6 @@ import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
-
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
   responseType: RESPONSE_TYPES;
@@ -228,8 +227,14 @@ export class TransactionStore {
       }
     }
 
-    const expiration = Math.floor(Date.now() / 1000 + this.cookieOptions.maxAge!);
-    const jwe = await cookies.encrypt(transactionState, this.secret, expiration);
+    const expiration = Math.floor(
+      Date.now() / 1000 + this.cookieOptions.maxAge!
+    );
+    const jwe = await cookies.encrypt(
+      transactionState,
+      this.secret,
+      expiration
+    );
 
     // Encode creation timestamp in the value for O(1) FIFO ordering during eviction.
     // "{ts}:{jwe}" — no cookie name change, backward compatible with legacy bare "{jwe}".
@@ -288,5 +293,4 @@ export class TransactionStore {
       }
     });
   }
-
 }
