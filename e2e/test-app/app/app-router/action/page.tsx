@@ -1,27 +1,35 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState } from "react";
+import { getSessionAction, updateSessionAction } from "./action";
 
-import { testServerAction } from "./action"
-
-export default function Profile() {
-  const [status, setStatus] = useState("")
+export default function ActionPage() {
+  const [status, setStatus] = useState("");
+  const [email, setEmail] = useState("");
 
   return (
     <main>
-      <input
-        id="status"
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-      ></input>
+      <p id="status">{status}</p>
+      <p id="email">{email}</p>
       <button
+        id="check-session"
         onClick={async () => {
-          const { status } = await testServerAction()
-          setStatus(status)
+          const res = await getSessionAction();
+          setStatus(res.status);
+          setEmail(res.email ?? "");
         }}
       >
-        Call server action
+        Check session
+      </button>
+      <button
+        id="update-session"
+        onClick={async () => {
+          const res = await updateSessionAction();
+          setStatus(res.status);
+        }}
+      >
+        Update session
       </button>
     </main>
-  )
+  );
 }

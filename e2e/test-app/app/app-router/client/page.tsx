@@ -1,36 +1,49 @@
-"use client"
+"use client";
 
-import { getAccessToken, useUser } from "@auth0/nextjs-auth0"
+import { getAccessToken, useUser } from "@auth0/nextjs-auth0";
+import { useState } from "react";
 
-export default function Profile() {
-  const { user, isLoading } = useUser()
+export default function ClientPage() {
+  const { user, isLoading, error } = useUser();
+  const [tokenResult, setTokenResult] = useState("");
+  const [tokenFull, setTokenFull] = useState("");
 
-  if (isLoading) {
-    return (
-      <main>
-        <div>Loading...</div>
-      </main>
-    )
-  }
+  if (isLoading) return <p id="status">loading</p>;
 
   if (!user) {
     return (
       <main>
-        <a href="/auth/login">Log in</a>
+        <h1 id="status">unauthenticated</h1>
+        <a href="/auth/login?returnTo=/app-router/client">Log in</a>
       </main>
-    )
+    );
   }
 
   return (
     <main>
-      <h1>Welcome, {user?.email}!</h1>
+      <h1 id="status">authenticated</h1>
+      <p id="email">{user.email}</p>
+      <p id="sub">{user.sub}</p>
       <button
+        id="get-token"
         onClick={async () => {
-          await getAccessToken()
+          const token = await getAccessToken();
+          setTokenResult(token);
         }}
       >
         Get token
       </button>
+      <input id="token-result" value={tokenResult} readOnly onChange={() => {}} />
+      <button
+        id="get-token-full"
+        onClick={async () => {
+          const res = await getAccessToken({ includeFullResponse: true });
+          setTokenFull(JSON.stringify(res));
+        }}
+      >
+        Get token full
+      </button>
+      <input id="token-full" value={tokenFull} readOnly onChange={() => {}} />
     </main>
-  )
+  );
 }

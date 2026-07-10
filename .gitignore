@@ -129,8 +129,11 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
-/test-results/
-/playwright-report/
+e2e/test-results*/
+e2e/test-app/test-results/
+/e2e/playwright-report/
+/e2e/playwright-report-passkey/
+/e2e/.auth/
 /blob-report/
 /playwright/.cache/
 
@@ -139,6 +142,7 @@ dist
 .dev-files/
 *.env.*
 !**/.env.example
+!e2e/docs/env-templates/.env.*
 *.tmp
 *PLAN*.md
 .yalc/
