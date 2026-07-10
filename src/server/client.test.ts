@@ -14,12 +14,14 @@ import {
   TokenRevocationError,
   TokenRevocationErrorCode
 } from "../errors/index.js";
-import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { Auth0Client } from "./client.js";
 
-vi.mock("next/headers.js", () => createNextHeadersMock());
+vi.mock("next/headers.js", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+  cookies: vi.fn().mockResolvedValue({ getAll: () => [] })
+}));
 
 vi.mock("../utils/webfingerCache.js", () => ({
   isFederatedDomain: vi.fn()
