@@ -72,33 +72,7 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
     return req;
   };
 
-  describe("sec-fetch-mode (primary signal)", () => {
-    it("returns false for sec-fetch-mode: navigate (real navigation)", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "navigate" }))
-      ).toBe(false);
-    });
-
-    it("returns true for sec-fetch-mode: cors (Next.js prefetch)", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "cors" }))
-      ).toBe(true);
-    });
-
-    it("returns true for sec-fetch-mode: no-cors", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "no-cors" }))
-      ).toBe(true);
-    });
-
-    it("returns true for sec-fetch-mode: same-origin (XHR / fetch)", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "same-origin" }))
-      ).toBe(true);
-    });
-  });
-
-  describe("fallback headers (sec-fetch-mode absent)", () => {
+  describe("known prefetch headers — positive detection only", () => {
     it("returns true when next-router-prefetch is 1", () => {
       expect(
         isNonNavigationalRequest(makeReq({ "next-router-prefetch": "1" }))
@@ -128,24 +102,35 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
         isNonNavigationalRequest(makeReq({ "x-middleware-prefetch": "1" }))
       ).toBe(true);
     });
+  });
 
-    it("returns false when no prefetch headers are present (plain request)", () => {
+  describe("requests that must not be blocked", () => {
+    it("returns false for plain navigation with no prefetch headers", () => {
       expect(isNonNavigationalRequest(makeReq({ accept: "text/html" }))).toBe(
         false
       );
     });
-  });
 
-  describe("sec-fetch-mode takes precedence over fallbacks", () => {
-    it("returns false when sec-fetch-mode is navigate even if next-router-prefetch is 1", () => {
+    it("returns false for sec-fetch-mode: navigate", () => {
       expect(
-        isNonNavigationalRequest(
-          makeReq({
-            "sec-fetch-mode": "navigate",
-            "next-router-prefetch": "1"
-          })
-        )
+        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "navigate" }))
       ).toBe(false);
+    });
+
+    it("returns false for sec-fetch-mode: cors — legitimate fetch()/XHR must not be blocked", () => {
+      expect(
+        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "cors" }))
+      ).toBe(false);
+    });
+
+    it("returns false for sec-fetch-mode: same-origin — legitimate fetch()/XHR must not be blocked", () => {
+      expect(
+        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "same-origin" }))
+      ).toBe(false);
+    });
+
+    it("returns false when no headers present", () => {
+      expect(isNonNavigationalRequest(makeReq({}))).toBe(false);
     });
   });
 });
@@ -202,27 +187,19 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
-  it("phase-1 evicts prefetch cookies first, leaves real login cookies untouched when phase-1 sufficient", async () => {
-    // Set maxSizeBytes just above the real login cookie size so that phase-1
-    // (evicting only prefetch cookies) frees enough to get under the threshold,
-    // without needing to touch the real login cookie.
-    const pfState1 = "pf1";
-    const pfState2 = "pf2";
-    const realState = "real";
-    const pfValue1 = "p:short_jwe_1";
-    const pfValue2 = "p:short_jwe_2";
-    const realValue = "1000000000:real_jwe_value";
+  it("evicts oldest cookie first when threshold exceeded with mixed timestamps", async () => {
+    const olderState = "older";
+    const newerState = "newer";
+    const olderValue = "1000:jwe_older";
+    const newerValue = "9999:jwe_newer";
 
-    // Calculate actual byte sizes so we can set maxSizeBytes precisely.
     const enc = new TextEncoder();
-    const pfBytes1 = enc.encode(`__txn_${pfState1}=${pfValue1}`).length;
-    const pfBytes2 = enc.encode(`__txn_${pfState2}=${pfValue2}`).length;
-    const realBytes = enc.encode(`__txn_${realState}=${realValue}`).length;
-    const totalBytes = pfBytes1 + pfBytes2 + realBytes;
+    const olderBytes = enc.encode(`__txn_${olderState}=${olderValue}`).length;
+    const newerBytes = enc.encode(`__txn_${newerState}=${newerValue}`).length;
+    const totalBytes = olderBytes + newerBytes;
 
-    // maxSizeBytes = totalBytes - pfBytes1 - pfBytes2 + 1:
-    // triggers eviction, but phase-1 (freeing pfBytes1 + pfBytes2) is enough.
-    const maxSizeBytes = totalBytes - pfBytes1 - pfBytes2 + 1;
+    // maxSizeBytes just below total — eviction fires but only needs to remove one
+    const maxSizeBytes = totalBytes - olderBytes + 1;
 
     const store = new TransactionStore({
       secret,
@@ -230,22 +207,18 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     });
 
     const reqCookies = makeRequestCookies({
-      [`__txn_${pfState1}`]: pfValue1,
-      [`__txn_${pfState2}`]: pfValue2,
-      [`__txn_${realState}`]: realValue
+      [`__txn_${olderState}`]: olderValue,
+      [`__txn_${newerState}`]: newerValue
     });
     const resCookies = makeResponseCookies();
 
     const newState = "newstate";
     await store.save(resCookies, makeTransactionState(newState), reqCookies);
 
-    // Prefetch cookies evicted
-    expect(resCookies.get(`__txn_${pfState1}`)?.maxAge).toBe(0);
-    expect(resCookies.get(`__txn_${pfState2}`)?.maxAge).toBe(0);
-
-    // Real login cookie untouched (phase-1 freed enough)
-    expect(resCookies.get(`__txn_${realState}`)?.maxAge).not.toBe(0);
-
+    // Older cookie evicted first
+    expect(resCookies.get(`__txn_${olderState}`)?.maxAge).toBe(0);
+    // Newer cookie untouched — eviction stopped after freeing enough
+    expect(resCookies.get(`__txn_${newerState}`)?.maxAge).not.toBe(0);
     // New cookie written
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
@@ -327,78 +300,37 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     expect(resCookies.get("__txn_other")?.value).toBe("1000:other_jwe");
   });
 
-  it("real login cookie value is encoded as '{ts}:{jwe}'", async () => {
+  it("cookie value is encoded as '{ts}:{jwe}'", async () => {
     const store = new TransactionStore({ secret });
     const resCookies = makeResponseCookies();
-    const state = "real-login-state";
+    const state = "login-state";
 
-    await store.save(resCookies, makeTransactionState(state), undefined, false);
+    await store.save(resCookies, makeTransactionState(state));
 
     const value = resCookies.get(`__txn_${state}`)?.value ?? "";
     const colonIdx = value.indexOf(":");
     expect(colonIdx).toBeGreaterThan(0);
     const ts = parseInt(value.slice(0, colonIdx));
-    expect(ts).toBeGreaterThan(0); // epoch timestamp
-    expect(value.slice(colonIdx + 1)).toBeTruthy(); // JWE after colon
+    expect(ts).toBeGreaterThan(0);
+    expect(value.slice(colonIdx + 1)).toBeTruthy();
   });
 
-  it("prefetch cookie value is encoded as 'p:{jwe}'", async () => {
+  it("cookie gets full maxAge (1h default)", async () => {
     const store = new TransactionStore({ secret });
     const resCookies = makeResponseCookies();
-    const state = "prefetch-state";
+    const state = "full-ttl";
 
-    await store.save(resCookies, makeTransactionState(state), undefined, true);
+    await store.save(resCookies, makeTransactionState(state));
 
-    const value = resCookies.get(`__txn_${state}`)?.value ?? "";
-    expect(value.startsWith("p:")).toBe(true);
-    expect(value.slice(2)).toBeTruthy(); // JWE after "p:"
+    expect(resCookies.get(`__txn_${state}`)?.maxAge).toBe(3600);
   });
 
-  it("prefetch cookie gets maxAge of 60s", async () => {
+  it("get() strips '{ts}:' prefix before decrypting", async () => {
     const store = new TransactionStore({ secret });
     const resCookies = makeResponseCookies();
-    const state = "prefetch-short-ttl";
+    const state = "get-test";
 
-    await store.save(resCookies, makeTransactionState(state), undefined, true);
-
-    const cookie = resCookies.get(`__txn_${state}`);
-    expect(cookie?.maxAge).toBe(60);
-  });
-
-  it("real login cookie gets full maxAge (1h default)", async () => {
-    const store = new TransactionStore({ secret });
-    const resCookies = makeResponseCookies();
-    const state = "real-full-ttl";
-
-    await store.save(resCookies, makeTransactionState(state), undefined, false);
-
-    const cookie = resCookies.get(`__txn_${state}`);
-    expect(cookie?.maxAge).toBe(3600);
-  });
-
-  it("get() strips 'p:' prefix before decrypting prefetch cookie", async () => {
-    const store = new TransactionStore({ secret });
-    const resCookies = makeResponseCookies();
-    const state = "pf-get-test";
-
-    await store.save(resCookies, makeTransactionState(state), undefined, true);
-
-    const encodedValue = resCookies.get(`__txn_${state}`)?.value ?? "";
-    expect(encodedValue.startsWith("p:")).toBe(true);
-
-    const reqCookies = makeRequestCookies({ [`__txn_${state}`]: encodedValue });
-    const result = await store.get(reqCookies, state);
-
-    expect(result).not.toBeNull();
-    expect(result?.payload?.state).toBe(state);
-  });
-
-  it("get() strips '{ts}:' prefix before decrypting real login cookie", async () => {
-    const store = new TransactionStore({ secret });
-    const resCookies = makeResponseCookies();
-    const state = "real-get-test";
-
-    await store.save(resCookies, makeTransactionState(state), undefined, false);
+    await store.save(resCookies, makeTransactionState(state));
 
     const encodedValue = resCookies.get(`__txn_${state}`)?.value ?? "";
     expect(encodedValue.match(/^\d+:/)).toBeTruthy();
@@ -478,132 +410,49 @@ describe("Fix 3 — No lock-out in single-transaction mode", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fix 4 — Targeted callback cleanup: sweep prefetch + delete only completing cookie
+// Fix 4 — Callback cleanup: delete only the completing flow's cookie
 // ---------------------------------------------------------------------------
 
-describe("Fix 4 — targeted cleanup: deletePrefetchCookies + delete(state)", () => {
+describe("Fix 4 — callback cleanup: delete(state)", () => {
   let secret: string;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
   });
 
-  describe("deletePrefetchCookies()", () => {
-    it("deletes all 'p:' prefetch cookies, leaves real login cookies untouched", async () => {
-      const store = new TransactionStore({ secret });
-      const reqCookies = makeRequestCookies({
-        __txn_pf1: "p:jwe_prefetch_1",
-        __txn_pf2: "p:jwe_prefetch_2",
-        __txn_real: "1000000000:jwe_real_login"
-      });
-      const resCookies = makeResponseCookies();
+  it("deletes only the completing flow's cookie, leaves other real login cookies untouched", async () => {
+    const store = new TransactionStore({ secret });
+    const resCookies = makeResponseCookies();
+    resCookies.set("__txn_stateA", "1000:jwe_a");
+    resCookies.set("__txn_stateB", "2000:jwe_b");
 
-      await store.deletePrefetchCookies(reqCookies, resCookies);
+    await store.delete(resCookies, "stateA");
 
-      expect(resCookies.get("__txn_pf1")?.maxAge).toBe(0);
-      expect(resCookies.get("__txn_pf2")?.maxAge).toBe(0);
-      // Real login cookie must NOT be touched
-      expect(resCookies.get("__txn_real")?.maxAge).not.toBe(0);
-    });
-
-    it("does not touch non-txn cookies", async () => {
-      const store = new TransactionStore({ secret });
-      const reqCookies = makeRequestCookies({
-        __txn_pf1: "p:jwe_pf",
-        __session: "session_value"
-      });
-      const resCookies = makeResponseCookies();
-      resCookies.set("__session", "session_value");
-
-      await store.deletePrefetchCookies(reqCookies, resCookies);
-
-      expect(resCookies.get("__txn_pf1")?.maxAge).toBe(0);
-      expect(resCookies.get("__session")?.value).toBe("session_value");
-    });
-
-    it("does not throw when no prefetch cookies exist", async () => {
-      const store = new TransactionStore({ secret });
-      const reqCookies = makeRequestCookies({
-        __txn_real: "1000000000:jwe_real"
-      });
-      const resCookies = makeResponseCookies();
-
-      await expect(
-        store.deletePrefetchCookies(reqCookies, resCookies)
-      ).resolves.not.toThrow();
-    });
+    expect(resCookies.get("__txn_stateA")?.maxAge).toBe(0);
+    expect(resCookies.get("__txn_stateB")?.value).toBe("2000:jwe_b");
+    expect(resCookies.get("__txn_stateB")?.maxAge).not.toBe(0);
   });
 
-  describe("delete(state)", () => {
-    it("deletes only the specific __txn_{state} cookie", async () => {
-      const store = new TransactionStore({ secret });
-      const resCookies = makeResponseCookies();
-      resCookies.set("__txn_stateA", "1000:jwe_a"); // completing flow
-      resCookies.set("__txn_stateB", "2000:jwe_b"); // Tab B — must survive
+  it("does not throw when deleting a non-existent state", async () => {
+    const store = new TransactionStore({ secret });
+    const resCookies = makeResponseCookies();
 
-      await store.delete(resCookies, "stateA");
-
-      expect(resCookies.get("__txn_stateA")?.maxAge).toBe(0);
-      // Tab B's real login cookie must not be touched
-      expect(resCookies.get("__txn_stateB")?.value).toBe("2000:jwe_b");
-      expect(resCookies.get("__txn_stateB")?.maxAge).not.toBe(0);
-    });
-
-    it("does not throw when deleting a non-existent state", async () => {
-      const store = new TransactionStore({ secret });
-      const resCookies = makeResponseCookies();
-
-      await expect(
-        store.delete(resCookies, "nonexistent-state")
-      ).resolves.not.toThrow();
-    });
+    await expect(
+      store.delete(resCookies, "nonexistent-state")
+    ).resolves.not.toThrow();
   });
 
-  describe("combined: sweep prefetch + delete completing cookie — multi-tab safe", () => {
-    it("sweeps prefetch cookies and deletes only the completing flow's cookie, leaving Tab B untouched", async () => {
-      const store = new TransactionStore({ secret });
-
-      // Tab A completing login
-      const completingState = "tabA-state";
-      // Tab B mid-login under different account
-      const otherRealState = "tabB-state";
-      // Accumulated prefetch garbage
-      const pfState1 = "pf-orphan-1";
-      const pfState2 = "pf-orphan-2";
-
-      const reqCookies = makeRequestCookies({
-        [`__txn_${completingState}`]: "1000:jwe_tabA",
-        [`__txn_${otherRealState}`]: "2000:jwe_tabB",
-        [`__txn_${pfState1}`]: "p:jwe_pf1",
-        [`__txn_${pfState2}`]: "p:jwe_pf2"
-      });
-      const resCookies = makeResponseCookies();
-
-      await store.deletePrefetchCookies(reqCookies, resCookies);
-      await store.delete(resCookies, completingState);
-
-      // Completing cookie deleted
-      expect(resCookies.get(`__txn_${completingState}`)?.maxAge).toBe(0);
-      // Prefetch cookies swept
-      expect(resCookies.get(`__txn_${pfState1}`)?.maxAge).toBe(0);
-      expect(resCookies.get(`__txn_${pfState2}`)?.maxAge).toBe(0);
-      // Tab B's real login cookie must be untouched
-      expect(resCookies.get(`__txn_${otherRealState}`)?.maxAge).not.toBe(0);
+  it("single-transaction mode: delete(state) resolves to __txn_ regardless of state value", async () => {
+    const store = new TransactionStore({
+      secret,
+      enableParallelTransactions: false
     });
+    const resCookies = makeResponseCookies();
+    resCookies.set("__txn_", "1000:stale_jwe");
 
-    it("single-transaction mode: delete(state) resolves to __txn_ regardless of state value", async () => {
-      const store = new TransactionStore({
-        secret,
-        enableParallelTransactions: false
-      });
-      const resCookies = makeResponseCookies();
-      resCookies.set("__txn_", "1000:stale_jwe");
+    await store.delete(resCookies, "any-state-value");
 
-      // state value is ignored in single mode — always resolves to "__txn_"
-      await store.delete(resCookies, "any-state-value");
-
-      expect(resCookies.get("__txn_")?.maxAge).toBe(0);
-    });
+    expect(resCookies.get("__txn_")?.maxAge).toBe(0);
   });
 });
 
@@ -663,9 +512,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
       return new Response(null, { status: 404 });
     });
 
-  const makeAuthClient = (
-    opts: { dangerouslyAllowLoginPrefetch?: boolean } = {}
-  ) => {
+  const makeAuthClient = () => {
     const transactionStore = new TransactionStore({ secret });
     const sessionStore = new StatelessSessionStore({ secret });
     return new AuthClient({
@@ -677,8 +524,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
       transactionStore,
       sessionStore,
       routes: getDefaultRoutes(),
-      fetch: makeFetch(),
-      ...opts
+      fetch: makeFetch()
     });
   };
 
@@ -721,11 +567,10 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     });
   });
 
-  // Checklist: "Load bugs/txn-accumulation while logged out → no __txn_* cookies created"
-  it("Fix 1 — prefetch request returns 401 and no __txn_* cookie is written (guard on, default)", async () => {
+  it("Fix 1 — known prefetch header returns 401 and no __txn_* cookie is written", async () => {
     const authClient = makeAuthClient();
     const req = new NextRequest("http://localhost:3000/auth/login", {
-      headers: { "sec-fetch-mode": "cors" } // prefetch signal
+      headers: { "next-router-prefetch": "1" }
     });
 
     const res = await authClient.handler(req);
@@ -737,16 +582,14 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     expect(txnCookies).toHaveLength(0);
   });
 
-  // Checklist: "Set dangerouslyAllowLoginPrefetch: true → 4 __txn_* cookies appear"
-  it("Fix 1 — prefetch request is allowed through and __txn_* cookie is written (guard off)", async () => {
-    const authClient = makeAuthClient({ dangerouslyAllowLoginPrefetch: true });
+  it("Fix 1 — real navigation is allowed through and __txn_* cookie is written", async () => {
+    const authClient = makeAuthClient();
     const req = new NextRequest("http://localhost:3000/auth/login", {
-      headers: { "sec-fetch-mode": "cors" } // same prefetch signal
+      headers: { "sec-fetch-mode": "navigate" }
     });
 
     const res = await authClient.handler(req);
 
-    // Should redirect to Auth0 (3xx), not return 401
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.status).toBeLessThan(400);
     const txnCookies = res.cookies
@@ -755,24 +598,9 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     expect(txnCookies.length).toBeGreaterThan(0);
   });
 
-  // Checklist: "Complete login → completing txn + prefetch orphans deleted, other real logins untouched"
-  it("Fix 4 — handleCallback deletes completing cookie + sweeps prefetch orphans, leaves real Tab B cookie", async () => {
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
-    const authClient = new AuthClient({
-      domain,
-      clientId,
-      clientSecret: "test-secret",
-      appBaseUrl: "http://localhost:3000",
-      secret,
-      transactionStore,
-      sessionStore,
-      routes: getDefaultRoutes(),
-      fetch: makeFetch()
-      // dangerouslyAllowLoginPrefetch: false (default)
-    });
+  it("Fix 4 — handleCallback deletes only the completing cookie, leaves Tab B cookie untouched", async () => {
+    const authClient = makeAuthClient();
 
-    // Step 1: login to get a real transaction cookie
     const loginRes = await authClient.handleLogin(
       new NextRequest("http://localhost:3000/auth/login")
     );
@@ -781,19 +609,12 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     )!;
     const txnCookie = loginRes.cookies.get(`__txn_${state}`);
     expect(txnCookie).toBeDefined();
-    // Verify login cookie has timestamp-prefixed value (real login, not prefetch)
     expect(txnCookie!.value).toMatch(/^\d+:/);
 
-    // Step 2: build callback request:
-    //   - completing flow's cookie
-    //   - two prefetch orphans (value prefix "p:")
-    //   - one real in-flight login from Tab B (must survive)
     const callbackReq = new NextRequest(
       `http://localhost:3000/auth/callback?code=auth_code&state=${state}`
     );
     callbackReq.cookies.set(`__txn_${state}`, txnCookie!.value);
-    callbackReq.cookies.set("__txn_orphan_pf1", "p:prefetch_jwe_1");
-    callbackReq.cookies.set("__txn_orphan_pf2", "p:prefetch_jwe_2");
     callbackReq.cookies.set("__txn_tabB", "9999999999:tab_b_real_login_jwe");
 
     const callbackRes = await authClient.handleCallback(callbackReq);
@@ -801,16 +622,11 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     expect(callbackRes.status).toBeGreaterThanOrEqual(300);
     expect(callbackRes.status).toBeLessThan(400);
 
-    // Completing cookie must be deleted
+    // Completing cookie deleted
     expect(callbackRes.cookies.get(`__txn_${state}`)?.maxAge).toBe(0);
-    // Prefetch orphans must be deleted
-    expect(callbackRes.cookies.get("__txn_orphan_pf1")?.maxAge).toBe(0);
-    expect(callbackRes.cookies.get("__txn_orphan_pf2")?.maxAge).toBe(0);
     // Tab B real login cookie must NOT be deleted
-    const tabBCookie = callbackRes.cookies.get("__txn_tabB");
-    expect(tabBCookie?.maxAge).not.toBe(0);
-
-    // Session cookie written
+    expect(callbackRes.cookies.get("__txn_tabB")?.maxAge).not.toBe(0);
+    // Session written
     expect(callbackRes.cookies.get("__session")?.value).toBeTruthy();
   });
 });
