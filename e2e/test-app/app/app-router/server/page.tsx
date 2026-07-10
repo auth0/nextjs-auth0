@@ -1,21 +1,23 @@
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "@/lib/auth0";
 
-export default async function Home() {
-  const session = await auth0.getSession()
+export default async function ServerPage() {
+  const session = await auth0.getSession();
 
   if (!session) {
     return (
       <main>
-        <a href="/auth/login?screen_hint=signup">Sign up</a>
-        <a href="/auth/login">Log in</a>
+        <h1 id="status">unauthenticated</h1>
+        <a href="/auth/login?returnTo=/app-router/server">Log in</a>
       </main>
-    )
+    );
   }
 
   return (
     <main>
-      <h1>Welcome, {session.user.email}!</h1>
-      <p id="updated-at">{session.user.updatedAt}</p>
+      <h1 id="status">authenticated</h1>
+      <p id="email">{session.user.email}</p>
+      <p id="sub">{session.user.sub}</p>
+      <p id="updated-at">{String(session.user.updatedAt ?? "")}</p>
     </main>
-  )
+  );
 }

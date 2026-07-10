@@ -15,11 +15,13 @@ import {
   TokenRevocationError,
   TokenRevocationErrorCode
 } from "../errors/index.js";
-import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 
-vi.mock("next/headers.js", () => createNextHeadersMock());
+vi.mock("next/headers.js", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+  cookies: vi.fn().mockResolvedValue({ getAll: () => [] })
+}));
 
 // Define ENV_VARS at the top level for broader scope
 const ENV_VARS = {
@@ -3886,12 +3888,14 @@ describe("Auth0Client", () => {
     it("connectAccount throws MISSING_SESSION when no session", async () => {
       const mockAuthClient = {
         issuer: "https://test.auth0.com/",
-        connectAccount: vi.fn()
+        connectAccount: vi.fn(),
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ error: null, session: null })
       };
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
         mockAuthClient
       );
-      vi.spyOn(client, "getSession").mockResolvedValue(null);
 
       await expect(
         client.connectAccount({ connection: "github" } as any)
@@ -3902,13 +3906,15 @@ describe("Auth0Client", () => {
       const connectRes = NextResponse.redirect("https://idp.example.com/auth");
       const mockAuthClient = {
         issuer: "https://test.auth0.com/",
-        connectAccount: vi.fn().mockResolvedValue([null, connectRes])
+        connectAccount: vi.fn().mockResolvedValue([null, connectRes]),
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ error: null, session: mockSession })
       };
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
         mockAuthClient
       );
-      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
-      vi.spyOn(client, "getAccessToken" as any).mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my-account-token",
         expiresAt: 9999,
         audience: "https://test.auth0.com/me/"
@@ -4423,13 +4429,15 @@ describe("Auth0Client", () => {
       });
       const mockAuthClient = {
         issuer: "https://test.auth0.com/",
-        connectAccount: vi.fn().mockResolvedValue([connErr, null])
+        connectAccount: vi.fn().mockResolvedValue([connErr, null]),
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ error: null, session: mockSession })
       };
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
         mockAuthClient
       );
-      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
-      vi.spyOn(client, "getAccessToken" as any).mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my-account-token",
         expiresAt: 9999,
         audience: "https://test.auth0.com/me/"
