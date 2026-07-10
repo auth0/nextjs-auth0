@@ -706,7 +706,7 @@ export class Auth0Client {
     this.transactionStore = new TransactionStore({
       secret,
       cookieOptions: transactionCookieOptions,
-      enableParallelTransactions: options.enableParallelTransactions ?? true,
+      enableParallelTransactions: options.enableParallelTransactions ?? true
     });
 
     this.sessionStore = options.sessionStore

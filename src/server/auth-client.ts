@@ -946,7 +946,11 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    await this.transactionStore.save(res.cookies, transactionState, req?.cookies);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
 
     return res;
   }
@@ -3731,7 +3735,11 @@ export class AuthClient {
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(res.cookies, transactionState, req?.cookies);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
 
     return [null, res];
   }
@@ -5370,7 +5378,11 @@ export class AuthClient {
             "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
         );
       }
-      await this.transactionStore.save(resCookies, magicLinkTransactionState, req?.cookies);
+      await this.transactionStore.save(
+        resCookies,
+        magicLinkTransactionState,
+        req?.cookies
+      );
     }
   }
 
