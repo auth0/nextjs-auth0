@@ -359,18 +359,6 @@ export interface AuthClientOptions {
   cspNonce?: string;
 
   /**
-   * When `false` (default), the SDK returns a `401` on prefetch requests to the
-   * login route, preventing `__txn_*` cookies from being created for OAuth flows
-   * that will never complete.
-   *
-   * Set to `true` only if your login route renders custom page content worth
-   * prefetching (i.e. it does not immediately redirect to Auth0).
-   *
-   * @default false
-   */
-  dangerouslyAllowLoginPrefetch?: boolean;
-
-  /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
@@ -428,7 +416,6 @@ export class AuthClient {
 
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
-  private readonly dangerouslyAllowLoginPrefetch: boolean;
 
   private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
 
@@ -615,8 +602,6 @@ export class AuthClient {
 
     // CSP nonce for popup postMessage inline scripts
     this.cspNonce = options.cspNonce;
-    this.dangerouslyAllowLoginPrefetch =
-      options.dangerouslyAllowLoginPrefetch ?? false;
 
     // Store keypair if provided, but validate lazily to avoid crypto bundling
     this.dpopKeyPair = options.dpopKeyPair;
@@ -664,11 +649,6 @@ export class AuthClient {
     resCookies: ResponseCookies,
     state: string
   ): Promise<void> {
-    // Targeted cleanup — regardless of dangerouslyAllowLoginPrefetch flag:
-    // 1. Sweep all accumulated "p:" prefetch cookies — provably garbage, never match a callback
-    // 2. Delete only the single __txn_{state} that belongs to this completing flow
-    // All other real login cookies (e.g. Tab B mid-login, prompt:login multi-account) are untouched.
-    await this.transactionStore.deletePrefetchCookies(req.cookies, resCookies);
     await this.transactionStore.delete(resCookies, state);
   }
 
@@ -688,10 +668,7 @@ export class AuthClient {
     const method = req.method;
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
-      if (
-        !this.dangerouslyAllowLoginPrefetch &&
-        isNonNavigationalRequest(req)
-      ) {
+      if (isNonNavigationalRequest(req)) {
         return new NextResponse(null, { status: 401 });
       }
       return this.handleLogin(req);
@@ -969,14 +946,7 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    // Save transaction state; pass req.cookies so save() can apply maxSizeBytes eviction.
-    // isPrefetch encodes "p:" prefix in value so eviction and cleanup can classify O(1).
-    await this.transactionStore.save(
-      res.cookies,
-      transactionState,
-      req?.cookies,
-      req ? isNonNavigationalRequest(req) : false
-    );
+    await this.transactionStore.save(res.cookies, transactionState, req?.cookies);
 
     return res;
   }
@@ -3761,12 +3731,7 @@ export class AuthClient {
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(
-      res.cookies,
-      transactionState,
-      req?.cookies,
-      false // connect account — always a real user-initiated flow, never prefetch
-    );
+    await this.transactionStore.save(res.cookies, transactionState, req?.cookies);
 
     return [null, res];
   }
@@ -5405,12 +5370,7 @@ export class AuthClient {
             "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
         );
       }
-      await this.transactionStore.save(
-        resCookies,
-        magicLinkTransactionState,
-        req?.cookies,
-        false // magic link — always a real user-initiated flow, never prefetch
-      );
+      await this.transactionStore.save(resCookies, magicLinkTransactionState, req?.cookies);
     }
   }
 

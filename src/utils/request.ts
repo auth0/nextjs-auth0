@@ -18,20 +18,13 @@ export const isRequest = (req: Req): req is Request | NextRequest => {
 };
 
 /**
- * Returns true if the request is non-navigational (e.g. a prefetch, fetch, or
- * XHR) rather than a full browser navigation. Used to guard against Next.js
- * prefetch requests triggering side-effectful handlers like handleLogin.
+ * Returns true only when a request carries a known prefetch signal.
+ * Used to block Next.js prefetch requests from triggering handleLogin.
  *
- * Uses the W3C Fetch Metadata `sec-fetch-mode` header as the primary signal
- * (supported in Chrome 76+, Firefox 90+, Safari 16.4+). Falls back to
- * Next.js-specific and legacy prefetch headers for older environments.
+ * Intentionally excludes `sec-fetch-mode` — that header also matches
+ * legitimate fetch()/XHR calls to /auth/login which must not be blocked.
  */
 export const isNonNavigationalRequest = (req: NextRequest): boolean => {
-  const fetchMode = req.headers.get("sec-fetch-mode");
-  if (fetchMode !== null) {
-    return fetchMode !== "navigate";
-  }
-
   return (
     req.headers.get("next-router-prefetch") === "1" ||
     req.headers.get("accept") === "text/x-component" ||
