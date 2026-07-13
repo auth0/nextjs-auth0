@@ -20,6 +20,10 @@ const labelClass = "mb-1 block text-sm font-medium text-gray-700";
 
 const TOKEN_TYPE_OPTIONS = [
   {
+    label: "Custom (CTE profile)",
+    value: "urn:acme:legacy-token"
+  },
+  {
     label: "ID Token",
     value: "urn:ietf:params:oauth:token-type:id_token"
   },
@@ -117,21 +121,28 @@ export function SessionTransferForm() {
           <label htmlFor="subjectTokenType" className={labelClass}>
             Token type <span className="text-red-500">*</span>
           </label>
-          <select
+          <input
             id="subjectTokenType"
+            type="text"
             value={subjectTokenType}
             onChange={(e) => setSubjectTokenType(e.target.value)}
+            placeholder="urn:acme:legacy-token"
+            required
             disabled={loading}
-            className={inputClass}
-          >
+            className={inputClass + " font-mono text-xs"}
+            list="subjectTokenTypeOptions"
+          />
+          <datalist id="subjectTokenTypeOptions">
             {TOKEN_TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
-          </select>
-          <p className="mt-1 text-xs text-gray-400 font-mono">
-            {subjectTokenType}
+          </datalist>
+          <p className="mt-1 text-xs text-gray-400">
+            The <code className="rounded bg-gray-100 px-1">subject_token_type</code>{" "}
+            must match a registered CTE profile (e.g.{" "}
+            <code className="rounded bg-gray-100 px-1">urn:acme:legacy-token</code>).
           </p>
         </div>
 

@@ -55,8 +55,18 @@ export async function POST(req: NextRequest) {
       actor: body.actor
     });
 
+    // Force scope to "openid profile" on the target login URL. Impersonated
+    // sessions cannot be granted a refresh token, so requesting `offline_access`
+    // (part of the SDK's default scope) makes /authorize fail with
+    // `interaction_required`. Passing scope on the login URL overrides the
+    // SDK default when handleLogin forwards it to /authorize.
+    const targetUrl = new URL(body.targetLoginUrl);
+    if (!targetUrl.searchParams.has("scope")) {
+      targetUrl.searchParams.set("scope", "openid profile");
+    }
+
     const redirectResponse = auth0.buildSessionTransferRedirect(
-      body.targetLoginUrl,
+      targetUrl.toString(),
       result,
       { organization: body.organization }
     );
