@@ -50,7 +50,26 @@ export default async function Dashboard() {
                 </dd>
               </div>
             )}
+            <div className="flex justify-between py-2">
+              <dt className="font-medium text-gray-600">Refresh token</dt>
+              <dd className="font-mono text-xs text-gray-900">
+                {tokenSet.refreshToken ? "present" : "none"}
+              </dd>
+            </div>
           </dl>
+
+          {user.act && (
+            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+              <strong>Impersonation session.</strong> You are acting as{" "}
+              <code className="font-mono">{user.sub}</code> on behalf of{" "}
+              <code className="font-mono">
+                {typeof user.act === "object" && user.act && "sub" in user.act
+                  ? String((user.act as { sub?: unknown }).sub)
+                  : "an agent"}
+              </code>
+              . This session cannot be refreshed and self-expires.
+            </div>
+          )}
 
           <div className="flex gap-3">
             <a
