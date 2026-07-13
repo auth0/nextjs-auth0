@@ -151,6 +151,7 @@
   - [Customizing Transaction Cookie Expiration](#customizing-transaction-cookie-expiration)
   - [Transaction Management Modes](#transaction-management-modes)
   - [Transaction Cookie Options](#transaction-cookie-options)
+  - [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors)
 - [Database sessions](#database-sessions)
 - [Using Client-Initiated Backchannel Authentication](#using-client-initiated-backchannel-authentication)
 - [Connected Accounts](#connected-accounts)
@@ -232,6 +233,9 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 ```html
 <a href="/auth/login?audience=urn:my-api">Login</a>
 ```
+
+> [!NOTE]
+> Link to your login route with a plain `<a>` tag (as shown above) or `<Link prefetch={false}>` — never `<Link href="/auth/login">`. A prefetched `<Link>` starts a login flow that never completes, accumulating transaction cookies. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ### Social Login
 
@@ -566,6 +570,9 @@ export async function middleware(request: NextRequest) {
 
 ## Protecting a Server-Side Rendered (SSR) Page
 
+> [!TIP]
+> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware. Its redirect happens inside the render and is not followed during a Next.js prefetch, so no transaction cookie is written for prefetched protected pages. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+
 #### Page Router
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
@@ -607,6 +614,9 @@ export default auth0.withPageAuthRequired(
 ## Protecting a Client-Side Rendered (CSR) Page
 
 To protect a Client-Side Rendered (CSR) page, you can use the `withPageAuthRequired` higher-order function. Requests to `/profile` without a valid session cookie will be redirected to the login page.
+
+> [!TIP]
+> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) also avoids transaction-cookie accumulation on prefetched pages. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ```tsx
 // app/profile/page.tsx
@@ -4031,7 +4041,7 @@ const authClient = new Auth0Client({
 | `transactionCookie.secure`                | `boolean`                     | When `true`, the cookie is only sent over HTTPS. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted.                                                                                                     |
 | `transactionCookie.path`                  | `string`                      | URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                                                                          |
 
-### Troubleshooting: 431 / cookie header too large
+### Preventing "431 Request Header Fields Too Large" Errors
 
 If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookies have grown beyond your server's header size limit.
 
@@ -4040,14 +4050,51 @@ If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookie
 1. Returns `401` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
 2. Automatically evicts accumulated `__txn_*` cookies once their combined size reaches a fixed internal limit (3500 bytes, roughly six concurrent in-flight logins) — oldest-first (FIFO) by creation timestamp — before writing the new cookie. Only transaction cookies are measured and evicted; the session and other cookies are never touched. This limit is not configurable.
 
-If you are running an older version, adding `prefetch={false}` to `<Link>` components pointing to your login route is a safe fallback:
+#### Recommended practices to avoid transaction cookie accumulation
+
+Even with the automatic protections above, follow these two practices so login flows are only started by real user navigation:
+
+**1. Do not use `<Link href="/auth/login">`. Use a plain `<a>` tag or `<Link prefetch={false}>`.**
+
+Next.js prefetches `<Link>` targets on hover or when they scroll into view. A prefetch of `/auth/login` starts a login flow (writing a `__txn_*` cookie) that the user never completes, since the prefetched response is discarded. Prevent it by not prefetching the login route:
 
 ```tsx
-// Optional safety net — not required in current SDK versions
+// ✅ Do — a plain anchor never prefetches
+<a href="/auth/login">Sign In</a>
+
+// ✅ Do — Link with prefetch disabled
 <Link href="/auth/login" prefetch={false}>
   Sign In
 </Link>
+
+// ❌ Don't — this prefetches /auth/login and writes a __txn_* cookie on hover/scroll
+<Link href="/auth/login">Sign In</Link>
 ```
+
+**2. Prefer `withPageAuthRequired` over middleware redirects to protect pages.**
+
+`withPageAuthRequired` redirects to the login route from inside the React Server Component render. Next.js does **not** follow that redirect during a prefetch, so `handleLogin` is never called and no `__txn_*` cookie is written for prefetched protected pages. A middleware redirect to `/auth/login`, by contrast, is followed on prefetch of a protected page while the user is logged out — each prefetch then writes a transaction cookie.
+
+```tsx
+// ✅ Preferred — redirect happens in RSC render, not followed on prefetch
+export default auth0.withPageAuthRequired(async function Page() {
+  return <div>Protected content</div>;
+}, { returnTo: "/protected" });
+```
+
+```ts
+// ⚠️ Middleware redirect — followed on prefetch of a protected page while
+// logged out, writing a __txn_* cookie for a flow that never completes.
+export async function middleware(request: NextRequest) {
+  const session = await auth0.getSession(request);
+  if (!session) {
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin));
+  }
+  return NextResponse.next();
+}
+```
+
+If you are running an older SDK version without the automatic protections above, adding `prefetch={false}` to `<Link>` components pointing to your login route is the key fallback.
 
 If accumulation persists after upgrading, shorten the transaction cookie lifetime so abandoned logins expire sooner:
 

@@ -191,7 +191,7 @@ export default async function Home() {
 ```
 
 > [!IMPORTANT]  
-> You must use `<a>` tags instead of the `<Link>` component to ensure that the routing is not done client-side as that may result in some unexpected behavior.
+> You must use `<a>` tags instead of the `<Link>` component to ensure that the routing is not done client-side as that may result in some unexpected behavior. Prefetching a `<Link href="/auth/login">` also starts login flows that never complete, accumulating transaction cookies until requests fail with `431 Request Header Fields Too Large`. See [Preventing "431 Request Header Fields Too Large" Errors](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#preventing-431-request-header-fields-too-large-errors) for details.
 
 ## Customizing the client
 
