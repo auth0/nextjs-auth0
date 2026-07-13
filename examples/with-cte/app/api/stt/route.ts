@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  CustomTokenExchangeError,
-  CustomTokenExchangeErrorCode
-} from "@auth0/nextjs-auth0/server";
+import { CustomTokenExchangeError } from "@auth0/nextjs-auth0/server";
 import type { SessionTransferTokenOptions } from "@auth0/nextjs-auth0/types";
 
 import { auth0 } from "@/lib/auth0";
@@ -45,6 +42,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate the target URL BEFORE minting — the STT is one-shot and short-lived,
+  // so we must not spend one on a request we can't complete. Also force scope to
+  // "openid profile": impersonated sessions cannot get a refresh token, so the
+  // SDK's default `offline_access` scope would make /authorize fail with
+  // `interaction_required`. Passing scope on the login URL overrides the SDK
+  // default when handleLogin forwards it to /authorize.
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(body.targetLoginUrl);
+  } catch {
+    return NextResponse.json(
+      {
+        code: "invalid_request",
+        message: "targetLoginUrl must be an absolute URL."
+      },
+      { status: 400 }
+    );
+  }
+  if (!targetUrl.searchParams.has("scope")) {
+    targetUrl.searchParams.set("scope", "openid profile");
+  }
+
   try {
     const result = await auth0.requestSessionTransferToken({
       subjectToken: body.subjectToken,
@@ -55,31 +74,30 @@ export async function POST(req: NextRequest) {
       actor: body.actor
     });
 
-    // Force scope to "openid profile" on the target login URL. Impersonated
-    // sessions cannot be granted a refresh token, so requesting `offline_access`
-    // (part of the SDK's default scope) makes /authorize fail with
-    // `interaction_required`. Passing scope on the login URL overrides the
-    // SDK default when handleLogin forwards it to /authorize.
-    const targetUrl = new URL(body.targetLoginUrl);
-    if (!targetUrl.searchParams.has("scope")) {
-      targetUrl.searchParams.set("scope", "openid profile");
-    }
-
     const redirectResponse = auth0.buildSessionTransferRedirect(
       targetUrl.toString(),
       result,
       { organization: body.organization }
     );
 
+    const redirectUrl = redirectResponse.headers.get("location");
+    if (!redirectUrl) {
+      return NextResponse.json(
+        {
+          code: "unexpected_error",
+          message: "Failed to build the session transfer redirect URL."
+        },
+        { status: 500 }
+      );
+    }
+
     // Return the redirect URL to the client so it can navigate there
-    return NextResponse.json({
-      redirectUrl: redirectResponse.headers.get("location"),
-      expiresIn: result.expiresIn
-    });
+    return NextResponse.json({ redirectUrl, expiresIn: result.expiresIn });
   } catch (err: unknown) {
     if (err instanceof CustomTokenExchangeError) {
-      const status =
-        err.code === CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE ? 400 : 400;
+      // All STT exchange failures (bad input, missing actor, disabled feature,
+      // upstream exchange error) are surfaced to the client as 400 with the typed
+      // code and the underlying cause for diagnosis.
       return NextResponse.json(
         {
           code: err.code,
@@ -92,7 +110,7 @@ export async function POST(req: NextRequest) {
                 }
               : undefined
         },
-        { status }
+        { status: 400 }
       );
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type SttResult = {
   redirectUrl: string;
@@ -38,9 +38,7 @@ export function SessionTransferForm() {
   const [subjectTokenType, setSubjectTokenType] = useState<string>(
     TOKEN_TYPE_OPTIONS[0].value
   );
-  const [targetLoginUrl, setTargetLoginUrl] = useState(
-    "https://target-app.example.com/auth/login"
-  );
+  const [targetLoginUrl, setTargetLoginUrl] = useState("");
   const [reason, setReason] = useState("");
   const [organization, setOrganization] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -49,6 +47,13 @@ export function SessionTransferForm() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SttResult | null>(null);
   const [error, setError] = useState<SttError | null>(null);
+
+  // Default the target to this app's own login route (it both mints and redeems
+  // in this example). Set on mount to avoid an SSR/CSR hydration mismatch, and
+  // to avoid minting a wasted one-shot STT against a placeholder host.
+  useEffect(() => {
+    setTargetLoginUrl(`${window.location.origin}/auth/login`);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,9 +93,16 @@ export function SessionTransferForm() {
 
   async function handleCopy() {
     if (!result?.redirectUrl) return;
-    await navigator.clipboard.writeText(result.redirectUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // Clipboard access can reject (insecure context / permission denied) — e.g.
+    // plain http on localhost. Fail quietly rather than throwing an unhandled
+    // rejection; the URL is still visible for manual copy.
+    try {
+      await navigator.clipboard.writeText(result.redirectUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // no-op: user can select and copy the URL shown on screen
+    }
   }
 
   return (
