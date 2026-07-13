@@ -657,14 +657,6 @@ export class AuthClient {
     this.dpopValidated = true;
   }
 
-  private async cleanupTransactionCookies(
-    req: NextRequest,
-    resCookies: ResponseCookies,
-    state: string
-  ): Promise<void> {
-    await this.transactionStore.delete(resCookies, state);
-  }
-
   async handler(req: NextRequest): Promise<NextResponse> {
     let { pathname } = req.nextUrl;
 
@@ -1271,7 +1263,7 @@ export class AuthClient {
         session
       );
 
-      await this.cleanupTransactionCookies(req, res.cookies, state);
+      await this.transactionStore.delete(res.cookies, state);
 
       return res;
     }
@@ -1481,7 +1473,7 @@ export class AuthClient {
           true
         );
         addCacheControlHeadersForSession(popupResponse);
-        await this.cleanupTransactionCookies(req, popupResponse.cookies, state);
+        await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       } else {
         // No existing session (edge case: session expired during popup flow)
@@ -1551,7 +1543,7 @@ export class AuthClient {
           true
         );
         addCacheControlHeadersForSession(popupResponse);
-        await this.cleanupTransactionCookies(req, popupResponse.cookies, state);
+        await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       }
     }
@@ -1613,7 +1605,7 @@ export class AuthClient {
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
-    await this.cleanupTransactionCookies(req, res.cookies, state);
+    await this.transactionStore.delete(res.cookies, state);
 
     return res;
   }
