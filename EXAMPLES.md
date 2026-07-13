@@ -4026,12 +4026,10 @@ const authClient = new Auth0Client({
 | Option                                    | Type                          | Description                                                                                                                                                                                                                                         |
 | ----------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `transactionCookie.maxAge`                | `number`                      | Expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned cookies expire automatically.                                                                                                           |
-| `transactionCookie.maxSizeBytes`          | `number`                      | Maximum total byte size of all `__txn_*` cookies combined. Defaults to `4096`. When exceeded, the SDK evicts prefetch cookies first (phase 1), then oldest real login cookies (phase 2), before writing the new cookie. One JWE is ~450–555 bytes. |
 | `transactionCookie.prefix`                | `string`                      | Prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`; in single mode, just `__txn_`.                                                                                                     |
 | `transactionCookie.sameSite`              | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                                                     |
 | `transactionCookie.secure`                | `boolean`                     | When `true`, the cookie is only sent over HTTPS. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted.                                                                                                     |
 | `transactionCookie.path`                  | `string`                      | URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                                                                          |
-| `dangerouslyAllowLoginPrefetch`           | `boolean`                     | Defaults to `false`. When `false`, the SDK returns a `401` on non-navigational requests to `/auth/login` (Next.js prefetch, XHR), preventing prefetch cookies from accumulating. Set to `true` only for apps with custom login pages worth caching. |
 
 ### Troubleshooting: 431 / cookie header too large
 
@@ -4039,8 +4037,8 @@ If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookie
 
 **This is fixed in the current SDK version.** The SDK now:
 
-1. Returns `401` on Next.js prefetch requests to `/auth/login` so no cookie is written (`dangerouslyAllowLoginPrefetch: false` by default).
-2. Automatically evicts accumulated cookies when the `maxSizeBytes` limit is reached — prefetch cookies first, then oldest real login cookies.
+1. Returns `401` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
+2. Automatically evicts accumulated `__txn_*` cookies once their combined size reaches a fixed internal limit (3500 bytes, roughly six concurrent in-flight logins) — oldest-first (FIFO) by creation timestamp — before writing the new cookie. Only transaction cookies are measured and evicted; the session and other cookies are never touched. This limit is not configurable.
 
 If you are running an older version, adding `prefetch={false}` to `<Link>` components pointing to your login route is a safe fallback:
 
@@ -4051,12 +4049,11 @@ If you are running an older version, adding `prefetch={false}` to `<Link>` compo
 </Link>
 ```
 
-If accumulation persists after upgrading, increase the byte limit or reduce `maxAge`:
+If accumulation persists after upgrading, shorten the transaction cookie lifetime so abandoned logins expire sooner:
 
 ```ts
 export const auth0 = new Auth0Client({
   transactionCookie: {
-    maxSizeBytes: 8192, // raise the ceiling (default 4096)
     maxAge: 600, // shorten TTL to 10 minutes (default 3600)
   },
 });

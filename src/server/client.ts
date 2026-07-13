@@ -612,8 +612,7 @@ export class Auth0Client {
       path: options.transactionCookie?.path ?? basePath ?? "/",
       maxAge: options.transactionCookie?.maxAge ?? 3600,
       domain:
-        options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN,
-      maxSizeBytes: options.transactionCookie?.maxSizeBytes
+        options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
     if (appBaseUrl) {

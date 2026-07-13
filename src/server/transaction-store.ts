@@ -5,6 +5,16 @@ import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
+// Maximum total byte size of all transaction (`__txn_*`) cookies combined.
+// When the accumulated size meets or exceeds this limit, the oldest cookies are
+// evicted (FIFO by creation timestamp) before a new one is written. One JWE is
+// ~450–555 bytes, so this allows ~6 concurrent in-flight logins — enough for
+// multi-tab use while staying well under the request-header limits enforced by
+// browsers (~4 KB per cookie) and servers/proxies. Intentionally fixed and not
+// configurable: it caps transaction-cookie accumulation regardless of the
+// deployment's header limit, which the SDK cannot know.
+const MAX_TRANSACTION_COOKIE_BYTES = 3500;
+
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
   responseType: RESPONSE_TYPES;
@@ -52,24 +62,6 @@ export interface TransactionCookieOptions {
    * Default: `__txn_{state}`.
    */
   prefix?: string;
-  /**
-   * Maximum total byte size of all transaction cookies combined. When the
-   * accumulated size meets or exceeds this limit, cookies are evicted before
-   * the new one is written using a two-phase strategy:
-   *
-   * Phase 1 — delete all prefetch cookies (value prefix `p:`). These are
-   * provably garbage and never lead to a completed OAuth flow.
-   *
-   * Phase 2 — if still over threshold after phase 1, evict real login cookies
-   * oldest-first by the timestamp encoded in their value prefix (`{ts}:`).
-   * Zero crypto decryption happens during eviction.
-   *
-   * One `__txn_*` JWE is ~450–555 bytes. Default `4096` allows ~7–9 cookies —
-   * well under the 8 KB request-header limit most servers enforce.
-   *
-   * @default 4096
-   */
-  maxSizeBytes?: number;
   /**
    * The sameSite attribute of the transaction cookie.
    *
@@ -124,7 +116,6 @@ export class TransactionStore {
   private readonly transactionCookiePrefix: string;
   private readonly cookieOptions: cookies.CookieOptions;
   private readonly enableParallelTransactions: boolean;
-  private readonly maxSizeBytes: number;
 
   constructor({
     secret,
@@ -143,7 +134,6 @@ export class TransactionStore {
       maxAge: cookieOptions?.maxAge || 60 * 60 // 1 hour in seconds
     };
     this.enableParallelTransactions = enableParallelTransactions ?? true;
-    this.maxSizeBytes = cookieOptions?.maxSizeBytes ?? 4096;
   }
 
   /**
@@ -169,8 +159,9 @@ export class TransactionStore {
    *
    * @param resCookies - The response cookies object to set the transaction cookie on
    * @param transactionState - The transaction state to save
-   * @param reqCookies - Optional request cookies. When provided, enables maxSizeBytes
-   *                     eviction before writing the new cookie.
+   * @param reqCookies - Optional request cookies. When provided, enables FIFO
+   *                     eviction of accumulated transaction cookies (capped at
+   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the new cookie.
    * @throws {Error} When transaction state is missing required state parameter
    */
   async save(
@@ -180,51 +171,6 @@ export class TransactionStore {
   ) {
     if (!transactionState.state) {
       throw new Error("Transaction state is required");
-    }
-
-    // Evict oldest transaction cookies FIFO when total size exceeds the cap.
-    // Safety net for abandoned logins and silent prefetches not caught by the
-    // prefetch guard (e.g. router.prefetch(), CDN-stripped headers).
-    if (reqCookies) {
-      const existing = reqCookies
-        .getAll()
-        .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
-      const totalBytes = existing.reduce(
-        (sum, c) =>
-          sum + new TextEncoder().encode(`${c.name}=${c.value}`).length,
-        0
-      );
-      if (totalBytes >= this.maxSizeBytes) {
-        const deleteOptions = {
-          domain: this.cookieOptions.domain,
-          path: this.cookieOptions.path,
-          secure: this.cookieOptions.secure,
-          sameSite: this.cookieOptions.sameSite,
-          httpOnly: this.cookieOptions.httpOnly
-        };
-
-        // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
-        // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
-        const sorted = [...existing].sort((a, b) => {
-          const tsA = parseInt(a.value) || 0;
-          const tsB = parseInt(b.value) || 0;
-          return tsA - tsB;
-        });
-
-        let freed = 0;
-        const target = totalBytes - this.maxSizeBytes + 1;
-        for (const c of sorted) {
-          cookies.deleteCookie(resCookies, c.name, deleteOptions);
-          freed += new TextEncoder().encode(`${c.name}=${c.value}`).length;
-          if (freed >= target) break;
-        }
-
-        console.warn(
-          `[auth0] Evicted transaction cookie(s) — total size ${totalBytes} bytes exceeded ` +
-            `${this.maxSizeBytes} byte limit. Increase transactionCookie.maxSizeBytes to ` +
-            `reduce eviction of in-flight logins.`
-        );
-      }
     }
 
     const expiration = Math.floor(
@@ -239,11 +185,65 @@ export class TransactionStore {
     // Encode creation timestamp in the value for O(1) FIFO ordering during eviction.
     // "{ts}:{jwe}" — no cookie name change, backward compatible with legacy bare "{jwe}".
     const ts = Math.floor(Date.now() / 1000);
-    resCookies.set(
-      this.getTransactionCookieName(transactionState.state),
-      `${ts}:${jwe}`,
-      this.cookieOptions
-    );
+    const newCookieName = this.getTransactionCookieName(transactionState.state);
+    const newCookieValue = `${ts}:${jwe}`;
+
+    // Evict oldest transaction cookies FIFO before writing the new one, so the
+    // accumulated `__txn_*` cookies stay under MAX_TRANSACTION_COOKIE_BYTES.
+    // Only transaction cookies are ever measured or deleted here — the session
+    // and other cookies are left untouched, and the platform's own request-header
+    // limit is not second-guessed (the SDK cannot know it, and guessing risks
+    // evicting in-flight logins that would otherwise have fit).
+    if (reqCookies) {
+      const enc = new TextEncoder();
+      const sizeOf = (name: string, value: string) =>
+        enc.encode(`${name}=${value}`).length;
+
+      const txnCookies = reqCookies
+        .getAll()
+        .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
+      const txnBytes = txnCookies.reduce(
+        (sum, c) => sum + sizeOf(c.name, c.value),
+        0
+      );
+
+      if (txnBytes >= MAX_TRANSACTION_COOKIE_BYTES) {
+        const deleteOptions = {
+          domain: this.cookieOptions.domain,
+          path: this.cookieOptions.path,
+          secure: this.cookieOptions.secure,
+          sameSite: this.cookieOptions.sameSite,
+          httpOnly: this.cookieOptions.httpOnly
+        };
+
+        // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
+        // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
+        const sorted = [...txnCookies].sort((a, b) => {
+          const tsA = parseInt(a.value) || 0;
+          const tsB = parseInt(b.value) || 0;
+          return tsA - tsB;
+        });
+
+        let freed = 0;
+        const target = txnBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
+        for (const c of sorted) {
+          // Never evict the cookie we are about to (re)write for this state.
+          if (c.name === newCookieName) continue;
+          cookies.deleteCookie(resCookies, c.name, deleteOptions);
+          freed += sizeOf(c.name, c.value);
+          if (freed >= target) break;
+        }
+
+        console.warn(
+          `[auth0] Evicted the oldest transaction cookie(s) — total size ${txnBytes} bytes ` +
+            `exceeded the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+            `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
+            `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
+        );
+      }
+    }
+
+    resCookies.set(newCookieName, newCookieValue, this.cookieOptions);
   }
 
   async get(reqCookies: cookies.RequestCookies, state: string) {

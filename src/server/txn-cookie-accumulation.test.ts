@@ -136,10 +136,16 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fix 2 — maxSizeBytes eviction in TransactionStore.save()
+// Fix 2 — transaction cookie eviction in TransactionStore.save()
+// The byte limit is fixed at 3500 bytes and not configurable. Tests exercise it
+// by building transaction cookies whose combined size crosses that threshold.
 // ---------------------------------------------------------------------------
 
-describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
+// A single transaction cookie value large enough that two of them exceed the
+// fixed 3500-byte limit but one does not (~1900 bytes of value each).
+const BIG_VALUE = (ts: number) => `${ts}:${"j".repeat(1900)}`;
+
+describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () => {
   let secret: string;
 
   beforeEach(async () => {
@@ -147,14 +153,11 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
   });
 
   it("does not evict when no reqCookies passed (no eviction without snapshot)", async () => {
-    const store = new TransactionStore({
-      secret,
-      cookieOptions: { maxSizeBytes: 10 }
-    });
+    const store = new TransactionStore({ secret });
     const resCookies = makeResponseCookies();
     const state = "state-no-evict";
 
-    // Even with a tiny maxSizeBytes, passing no reqCookies skips eviction
+    // With no reqCookies snapshot, eviction is skipped entirely.
     await expect(
       store.save(resCookies, makeTransactionState(state))
     ).resolves.not.toThrow();
@@ -162,15 +165,12 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     expect(resCookies.get(`__txn_${state}`)?.value).toBeTruthy();
   });
 
-  it("does not evict when accumulated bytes are below maxSizeBytes", async () => {
-    const store = new TransactionStore({
-      secret,
-      cookieOptions: { maxSizeBytes: 99999 }
-    });
+  it("does not evict when accumulated bytes are below the limit", async () => {
+    const store = new TransactionStore({ secret });
 
     const existingState = "existing-state";
     const reqCookies = makeRequestCookies({
-      [`__txn_${existingState}`]: "short"
+      [`__txn_${existingState}`]: "1000:short"
     });
     const resCookies = makeResponseCookies();
     const newState = "new-state";
@@ -187,28 +187,16 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
-  it("evicts oldest cookie first when threshold exceeded with mixed timestamps", async () => {
+  it("evicts oldest cookie first when the 3500 byte limit is exceeded", async () => {
+    const store = new TransactionStore({ secret });
+
     const olderState = "older";
     const newerState = "newer";
-    const olderValue = "1000:jwe_older";
-    const newerValue = "9999:jwe_newer";
-
-    const enc = new TextEncoder();
-    const olderBytes = enc.encode(`__txn_${olderState}=${olderValue}`).length;
-    const newerBytes = enc.encode(`__txn_${newerState}=${newerValue}`).length;
-    const totalBytes = olderBytes + newerBytes;
-
-    // maxSizeBytes just below total — eviction fires but only needs to remove one
-    const maxSizeBytes = totalBytes - olderBytes + 1;
-
-    const store = new TransactionStore({
-      secret,
-      cookieOptions: { maxSizeBytes }
-    });
-
+    // Two big cookies together exceed 3500 bytes → eviction fires and only needs
+    // to remove the single oldest to get back under the limit.
     const reqCookies = makeRequestCookies({
-      [`__txn_${olderState}`]: olderValue,
-      [`__txn_${newerState}`]: newerValue
+      [`__txn_${olderState}`]: BIG_VALUE(1000),
+      [`__txn_${newerState}`]: BIG_VALUE(9999)
     });
     const resCookies = makeResponseCookies();
 
@@ -223,18 +211,15 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
-  it("phase-2 evicts oldest real login cookies first when phase-1 insufficient", async () => {
-    const store = new TransactionStore({
-      secret,
-      cookieOptions: { maxSizeBytes: 1 }
-    });
+  it("evicts oldest login cookies first (FIFO by timestamp)", async () => {
+    const store = new TransactionStore({ secret });
 
     const olderState = "older";
     const newerState = "newer";
-    // Older timestamp should be evicted first
+    // Older timestamp should be evicted first once the limit is crossed.
     const reqCookies = makeRequestCookies({
-      [`__txn_${olderState}`]: "1000:jwe_older",
-      [`__txn_${newerState}`]: "9999:jwe_newer"
+      [`__txn_${olderState}`]: BIG_VALUE(1000),
+      [`__txn_${newerState}`]: BIG_VALUE(9999)
     });
     const resCookies = makeResponseCookies();
 
@@ -247,18 +232,15 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
-  it("evicts legacy cookies (no prefix) in phase-2 as oldest (timestamp=0)", async () => {
+  it("evicts legacy cookies (no timestamp prefix) as oldest (timestamp=0)", async () => {
     // Legacy format "{jwe}" has no prefix → gets timestamp 0 → oldest in FIFO
-    const store = new TransactionStore({
-      secret,
-      cookieOptions: { maxSizeBytes: 1 }
-    });
+    const store = new TransactionStore({ secret });
 
     const legacyState = "legacy";
     const newerState = "newer";
     const reqCookies = makeRequestCookies({
-      [`__txn_${legacyState}`]: "raw_jwe_no_prefix",
-      [`__txn_${newerState}`]: "9999:jwe_newer",
+      [`__txn_${legacyState}`]: "r".repeat(1900), // legacy bare value, no "{ts}:"
+      [`__txn_${newerState}`]: BIG_VALUE(9999),
       other_cookie: "keep_me"
     });
     const resCookies = makeResponseCookies();
@@ -278,16 +260,17 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
     const customPrefix = "__my_txn_";
     const store = new TransactionStore({
       secret,
-      cookieOptions: { maxSizeBytes: 1, prefix: customPrefix }
+      cookieOptions: { prefix: customPrefix }
     });
 
+    // Two big custom-prefix cookies exceed the limit; a same-sized cookie with a
+    // different prefix must not be counted toward the budget or evicted.
     const reqCookies = makeRequestCookies({
-      [`${customPrefix}state1`]: "p:prefetch_jwe",
-      __txn_other: "1000:other_jwe" // different prefix — should NOT be evicted
+      [`${customPrefix}state1`]: BIG_VALUE(1000),
+      [`${customPrefix}state2`]: BIG_VALUE(2000),
+      __txn_other: BIG_VALUE(1000) // different prefix — should NOT be evicted
     });
     const resCookies = makeResponseCookies();
-    resCookies.set(`${customPrefix}state1`, "p:prefetch_jwe");
-    resCookies.set("__txn_other", "1000:other_jwe");
 
     await store.save(
       resCookies,
@@ -295,9 +278,21 @@ describe("Fix 2 — maxSizeBytes eviction in TransactionStore.save()", () => {
       reqCookies
     );
 
+    // Oldest custom-prefix cookie evicted
     expect(resCookies.get(`${customPrefix}state1`)?.maxAge).toBe(0);
     // __txn_other has a different prefix — not touched by this store
-    expect(resCookies.get("__txn_other")?.value).toBe("1000:other_jwe");
+    expect(resCookies.get("__txn_other")).toBeUndefined();
+  });
+
+  it("does not expose maxSizeBytes as a configurable option", () => {
+    // Type-level guarantee that the option was removed; passing it is a no-op
+    // and the fixed limit still governs eviction.
+    const store = new TransactionStore({
+      secret,
+      // @ts-expect-error maxSizeBytes is no longer a supported option
+      cookieOptions: { maxSizeBytes: 1 }
+    });
+    expect(store).toBeInstanceOf(TransactionStore);
   });
 
   it("cookie value is encoded as '{ts}:{jwe}'", async () => {
