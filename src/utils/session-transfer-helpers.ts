@@ -27,7 +27,8 @@ export function buildSessionTransferAudience(domain: string): string {
  *
  * Precedence:
  * 1. Explicit `actor` passed by the caller
- * 2. Session ID token (must be unexpired — server rejects expired actor tokens)
+ * 2. Session ID token (must be unexpired — server rejects expired actor tokens;
+ *    this function does NOT refresh it, it fails when the token is already expired)
  * 3. `ACTOR_UNAVAILABLE` thrown client-side
  *
  * An actor is mandatory for an STT. Without one the exchange fails server-side
@@ -91,6 +92,38 @@ export function resolveActorFromSession(
 }
 
 /**
+ * Builds the target login URL carrying the STT (and optional `organization`) as
+ * query parameters. Pure string builder — no network call, nothing persisted.
+ *
+ * Throws `CustomTokenExchangeError(EXCHANGE_FAILED)` if `targetLoginUrl` is not a
+ * valid absolute URL. `targetLoginUrl` must be a trusted, app-controlled value.
+ *
+ * Shared by both the core `AuthClient` and the `Auth0Client` wrapper (including its
+ * resolver-mode fallback) so the STT query-param logic and URL guard live in one place.
+ */
+export function buildSessionTransferRedirectUrl(
+  targetLoginUrl: string,
+  sessionTransferToken: string,
+  opts?: { organization?: string }
+): string {
+  let url: URL;
+  try {
+    url = new URL(targetLoginUrl);
+  } catch {
+    throw new CustomTokenExchangeError(
+      CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+      `Invalid targetLoginUrl: "${targetLoginUrl}" is not an absolute URL. ` +
+        "Pass a trusted, app-controlled absolute login URL (e.g. https://app.example.com/auth/login)."
+    );
+  }
+  url.searchParams.set("session_transfer_token", sessionTransferToken);
+  if (opts?.organization) {
+    url.searchParams.set("organization", opts.organization);
+  }
+  return url.toString();
+}
+
+/**
  * Maps the raw token endpoint response to a `SessionTransferTokenResult`.
  *
  * The server signals an STT via `issued_token_type`; the `access_token` field
@@ -111,21 +144,27 @@ export function parseSessionTransferTokenResponse(raw: {
 }
 
 /**
- * Maps a server 400 error code to a typed `CustomTokenExchangeErrorCode` for STT failures.
- * Returns `null` when the error code is not STT-specific (caller should fall through to EXCHANGE_FAILED).
+ * Maps a server STT failure to a typed `CustomTokenExchangeErrorCode`, keyed off the
+ * machine-readable `error` code only.
+ *
+ * Per the SDK requirements, the SDK does NOT match against `error_description` text to
+ * remap failures. Today Auth0 returns these failures with a generic `error`
+ * (`invalid_request`) and the detail in `error_description`, so this returns `null` and
+ * the caller surfaces the raw `error`/`error_description` as `EXCHANGE_FAILED`. These
+ * named constants exist for documentation and for the day the platform returns a
+ * machine-readable code (`setactor_required` / `session_transfer_disabled`), at which
+ * point this mapping starts firing without any further change.
  */
 export function mapSttServerError(
   errorCode: string
 ): CustomTokenExchangeErrorCode | null {
-  if (
-    errorCode === "setactor_required" ||
-    errorCode.toLowerCase().includes("setactor")
-  ) {
+  const code = errorCode.toLowerCase();
+  if (code === "setactor_required" || code.includes("setactor")) {
     return CustomTokenExchangeErrorCode.SETACTOR_REQUIRED;
   }
   if (
-    errorCode === "session_transfer_disabled" ||
-    errorCode.toLowerCase().includes("session_transfer")
+    code === "session_transfer_disabled" ||
+    code.includes("session_transfer")
   ) {
     return CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED;
   }

@@ -298,4 +298,13 @@ describe("mapSttServerError", () => {
     expect(mapSttServerError("server_error")).toBeNull();
     expect(mapSttServerError("unknown_error")).toBeNull();
   });
+
+  // Per the SDK requirements, the SDK keys off the machine `error` code only and does
+  // NOT remap based on `error_description` text. Today the server returns a generic
+  // `invalid_request` for these failures, so they fall through to EXCHANGE_FAILED
+  // (with the raw message surfaced); the mapping fires the day Auth0 emits a
+  // machine-readable code.
+  it("should return null for the generic invalid_request the server sends today", () => {
+    expect(mapSttServerError("invalid_request")).toBeNull();
+  });
 });

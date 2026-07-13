@@ -40,6 +40,7 @@ import {
 } from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -1298,7 +1299,10 @@ export class Auth0Client {
    * establish a web session **as a customer** in a target app — without the customer's password.
    *
    * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type` automatically.
-   * The actor defaults to the agent session's ID token (refreshed if expired).
+   * The actor defaults to the agent session's ID token, which must be unexpired and
+   * asymmetrically signed (RS256/PS256). If it is missing or expired, this throws
+   * `ACTOR_UNAVAILABLE` — no automatic refresh is performed, so refresh the session
+   * or pass a fresh explicit `actor` first.
    *
    * Use the result with `buildSessionTransferRedirect` to redirect the agent's browser
    * to the target app's login URL.
@@ -1366,13 +1370,15 @@ export class Auth0Client {
         opts
       );
     }
-    // Fallback: build the URL inline (resolver mode with no static client)
-    const url = new URL(targetLoginUrl);
-    url.searchParams.set("session_transfer_token", result.sessionTransferToken);
-    if (opts?.organization) {
-      url.searchParams.set("organization", opts.organization);
-    }
-    return NextResponse.redirect(url.toString());
+    // Fallback for resolver mode with no static client. Uses the same shared
+    // URL builder (with the same absolute-URL guard) as the core AuthClient,
+    // so behaviour is identical on both paths.
+    const url = buildSessionTransferRedirectUrl(
+      targetLoginUrl,
+      result.sessionTransferToken,
+      opts
+    );
+    return NextResponse.redirect(url);
   }
 
   /**

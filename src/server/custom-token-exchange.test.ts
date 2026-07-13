@@ -1388,6 +1388,107 @@ describe("Custom Token Exchange", () => {
 
         expect(capturedCustomParam).toBe("TCK-4821");
       });
+
+      it("should NOT let additionalParameters override SDK-managed params", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedAudience = "";
+        let capturedActorToken = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedAudience = params.get("audience") ?? "";
+              capturedActorToken = params.get("actor_token") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            additionalParameters: {
+              audience: "urn:evil:override",
+              actor_token: "spoofed-actor"
+            }
+          },
+          session
+        );
+
+        // Managed params win — the injected overrides are ignored.
+        expect(capturedAudience).toBe(`urn:${DEFAULT.domain}:session_transfer`);
+        expect(capturedActorToken).toBe(idToken);
+      });
+
+      // MCD: the audience must be built from the domain the request is served on,
+      // not a fixed configured domain, so the STT is issued for the right domain.
+      it("should build the audience from the effective request domain (MCD)", async () => {
+        const otherDomain = "brand-b.custom.example.com";
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const mcdClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: otherDomain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes()
+        });
+
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedAudience = "";
+        server.use(
+          http.get(
+            `https://${otherDomain}/.well-known/openid-configuration`,
+            () =>
+              HttpResponse.json({
+                issuer: `https://${otherDomain}`,
+                authorization_endpoint: `https://${otherDomain}/authorize`,
+                token_endpoint: `https://${otherDomain}/oauth/token`,
+                jwks_uri: `https://${otherDomain}/.well-known/jwks.json`,
+                response_types_supported: ["code"],
+                subject_types_supported: ["public"],
+                id_token_signing_alg_values_supported: ["RS256"]
+              })
+          ),
+          http.post(
+            `https://${otherDomain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              capturedAudience = params.get("audience") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await mcdClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+          },
+          session
+        );
+
+        expect(capturedAudience).toBe(`urn:${otherDomain}:session_transfer`);
+      });
     });
 
     describe("5.4: STT never persisted / no act on response", () => {

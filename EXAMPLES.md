@@ -187,6 +187,7 @@
   - [Actor Override](#actor-override)
   - [With Organization](#with-organization-1)
   - [Error Handling](#error-handling-6)
+  - [Reading the `act` claim on the established session](#reading-the-act-claim-on-the-established-session)
   - [Limitations](#limitations-1)
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
@@ -4937,34 +4938,48 @@ const result = await auth0.customTokenExchange({
 
 ## Session Transfer Token
 
-Session Transfer Token (STT) is CTE Phase 2. An authenticated agent establishes a web session **as a customer** in a target app — without the customer's password. The agent app requests a one-shot STT for the customer, then redirects the agent's browser to the target app's login URL carrying the token. Auth0 validates the STT and creates an ephemeral session for the agent.
+Session Transfer Token (STT) is CTE Release 2. An authenticated agent (for example a support engineer) establishes a web session **as the customer** in a target app — without the customer's password — so they can see and reproduce the customer's exact experience. The agent app requests a one-shot STT, then redirects the agent's browser to the target app's login URL carrying the token. Auth0 redeems the STT and establishes an ephemeral, device-bound session **as the customer, with the agent recorded in the `act` claim**. The access and ID tokens for that session carry `act`, exactly as in the Release 1 delegation flow.
+
+Almost all of the new SDK surface is on the **initiator** side (the app that requests the STT and builds the redirect): one method — `requestSessionTransferToken()` — plus a redirect helper — `buildSessionTransferRedirect()`. The **target** app barely changes: it does a standard OIDC Authorization Code login with `session_transfer_token` riding along in the `/authorize` query string.
 
 > [!IMPORTANT]
-> Session Transfer requires the `session_transfer` feature flag to be enabled on your tenant. Both the agent app and target app must be on the same Auth0 tenant. Contact Auth0 support or raise an ESD to enable the flag.
+> Session Transfer is a **two-client flow** and requires the `cte_session_transfer_token` feature flag on your tenant (raise an ESD, or enable via layer0 for internal testing). Both clients must be on the same Auth0 tenant. Configure:
+> - **Issuing (initiator) client** — `token_exchange.allow_any_profile_of_type: ["custom_authentication"]` and `session_transfer.can_create_session_transfer_token: true`.
+> - **Redeeming (target) client** — `session_transfer.delegation.allow_delegated_access: true`, `allowed_authentication_methods` must include `"query"` (the STT is redeemed as a query parameter), and `session_transfer.delegation.enforce_device_binding` (`"ip"` default or `"asn"`). Register a **non-localhost** callback — STT redemption rejects `localhost` redirect URIs.
+>
+> A CTE Action must validate the `subject_token`, call `setUserById(customer)`, and call `setActor(agent)` — an STT is only issued when an actor is set. These client settings are configured out of band via the Management API; they are not SDK code.
 
 ### Basic Usage
 
 ```ts
-import { TOKEN_TYPES } from "@auth0/nextjs-auth0/server";
-
-// app/api/stt/route.ts — runs in the agent app
+// app/api/stt/route.ts — runs in the agent (initiator) app
 export async function POST(req: NextRequest) {
   const { subjectToken, subjectTokenType, targetLoginUrl } = await req.json();
 
-  // Request a one-shot STT for the customer
+  // Your app runs its own authorization check here: is this agent allowed to
+  // impersonate this customer, right now? That decision is the app's, not the SDK's.
+
+  // Request a one-shot STT. `subjectToken` is always developer-supplied — it is
+  // your own proof of which customer to impersonate, opaque to Auth0 and validated
+  // only by your CTE Action. The SDK fills in audience, grant_type, and the actor
+  // (from the agent's session ID token) automatically.
   const result = await auth0.requestSessionTransferToken({
-    subjectToken,                  // customer's ID or access token
-    subjectTokenType,              // TOKEN_TYPES.ID_TOKEN or TOKEN_TYPES.ACCESS_TOKEN
+    subjectToken,
+    subjectTokenType,              // must match a registered CTE profile
     reason: "Support investigation #1234"
   });
 
-  // Redirect the agent's browser to the target app's login URL
+  // Redirect the agent's browser to the target app's login URL. The STT is
+  // one-shot (~60s) — hand it straight to the redirect, never store it.
   return auth0.buildSessionTransferRedirect(targetLoginUrl, result);
   // → 307 to https://target-app.example.com/auth/login?session_transfer_token=<stt>
 }
 ```
 
-The target app needs no changes — `handleLogin()` already forwards all query params to `/authorize`, so `session_transfer_token` passes through automatically.
+The target app needs no SDK changes — `nextjs-auth0`'s login handler already forwards arbitrary authorization parameters to `/authorize`, so `session_transfer_token` (and `organization`, when present) pass through automatically on the existing login route.
+
+> [!NOTE]
+> The redeemed impersonation session cannot mint a refresh token and is short-lived (the platform hard-caps it). To continue after it expires, the agent re-runs the whole flow.
 
 ### Actor Override
 
@@ -5010,16 +5025,13 @@ try {
   if (error instanceof CustomTokenExchangeError) {
     switch (error.code) {
       case CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE:
-        // No usable actor token — agent session has no ID token or it is expired
-        break;
-      case CustomTokenExchangeErrorCode.SETACTOR_REQUIRED:
-        // Tenant requires api.authentication.setActor() to be called in an Action
-        break;
-      case CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED:
-        // session_transfer feature flag not enabled on this tenant
+        // Raised client-side, before any network call: no explicit `actor` was
+        // passed and the agent session has no usable (unexpired) ID token.
         break;
       case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
-        // Generic server error — check error.cause for details
+        // Server-side failure. Today the server returns a generic `invalid_request`
+        // for "setActor is required" and "feature disabled", so those surface here —
+        // read error.cause for the server's exact `error` / `error_description`.
         console.error("STT exchange failed:", error.cause);
         break;
     }
@@ -5027,12 +5039,35 @@ try {
 }
 ```
 
+> [!NOTE]
+> `SETACTOR_REQUIRED` (the Action didn't call `setActor()`) and `SESSION_TRANSFER_DISABLED` (the `cte_session_transfer_token` flag is off) are defined as named constants, but the SDK does not remap based on the server's message text. Auth0 currently returns these as a generic `invalid_request`, so they surface as `EXCHANGE_FAILED` with the raw server message on `error.cause`; the typed codes begin firing once the platform emits a machine-readable error code.
+
+### Reading the `act` claim on the established session
+
+Once the STT is redeemed and the code exchanged, the target app has a normal session whose tokens carry the `act` (actor) claim identifying the impersonating agent. Read it off the session user through the SDK's existing claims surface — no new method — to drive UI such as an impersonation banner:
+
+```ts
+// In the target app, after the session is established:
+const session = await auth0.getSession();
+const actor = session?.user.act; // { sub: "agent|support-007", ... } | undefined
+
+if (actor) {
+  // e.g. show an "Impersonating — acting as <customer>" banner,
+  // and/or restrict destructive actions while impersonating.
+}
+```
+
+`act` carries the acting party's `sub` and optionally a few small custom fields the Action added (for example the agent's email or a reason). The `act` claim is **not** present on the STT exchange response — it only appears on the redeemed session's tokens.
+
 ### Limitations
 
-- **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side.
-- **One-shot, ~60 s**: The STT expires quickly and must never be cached or reused.
+- **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side (confidential-client RWAs; SPAs/native are out of scope).
+- **One-shot, ~60 s**: The STT is opaque and must never be decoded, cached, or reused. Redeem it immediately.
+- **Actor is mandatory and must be fresh**: The actor token (the agent's session ID token by default) must be an unexpired, asymmetrically-signed (RS256/PS256) JWT. If it is missing or expired the SDK fails with `ACTOR_UNAVAILABLE` — there is no automatic refresh, so refresh the agent session or pass a fresh explicit `actor`.
+- **Non-localhost callback**: STT redemption rejects `localhost` redirect URIs — use a real domain (or a tunnel) for the target callback.
 - **Same tenant**: Both agent and target app must be on the same Auth0 tenant.
-- **No session modification**: The agent's own session is not modified; no tokens are written to `session.tokenSet`.
+- **No refresh, short-lived session**: The impersonation session cannot mint a refresh token and self-expires; re-run the flow to continue.
+- **No session modification**: The agent's own session is not modified; the STT is never written to `session.tokenSet`.
 
 ## Customizing Auth Handlers
 

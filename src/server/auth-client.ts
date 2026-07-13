@@ -164,6 +164,7 @@ import {
 } from "../utils/session-helpers.js";
 import {
   buildSessionTransferAudience,
+  buildSessionTransferRedirectUrl,
   mapSttServerError,
   parseSessionTransferTokenResponse,
   resolveActorFromSession
@@ -3728,18 +3729,22 @@ export class AuthClient {
    * Pass the result to `buildSessionTransferRedirect` to start the redirect.
    *
    * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`.
-   * The actor is sourced from the agent session's ID token (refreshed if expired).
+   * The actor is sourced from the agent session's ID token. The token must be an
+   * unexpired, asymmetrically-signed (RS256/PS256) JWT — the server rejects HS256
+   * or expired actor tokens. If the session ID token is missing or already expired,
+   * the exchange fails client-side with `ACTOR_UNAVAILABLE` (no automatic refresh is
+   * performed); refresh the agent session or pass a fresh explicit `actor` first.
    * Precedence: explicit `options.actor` → session ID token → throws `ACTOR_UNAVAILABLE`.
    *
    * **The STT is never cached.** Use it immediately with `buildSessionTransferRedirect`.
    *
    * @param options - STT exchange options
-   * @param session - The agent's current session (from `getSessionWithDomainCheck`)
+   * @param session - The agent's current session, used to source the actor token
    * @returns A tuple of `[error, null]` or `[null, SessionTransferTokenResult]`
    *
    * @example
    * ```typescript
-   * const { session } = await authClient.getSessionWithDomainCheck(req.cookies);
+   * const session = await this.getSession();
    * const [error, result] = await authClient.requestSessionTransferToken(
    *   { subjectToken, subjectTokenType: "urn:acme:subject" },
    *   session
@@ -3819,7 +3824,21 @@ export class AuthClient {
       params.append("reason", options.reason);
     }
     if (options.additionalParameters) {
+      // Guard against callers overriding parameters the SDK manages — silently
+      // shadowing e.g. audience or actor_token would break the STT contract.
+      const reservedParams = new Set([
+        "subject_token",
+        "subject_token_type",
+        "audience",
+        "scope",
+        "actor_token",
+        "actor_token_type",
+        "grant_type"
+      ]);
       for (const [key, value] of Object.entries(options.additionalParameters)) {
+        if (reservedParams.has(key)) {
+          continue;
+        }
         if (value !== undefined && value !== null) {
           params.append(key, String(value));
         }
@@ -3853,31 +3872,17 @@ export class AuthClient {
       );
     };
 
-    // Minimal DPoP nonce retry wrapper for the raw HTTP response path.
-    // We re-send if the response is a 400 with error=use_dpop_nonce, extracting
-    // the new nonce from the DPoP-Nonce header and reusing the same dpopHandle.
+    // DPoP nonce handling via the shared retry helper (Path 1: it inspects the
+    // returned Response for a `use_dpop_nonce` 400 and retries once). The DPoP
+    // handle learns the nonce from the `DPoP-Nonce` header automatically, so the
+    // resent request carries a valid proof. When DPoP is disabled this is a
+    // single pass-through call.
     let httpResponse: Response;
     try {
-      httpResponse = await sendExchange();
-
-      if (this.useDPoP && dpopHandle && httpResponse.status === 400) {
-        const cloned = httpResponse.clone();
-        let body: any;
-        try {
-          body = await cloned.json();
-        } catch {
-          body = {};
-        }
-        if (body?.error === "use_dpop_nonce") {
-          const newNonce = httpResponse.headers.get("DPoP-Nonce");
-          if (newNonce) {
-            // Let the dpopHandle learn the nonce by making a throwaway attempt
-            // through the standard path so oauth4webapi's internals update.
-            // Then resend.
-            httpResponse = await sendExchange();
-          }
-        }
-      }
+      httpResponse = await withDPoPNonceRetry(sendExchange, {
+        isDPoPEnabled: !!(this.useDPoP && dpopHandle),
+        ...this.dpopOptions?.retry
+      });
     } catch (err: any) {
       const oauthErr = await extractOAuthErrorDetails(err);
       const errorCode = oauthErr.error ?? "unknown_error";
@@ -3973,12 +3978,12 @@ export class AuthClient {
     result: SessionTransferTokenResult,
     opts?: { organization?: string }
   ): NextResponse {
-    const url = new URL(targetLoginUrl);
-    url.searchParams.set("session_transfer_token", result.sessionTransferToken);
-    if (opts?.organization) {
-      url.searchParams.set("organization", opts.organization);
-    }
-    return NextResponse.redirect(url.toString());
+    const url = buildSessionTransferRedirectUrl(
+      targetLoginUrl,
+      result.sessionTransferToken,
+      opts
+    );
+    return NextResponse.redirect(url);
   }
 
   /**
