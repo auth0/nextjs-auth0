@@ -4943,11 +4943,15 @@ Session Transfer Token (STT) is CTE Release 2. An authenticated agent (for examp
 Almost all of the new SDK surface is on the **initiator** side (the app that requests the STT and builds the redirect): one method — `requestSessionTransferToken()` — plus a redirect helper — `buildSessionTransferRedirect()`. The **target** app barely changes: it does a standard OIDC Authorization Code login with `session_transfer_token` riding along in the `/authorize` query string.
 
 > [!IMPORTANT]
+<<<<<<< Updated upstream
 > Session Transfer is a **two-client flow** and requires the `cte_session_transfer_token` feature flag on your tenant (raise an ESD, or enable via layer0 for internal testing). Both clients must be on the same Auth0 tenant. Configure:
 > - **Issuing (initiator) client** — `token_exchange.allow_any_profile_of_type: ["custom_authentication"]` and `session_transfer.can_create_session_transfer_token: true`.
 > - **Redeeming (target) client** — `session_transfer.delegation.allow_delegated_access: true`, `allowed_authentication_methods` must include `"query"` (the STT is redeemed as a query parameter), and `session_transfer.delegation.enforce_device_binding` (`"ip"` default or `"asn"`). Register a **non-localhost** callback — STT redemption rejects `localhost` redirect URIs.
 >
 > A CTE Action must validate the `subject_token`, call `setUserById(customer)`, and call `setActor(agent)` — an STT is only issued when an actor is set. These client settings are configured out of band via the Management API; they are not SDK code.
+=======
+> Session Transfer requires the `cte_session_transfer_token` feature flag to be enabled on your tenant. Both the agent app and target app must be on the same Auth0 tenant. Contact Auth0 support or raise an ESD to enable the flag.
+>>>>>>> Stashed changes
 
 ### Basic Usage
 
@@ -5025,8 +5029,18 @@ try {
   if (error instanceof CustomTokenExchangeError) {
     switch (error.code) {
       case CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE:
+<<<<<<< Updated upstream
         // Raised client-side, before any network call: no explicit `actor` was
         // passed and the agent session has no usable (unexpired) ID token.
+=======
+        // No usable actor token — agent session has no ID token or it is expired
+        break;
+      case CustomTokenExchangeErrorCode.SETACTOR_REQUIRED:
+        // Tenant requires api.authentication.setActor() to be called in an Action
+        break;
+      case CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED:
+        // cte_session_transfer_token feature flag not enabled on this tenant
+>>>>>>> Stashed changes
         break;
       case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
         // Server-side failure. Today the server returns a generic `invalid_request`
