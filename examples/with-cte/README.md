@@ -49,9 +49,10 @@ For the actor token / delegation flow:
 
 For the STT flow (agent establishes a session as a customer in another app):
 
-1. Enable the `session_transfer` feature flag on your tenant (raise an ESD request).
+1. Enable the `cte_session_transfer_token` feature flag on your tenant (raise an ESD request).
 2. Ensure both the **agent app** and the **target app** are on the same Auth0 tenant.
 3. The target app must use `handleLogin()` (or equivalent) which automatically forwards `session_transfer_token` to `/authorize`.
+4. Use a **non-localhost** callback URL for the target app. STT redemption is rejected on `localhost` redirect URIs, so run behind a real domain or a tunnel (e.g. Cloudflare Tunnel) and set `APP_BASE_URL` to that URL.
 
 ## Configuration
 
@@ -86,11 +87,23 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Custom Token Exchange (`/cte`)
+
 1. Click **Log in** — you are redirected through Auth0 Universal Login and land on `/dashboard`.
 2. Your current **access token** is shown on the dashboard — copy it.
 3. Click **Try Token Exchange** to go to `/cte`.
 4. Paste the access token as the subject token, set the type to `urn:ietf:params:oauth:token-type:access_token`, and click **Exchange token**.
 5. The response shows the new `accessToken`, `idToken`, `scope`, and — if your Action sets it — the `act` claim.
+
+### Session Transfer Token (`/stt`)
+
+> Requires a non-localhost callback (see Dashboard Setup step 4). Access the app via that URL, not `http://localhost:3000`.
+
+1. Log in as the **agent** and land on `/dashboard`.
+2. Click **Session Transfer** to go to `/stt`.
+3. Fill in the customer token, set the token type to your registered CTE profile (e.g. `urn:acme:legacy-token`), and set the target app's login URL (e.g. `https://your-domain/auth/login`). Submit.
+4. Copy the returned redirect URL and open it in a **fresh incognito window** (no existing tenant session), within ~60 seconds — the STT is single-use and short-lived.
+5. The target app redeems the STT with no login/MFA/consent prompt and establishes a session **as the customer**. Decode the session's ID token: `sub` is the customer and `act.sub` is the agent. No refresh token is issued for an impersonation session.
 
 ## How It Works
 
