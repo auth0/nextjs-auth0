@@ -189,61 +189,78 @@ export class TransactionStore {
     const newCookieValue = `${ts}:${jwe}`;
 
     // Evict oldest transaction cookies FIFO before writing the new one, so the
-    // accumulated `__txn_*` cookies stay under MAX_TRANSACTION_COOKIE_BYTES.
-    // Only transaction cookies are ever measured or deleted here — the session
-    // and other cookies are left untouched, and the platform's own request-header
-    // limit is not second-guessed (the SDK cannot know it, and guessing risks
-    // evicting in-flight logins that would otherwise have fit).
+    // accumulated `__txn_*` cookies stay under the fixed byte limit. Only
+    // transaction cookies are measured/deleted — the session and other cookies
+    // are left untouched, and the cookie about to be written is never evicted.
     if (reqCookies) {
-      const enc = new TextEncoder();
-      const sizeOf = (name: string, value: string) =>
-        enc.encode(`${name}=${value}`).length;
-
-      const txnCookies = reqCookies
-        .getAll()
-        .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
-      const txnBytes = txnCookies.reduce(
-        (sum, c) => sum + sizeOf(c.name, c.value),
-        0
-      );
-
-      if (txnBytes >= MAX_TRANSACTION_COOKIE_BYTES) {
-        const deleteOptions = {
-          domain: this.cookieOptions.domain,
-          path: this.cookieOptions.path,
-          secure: this.cookieOptions.secure,
-          sameSite: this.cookieOptions.sameSite,
-          httpOnly: this.cookieOptions.httpOnly
-        };
-
-        // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
-        // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
-        const sorted = [...txnCookies].sort((a, b) => {
-          const tsA = parseInt(a.value) || 0;
-          const tsB = parseInt(b.value) || 0;
-          return tsA - tsB;
-        });
-
-        let freed = 0;
-        const target = txnBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
-        for (const c of sorted) {
-          // Never evict the cookie we are about to (re)write for this state.
-          if (c.name === newCookieName) continue;
-          cookies.deleteCookie(resCookies, c.name, deleteOptions);
-          freed += sizeOf(c.name, c.value);
-          if (freed >= target) break;
-        }
-
-        console.warn(
-          `[auth0] Evicted the oldest transaction cookie(s) — total size ${txnBytes} bytes ` +
-            `exceeded the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
-            `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
-            `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
-        );
-      }
+      this.evictOldestTransactionCookies(reqCookies, resCookies, newCookieName);
     }
 
     resCookies.set(newCookieName, newCookieValue, this.cookieOptions);
+  }
+
+  /**
+   * Evicts the oldest transaction cookies (FIFO by the `{ts}:` value prefix) from
+   * the response so the accumulated `__txn_*` cookies stay under
+   * {@link MAX_TRANSACTION_COOKIE_BYTES} before a new one is written.
+   *
+   * Only cookies matching the transaction prefix are measured and deleted — the
+   * session, connection-token, and application cookies are never touched. The
+   * cookie about to be (re)written for the current transaction (`skipCookieName`)
+   * is never evicted. No-op when the accumulated size is under the limit.
+   */
+  private evictOldestTransactionCookies(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies,
+    skipCookieName: string
+  ) {
+    const sizeOf = (name: string, value: string) =>
+      new TextEncoder().encode(`${name}=${value}`).length;
+
+    const txnCookies = reqCookies
+      .getAll()
+      .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
+    const txnBytes = txnCookies.reduce(
+      (sum, c) => sum + sizeOf(c.name, c.value),
+      0
+    );
+
+    if (txnBytes < MAX_TRANSACTION_COOKIE_BYTES) {
+      return;
+    }
+
+    const deleteOptions = {
+      domain: this.cookieOptions.domain,
+      path: this.cookieOptions.path,
+      secure: this.cookieOptions.secure,
+      sameSite: this.cookieOptions.sameSite,
+      httpOnly: this.cookieOptions.httpOnly
+    };
+
+    // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
+    // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
+    const sorted = [...txnCookies].sort((a, b) => {
+      const tsA = parseInt(a.value) || 0;
+      const tsB = parseInt(b.value) || 0;
+      return tsA - tsB;
+    });
+
+    let freed = 0;
+    const target = txnBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
+    for (const c of sorted) {
+      // Never evict the cookie we are about to (re)write for this state.
+      if (c.name === skipCookieName) continue;
+      cookies.deleteCookie(resCookies, c.name, deleteOptions);
+      freed += sizeOf(c.name, c.value);
+      if (freed >= target) break;
+    }
+
+    console.warn(
+      `[auth0] Evicted the oldest transaction cookie(s) — total size ${txnBytes} bytes ` +
+        `exceeded the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+        `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
+        `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
+    );
   }
 
   async get(reqCookies: cookies.RequestCookies, state: string) {
