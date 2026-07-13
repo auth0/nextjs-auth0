@@ -35,7 +35,7 @@ importers:
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.4
-        version: 9.39.4
+        version: 9.39.5
       '@evilmartians/lefthook':
         specifier: ^1.10.10
         version: 1.13.6
