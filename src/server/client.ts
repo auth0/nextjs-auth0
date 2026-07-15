@@ -12,7 +12,9 @@ import {
   ConnectAccountError,
   ConnectAccountErrorCodes,
   InvalidConfigurationError,
-  MfaRequiredError
+  MfaRequiredError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -1236,6 +1238,57 @@ export class Auth0Client {
     }
 
     return response;
+  }
+
+  /**
+   * Revokes the refresh token stored in the current session at the Auth0
+   * `/oauth/revoke` endpoint (RFC 7009).
+   *
+   * Per RFC 7009, revoking a refresh token also invalidates the other tokens
+   * issued under the same authorization grant. Note that this does **not**
+   * clear the local session — use `handleLogout` (which already revokes on
+   * logout) for a full logout.
+   *
+   * @param options For the Pages Router, pass the request object so the session can be read.
+   *
+   * @throws {TokenRevocationError} If no session or refresh token exists, or the revocation request fails.
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc7009 RFC 7009 Token Revocation}
+   */
+  async revokeRefreshToken(options?: {
+    req?: PagesRouterRequest | NextRequest;
+  }): Promise<void> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(
+      options?.req
+    );
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+
+    if (!session) {
+      throw new TokenRevocationError(
+        TokenRevocationErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
+    }
+
+    if (!session.tokenSet.refreshToken) {
+      throw new TokenRevocationError(
+        TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
+        "The session does not contain a refresh token to revoke."
+      );
+    }
+
+    const [error] = await authClient.revokeToken(
+      session.tokenSet.refreshToken,
+      "refresh_token"
+    );
+
+    if (error !== null) {
+      throw error;
+    }
   }
 
   /**

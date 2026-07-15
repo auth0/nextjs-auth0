@@ -195,6 +195,57 @@ export class AccessTokenForConnectionError extends SdkError {
 }
 
 /**
+ * Error codes for refresh token revocation errors.
+ */
+export enum TokenRevocationErrorCode {
+  /**
+   * No session exists for the current request.
+   */
+  MISSING_SESSION = "missing_session",
+
+  /**
+   * The session (or request) has no refresh token to revoke.
+   */
+  MISSING_REFRESH_TOKEN = "missing_refresh_token",
+
+  /**
+   * The revocation request to Auth0 failed.
+   */
+  FAILED_TO_REVOKE = "failed_to_revoke"
+}
+
+/**
+ * Error class representing a refresh token revocation error.
+ * Extends the `SdkError` class.
+ *
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc7009 RFC 7009 Token Revocation}
+ */
+export class TokenRevocationError extends SdkError {
+  /**
+   * The error code associated with the revocation error.
+   */
+  public code: string;
+  /**
+   * The underlying OAuth2 error that caused this error (if applicable).
+   */
+  public cause?: OAuth2Error;
+
+  /**
+   * Constructs a new `TokenRevocationError` instance.
+   *
+   * @param code - The error code.
+   * @param message - The error message.
+   * @param cause - The OAuth2 cause of the error.
+   */
+  constructor(code: string, message: string, cause?: OAuth2Error) {
+    super(message);
+    this.name = "TokenRevocationError";
+    this.code = code;
+    this.cause = cause;
+  }
+}
+
+/**
  * Error codes for Custom Token Exchange errors.
  */
 export enum CustomTokenExchangeErrorCode {
