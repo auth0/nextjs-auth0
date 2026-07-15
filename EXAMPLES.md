@@ -1577,12 +1577,12 @@ This ensures that the token you send is guaranteed to be valid for at least the 
 
 ## Revoking tokens
 
-`revokeRefreshToken()` revokes the session's refresh token at Auth0's `/oauth/revoke` endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)). Per RFC 7009, revoking a refresh token also invalidates the other tokens issued under the same authorization grant. Client authentication (`clientSecret`, Private Key JWT, or mTLS) is applied automatically from your `Auth0Client` configuration.
+`revokeRefreshToken()` revokes the refresh token stored in the current session at Auth0's `/oauth/revoke` endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)). Auth0 will also invalidate all access tokens issued under the same authorization grant — any subsequent API calls using those tokens will fail. Client authentication (`clientSecret`, Private Key JWT, or mTLS) is applied automatically from your `Auth0Client` configuration.
 
 > [!NOTE]
-> Logging out revokes the session's refresh token automatically — `auth0.middleware` / the `/auth/logout` route revokes before clearing the session. `revokeRefreshToken()` is for explicit revocation outside the logout flow, e.g. a "sign out everywhere" action that invalidates the grant without redirecting the user.
+> Logging out revokes the session's refresh token automatically — `auth0.middleware` / the `/auth/logout` route revokes before clearing the session. `revokeRefreshToken()` is for explicit revocation outside the logout flow, for example revoking a user's access without redirecting them.
 
-`revokeRefreshToken()` reads the refresh token from the current session and revokes it. It does **not** clear the local session.
+`revokeRefreshToken()` reads the refresh token from the current session and revokes it. The local session cookie is not cleared — call `handleLogout` for a full logout that also clears the session.
 
 **App Router (Server Actions, Route Handlers):**
 

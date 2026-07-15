@@ -1244,10 +1244,10 @@ export class Auth0Client {
    * Revokes the refresh token stored in the current session at the Auth0
    * `/oauth/revoke` endpoint (RFC 7009).
    *
-   * Per RFC 7009, revoking a refresh token also invalidates the other tokens
-   * issued under the same authorization grant. Note that this does **not**
-   * clear the local session — use `handleLogout` (which already revokes on
-   * logout) for a full logout.
+   * Auth0 will also invalidate all access tokens issued under the same
+   * authorization grant — any subsequent API calls using those tokens will
+   * fail. The local session cookie is not cleared — use `handleLogout`
+   * (which already revokes on logout) for a full logout.
    *
    * @param options For the Pages Router, pass the request object so the session can be read.
    *
