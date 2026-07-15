@@ -3009,6 +3009,7 @@ export class AuthClient {
       token,
       {
         [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         ...this.httpOptions(),
         ...(tokenTypeHint
           ? { additionalParameters: { token_type_hint: tokenTypeHint } }
