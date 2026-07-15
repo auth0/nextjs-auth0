@@ -32,6 +32,8 @@ import {
   MfaRequiredError,
   MfaVerifyError,
   MissingStateError,
+  MtlsError,
+  MtlsErrorCode,
   MyAccountApiError,
   OAuth2Error,
   PasskeyChallengeError,
@@ -39,6 +41,8 @@ import {
   PasskeyEnrollmentVerifyError,
   PasskeyGetTokenError,
   PasskeyRegisterError,
+  PasswordlessDbChallengeError,
+  PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError,
   SdkError
@@ -58,6 +62,7 @@ import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
+  ActClaim,
   AuthenticatorApiResponse,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
@@ -75,7 +80,6 @@ import {
   GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
-  MfaVerifyResponse,
   PasskeyChallengeOptions,
   PasskeyChallengeResponse,
   PasskeyEnrollmentChallengeOptions,
@@ -85,6 +89,10 @@ import {
   PasskeyGetTokenOptions,
   PasskeyRegisterOptions,
   PasskeyRegisterResponse,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions,
   PasswordlessVerifyTokenResponse,
@@ -98,8 +106,12 @@ import {
   VerifyMfaOptions
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
+import type { MfaTokenEndpointResponse } from "../types/mfa.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
-import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
+import {
+  mergeAuthorizationParamsIntoSearchParams,
+  parseNonNegativeIntegerParam
+} from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -142,6 +154,8 @@ import {
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   buildSessionFromCallback,
+  isSessionCeilingInPast,
+  isSessionCeilingReached,
   mergePopupTokenIntoSession
 } from "../utils/session-helpers.js";
 import {
@@ -253,6 +267,8 @@ export interface Routes {
   mfaAssociate: string;
   passwordlessStart: string;
   passwordlessVerify: string;
+  passwordlessDbOtpChallenge: string;
+  passwordlessDbGetToken: string;
   passkeyRegister: string;
   passkeyChallenge: string;
   passkeyGetToken: string;
@@ -312,6 +328,21 @@ export interface AuthClientOptions {
   useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
+
+  /**
+   * Enable mTLS (Mutual TLS) client authentication (RFC 8705).
+   *
+   * When `true`, the SDK uses `oauth.TlsClientAuth()` for client authentication
+   * and routes all token requests to the mTLS endpoint aliases advertised in
+   * the Auth0 discovery document (`mtls_endpoint_aliases`).
+   *
+   * Requires the `fetch` option to be set with a TLS-aware implementation
+   * (e.g. Node.js `undici` with a client certificate). The standard `fetch`
+   * global has no client certificate API.
+   *
+   * @default false
+   */
+  useMtls?: boolean;
 
   /**
    * MFA token TTL in seconds (for token encryption expiration).
@@ -379,6 +410,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
   private dpopValidated = false;
+
+  private readonly useMtls: boolean;
 
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
@@ -531,6 +564,38 @@ export class AuthClient {
 
     this.useDPoP = options.useDPoP ?? false;
 
+    this.useMtls = options.useMtls ?? false;
+    if (this.useMtls && this.useDPoP) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls and useDPoP cannot be used together. " +
+          "When both are present, the server always issues a DPoP-bound token (cnf.jkt) " +
+          "and the certificate is ignored for token binding."
+      );
+    }
+    if (this.useMtls && !options.fetch) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
+        "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
+          "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
+          "The standard fetch global has no client certificate API. " +
+          "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
+      );
+    }
+    if (
+      this.useMtls &&
+      (options.clientSecret || options.clientAssertionSigningKey)
+    ) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls cannot be combined with clientSecret or clientAssertionSigningKey. " +
+          "mTLS replaces secret-based client authentication entirely."
+      );
+    }
+    if (this.useMtls) {
+      this.clientMetadata.use_mtls_endpoint_aliases = true;
+    }
+
     // MFA token TTL for token encryption
     this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
@@ -648,6 +713,16 @@ export class AuthClient {
       sanitizedPathname === this.routes.passwordlessVerify
     ) {
       return this.handlePasswordlessVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessDbOtpChallenge
+    ) {
+      return this.handlePasswordlessDbOtpChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessDbGetToken
+    ) {
+      return this.handlePasswordlessDbGetToken(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.passkeyRegister
@@ -811,9 +886,27 @@ export class AuthClient {
     }
 
     // Prepare transaction state
+    // Read max_age from the already-merged authorizationParams (not the static SDK config)
+    // so that per-request values (e.g. max_age=0 for step-up auth) are preserved for
+    // auth_time validation at callback. Falls back to SDK-level config when absent.
+    const requestedMaxAgeStr = authorizationParams.get("max_age");
+    let resolvedMaxAge: number | undefined =
+      this.authorizationParameters.max_age;
+    if (requestedMaxAgeStr !== null) {
+      const parsed = parseNonNegativeIntegerParam(
+        "max_age",
+        requestedMaxAgeStr
+      );
+      if (parsed === null) {
+        throw new InvalidConfigurationError(
+          `Invalid max_age parameter: "${requestedMaxAgeStr}". Must be a non-negative integer.`
+        );
+      }
+      resolvedMaxAge = parsed;
+    }
     const transactionState: TransactionState = {
       nonce,
-      maxAge: this.authorizationParameters.max_age,
+      maxAge: resolvedMaxAge,
       codeVerifier,
       responseType: RESPONSE_TYPES.CODE,
       state,
@@ -868,6 +961,17 @@ export class AuthClient {
       );
     }
 
+    // Validate max_age query param value
+    if (
+      searchParams.max_age !== undefined &&
+      parseNonNegativeIntegerParam("max_age", searchParams.max_age) === null
+    ) {
+      return new NextResponse(
+        `Invalid max_age query param: "${searchParams.max_age}". Must be a non-negative integer.`,
+        { status: 400 }
+      );
+    }
+
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
     const { returnTo, ...authorizationParameters } = searchParams;
@@ -910,6 +1014,7 @@ export class AuthClient {
 
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
+    const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
@@ -928,6 +1033,10 @@ export class AuthClient {
       const url = new URL(authorizationServerMetadata.end_session_endpoint!);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
       url.searchParams.set("post_logout_redirect_uri", returnTo);
+
+      if (logoutState) {
+        url.searchParams.set("state", logoutState);
+      }
 
       if (session?.internal.sid) {
         url.searchParams.set("logout_hint", session.internal.sid);
@@ -980,6 +1089,20 @@ export class AuthClient {
         logoutResponse = createV2LogoutResponse();
       } else {
         logoutResponse = createOIDCLogoutResponse();
+      }
+    }
+
+    // Revoke the refresh token before clearing the session so it cannot be
+    // replayed after logout (e.g. from a stolen session cookie). Errors are
+    // swallowed — a failed revocation must never block the logout redirect.
+    if (this.useMtls && session?.tokenSet.refreshToken && !hasDomainMismatch) {
+      try {
+        await this.revokeRefreshToken(
+          authorizationServerMetadata,
+          session.tokenSet.refreshToken
+        );
+      } catch {
+        // intentionally ignored
       }
     }
 
@@ -1271,6 +1394,10 @@ export class AuthClient {
       }
     }
 
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(oidcRes.access_token);
+    }
+
     // ★ POSTMESSAGE BRANCH
     if (challengeMode === "popup") {
       // Merge new token into existing session (do NOT create fresh session)
@@ -1344,6 +1471,31 @@ export class AuthClient {
           oidcRes,
           transactionState
         );
+
+        // IPSIE: reject a session whose ceiling is already in the past at login.
+        if (
+          isSessionCeilingInPast(
+            fallbackSession.internal.sessionExpiresAt,
+            idTokenClaims?.iat
+          )
+        ) {
+          const expiredError = new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          );
+          await this.onCallback(expiredError, onCallbackCtx, null);
+          const popupResponse = createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: AccessTokenErrorCode.SESSION_EXPIRED,
+              message: expiredError.message
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+
         const mergedSession = await this.finalizeSession(
           fallbackSession,
           oidcRes.id_token
@@ -1378,6 +1530,25 @@ export class AuthClient {
       oidcRes,
       transactionState
     );
+
+    // IPSIE: reject a session whose ceiling is already in the past at login.
+    if (
+      isSessionCeilingInPast(
+        session.internal.sessionExpiresAt,
+        idTokenClaims?.iat
+      )
+    ) {
+      return this.handleCallbackError(
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
 
     // Add MCD metadata when in resolver mode
     if (this.provider?.isResolverMode) {
@@ -1565,22 +1736,48 @@ export class AuthClient {
       // Verify MFA and get tokens
       const result = await this.mfaVerify(verifyOptions);
 
-      // Create response FIRST so cookies can be attached
-      const res = NextResponse.json(result);
-
-      // Cache tokens in session if session exists
       const { error: sessionError, session } =
         await this.getSessionWithDomainCheck(req.cookies);
+
+      const successBody = {
+        success: true as const,
+        ...(result.recovery_code !== undefined && {
+          recovery_code: result.recovery_code
+        })
+      };
+
       if (!sessionError && session) {
+        // Step-up MFA: session exists — cache new token and return success.
+        // Tokens are stored in the session cookie; the body must not expose them.
+        const res = NextResponse.json(successBody);
         await this.cacheTokenFromMfaVerify(
           result,
           mfaToken,
           req.cookies,
-          res.cookies // Use actual response cookies, not temp
+          res.cookies
         );
+        return res;
+      } else if (result.id_token) {
+        // First-factor MFA (e.g. passkey + MFA): no session yet — create one from
+        // the token response. Return { success: true } only; tokens stay in the
+        // session cookie and must not be exposed in the response body.
+        const res = NextResponse.json(successBody);
+        await this.createSessionFromPasswordlessVerify(
+          result as PasswordlessVerifyTokenResponse,
+          req.cookies,
+          res.cookies
+        );
+        addCacheControlHeadersForSession(res);
+        return res;
       }
 
-      return res; // Return response WITH cookies
+      // mfaVerify succeeded but no id_token and no existing session —
+      // malformed Auth0 response; returning success here would leave the user
+      // authenticated in their mind but with no session cookie.
+      throw new MfaVerifyError(
+        "missing_session",
+        "MFA verification succeeded but no session could be established. Ensure 'openid' scope is requested."
+      );
     } catch (e) {
       return handleMfaError(e);
     }
@@ -1615,8 +1812,7 @@ export class AuthClient {
       if (connection === "email") {
         const email = validateStringFieldAndThrow(bodyRecord.email, "email");
         const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
-          | "code"
-          | "link";
+          "code" | "link";
 
         await this.passwordlessStart(
           { connection: "email", email, send, language },
@@ -1723,6 +1919,9 @@ export class AuthClient {
       addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
       if (e instanceof PasswordlessVerifyError) {
         const serverErrorCodes = new Set([
           "discovery_error",
@@ -1738,6 +1937,159 @@ export class AuthClient {
           );
         }
         return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/otp/challenge
+   * Requests an OTP challenge against a database connection via /otp/challenge.
+   *
+   * Body: { email, connection, allowSignup? }
+   *       { phoneNumber, connection, deliveryMethod?, allowSignup? }
+   *
+   * Response: 200 { authSession: "<opaque>" }
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessDbOtpChallenge(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      const allowSignup =
+        typeof bodyRecord.allowSignup === "boolean"
+          ? bodyRecord.allowSignup
+          : false;
+
+      let challenge: PasswordlessDbChallenge;
+
+      if (typeof bodyRecord.email === "string" && bodyRecord.email) {
+        challenge = await this.passwordlessDbOtpChallenge({
+          email: bodyRecord.email,
+          connection,
+          allowSignup
+        });
+      } else if (
+        typeof bodyRecord.phoneNumber === "string" &&
+        bodyRecord.phoneNumber
+      ) {
+        const deliveryMethod =
+          bodyRecord.deliveryMethod === "voice" ||
+          bodyRecord.deliveryMethod === "text"
+            ? bodyRecord.deliveryMethod
+            : undefined;
+        challenge = await this.passwordlessDbOtpChallenge({
+          phoneNumber: bodyRecord.phoneNumber,
+          connection,
+          allowSignup,
+          ...(deliveryMethod && { deliveryMethod })
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "missing_identifier",
+            error_description: "Either email or phoneNumber is required"
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ authSession: challenge.authSession });
+    } catch (e) {
+      if (e instanceof PasswordlessDbChallengeError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/otp/token
+   * Exchanges an auth_session + OTP for tokens and establishes a session.
+   *
+   * Body: { authSession, otp }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403/500 + { error, error_description }
+   */
+  async handlePasswordlessDbGetToken(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      const otp = validateStringFieldAndThrow(bodyRecord.otp, "otp");
+
+      const tokenResponse = await this.passwordlessDbGetToken({
+        authSession,
+        otp
+      });
+
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
+      if (e instanceof PasswordlessDbGetTokenError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
@@ -1789,7 +2141,7 @@ export class AuthClient {
         return this.#createMfaRequiredResponse(req, session, error);
       }
 
-      return NextResponse.json(
+      const errorRes = NextResponse.json(
         {
           error: {
             message: error.message,
@@ -1800,6 +2152,15 @@ export class AuthClient {
           status: 401
         }
       );
+
+      // IPSIE: when the ceiling fired, clean up the stored session so the next
+      // request starts clean. For stateless sessions this is a no-op; for
+      // stateful stores it removes the backing record.
+      if (error.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+        await this.sessionStore.delete(req.cookies, errorRes.cookies);
+      }
+
+      return errorRes;
     }
 
     const { tokenSet: updatedTokenSet } = getTokenSetResponse;
@@ -2099,6 +2460,18 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    // IPSIE: hard pre-check before any cached-token serve or refresh attempt.
+    // Once the upstream IdP-asserted ceiling passes, refresh must not be attempted.
+    if (isSessionCeilingReached(sessionData.internal?.sessionExpiresAt)) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        null
+      ];
+    }
+
     // Scope resolution:
     // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
     // When mergeScopes === false: use ONLY options.scope (no global merge)
@@ -2307,6 +2680,21 @@ export class AuthClient {
             );
         }
       );
+
+      if (
+        this.useMtls &&
+        !authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
+      ) {
+        return [
+          new MtlsError(
+            MtlsErrorCode.MTLS_ENDPOINT_ALIASES_MISSING,
+            "useMtls is enabled but the authorization server discovery document does not advertise " +
+              "mtls_endpoint_aliases.token_endpoint. Ensure mTLS is enabled on your Auth0 tenant and that requests " +
+              "are routed through your custom domain."
+          ),
+          null
+        ];
+      }
 
       this.authorizationServerMetadata = authorizationServerMetadata;
 
@@ -2585,7 +2973,52 @@ export class AuthClient {
     return [null, authorizationUrl];
   }
 
+  private withMtlsEndpoint(
+    as: oauth.AuthorizationServer
+  ): oauth.AuthorizationServer {
+    if (this.useMtls && as.mtls_endpoint_aliases?.token_endpoint) {
+      return { ...as, token_endpoint: as.mtls_endpoint_aliases.token_endpoint };
+    }
+    return as;
+  }
+
+  private async revokeRefreshToken(
+    as: oauth.AuthorizationServer,
+    refreshToken: string
+  ): Promise<void> {
+    const clientAuth = await this.getClientAuth();
+    const response = await oauth.revocationRequest(
+      as,
+      this.clientMetadata,
+      clientAuth,
+      refreshToken,
+      { [oauth.customFetch]: this.fetch, ...this.httpOptions() }
+    );
+    await oauth.processRevocationResponse(response);
+  }
+
+  private warnIfNotCertificateBound(accessToken: string): void {
+    try {
+      const payload = jose.decodeJwt(accessToken);
+      const cnf = payload["cnf"] as Record<string, unknown> | undefined;
+      if (!cnf?.["x5t#S256"]) {
+        console.warn(
+          "[nextjs-auth0] useMtls is enabled but the issued access token does not contain " +
+            "a cnf.x5t#S256 claim. The token is not certificate-bound. " +
+            "Verify that mTLS is correctly configured on your Auth0 tenant and that " +
+            "token requests are routed through your mTLS custom domain."
+        );
+      }
+    } catch {
+      // decodeJwt only fails for opaque tokens — skip the check silently
+    }
+  }
+
   private async getClientAuth(): Promise<oauth.ClientAuth> {
+    if (this.useMtls) {
+      return oauth.TlsClientAuth();
+    }
+
     if (!this.clientSecret && !this.clientAssertionSigningKey) {
       throw new Error(
         "The client secret or client assertion signing key must be provided."
@@ -2605,6 +3038,43 @@ export class AuthClient {
     return clientPrivateKey
       ? oauth.PrivateKeyJwt(clientPrivateKey as CryptoKey)
       : oauth.ClientSecretPost(this.clientSecret!);
+  }
+
+  // Detects mfa_required in a token endpoint error, encrypts the raw mfa_token,
+  // and throws MfaRequiredError. Used by credential exchange grants (passkey,
+  // passwordless) that can trigger MFA step-up. Throws only when mfa_token is
+  // present — otherwise falls through so the caller can throw its own typed error.
+  async #throwIfMfaRequired(
+    err: any,
+    oauthErr: { error?: string; error_description?: string },
+    audience?: string,
+    scope?: string
+  ): Promise<void> {
+    if (isMfaRequiredError(err)) {
+      const { mfa_token, error_description, mfa_requirements } =
+        extractMfaErrorDetails(err);
+      if (mfa_token) {
+        const encryptedToken = await encryptMfaToken(
+          mfa_token,
+          audience ?? (this.authorizationParameters.audience as string) ?? "",
+          scope ??
+            (this.authorizationParameters.scope as string) ??
+            DEFAULT_SCOPES,
+          mfa_requirements,
+          this.sessionStore.secret,
+          this.mfaTokenTtl
+        );
+        throw new MfaRequiredError(
+          error_description ?? "Multi-factor authentication is required.",
+          encryptedToken,
+          mfa_requirements,
+          new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        );
+      }
+    }
   }
 
   /** @internal */
@@ -2631,13 +3101,37 @@ export class AuthClient {
    * @internal
    */
   async getSessionWithDomainCheck(
-    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies,
+    { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
     // Read session from store
     const session = await this.sessionStore.get(cookies);
 
     // No session found
     if (!session) {
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // IPSIE: treat as no session once the upstream IdP-asserted ceiling passes.
+    // Returns the same shape as "no session" so existing redirect-to-login paths
+    // fire transparently. For stateful stores, delete the backing record so the
+    // store stays clean; stateless sessions are self-contained in the cookie and
+    // will be orphaned (ceiling check fires on every subsequent read).
+    // skipCeilingCheck is used by getAccessTokenForConnection — connection tokens
+    // follow the upstream IdP's own TTLs, not the IPSIE session ceiling.
+    if (
+      !skipCeilingCheck &&
+      isSessionCeilingReached(session.internal?.sessionExpiresAt)
+    ) {
+      this.sessionStore
+        .deleteByReqCookies(cookies)
+        .catch((e) =>
+          console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
+        );
       return {
         error: null,
         session: null,
@@ -2805,9 +3299,15 @@ export class AuthClient {
           ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
           : undefined;
 
+      // When useMtls=true, use the mTLS alias so the edge proxy forwards the
+      // Client-Certificate header. CNF is not issued for this grant type (auth-server behavior).
+      const connectionTokenMetadata = this.withMtlsEndpoint(
+        authorizationServerMetadata
+      );
+
       const genericTokenEndpointRequestCall = async () =>
         oauth.genericTokenEndpointRequest(
-          authorizationServerMetadata,
+          connectionTokenMetadata,
           this.clientMetadata,
           await this.getClientAuth(),
           GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
@@ -2824,7 +3324,7 @@ export class AuthClient {
       const processGenericTokenEndpointResponseCall = async () => {
         const httpResponse = await genericTokenEndpointRequestCall();
         return oauth.processGenericTokenEndpointResponse(
-          authorizationServerMetadata,
+          connectionTokenMetadata,
           this.clientMetadata,
           httpResponse
         );
@@ -2871,21 +3371,13 @@ export class AuthClient {
   }
 
   /**
-   * Validates that subject_token_type is a valid URI.
-   *
-   * Validation rules:
-   * - Length: 10-100 characters
-   * - Format: Valid URL or URN
-   *
-   * Note: Reserved namespace validation is handled by Auth0 when creating CTE profiles.
-   *
-   * @param type - The subject_token_type to validate
-   * @returns CustomTokenExchangeError if invalid, null if valid
+   * Validates subject_token_type: 10-100 chars, valid URI (URL or URN).
+   * The 10-100 length constraint matches the Auth0 CTE Profile Management API requirement
+   * for subject_token_type, which is used as a routing key to select a profile.
    */
   private validateSubjectTokenType(
     type: string
   ): CustomTokenExchangeError | null {
-    // 1. Length validation (minLength: 10, maxLength: 100)
     if (type.length < 10) {
       return new CustomTokenExchangeError(
         CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
@@ -2898,8 +3390,24 @@ export class AuthClient {
         `Invalid subject_token_type: must be at most 100 characters. Received ${type.length} characters.`
       );
     }
+    return this.validateTokenTypeUri(type, "subject_token_type");
+  }
 
-    // 2. Check valid URI (URL or URN format)
+  /**
+   * Validates actor_token_type: valid URI (URL or URN).
+   * No length constraint — actor_token_type is not registered in a CTE profile
+   * and RFC 8693 §3 imposes no length limit on token type URIs.
+   */
+  private validateActorTokenType(
+    type: string
+  ): CustomTokenExchangeError | null {
+    return this.validateTokenTypeUri(type, "actor_token_type");
+  }
+
+  private validateTokenTypeUri(
+    type: string,
+    field: "subject_token_type" | "actor_token_type"
+  ): CustomTokenExchangeError | null {
     let isValidUrl = false;
     try {
       new URL(type);
@@ -2913,9 +3421,13 @@ export class AuthClient {
       /^urn:[a-z0-9][a-z0-9-]{0,31}:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$/i.test(type);
 
     if (!isValidUrl && !isValidUrn) {
+      const code =
+        field === "actor_token_type"
+          ? CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE
+          : CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE;
       return new CustomTokenExchangeError(
-        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
-        `Invalid subject_token_type: must be a valid URI (URL or URN format). Received: "${type}"`
+        code,
+        `Invalid ${field}: must be a valid URI (URL or URN format). Received: "${type}"`
       );
     }
 
@@ -2987,6 +3499,16 @@ export class AuthClient {
       ];
     }
 
+    // Validate actorTokenType is a valid URI (RFC 8693 §3)
+    if (options.actorToken && options.actorTokenType) {
+      const actorTokenTypeError = this.validateActorTokenType(
+        options.actorTokenType
+      );
+      if (actorTokenTypeError) {
+        return [actorTokenTypeError, null];
+      }
+    }
+
     // Discover authorization server metadata
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
@@ -3046,9 +3568,12 @@ export class AuthClient {
         : undefined;
 
     // Execute token exchange with DPoP retry support
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     const processTokenExchange = async () => {
       const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
+        tokenExchangeMetadata,
         this.clientMetadata,
         await this.getClientAuth(),
         GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
@@ -3060,18 +3585,24 @@ export class AuthClient {
         }
       );
       return oauth.processGenericTokenEndpointResponse(
-        authorizationServerMetadata,
+        tokenExchangeMetadata,
         this.clientMetadata,
         httpResponse
       );
     };
 
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let act: ActClaim | undefined;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(processTokenExchange, {
         isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
         ...this.dpopOptions?.retry
       });
+      // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
+      act = tokenEndpointResponse.id_token
+        ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
+            ActClaim | undefined)
+        : undefined;
     } catch (err: any) {
       const oauthErr = await extractOAuthErrorDetails(err);
       return [
@@ -3096,7 +3627,8 @@ export class AuthClient {
         refreshToken: tokenEndpointResponse.refresh_token,
         tokenType: tokenEndpointResponse.token_type ?? "Bearer",
         expiresIn: Number(tokenEndpointResponse.expires_in),
-        scope: tokenEndpointResponse.scope
+        scope: tokenEndpointResponse.scope,
+        act
       }
     ];
   }
@@ -3356,7 +3888,7 @@ export class AuthClient {
     const openidClientConfig = new client.Configuration(
       authorizationServerMetadata,
       this.clientMetadata.client_id,
-      {},
+      { use_mtls_endpoint_aliases: this.useMtls },
       await this.getClientAuth()
     );
     const httpOpts = this.httpOptions();
@@ -3594,17 +4126,23 @@ export class AuthClient {
       this.sessionStore.secret
     );
 
-    // Validate mfaRequirements has challenge types
-    const allowedTypes = new Set(
-      (context.mfaRequirements?.challenge ?? []).map((c) =>
-        c.type.toLowerCase()
-      )
-    );
-
-    if (allowedTypes.size === 0) {
-      throw new MfaNoAvailableFactorsError(
-        "No MFA challenge types available in mfa_requirements"
+    // Validate mfaRequirements has challenge types only when requirements are present.
+    // When mfa_requirements is absent (e.g. webauthn grant), all challenge types are allowed.
+    if (context.mfaRequirements?.challenge) {
+      const allowedTypes = new Set(
+        context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
       );
+
+      if (allowedTypes.size === 0) {
+        throw new MfaNoAvailableFactorsError(
+          "No MFA challenge types available in mfa_requirements"
+        );
+      }
+      if (!allowedTypes.has(challengeType.toLowerCase())) {
+        throw new MfaNoAvailableFactorsError(
+          `Challenge type "${challengeType}" is not allowed by mfa_requirements. Allowed: ${[...allowedTypes].join(", ")}`
+        );
+      }
     }
 
     // Extract raw mfaToken for Auth0 API call
@@ -3745,7 +4283,9 @@ export class AuthClient {
    * @throws {MfaVerifyError} On API failure
    * @throws {MfaRequiredError} For chained MFA (with encrypted token)
    */
-  async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
+  async mfaVerify(
+    options: VerifyMfaOptions
+  ): Promise<MfaTokenEndpointResponse> {
     await this.ensureDpopValidated();
     // Decrypt token to extract context
     const { mfaToken, audience, scope } = await decryptMfaToken(
@@ -3764,7 +4304,7 @@ export class AuthClient {
       );
     }
 
-    const verifyParams = buildVerifyParams(options, mfaToken);
+    const verifyParams = buildVerifyParams(options, mfaToken, audience, scope);
     const verifyGrantType = getVerifyGrantType(verifyParams);
 
     // Create DPoP handle ONCE outside the closure so it persists across retries.
@@ -3776,12 +4316,15 @@ export class AuthClient {
         : undefined;
 
     // Execute MFA token exchange with DPoP retry support
+    const mfaVerifyMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            mfaVerifyMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             verifyGrantType,
@@ -3796,7 +4339,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            mfaVerifyMetadata,
             this.clientMetadata,
             httpResponse
           );
@@ -3857,7 +4400,7 @@ export class AuthClient {
     const result = {
       ...tokenEndpointResponse,
       token_type: normalizeTokenType(tokenEndpointResponse.token_type)
-    } as MfaVerifyResponse;
+    } as MfaTokenEndpointResponse;
 
     return result;
   }
@@ -3872,7 +4415,7 @@ export class AuthClient {
    * @throws {MfaVerifyError} If session not found
    */
   async cacheTokenFromMfaVerify(
-    tokenResponse: MfaVerifyResponse,
+    tokenResponse: MfaTokenEndpointResponse,
     encryptedMfaToken: string,
     reqCookies: RequestCookies,
     resCookies: ResponseCookies
@@ -4071,7 +4614,12 @@ export class AuthClient {
     // This means we cannot use oauth.genericTokenEndpointRequest (which only
     // sends URLSearchParams), so DPoP must be attached manually via the handle's
     // internal addProof method.
-    const tokenUrl = new URL("/oauth/token", this.issuer).toString();
+    const passkeyTokenMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+    const tokenUrl =
+      passkeyTokenMetadata.token_endpoint ??
+      new URL("/oauth/token", this.issuer).toString();
 
     const jsonBody: Record<string, unknown> = {
       grant_type: GRANT_TYPE_PASSKEY,
@@ -4161,6 +4709,12 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
       throw new PasskeyGetTokenError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
@@ -4336,6 +4890,9 @@ export class AuthClient {
       addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
       if (e instanceof PasskeyGetTokenError) {
         const serverErrorCodes = new Set([
           "discovery_error",
@@ -4632,10 +5189,6 @@ export class AuthClient {
       );
     }
 
-    // jose.decodeJwt does a non-validating base64 decode — safe here because
-    // the token was received from Auth0's HTTPS token endpoint (server-to-server)
-    // and iss/aud were already validated by oauth4webapi's
-    // processGenericTokenEndpointResponse inside passwordlessVerify().
     const claims = jose.decodeJwt(tokenResponse.id_token);
     const user = claims as unknown as User;
 
@@ -4714,8 +5267,7 @@ export class AuthClient {
       );
 
       const audience = this.authorizationParameters.audience as
-        | string
-        | undefined;
+        string | undefined;
       const scope =
         getScopeForAudience(this.authorizationParameters.scope, audience) ||
         "openid email profile";
@@ -4872,12 +5424,15 @@ export class AuthClient {
         ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
         : undefined;
 
+    const passwordlessMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
         async () => {
           const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
+            passwordlessMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
             GRANT_TYPE_PASSWORDLESS_OTP,
@@ -4890,7 +5445,7 @@ export class AuthClient {
             }
           );
           return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
+            passwordlessMetadata,
             this.clientMetadata,
             httpResponse
           );
@@ -4923,11 +5478,212 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
       throw new PasswordlessVerifyError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
           err.message ||
           "Passwordless verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
+  }
+
+  /**
+   * Requests an OTP challenge for a database connection via `POST /otp/challenge`.
+   *
+   * The challenge always returns 200 regardless of whether the user exists
+   * (user-enumeration prevention). If the user is blocked or signup is disabled
+   * for a non-existent user, the returned auth_session will be non-functional
+   * and passwordlessDbGetToken will fail with invalid_request.
+   *
+   * @param options - Email or phone challenge options including connection name.
+   * @returns Opaque PasswordlessDbChallenge containing auth_session.
+   * @throws {PasswordlessDbChallengeError} On Auth0 API failure.
+   */
+  async passwordlessDbOtpChallenge(
+    options:
+      PasswordlessDbChallengeEmailOptions | PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    const url = new URL("/otp/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection,
+      allow_signup: options.allowSignup ?? false
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if ("email" in options) {
+      body.email = options.email;
+    } else {
+      body.phone_number = options.phoneNumber;
+      if (options.deliveryMethod) {
+        body.delivery_method = options.deliveryMethod;
+      }
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to request OTP challenge"
+        }));
+        throw new PasswordlessDbChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to request OTP challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const data = await response.json();
+      return { authSession: data.auth_session };
+    } catch (e) {
+      if (e instanceof PasswordlessDbChallengeError) throw e;
+      throw new PasswordlessDbChallengeError(
+        "unexpected_error",
+        "Unexpected error during OTP challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Exchanges an auth_session and OTP for tokens via `POST /oauth/token`.
+   * Uses grant type `http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - The opaque auth_session and user-entered OTP.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessDbGetTokenError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessDbGetToken(
+    options: PasswordlessDbGetTokenOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessDbGetTokenError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+
+    const params = new URLSearchParams();
+    params.append("auth_session", options.authSession);
+    params.append("otp", options.otp);
+    params.append("scope", scope);
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const tokenMetadata = this.withMtlsEndpoint(authorizationServerMetadata);
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            tokenMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            tokenMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessDbGetTokenError(
+            "invalid_issuer",
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessDbGetTokenError(
+            "invalid_audience",
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
+      throw new PasswordlessDbGetTokenError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless DB token exchange failed",
         oauthErr.error
           ? {
               error: oauthErr.error,
@@ -5198,13 +5954,16 @@ export class AuthClient {
    */
   async #createMfaRequiredResponse(
     req: NextRequest,
-    session: SessionData,
+    session: SessionData | null,
     error: MfaRequiredError
   ): Promise<NextResponse> {
     // Use toJSON() for consistent REST API response format
     const res = NextResponse.json(error.toJSON(), { status: 403 });
-    // Save session with MFA context (mutated by getTokenSet via reference)
-    await this.sessionStore.set(req.cookies, res.cookies, session);
+    // Save session with MFA context if one exists (not applicable for passkey/passwordless
+    // first-factor flows where no session exists yet at this point)
+    if (session) {
+      await this.sessionStore.set(req.cookies, res.cookies, session);
+    }
     addCacheControlHeadersForSession(res);
     return res;
   }
@@ -5358,6 +6117,10 @@ export class AuthClient {
         ),
         null
       ];
+    }
+
+    if (this.useMtls) {
+      this.warnIfNotCertificateBound(oauthRes.access_token);
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;

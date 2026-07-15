@@ -2,6 +2,22 @@ import type { AuthorizationParameters } from "../types/index.js";
 import { getScopeForAudience } from "./scope-helpers.js";
 
 /**
+ * Parses a string value as a non-negative integer authorization parameter.
+ * Accepts only strings matching /^\d+$/ (decimal digits only — rejects floats,
+ * scientific notation, negative values, empty strings, and whitespace).
+ * Returns the parsed number, or null if the value is invalid.
+ */
+export function parseNonNegativeIntegerParam(
+  name: string,
+  value: string
+): number | null {
+  if (!/^\d+$/.test(value)) {
+    return null;
+  }
+  return Number(value);
+}
+
+/**
  * Merges two instances of authorization parameters into a URLSearchParams object,
  * excluding any parameters specified in the excludedParams array.
  * If the scope is provided as a map of audience to scopes, it selects the appropriate scope

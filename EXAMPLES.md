@@ -27,6 +27,7 @@
 - [Protect an API Route](#protect-an-api-route)
   - [Page Router](#page-router-1)
   - [App Router](#app-router-1)
+- [Protecting Server Actions](#protecting-server-actions)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
   - [On the server (App Router)](#on-the-server-app-router-1)
@@ -66,6 +67,14 @@
   - [Error Handling](#error-handling)
   - [Route Configuration](#route-configuration)
   - [Error Types](#error-types)
+- [Passwordless OTP on Database Connections](#passwordless-otp-on-database-connections)
+  - [How it differs from Passwordless Authentication](#how-it-differs-from-passwordless-authentication)
+  - [Auth0 Setup](#auth0-setup-2)
+  - [Route Handler Setup](#route-handler-setup-2)
+  - [Client-Side Usage](#client-side-usage-2)
+  - [Server-Side (Headless) Usage](#server-side-headless-usage-2)
+  - [Route Configuration](#route-configuration-2)
+  - [Error Types](#error-types-2)
 - [Passkey Authentication](#passkey-authentication)
   - [Auth0 Setup](#auth0-setup-1)
   - [Route Handler Setup](#route-handler-setup-1)
@@ -102,6 +111,17 @@
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
     - [Debug Logging](#debug-logging)
+- [mTLS (Mutual TLS Client Authentication)](#mtls-mutual-tls-client-authentication)
+  - [What is mTLS?](#what-is-mtls)
+  - [Prerequisites](#prerequisites)
+  - [Basic mTLS Setup](#basic-mtls-setup)
+    - [1. Generate Client Certificate](#1-generate-client-certificate)
+    - [2. Configure Auth0](#2-configure-auth0)
+    - [3. Configure the SDK](#3-configure-the-sdk)
+  - [How It Works](#how-it-works-1)
+  - [Example Application](#example-application)
+  - [Testing](#testing)
+  - [Important Notes](#important-notes)
 - [Proxy Handler for My Account and My Organization APIs](#proxy-handler-for-my-account-and-my-organization-apis)
   - [Overview](#overview)
   - [How It Works](#how-it-works)
@@ -137,6 +157,7 @@
   - [`onCallback` hook](#oncallback-hook)
   - [`connectAccount` method](#connectaccount-method)
 - [Back-Channel Logout](#back-channel-logout)
+- [Session Expiry from the Upstream IdP](#session-expiry-from-the-upstream-idp)
 - [Combining middleware](#combining-middleware)
 - [ID Token claims and the user object](#id-token-claims-and-the-user-object)
 - [Routes](#routes)
@@ -670,6 +691,123 @@ export default withPageAuthRequired(function Products() {
   return <div>{data.protected}</div>;
 });
 ```
+
+## Protecting Server Actions
+
+Next.js [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations) are invoked via an internal `POST` request with a `Next-Action` header. This means they pass through your middleware just like any other request — and this creates a subtle but important pitfall when protecting them against expired sessions.
+
+### Why `NextResponse.redirect()` in middleware does not work for Server Actions
+
+When a regular page navigation hits an expired session, returning a `303` redirect from middleware works perfectly: the browser follows the redirect and navigates to the login page.
+
+However, when a Server Action is invoked, React's internal fetch runner sends a `POST` with a `Next-Action` header. The browser's `fetch` API **automatically follows any `3xx` redirect at the network layer** — before React ever sees the response. The redirect is consumed silently: `fetch` sends a `GET` to `/auth/login`, receives back the login page HTML, and hands that HTML to the React runtime as the "result" of the server action. React discards it. The action appears to do nothing and the user stays on the same page with no feedback.
+
+What you see in the browser network tab is:
+- `POST /protected-page` → `303`
+- `GET /auth/login` → `200`
+- *(no navigation)*
+
+### The correct pattern
+
+The fix requires two things working together.
+
+**Step 1 — Let the Server Action request through middleware.**
+
+Detect the `Next-Action` header and skip the redirect for server action requests. Return `authResponse` (the response from `auth0.middleware()`) so that session cookies and other headers set by the SDK are preserved, and the request proceeds to your server action.
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request);
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authResponse;
+  }
+
+  const session = await auth0.getSession(request);
+  const isProtectedRoute = !request.nextUrl.pathname.startsWith("/public");
+
+  if (!session && isProtectedRoute) {
+    // Server Actions are POST requests with a Next-Action header.
+    // Returning a 303 redirect here does NOT navigate the browser — React's
+    // internal fetch runner follows the redirect silently and discards the
+    // login page HTML as a server action result. Let the request through so
+    // the redirect() call inside the server action can fire instead.
+    if (request.headers.has("next-action")) {
+      return authResponse;
+    }
+
+    return NextResponse.redirect(new URL("/auth/login", request.url), {
+      status: 303,
+    });
+  }
+
+  return authResponse;
+}
+```
+
+**Step 2 — Call `redirect()` from `next/navigation` inside the Server Action.**
+
+`redirect()` from `next/navigation` does **not** issue an HTTP redirect. It throws a special internal `NEXT_REDIRECT` error that Next.js encodes into the React Flight response. The client-side React runtime reads the redirect instruction and calls `router.push()` — this is the mechanism that actually navigates the browser.
+
+```ts
+// app/actions.ts
+"use server";
+
+import { redirect } from "next/navigation";
+import { auth0 } from "@/lib/auth0";
+
+export async function myProtectedAction(formData: FormData) {
+  // Check session BEFORE any try/catch block (see warning below).
+  const session = await auth0.getSession();
+  if (!session) {
+    redirect("/auth/login");
+  }
+
+  // ... rest of your action
+}
+```
+
+> [!WARNING]
+> **Do not call `redirect()` inside a `try/catch` block.**
+>
+> `redirect()` works by throwing a special `NEXT_REDIRECT` error internally. If it is called inside a `try/catch`, that error will be caught and swallowed — the redirect will silently fail and the user will not be navigated. Always check the session and call `redirect()` before entering any `try/catch` block.
+>
+> ```ts
+> // ❌ Wrong — redirect() is called inside catch and will be swallowed
+> export async function myAction() {
+>   try {
+>     const session = await auth0.getSession();
+>     if (!session) throw new Error("No session");
+>     // ...
+>   } catch (error) {
+>     redirect("/auth/login"); // never fires — caught then discarded
+>   }
+> }
+>
+> // ✅ Correct — session check is outside try/catch
+> export async function myAction() {
+>   const session = await auth0.getSession();
+>   if (!session) {
+>     redirect("/auth/login"); // fires correctly
+>   }
+>
+>   try {
+>     // ... rest of action
+>   } catch (error) {
+>     return { error: "Something went wrong" };
+>   }
+> }
+> ```
+
+### Why this is not an SDK bug
+
+The Auth0 SDK does not issue `303` redirects for server action requests — that logic lives entirely in user-written middleware code. The SDK's `auth0.middleware()` only handles `/auth/*` routes and rolling session cookie refresh; it never redirects based on session state. The redirect in the buggy pattern is always user code.
+
+The SDK's `auth0.getSession()` works correctly inside server actions. The issue is purely about how the redirect is triggered and which mechanism is capable of navigating the browser from within a server action context.
 
 ## Accessing the idToken
 
@@ -1841,6 +1979,249 @@ Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the
 | `PasswordlessVerifyError` | `invalid_grant` | Wrong or expired OTP |
 | `PasswordlessVerifyError` | `client_error` | Network failure or unparseable response |
 
+## Passwordless OTP on Database Connections
+
+> [!NOTE]
+> This feature is currently in **Early Access (EA)**. Contact your Auth0 account team to have it enabled on your tenant.
+
+Auth0 supports passwordless OTP login against standard **database connections** (`auth0` strategy) configured with `email_otp` or `phone_otp`. This is distinct from the legacy passwordless flow — it works with existing database connections that already hold user accounts, rather than requiring a dedicated email or SMS passwordless connection.
+
+The flow is two steps: request a challenge (OTP delivery) via `POST /otp/challenge`, then exchange the returned `auth_session` + the OTP the user enters for tokens via `POST /oauth/token`.
+
+### How it differs from Passwordless Authentication
+
+| | Passwordless Authentication | Passwordless OTP on DB Connections |
+|---|---|---|
+| Connection type | Dedicated `email` / `sms` passwordless connection | Any database connection with `email_otp` / `phone_otp` enabled |
+| Challenge endpoint | `POST /passwordless/start` | `POST /otp/challenge` |
+| Token exchange | `realm` + `username` params | `auth_session` + `otp` params |
+| Magic link support | Yes | No |
+| SDK methods | `passwordless.start()` / `passwordless.verify()` | `passwordless.challengeWithEmail()` / `challengeWithPhoneNumber()` / `loginWithOtp()` |
+| Signup on first login | Automatic | Controlled by `allowSignup` option (default `false`) |
+
+### Auth0 Setup
+
+#### 1. Enable the Passwordless OTP feature
+
+This feature is in Early Access. Contact your Auth0 account team to have it enabled on your tenant.
+
+#### 2. Enable OTP on your database connection
+
+**Enable Connection Attributes**
+
+1. Go to **Authentication → Database** and select your connection.
+2. Select the **Attributes** section.
+3. Click **Add attribute** and create attributes for **email** and/or **phone**.
+4. Click **Configure** on each created attribute.
+5. Enable the **Use as Identifier** option.
+6. Check **Allow signup** if you want new users to be able to sign up via OTP.
+
+**Enable Connection Authentication Methods**
+
+1. Still on your connection, select the **Authentication Methods** section.
+2. Click **Configure** against the **Email** or **Phone** option.
+3. Under **OTP for login**, select **Allow**.
+4. Save changes.
+
+For phone OTP, attach an SMS provider under **Branding → Phone Provider**.
+
+#### 3. Application setup
+
+1. Go to **Applications → your app → Settings**.
+2. Add `http://localhost:3000/auth/callback` to **Allowed Callback URLs** and `http://localhost:3000` to **Allowed Logout URLs**.
+3. Under **Connections**, confirm your database connection is enabled for this application.
+
+> [!NOTE]
+> Phone OTP signup (`allowSignup: true`) is not supported in non-interactive flows — Auth0 requires `phone_verified: true` before account creation. Pre-create users who will sign in via phone OTP, or use email OTP for the signup path.
+
+### Route Handler Setup
+
+The SDK registers two handlers automatically when you mount `auth0.handler`:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passwordless/otp/challenge` | Request an OTP for a DB connection user |
+| `POST` | `/auth/passwordless/otp/token` | Exchange `auth_session` + OTP for tokens and set session cookie |
+
+**App Router** — ensure `POST` is exported from your catch-all auth route:
+
+```typescript
+// app/auth/[auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.handler;
+export const POST = auth0.handler;
+```
+
+**Pages Router** — ensure the API route handles all methods:
+
+```typescript
+// pages/api/auth/[auth0].ts
+import { auth0 } from "@/lib/auth0";
+export default auth0.handler;
+```
+
+### Client-Side Usage
+
+Import the `passwordless` singleton from `@auth0/nextjs-auth0/client`. Call `challengeWithEmail()` or `challengeWithPhoneNumber()` to request an OTP, then `loginWithOtp()` after the user submits the code — the session cookie is set automatically on success.
+
+```tsx
+import { passwordless } from "@auth0/nextjs-auth0/client";
+
+// Step 1 — request OTP by email
+const { authSession } = await passwordless.challengeWithEmail({
+  email: "user@example.com",
+  connection: "Username-Password-Authentication",
+  allowSignup: true, // set false to prevent new account creation
+});
+
+// Step 1 — request OTP by phone
+const { authSession } = await passwordless.challengeWithPhoneNumber({
+  phoneNumber: "+14155550100",
+  connection: "Username-Password-Authentication",
+  deliveryMethod: "text", // "text" | "voice"
+  allowSignup: false,     // phone signup not supported in non-interactive flows
+});
+
+// Step 2 — verify OTP and create session
+await passwordless.loginWithOtp({
+  authSession, // opaque value returned by the challenge step — never log or persist
+  otp: "123456",
+});
+// session cookie is now set; redirect to dashboard
+```
+
+> [!IMPORTANT]
+> The challenge endpoint always returns a valid-looking `authSession` regardless of whether the user exists (user-enumeration prevention). If `allowSignup` is `false` for a non-existent user, or the user is blocked, no OTP is delivered — the `authSession` is silently non-functional. Calling `loginWithOtp` with it will fail with `invalid_request`.
+
+**Full form example with error handling:**
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { passwordless } from "@auth0/nextjs-auth0/client";
+import type { PasswordlessDbChallenge } from "@auth0/nextjs-auth0/types";
+
+export function PasswordlessDbForm() {
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [challenge, setChallenge] = useState<PasswordlessDbChallenge | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleChallenge(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const result = await passwordless.challengeWithEmail({
+        email,
+        connection: "Username-Password-Authentication",
+        allowSignup: true,
+      });
+      setChallenge(result);
+    } catch (err: unknown) {
+      const e = err as { error_description?: string };
+      setError(e.error_description ?? "Failed to send code.");
+    }
+  }
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!challenge) return;
+    try {
+      await passwordless.loginWithOtp({ authSession: challenge.authSession, otp });
+      window.location.href = "/dashboard";
+    } catch (err: unknown) {
+      const e = err as { error?: string; error_description?: string };
+      setError(e.error_description ?? "Invalid or expired code.");
+    }
+  }
+
+  if (challenge) {
+    return (
+      <form onSubmit={handleLogin}>
+        <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" />
+        {error && <p>{error}</p>}
+        <button type="submit">Verify</button>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={handleChallenge}>
+      <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+      {error && <p>{error}</p>}
+      <button type="submit">Send code</button>
+    </form>
+  );
+}
+```
+
+> [!NOTE]
+> If the user has MFA configured, `loginWithOtp` throws a raw `mfa_required` error with an encrypted `mfa_token`. Pass it to `mfa.getAuthenticators()` to continue — the full flow is identical to the [MFA handling in Passwordless Authentication](#error-handling) and [Passkey Authentication](#error-handling-3). See the [`with-passwordless-db`](examples/with-passwordless-db) example for a working implementation.
+
+### Server-Side (Headless) Usage
+
+Use `auth0.passwordless` directly in **Server Actions** or **API Routes** for full control:
+
+```typescript
+"use server";
+
+import { auth0 } from "@/lib/auth0";
+
+// Step 1 — request OTP
+export async function requestOtp(email: string) {
+  const challenge = await auth0.passwordless.challengeWithEmail({
+    email,
+    connection: "Username-Password-Authentication",
+    allowSignup: true,
+  });
+  return challenge; // { authSession: "..." }
+}
+
+// Step 2 — verify OTP and create session (App Router)
+export async function verifyOtp(authSession: string, otp: string) {
+  // Sets the session cookie via next/headers; navigate the user after this resolves
+  await auth0.passwordless.loginWithOtp({ authSession, otp });
+}
+```
+
+**Pages Router** — pass `req` and `res` to write the session cookie:
+
+```typescript
+// pages/api/passwordless-db-login.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { authSession, otp } = req.body;
+  await auth0.passwordless.loginWithOtp(req, res, { authSession, otp });
+  res.status(200).json({ ok: true });
+}
+```
+
+### Route Configuration
+
+The default route paths can be overridden with environment variables:
+
+```bash
+# .env.local
+NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE=/auth/passwordless/otp/challenge
+NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE=/auth/passwordless/otp/token
+```
+
+Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+
+### Error Types
+
+| Error Class | `code` | `error` value | When Thrown |
+|-------------|--------|---------------|-------------|
+| `PasswordlessDbChallengeError` | `passwordless_challenge_error` | `invalid_connection` | Connection does not have OTP enabled or is not a DB connection |
+| `PasswordlessDbChallengeError` | `passwordless_challenge_error` | `invalid_request` | Malformed request body |
+| `PasswordlessDbGetTokenError` | `passwordless_login_error` | `invalid_request` | Wrong OTP, expired `auth_session`, blocked user, or signup disabled for non-existent user |
+| `PasswordlessDbGetTokenError` | `passwordless_login_error` | `invalid_grant` | OTP has already been used or has expired |
+
+Both error classes expose `error` and `error_description` fields matching the Auth0 API error shape and are importable from `@auth0/nextjs-auth0/errors`.
+
 ## Passkey Authentication
 
 Auth0 supports passkey (WebAuthn) authentication — users sign in with device biometrics or a PIN instead of a password. The private key never leaves the device's secure enclave.
@@ -2766,6 +3147,260 @@ const fetcher = await auth0.createFetcher(req, {
 });
 ```
 
+## mTLS (Mutual TLS Client Authentication)
+
+Mutual TLS (mTLS) provides strong client authentication using X.509 certificates instead of client secrets. When enabled, the SDK authenticates to Auth0 using a client TLS certificate, and Auth0 issues certificate-bound access tokens with a `cnf.x5t#S256` claim for proof-of-possession protection.
+
+### What is mTLS?
+
+mTLS (Mutual TLS) is an authentication method defined in [RFC 8705](https://datatracker.ietf.org/doc/html/rfc8705) where the client proves its identity using an X.509 certificate during the TLS handshake, instead of sending a client secret in the request body. This provides several security benefits:
+
+- **No secrets in transit** — The certificate is presented during TLS, never in the HTTP request
+- **Certificate-bound tokens** — Access tokens include a `cnf` claim binding them to the client certificate
+- **Proof-of-possession** — Resource servers can verify the token presenter holds the private key
+
+### Prerequisites
+
+**Auth0 Tenant:**
+- Custom domain configured with mTLS enabled (see [Auth0 docs](https://auth0.com/docs/get-started/applications/configure-mtls))
+- Discovery document must include `mtls_endpoint_aliases`
+- Application Token Endpoint Authentication Method set to:
+  - **"Self-Signed TLS Client Authentication"** for self-signed certificates
+  - **"TLS Client Authentication"** for CA-issued certificates
+
+**Client Certificate:**
+- Valid X.509 certificate (self-signed for testing, CA-issued for production)
+- Private key accessible to your Next.js server
+- Certificate uploaded to Auth0 Dashboard → Applications → Credentials
+
+### Basic mTLS Setup
+
+#### 1. Generate Client Certificate
+
+**Option A: Self-Signed Certificate (Development/Testing)**
+
+Self-signed certificates are quick to generate and ideal for local development and testing:
+
+```bash
+# Create certificate directory
+mkdir -p certs
+
+# Generate private key
+openssl genrsa -out certs/client.key 2048
+
+# Generate self-signed certificate (valid 365 days)
+openssl req -new -x509 -key certs/client.key \
+  -out certs/client.crt -days 365 \
+  -subj "/CN=nextjs-mtls-client/O=YourOrg/C=US"
+
+# Get certificate fingerprint (needed for Auth0)
+openssl x509 -in certs/client.crt -noout -fingerprint -sha256
+```
+
+**Option B: CA-Issued Certificate (Production)**
+
+For production, obtain a certificate from a trusted Certificate Authority:
+
+```bash
+# Generate private key
+openssl genrsa -out certs/client.key 2048
+
+# Generate Certificate Signing Request (CSR)
+openssl req -new -key certs/client.key -out certs/client.csr \
+  -subj "/CN=nextjs-mtls-client/O=YourOrg/C=US"
+
+# Submit CSR to your CA (Let's Encrypt, DigiCert, or internal CA)
+# CA will return: client.crt (signed certificate) and ca-bundle.crt (CA chain)
+
+# Verify the certificate chain
+openssl verify -CAfile certs/ca-bundle.crt certs/client.crt
+```
+
+#### 2. Configure Auth0
+
+**For Self-Signed Certificates:**
+
+1. **Upload Certificate:**
+   - Go to Auth0 Dashboard → Applications → Your App → Credentials
+   - Click "Add Credential"
+   - Select **"Self-Signed Certificate"**
+   - Upload or paste the contents of `certs/client.crt`
+   - Verify the fingerprint matches what `openssl` shows
+
+2. **Set Authentication Method:**
+   - Go to Settings → Advanced → OAuth
+   - Token Endpoint Authentication Method: **"Self-Signed TLS Client Authentication"**
+
+**For CA-Issued Certificates:**
+
+1. **Upload CA Root Certificate (Tenant-Level):**
+   - Some Auth0 configurations require uploading the CA's root certificate at the tenant level
+   - Contact Auth0 support if your CA is not in Auth0's trust store
+
+2. **Set Authentication Method:**
+   - Go to Settings → Advanced → OAuth
+   - Token Endpoint Authentication Method: **"TLS Client Authentication"** (not "Self-Signed")
+
+3. **Configure Callbacks (Both Types):**
+   - Allowed Callback URLs: `http://localhost:3000/auth/callback`
+   - Allowed Logout URLs: `http://localhost:3000`
+
+**Comparison: Self-Signed vs CA-Issued**
+
+| Aspect | Self-Signed | CA-Issued |
+|--------|--------------|-----------|
+| **Use Case** | Development, testing, isolated environments | Production, public-facing applications |
+| **Certificate Issuance** | Generated locally with `openssl` | Obtained from trusted CA (commercial or internal) |
+| **Auth0 Upload** | Must upload individual certificate fingerprint per application | CA root may be trusted at tenant level (depends on CA) |
+| **Certificate Rotation** | Must re-upload to Auth0, restart application | May rotate locally if CA trusted; simpler renewal workflow |
+| **Trust Validation** | Auth0 validates against uploaded fingerprint | Auth0 validates chain to trusted CA root |
+| **Token Endpoint Auth** | `self_signed_tls_client_auth` | `tls_client_auth` |
+| **Cost** | Free | CA fees may apply (Let's Encrypt is free) |
+| **Security** | Secure if properly managed | Higher trust level, auditable chain |
+
+#### 3. Configure the SDK
+
+Install `undici` for TLS client certificate support:
+
+```bash
+npm install undici
+```
+
+Configure Next.js to externalize `undici` in `next.config.ts`:
+
+```typescript
+export default {
+  serverExternalPackages: ["undici"]
+};
+```
+
+Create the Auth0 client with mTLS in `lib/auth0.ts`:
+
+```typescript
+import { readFileSync } from "fs";
+import { Agent, fetch as undiciFetch } from "undici";
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+// Load client certificate and private key
+const cert = readFileSync(process.env.MTLS_CLIENT_CERT_PATH!);
+const key = readFileSync(process.env.MTLS_CLIENT_KEY_PATH!);
+
+// Create undici Agent with TLS client certificate
+const tlsAgent = new Agent({
+  connect: { cert, key }
+});
+
+// Wrapper that attaches the TLS agent to every request
+function mtlsFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+    ...(init as Parameters<typeof undiciFetch>[1]),
+    dispatcher: tlsAgent
+  }) as unknown as Promise<Response>;
+}
+
+// Configure Auth0 client with mTLS
+export const auth0 = new Auth0Client({
+  useMtls: true,           // Enable mTLS authentication
+  customFetch: mtlsFetch,  // Use cert-carrying fetch
+});
+```
+
+Set environment variables in `.env.local`:
+
+```bash
+AUTH0_DOMAIN=your-custom-domain.com  # Must have mTLS enabled
+AUTH0_CLIENT_ID=your-client-id
+AUTH0_SECRET=your-session-secret
+APP_BASE_URL=http://localhost:3000
+
+MTLS_CLIENT_CERT_PATH=./certs/client.crt
+MTLS_CLIENT_KEY_PATH=./certs/client.key
+```
+
+**Note:** Middleware requires Node.js runtime. Add to `middleware.ts`:
+
+```typescript
+export const runtime = "nodejs"; // Required for fs.readFileSync and undici
+```
+
+### How It Works
+
+When `useMtls: true` is configured:
+
+1. **TLS Handshake:** The `undici` Agent presents the client certificate during TLS connection establishment
+2. **Token Request:** SDK uses `TlsClientAuth()` — sends only `client_id`, no `client_secret` in the request body
+3. **Endpoint Routing:** Requests go to `mtls_endpoint_aliases.token_endpoint` from the discovery document
+4. **Certificate Validation:** Auth0 validates the certificate fingerprint against what's uploaded in the Dashboard
+5. **Token Binding:** Auth0 issues an access token with `cnf.x5t#S256` claim containing the certificate fingerprint
+
+**Certificate-Bound Token Example:**
+
+```json
+{
+  "iss": "https://your-domain.com/",
+  "sub": "auth0|123456",
+  "aud": "https://api.example.com",
+  "cnf": {
+    "x5t#S256": "GRq9CsEnEBZ_VT-5WjZFb7ovYpKR5UlG08tTg4HfzCs"
+  }
+}
+```
+
+Resource servers can verify the token presenter holds the matching private key by checking the `cnf` claim against the TLS client certificate.
+
+### Example Application
+
+See [examples/with-mtls](https://github.com/auth0/nextjs-auth0/tree/main/examples/with-mtls) for a complete working example with:
+
+- Full Next.js App Router setup
+- Self-signed certificate generation
+- Local testing scripts
+- Comprehensive testing guide
+
+### Testing
+
+The example includes a local test script to verify the mTLS setup works before connecting to Auth0:
+
+```bash
+cd examples/with-mtls
+node test-mtls.mjs
+```
+
+This spins up a local HTTPS server that requests a client certificate and validates that `undici` correctly attaches it during the TLS handshake.
+
+### Important Notes
+
+1. **Custom Domain Required:** Default Auth0 domains (`*.auth0.com`) don't support mTLS. You must configure a custom domain with mTLS enabled.
+
+2. **Discovery Verification:** Check that `mtls_endpoint_aliases` appears in your discovery document:
+   ```bash
+   curl -s https://your-domain.com/.well-known/openid-configuration | grep mtls_endpoint_aliases
+   ```
+
+3. **Certificate Security:**
+   - Never commit private keys (`.key` files) to version control
+   - Use `.gitignore` to exclude `certs/` directory
+   - Store certificates securely in production:
+     - Environment variables (for containerized deployments)
+     - Secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.)
+     - Kubernetes Secrets (for K8s deployments)
+   - Set file permissions: `chmod 400 certs/client.key` (read-only for owner)
+   - Monitor certificate expiration and automate rotation before expiry
+
+4. **Edge Runtime Limitation:** mTLS requires Node.js runtime because:
+   - `fs.readFileSync` is needed to load certificate files
+   - `undici` requires Node.js built-ins
+
+5. **Certificate Rotation:**
+   - **Self-signed:** Must re-upload new certificate to Auth0 Dashboard, restart application
+   - **CA-issued:** If Auth0 trusts the CA at tenant level, can rotate locally without Auth0 changes
+   - Set up monitoring 30-60 days before expiration
+   - Use cert management tools: `certbot` (Let's Encrypt), `cert-manager` (K8s)
+
+6. **Environment-Specific Certificates:** Use different certificates per environment (dev, staging, production) for proper isolation.
+
+7. **Passwordless Start Not Supported:** `/passwordless/start` does not accept mTLS client authentication — Auth0's passport strategy list for that endpoint omits both mTLS strategies. An mTLS-only client (no `clientSecret`) will receive `invalid_client` when calling `passwordlessStart`. All other SDK interactive flows — `mfaVerify` (`/mfa/challenge`), `passkeyGetToken` (`/passkey/challenge`, `/passkey/register`) — accept mTLS and route token exchange through the mTLS alias automatically.
+
 ## Proxy Handler for My Account and My Organization APIs
 
 The SDK provides built-in proxy handler support for Auth0's My Account and My Organization Management APIs. This enables browser-initiated requests to these APIs while maintaining server-side DPoP authentication and token management.
@@ -3238,10 +3873,9 @@ export const auth0 = new Auth0Client({
 
 | Option             | Type      | Description                                                                                                                                                                                                                                   |
 | ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rolling             | `boolean`                 | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
-| absoluteDuration    | `number`                  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
-| inactivityDuration  | `number`                  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
-| beforeSessionRolled | `BeforeSessionRolledHook` | A predicate `(req: NextRequest) => boolean \| Promise<boolean>` that decides whether the session should be rolled for an incoming request. May be synchronous or asynchronous. Only consulted when `rolling` is enabled. See [Selectively rolling sessions](#selectively-rolling-sessions). Default: the session is always rolled. |
+| rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
+| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
+| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
 ### Understanding Rolling Sessions
 
@@ -3277,37 +3911,6 @@ export const config = {
 
 > [!WARNING]
 > Disabling rolling sessions changes the user experience significantly. Users will be logged out after the absolute duration regardless of their activity level, requiring manual re-authentication.
-
-### Selectively rolling sessions
-
-Because rolling sessions require the middleware to run on (almost) every request, each request rolls the session and writes to the session store. With a stateful session store (e.g. Redis), a single page that fans out into many sub-requests can multiply the writes against your store.
-
-The `beforeSessionRolled` hook lets you decide, per request, whether the session should be rolled. Return `false` to skip rolling for that request while keeping rolling enabled everywhere else. The hook may be synchronous or asynchronous (return a `boolean` or a `Promise<boolean>`):
-
-```ts
-import type { NextRequest } from "next/server";
-
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client({
-  session: {
-    rolling: true,
-    beforeSessionRolled: (req: NextRequest) => {
-      // Only roll the session for top-level page navigations, not for the
-      // many API/data requests a page may trigger.
-      return !req.nextUrl.pathname.startsWith("/api/");
-    }
-  }
-});
-```
-
-Notes:
-
-- The hook is only consulted when `rolling` is enabled.
-- The hook may be asynchronous; the SDK awaits its result before deciding.
-- If the hook throws or rejects, the SDK fails open and rolls the session as usual (a warning is logged).
-- Skipping rolling does not log the user out — it only avoids extending the session (and the corresponding write to the session store) for that request. The session still expires according to `inactivityDuration` and `absoluteDuration`.
-- This hook only controls the middleware's passive expiry-bump on pass-through requests. Writes triggered by token refresh, updateSession, or authentication flows always proceed regardless of this hook — those writes occur because the session data itself changed, not just its expiry.
 
 ## Cookie Configuration
 
@@ -3593,6 +4196,60 @@ The SDK can be configured to listen to [Back-Channel Logout](https://auth0.com/d
 To use Back-Channel Logout, you will need to provide a session store implementation as shown in the [Database sessions](#database-sessions) section above with the `deleteByLogoutToken` implemented.
 
 A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` which will contain either a `sid` claim, a `sub` claim, or both.
+
+## Session Expiry from the Upstream IdP
+
+For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token, and the SDK enforces this ceiling automatically. Once it is reached, `getSession()` returns `null` and `useUser()` reflects the logged-out state.
+
+The error surfaced by `getAccessToken()` depends on the call path:
+
+- **Browser client** (`getAccessToken()` from `@auth0/nextjs-auth0/client`) — calls `/auth/access-token` which hits `getTokenSet` directly. Throws `AccessTokenError` with code `session_expired`.
+- **Server / App Router** (`auth0.getAccessToken()`) — calls `getSession()` first. Since the ceiling clears the session, it throws `AccessTokenError` with code `missing_session`, identical to a logged-out user.
+
+To enable this, add a Post-Login Action on your Auth0 tenant that sets the `session_expiry` claim (see [Auth0 Actions documentation](https://auth0.com/docs/customize/actions)). The value must be a **Unix timestamp in seconds** — a common mistake is using `Date.now()` (milliseconds) instead of `Math.floor(Date.now() / 1000)`.
+
+> [!NOTE]
+> Once this feature is active, `getSession()` and `useUser()` can return `null` for a user who was previously logged in once the ceiling passes. If your app assumes a session always exists after login, add a null check and redirect back to login.
+>
+> The SDK enforces the ceiling 30 seconds early to absorb clock skew — a session is treated as expired slightly before the wall-clock ceiling, never after.
+>
+> The ceiling is stamped at login and survives access-token refreshes. Refreshing a token does not extend the upstream session; the original `session_expiry` value is preserved unchanged across all token grants.
+
+On the **browser client path**, catch `session_expired` and redirect to re-authenticate:
+
+```ts
+import { getAccessToken } from "@auth0/nextjs-auth0/client";
+import { AccessTokenErrorCode } from "@auth0/nextjs-auth0/errors";
+
+try {
+  const token = await getAccessToken();
+  // use token...
+} catch (err: any) {
+  if (err?.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+    // IdP session ceiling reached — the user must log in again
+    window.location.href = "/auth/login";
+  }
+  throw err;
+}
+```
+
+On the **server path**, handle `missing_session` (which covers both logged-out and ceiling-expired states):
+
+```ts
+import { auth0 } from "@/lib/auth0";
+import { AccessTokenErrorCode } from "@auth0/nextjs-auth0/errors";
+
+try {
+  const { token } = await auth0.getAccessToken();
+  // use token...
+} catch (err: any) {
+  if (err?.code === AccessTokenErrorCode.MISSING_SESSION) {
+    // No active session — either logged out or ceiling reached
+    redirect("/auth/login");
+  }
+  throw err;
+}
+```
 
 ## Combining middleware
 
@@ -4113,17 +4770,31 @@ const result = await auth0.customTokenExchange({
 
 ### With Actor Token (Delegation)
 
-For delegation scenarios where a service acts on behalf of a user:
+For delegation scenarios where a service or agent acts on behalf of a user (RFC 8693 §4.1). The `act` claim in the returned ID token identifies the acting party and is automatically decoded and returned on the response:
 
 ```ts
 const result = await auth0.customTokenExchange({
   subjectToken: userToken,
   subjectTokenType: "urn:acme:user-token",
-  actorToken: serviceToken,
-  actorTokenType: "urn:acme:service-token",
+  actorToken: agentToken,
+  actorTokenType: "https://idp.example.com/token-type/agent",
   audience: "https://downstream-api.example.com"
 });
+
+// act claim decoded from the ID token — set via Auth0 Action using api.authentication.setActor()
+console.log(result.act);
+// { sub: "agent|abc123" }
 ```
+
+The `act` claim is also accessible on `session.user.act` when present in a session-creating flow (e.g. standard OIDC login with an Action that calls `api.authentication.setActor()`):
+
+```ts
+const session = await auth0.getSession();
+console.log(session?.user?.act);
+// { sub: "agent|abc123" }
+```
+
+> **Note**: Auth0 suppresses the refresh token when `actor_token` is present in the request. `result.refreshToken` will be `undefined` in delegation flows — this is expected behaviour, not an error.
 
 ### Error Handling
 
@@ -4149,6 +4820,9 @@ try {
         break;
       case CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE:
         // Handle missing actor token type when actor token provided
+        break;
+      case CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE:
+        // Handle invalid actor token type format
         break;
       case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
         // Handle server-side exchange failure

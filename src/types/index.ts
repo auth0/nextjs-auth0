@@ -1,5 +1,5 @@
 import { AuthorizationParameters } from "./authorize.js";
-import { ConnectionTokenSet } from "./token-vault.js";
+import { ConnectionTokenSet, type ActClaim } from "./token-vault.js";
 
 export interface TokenSet {
   accessToken: string;
@@ -32,6 +32,9 @@ export interface SessionData {
     createdAt: number;
     // MCD metadata: domain and issuer used to authenticate this session
     mcd?: import("./mcd.js").MCDMetadata;
+    // IPSIE session_expiry ceiling (Unix seconds) stamped at login from the ID token.
+    // Absent when the connection has no session_expiry claim — existing behavior is unchanged.
+    sessionExpiresAt?: number;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -94,6 +97,18 @@ export interface User {
    * This field is populated when the user logs in through an organization.
    */
   org_id?: string;
+  /**
+   * The actor claim from the ID token, present in delegation/impersonation flows (RFC 8693).
+   * Set by an Auth0 Action via `api.authentication.setActor()`.
+   */
+  act?: ActClaim;
+  /**
+   * IPSIE session ceiling — absolute Unix timestamp (seconds) after which the
+   * upstream IdP session has expired. Present only when the enterprise connection
+   * has `id_token_session_expiry_supported: true`. The SDK enforces this as a hard
+   * ceiling on the local session; reads return no-session once it passes.
+   */
+  session_expiry?: number;
 
   [key: string]: any;
 }
@@ -210,6 +225,7 @@ export {
 } from "./authorize.js";
 export {
   AccessTokenForConnectionOptions,
+  ActClaim,
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
@@ -261,7 +277,12 @@ export {
   PasswordlessVerifyEmailOptions,
   PasswordlessVerifySmsOptions,
   PasswordlessVerifyTokenResponse,
-  GRANT_TYPE_PASSWORDLESS_OTP
+  GRANT_TYPE_PASSWORDLESS_OTP,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbDeliveryMethod,
+  PasswordlessDbGetTokenOptions
 } from "./passwordless.js";
 
 export {

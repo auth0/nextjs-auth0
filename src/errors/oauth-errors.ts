@@ -132,7 +132,8 @@ export class BackchannelAuthenticationError extends SdkError {
 export enum AccessTokenErrorCode {
   MISSING_SESSION = "missing_session",
   MISSING_REFRESH_TOKEN = "missing_refresh_token",
-  FAILED_TO_REFRESH_TOKEN = "failed_to_refresh_token"
+  FAILED_TO_REFRESH_TOKEN = "failed_to_refresh_token",
+  SESSION_EXPIRED = "session_expired"
 }
 
 export class AccessTokenError extends SdkError {
@@ -211,6 +212,11 @@ export enum CustomTokenExchangeErrorCode {
    * The actor_token was provided without actor_token_type.
    */
   MISSING_ACTOR_TOKEN_TYPE = "missing_actor_token_type",
+
+  /**
+   * The actor_token_type is not a valid URI.
+   */
+  INVALID_ACTOR_TOKEN_TYPE = "invalid_actor_token_type",
 
   /**
    * The token exchange request failed.

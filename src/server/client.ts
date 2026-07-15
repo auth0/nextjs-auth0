@@ -396,6 +396,75 @@ export interface Auth0ClientOptions {
    */
   dpopOptions?: DpopOptions;
 
+  // mTLS Configuration
+  /**
+   * Enable mTLS (Mutual TLS, RFC 8705) client authentication.
+   *
+   * When `true`, the SDK authenticates with Auth0 using a client TLS certificate
+   * instead of a client secret or private-key JWT. Access tokens issued by Auth0
+   * will be certificate-bound (`cnf.x5t#S256` claim), providing strong proof-of-possession
+   * protection against token theft.
+   *
+   * Using mTLS requires:
+   * 1. A TLS-aware `customFetch` implementation that attaches your client certificate
+   *    (e.g. Node.js `undici` configured with `connect: { key, cert }`).
+   * 2. The mTLS feature to be enabled on your Auth0 tenant.
+   *
+   * You do **not** need to provide `clientSecret` or `clientAssertionSigningKey`
+   * when `useMtls` is `true` — the certificate is the sole client credential.
+   *
+   * Can also be enabled by setting the `AUTH0_MTLS=true` environment variable.
+   *
+   * @default false
+   *
+   * @example
+   * ```typescript
+   * import { Agent, fetch as undiciFetch } from "undici";
+   * import { readFileSync } from "fs";
+   *
+   * const tlsAgent = new Agent({
+   *   connect: {
+   *     key: readFileSync("client.key"),
+   *     cert: readFileSync("client.crt")
+   *   }
+   * });
+   *
+   * export const auth0 = new Auth0Client({
+   *   useMtls: true,
+   *   customFetch: (url, init) =>
+   *     undiciFetch(url, { ...init, dispatcher: tlsAgent })
+   * });
+   * ```
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8705 | RFC 8705: OAuth 2.0 Mutual-TLS Client Authentication}
+   */
+  useMtls?: boolean;
+
+  /**
+   * A custom `fetch` implementation used for all outbound requests to Auth0.
+   *
+   * Required when `useMtls` is `true` — provide a TLS-aware implementation that
+   * attaches your client certificate to every request (e.g. `undici` with
+   * `connect: { key, cert }`).
+   *
+   * Can also be used independently (without mTLS) to proxy requests, add custom
+   * headers, or inject test doubles in unit tests.
+   *
+   * @example
+   * ```typescript
+   * import { Agent, fetch as undiciFetch } from "undici";
+   *
+   * const tlsAgent = new Agent({ connect: { cert, key } });
+   *
+   * export const auth0 = new Auth0Client({
+   *   useMtls: true,
+   *   customFetch: (url, init) =>
+   *     undiciFetch(url, { ...init, dispatcher: tlsAgent })
+   * });
+   * ```
+   */
+  customFetch?: typeof fetch;
+
   /**
    * MFA context TTL in seconds. Controls how long encrypted mfa_token remains valid.
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
@@ -440,8 +509,7 @@ export interface Auth0ClientOptions {
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
 export type PagesRouterResponse =
-  | ServerResponse<IncomingMessage>
-  | NextApiResponse;
+  ServerResponse<IncomingMessage> | NextApiResponse;
 
 export class Auth0Client {
   private transactionStore: TransactionStore;
@@ -610,6 +678,12 @@ export class Auth0Client {
       passwordlessVerify:
         process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
         "/auth/passwordless/verify",
+      passwordlessDbOtpChallenge:
+        process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
+        "/auth/passwordless/otp/challenge",
+      passwordlessDbGetToken:
+        process.env.NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE ||
+        "/auth/passwordless/otp/token",
       passkeyRegister:
         process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
         "/auth/passkey/register",
@@ -715,6 +789,8 @@ export class Auth0Client {
           useDPoP: options.useDPoP || false,
           dpopKeyPair: options.dpopKeyPair,
           dpopOptions: options.dpopOptions,
+          useMtls: options.useMtls ?? process.env.AUTH0_MTLS === "true",
+          fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
 
@@ -771,8 +847,7 @@ export class Auth0Client {
 
     // extract cookies
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (normalizedReq) {
       reqCookies =
         normalizedReq instanceof NextRequest
@@ -797,8 +872,7 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     let reqCookies:
-      | RequestCookies
-      | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
     if (req) {
       reqCookies =
         req instanceof NextRequest
@@ -1038,10 +1112,24 @@ export class Auth0Client {
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session = await this.getSessionFromAuthClient(
-      authClient,
-      normalizedReq
-    );
+    // Connection tokens follow the upstream IdP's own token TTLs and are not
+    // subject to the IPSIE primary session ceiling — skip only the ceiling check,
+    // MCD domain validation still applies.
+    let reqCookies:
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
+    }
+    const { error: sessionError, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies, {
+        skipCeilingCheck: true
+      });
+    if (sessionError) throw sessionError;
 
     if (!session) {
       throw new AccessTokenForConnectionError(
@@ -1176,11 +1264,13 @@ export class Auth0Client {
    *       authenticatorId: authenticators[0].id
    *     });
    *
-   *     // Verify code
-   *     const tokens = await auth0.mfa.verify({
+   *     // Verify code — tokens stored in session cookie, not in response body
+   *     await auth0.mfa.verify({
    *       mfaToken: error.mfa_token,
    *       otp: '123456'
    *     });
+   *     // Retrieve the access token from the session after verify
+   *     const token = await auth0.getAccessToken();
    *   }
    * }
    * ```
@@ -1521,8 +1611,7 @@ export class Auth0Client {
     return (
       req: NextRequest | NextApiRequest,
       resOrParams:
-        | withApiAuthRequired.AppRouteHandlerFnContext
-        | NextApiResponse
+        withApiAuthRequired.AppRouteHandlerFnContext | NextApiResponse
     ) => {
       if (isRequest(req)) {
         return appRouteHandler(
@@ -1610,15 +1699,16 @@ export class Auth0Client {
       : process.env.APP_BASE_URL;
     const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 
-    // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
+    // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided.
+    // mTLS (useMtls=true / AUTH0_MTLS=true) authenticates via a client certificate so no secret is needed.
     const clientSecret =
       options.clientSecret ?? process.env.AUTH0_CLIENT_SECRET;
     const clientAssertionSigningKey =
       options.clientAssertionSigningKey ??
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
-    const hasClientAuthentication = !!(
-      clientSecret || clientAssertionSigningKey
-    );
+    const isMtls = options.useMtls ?? process.env.AUTH0_MTLS === "true";
+    const hasClientAuthentication =
+      !!(clientSecret || clientAssertionSigningKey) || isMtls;
 
     const missing = Object.entries(requiredOptions)
       .filter(([, value]) => !value)

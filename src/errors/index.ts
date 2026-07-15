@@ -22,6 +22,8 @@ export {
 
 export { DPoPError, DPoPErrorCode } from "./dpop-errors.js";
 
+export { MtlsError, MtlsErrorCode } from "./mtls-errors.js";
+
 export {
   MyAccountApiError,
   ConnectAccountError,
@@ -55,6 +57,11 @@ export {
   PasswordlessVerifyError,
   type PasswordlessApiErrorResponse
 } from "./passwordless-errors.js";
+
+export {
+  PasswordlessDbChallengeError,
+  PasswordlessDbGetTokenError
+} from "./passwordless-db-errors.js";
 
 // MCD (Multiple Custom Domains) error classes
 export {

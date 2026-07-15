@@ -311,5 +311,31 @@ describe("AuthClient passwordless methods", () => {
         error: "discovery_error"
       });
     });
+
+    it("does NOT throw MfaRequiredError when mfa_required has no mfa_token — falls through to PasswordlessVerifyError", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+          HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "mfa_required without token"
+              // mfa_token intentionally absent — #throwIfMfaRequired falls through
+            },
+            { status: 403 }
+          )
+        )
+      );
+
+      await expect(
+        authClient.passwordlessVerify({
+          connection: "email",
+          email: DEFAULT.email,
+          verificationCode: DEFAULT.verificationCode
+        })
+      ).rejects.toMatchObject({
+        name: "PasswordlessVerifyError",
+        error: "mfa_required"
+      });
+    });
   });
 });

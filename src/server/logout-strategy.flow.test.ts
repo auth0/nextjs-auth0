@@ -929,4 +929,111 @@ describe("Logout Strategy Flow Tests", () => {
       expect(logoutUrl.searchParams.get("federated")).toBe("");
     });
   });
+
+  describe("state parameter support", () => {
+    it("should forward state to OIDC logout URL", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "oidc",
+        routes: getDefaultRoutes()
+      });
+
+      const url = new URL("/auth/logout", DEFAULT.appBaseUrl);
+      url.searchParams.set("returnTo", DEFAULT.appBaseUrl);
+      url.searchParams.set("state", "my-opaque-state");
+
+      const request = new NextRequest(url, { method: "GET" });
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.searchParams.get("state")).toBe("my-opaque-state");
+      expect(logoutUrl.searchParams.get("post_logout_redirect_uri")).toBe(
+        DEFAULT.appBaseUrl
+      );
+    });
+
+    it("should not set state on OIDC logout URL when not provided", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "oidc",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.searchParams.has("state")).toBe(false);
+    });
+
+    it("should not forward state to v2 logout URL", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
+      });
+
+      const url = new URL("/auth/logout", DEFAULT.appBaseUrl);
+      url.searchParams.set("state", "my-opaque-state");
+
+      const request = new NextRequest(url, { method: "GET" });
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.searchParams.has("state")).toBe(false);
+    });
+
+    it("should forward state to OIDC logout URL with auto strategy", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
+      });
+
+      const url = new URL("/auth/logout", DEFAULT.appBaseUrl);
+      url.searchParams.set("state", "my-opaque-state");
+
+      const request = new NextRequest(url, { method: "GET" });
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.pathname).toBe("/oidc/logout");
+      expect(logoutUrl.searchParams.get("state")).toBe("my-opaque-state");
+    });
+  });
 });

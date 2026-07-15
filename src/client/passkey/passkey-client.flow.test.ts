@@ -462,4 +462,72 @@ describe("ClientPasskeyClient", () => {
       expect(authResponse.response.userHandle).toBeNull();
     });
   });
+
+  describe("mfa_required passthrough", () => {
+    const MFA_RESPONSE = {
+      error: "mfa_required",
+      error_description: "Multi-factor authentication is required.",
+      mfa_token: "encrypted-mfa-token-value"
+    };
+
+    it("login() re-throws mfa_required raw object instead of wrapping as PasskeyGetTokenError", async () => {
+      server.use(
+        http.post(CHALLENGE_URL, () =>
+          HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
+        ),
+        http.post(VERIFY_URL, () =>
+          HttpResponse.json(MFA_RESPONSE, { status: 403 })
+        )
+      );
+
+      vi.spyOn(navigator.credentials, "get").mockResolvedValue(
+        makeFakeAssertionCredential()
+      );
+
+      const err = await client.login().catch((e) => e);
+
+      expect(err.error).toBe("mfa_required");
+      expect(err.mfa_token).toBe("encrypted-mfa-token-value");
+      // Must NOT be a PasskeyGetTokenError — caller needs the raw shape
+      expect(err.name).not.toBe("PasskeyGetTokenError");
+    });
+
+    it("signup() re-throws mfa_required raw object instead of wrapping as PasskeyGetTokenError", async () => {
+      server.use(
+        http.post(REGISTER_URL, () =>
+          HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
+        ),
+        http.post(VERIFY_URL, () =>
+          HttpResponse.json(MFA_RESPONSE, { status: 403 })
+        )
+      );
+
+      vi.spyOn(navigator.credentials, "create").mockResolvedValue(
+        makeFakeCredential()
+      );
+
+      const err = await client
+        .signup({ email: "user@example.com" })
+        .catch((e) => e);
+
+      expect(err.error).toBe("mfa_required");
+      expect(err.mfa_token).toBe("encrypted-mfa-token-value");
+      expect(err.name).not.toBe("PasskeyGetTokenError");
+    });
+
+    it("enrollmentChallenge() re-throws mfa_required raw object instead of wrapping as PasskeyEnrollmentChallengeError", async () => {
+      const ENROLLMENT_CHALLENGE_URL = `${BASE_URL}/auth/passkey/enrollment-challenge`;
+      server.use(
+        http.post(ENROLLMENT_CHALLENGE_URL, () =>
+          HttpResponse.json(MFA_RESPONSE, { status: 403 })
+        )
+      );
+
+      const err = await client.enrollmentChallenge().catch((e) => e);
+
+      expect(err.error).toBe("mfa_required");
+      expect(err.mfa_token).toBe("encrypted-mfa-token-value");
+      expect(err.name).not.toBe("PasskeyEnrollmentChallengeError");
+    });
+  });
 });
