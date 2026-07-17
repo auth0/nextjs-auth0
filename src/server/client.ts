@@ -1274,7 +1274,7 @@ export class Auth0Client {
       );
     }
 
-    if (!session.tokenSet.refreshToken) {
+    if (!session.tokenSet.refreshToken?.trim()) {
       throw new TokenRevocationError(
         TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
         "The session does not contain a refresh token to revoke."

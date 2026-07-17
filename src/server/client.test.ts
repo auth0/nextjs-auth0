@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DomainResolutionError,
   InvalidConfigurationError,
+  TokenRevocationError,
   TokenRevocationErrorCode
 } from "../errors/index.js";
 import { SessionData } from "../types/index.js";
@@ -644,6 +645,26 @@ describe("Auth0Client", () => {
         code: TokenRevocationErrorCode.MISSING_REFRESH_TOKEN
       });
       expect(revokeToken).not.toHaveBeenCalled();
+    });
+
+    it("should re-throw the error returned by revokeToken", async () => {
+      const revocationError = new TokenRevocationError(
+        TokenRevocationErrorCode.FAILED_TO_REVOKE,
+        "Revocation request failed."
+      );
+      const revokeToken = vi.fn().mockResolvedValue([revocationError, null]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: sessionWithRefreshToken,
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.FAILED_TO_REVOKE
+      });
     });
   });
 

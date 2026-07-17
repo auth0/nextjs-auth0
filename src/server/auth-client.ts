@@ -3034,11 +3034,11 @@ export class AuthClient {
   async revokeToken(
     token: string,
     tokenTypeHint?: "refresh_token" | "access_token"
-  ): Promise<[TokenRevocationError, null] | [null, undefined]> {
+  ): Promise<[SdkError, null] | [null, undefined]> {
     if (!token || token.trim() === "") {
       return [
         new TokenRevocationError(
-          TokenRevocationErrorCode.FAILED_TO_REVOKE,
+          TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
           "A token is required to perform revocation."
         ),
         null
@@ -3049,17 +3049,7 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      return [
-        new TokenRevocationError(
-          TokenRevocationErrorCode.FAILED_TO_REVOKE,
-          "Failed to discover authorization server metadata.",
-          new OAuth2Error({
-            code: "discovery_error",
-            message: discoveryError.message
-          })
-        ),
-        null
-      ];
+      return [discoveryError, null];
     }
 
     try {

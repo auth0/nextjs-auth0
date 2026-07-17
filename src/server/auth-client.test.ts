@@ -4055,6 +4055,62 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const params = new URLSearchParams(body);
         expect(params.get("token")).toEqual(DEFAULT.refreshToken);
       });
+
+      it("should not block logout if revocation fails and should warn", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            revocationErrorResponse: new Response(
+              JSON.stringify({ error: "server_error" }),
+              { status: 500 }
+            )
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("[nextjs-auth0]"),
+          expect.anything()
+        );
+
+        warnSpy.mockRestore();
+      });
     });
   });
 
@@ -11475,7 +11531,34 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const [error, result] = await authClient.revokeToken("");
 
       expect(error).toBeInstanceOf(TokenRevocationError);
-      expect(error?.code).toBe(TokenRevocationErrorCode.FAILED_TO_REVOKE);
+      expect(error?.code).toBe(TokenRevocationErrorCode.MISSING_REFRESH_TOKEN);
+      expect(result).toBeNull();
+    });
+
+    it("should return a TokenRevocationError when the token is whitespace only", async () => {
+      const authClient = await createAuthClient(getMockAuthorizationServer());
+
+      const [error, result] = await authClient.revokeToken("   ");
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      expect(error?.code).toBe(TokenRevocationErrorCode.MISSING_REFRESH_TOKEN);
+      expect(result).toBeNull();
+    });
+
+    it("should return the original discovery error when discovery fails", async () => {
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          discoveryResponse: new Response(null, { status: 500 })
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).not.toBeNull();
+      expect(error).not.toBeInstanceOf(TokenRevocationError);
       expect(result).toBeNull();
     });
 
@@ -11498,8 +11581,11 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       );
 
       expect(error).toBeInstanceOf(TokenRevocationError);
-      expect(error?.code).toBe(TokenRevocationErrorCode.FAILED_TO_REVOKE);
-      expect(error?.cause?.code).toBe("invalid_request");
+      const revocationError = error as TokenRevocationError;
+      expect(revocationError.code).toBe(
+        TokenRevocationErrorCode.FAILED_TO_REVOKE
+      );
+      expect(revocationError.cause?.code).toBe("invalid_request");
       expect(result).toBeNull();
     });
   });
