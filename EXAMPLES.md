@@ -1575,6 +1575,55 @@ This ensures that the token you send is guaranteed to be valid for at least the 
 > [!IMPORTANT]
 > This strategy is **not** a solution for long-running operations that take longer than the token's total validity period (e.g., 10 minutes). In those cases, the token will still expire mid-operation. The correct approach for long-running tasks is to call `getAccessToken()` immediately before the operation that requires it, ensuring you have a fresh token. The buffer is only for mitigating latency-related failures in short-lived requests.
 
+## Revoking tokens
+
+`revokeRefreshToken()` revokes the refresh token stored in the current session at Auth0's `/oauth/revoke` endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)). Auth0 will also invalidate all access tokens issued under the same authorization grant — any subsequent API calls using those tokens will fail. Client authentication (`clientSecret`, Private Key JWT, or mTLS) is applied automatically from your `Auth0Client` configuration.
+
+> [!NOTE]
+> Logging out revokes the session's refresh token automatically — `auth0.middleware` / the `/auth/logout` route revokes before clearing the session. `revokeRefreshToken()` is for explicit revocation outside the logout flow, for example revoking a user's access without redirecting them.
+
+`revokeRefreshToken()` reads the refresh token from the current session and revokes it. The local session cookie is not cleared — call `handleLogout` for a full logout that also clears the session.
+
+**App Router (Server Actions, Route Handlers):**
+
+```typescript
+// app/api/revoke/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export async function POST() {
+  try {
+    await auth0.revokeRefreshToken();
+    return Response.json({ revoked: true });
+  } catch (error) {
+    console.error("Failed to revoke refresh token:", error);
+    return Response.json({ error: "Failed to revoke" }, { status: 500 });
+  }
+}
+```
+
+**Pages Router:** pass the incoming request via `options.req`:
+
+```typescript
+// pages/api/revoke.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    await auth0.revokeRefreshToken({ req });
+    res.status(200).json({ revoked: true });
+  } catch (error) {
+    console.error("Failed to revoke refresh token:", error);
+    res.status(500).json({ error: "Failed to revoke" });
+  }
+}
+```
+
+If there is no active session or the session has no refresh token, a `TokenRevocationError` is thrown.
+
 ## Multi-Factor Authentication (MFA)
 
 ### Step-up Authentication

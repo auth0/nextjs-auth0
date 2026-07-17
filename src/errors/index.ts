@@ -17,7 +17,9 @@ export {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   CustomTokenExchangeError,
-  CustomTokenExchangeErrorCode
+  CustomTokenExchangeErrorCode,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "./oauth-errors.js";
 
 export { DPoPError, DPoPErrorCode } from "./dpop-errors.js";

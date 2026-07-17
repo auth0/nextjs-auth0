@@ -45,7 +45,9 @@ import {
   PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError,
-  SdkError
+  SdkError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import {
   IssuerValidationError,
@@ -1095,14 +1097,18 @@ export class AuthClient {
     // Revoke the refresh token before clearing the session so it cannot be
     // replayed after logout (e.g. from a stolen session cookie). Errors are
     // swallowed — a failed revocation must never block the logout redirect.
-    if (this.useMtls && session?.tokenSet.refreshToken && !hasDomainMismatch) {
+    if (session?.tokenSet.refreshToken && !hasDomainMismatch) {
       try {
-        await this.revokeRefreshToken(
+        await this.performTokenRevocation(
           authorizationServerMetadata,
-          session.tokenSet.refreshToken
+          session.tokenSet.refreshToken,
+          "refresh_token"
         );
-      } catch {
-        // intentionally ignored
+      } catch (e) {
+        console.warn(
+          "[nextjs-auth0] Failed to revoke refresh token during logout (logout will still proceed):",
+          e
+        );
       }
     }
 
@@ -2982,19 +2988,92 @@ export class AuthClient {
     return as;
   }
 
-  private async revokeRefreshToken(
+  /**
+   * Low-level revocation call against the authorization server's
+   * `/oauth/revoke` endpoint. Callers must supply the discovered metadata.
+   *
+   * @param as The discovered authorization server metadata.
+   * @param token The token to revoke.
+   * @param tokenTypeHint Optional `token_type_hint` per RFC 7009.
+   */
+  private async performTokenRevocation(
     as: oauth.AuthorizationServer,
-    refreshToken: string
+    token: string,
+    tokenTypeHint?: "refresh_token" | "access_token"
   ): Promise<void> {
     const clientAuth = await this.getClientAuth();
     const response = await oauth.revocationRequest(
       as,
       this.clientMetadata,
       clientAuth,
-      refreshToken,
-      { [oauth.customFetch]: this.fetch, ...this.httpOptions() }
+      token,
+      {
+        [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+        ...this.httpOptions(),
+        ...(tokenTypeHint
+          ? { additionalParameters: { token_type_hint: tokenTypeHint } }
+          : {})
+      }
     );
     await oauth.processRevocationResponse(response);
+  }
+
+  /**
+   * Revokes a token at the Auth0 `/oauth/revoke` endpoint (RFC 7009).
+   *
+   * Per RFC 7009, revoking a refresh token also invalidates the other tokens
+   * issued under the same authorization grant. Client authentication
+   * (`client_secret`, Private Key JWT, or mTLS) is applied automatically based
+   * on the configured client credentials.
+   *
+   * @param token The token to revoke.
+   * @param tokenTypeHint Optional `token_type_hint` (`refresh_token` or `access_token`).
+   * @returns A tuple of `[error, null]` on failure or `[null, undefined]` on success.
+   */
+  async revokeToken(
+    token: string,
+    tokenTypeHint?: "refresh_token" | "access_token"
+  ): Promise<[SdkError, null] | [null, undefined]> {
+    if (!token || token.trim() === "") {
+      return [
+        new TokenRevocationError(
+          TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
+          "A token is required to perform revocation."
+        ),
+        null
+      ];
+    }
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    try {
+      await this.performTokenRevocation(
+        authorizationServerMetadata,
+        token,
+        tokenTypeHint
+      );
+    } catch (e) {
+      return [
+        new TokenRevocationError(
+          TokenRevocationErrorCode.FAILED_TO_REVOKE,
+          "An error occurred while trying to revoke the token.",
+          new OAuth2Error({
+            code:
+              e instanceof oauth.ResponseBodyError ? e.error : "revoke_failed",
+            message: e instanceof Error ? e.message : String(e)
+          })
+        ),
+        null
+      ];
+    }
+
+    return [null, undefined];
   }
 
   private warnIfNotCertificateBound(accessToken: string): void {
