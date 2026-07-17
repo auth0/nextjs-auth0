@@ -193,7 +193,12 @@ export class TransactionStore {
     // transaction cookies are measured/deleted — the session and other cookies
     // are left untouched, and the cookie about to be written is never evicted.
     if (reqCookies) {
-      this.evictOldestTransactionCookies(reqCookies, resCookies, newCookieName);
+      this.evictOldestTransactionCookies(
+        reqCookies,
+        resCookies,
+        newCookieName,
+        newCookieValue
+      );
     }
 
     resCookies.set(newCookieName, newCookieValue, this.cookieOptions);
@@ -201,18 +206,23 @@ export class TransactionStore {
 
   /**
    * Evicts the oldest transaction cookies (FIFO by the `{ts}:` value prefix) from
-   * the response so the accumulated `__txn_*` cookies stay under
-   * {@link MAX_TRANSACTION_COOKIE_BYTES} before a new one is written.
+   * the response so that the accumulated `__txn_*` cookies — including the one
+   * about to be written — stay under {@link MAX_TRANSACTION_COOKIE_BYTES}.
    *
    * Only cookies matching the transaction prefix are measured and deleted — the
    * session, connection-token, and application cookies are never touched. The
-   * cookie about to be (re)written for the current transaction (`skipCookieName`)
-   * is never evicted. No-op when the accumulated size is under the limit.
+   * cookie about to be (re)written for the current transaction (`newCookieName`)
+   * is never evicted. No-op when the projected total is under the limit.
+   *
+   * @param newCookieName - Name of the cookie about to be written (never evicted).
+   * @param newCookieValue - Value of that cookie; its size is included in the cap
+   *                         so a large new cookie can still trigger eviction.
    */
   private evictOldestTransactionCookies(
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies,
-    skipCookieName: string
+    newCookieName: string,
+    newCookieValue: string
   ) {
     const sizeOf = (name: string, value: string) =>
       new TextEncoder().encode(`${name}=${value}`).length;
@@ -220,12 +230,19 @@ export class TransactionStore {
     const txnCookies = reqCookies
       .getAll()
       .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
-    const txnBytes = txnCookies.reduce(
-      (sum, c) => sum + sizeOf(c.name, c.value),
+
+    // Existing transaction-cookie bytes, excluding any cookie with the same name
+    // as the one we're about to write — its old bytes are replaced, not added.
+    const existingBytes = txnCookies.reduce(
+      (sum, c) =>
+        c.name === newCookieName ? sum : sum + sizeOf(c.name, c.value),
       0
     );
+    // Project the total that will be on the request header after this write.
+    const projectedBytes =
+      existingBytes + sizeOf(newCookieName, newCookieValue);
 
-    if (txnBytes < MAX_TRANSACTION_COOKIE_BYTES) {
+    if (projectedBytes < MAX_TRANSACTION_COOKIE_BYTES) {
       return;
     }
 
@@ -246,18 +263,18 @@ export class TransactionStore {
     });
 
     let freed = 0;
-    const target = txnBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
+    const target = projectedBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
     for (const c of sorted) {
       // Never evict the cookie we are about to (re)write for this state.
-      if (c.name === skipCookieName) continue;
+      if (c.name === newCookieName) continue;
       cookies.deleteCookie(resCookies, c.name, deleteOptions);
       freed += sizeOf(c.name, c.value);
       if (freed >= target) break;
     }
 
     console.warn(
-      `[auth0] Evicted the oldest transaction cookie(s) — total size ${txnBytes} bytes ` +
-        `exceeded the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+      `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
+        `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
         `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
         `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
     );
