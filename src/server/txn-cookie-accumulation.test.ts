@@ -79,12 +79,6 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
       ).toBe(true);
     });
 
-    it("returns true when accept is text/x-component", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ accept: "text/x-component" }))
-      ).toBe(true);
-    });
-
     it("returns true when purpose is prefetch", () => {
       expect(isNonNavigationalRequest(makeReq({ purpose: "prefetch" }))).toBe(
         true
@@ -109,6 +103,14 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
       expect(isNonNavigationalRequest(makeReq({ accept: "text/html" }))).toBe(
         false
       );
+    });
+
+    it("returns false for accept: text/x-component — real RSC <Link> navigation must not be blocked", () => {
+      // text/x-component is sent by ALL App Router RSC requests, including a
+      // genuine client-side <Link prefetch={false}> click — not just prefetches.
+      expect(
+        isNonNavigationalRequest(makeReq({ accept: "text/x-component" }))
+      ).toBe(false);
     });
 
     it("returns false for sec-fetch-mode: navigate", () => {
@@ -185,6 +187,27 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
 
     // New cookie was written
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
+  });
+
+  it("counts the new cookie in the cap: evicts when existing is under-limit but projected total reaches it", async () => {
+    const store = new TransactionStore({ secret });
+
+    // One existing cookie sized just under 3500 bytes on its own — no eviction
+    // would fire if only existing bytes were counted. The ~500-byte new cookie
+    // pushes the projected total over the limit, so eviction MUST fire.
+    const existingState = "existing";
+    const nearLimitValue = `1000:${"j".repeat(3400)}`; // ~3413 bytes with name
+    const reqCookies = makeRequestCookies({
+      [`__txn_${existingState}`]: nearLimitValue
+    });
+    const resCookies = makeResponseCookies();
+
+    await store.save(resCookies, makeTransactionState("newstate"), reqCookies);
+
+    // The existing (older) cookie is evicted so the projected total stays bounded
+    expect(resCookies.get(`__txn_${existingState}`)?.maxAge).toBe(0);
+    // New cookie still written
+    expect(resCookies.get("__txn_newstate")?.value).toBeTruthy();
   });
 
   it("evicts oldest cookie first when the 3500 byte limit is exceeded", async () => {
