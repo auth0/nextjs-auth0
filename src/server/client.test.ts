@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   DomainResolutionError,
-  InvalidConfigurationError
+  InvalidConfigurationError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
@@ -569,6 +571,100 @@ describe("Auth0Client", () => {
         expect.any(Object),
         mockRes
       );
+    });
+  });
+
+  describe("revokeRefreshToken", () => {
+    let client: Auth0Client;
+
+    const sessionWithRefreshToken: SessionData = {
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "at_123",
+        refreshToken: "rt_session",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: { sid: "sid_123", createdAt: Date.now() / 1000 }
+    };
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      client = new Auth0Client();
+    });
+
+    it("should revoke the refresh token from the session", async () => {
+      const revokeToken = vi.fn().mockResolvedValue([null, undefined]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: sessionWithRefreshToken,
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).resolves.toBeUndefined();
+      expect(revokeToken).toHaveBeenCalledWith("rt_session", "refresh_token");
+    });
+
+    it("should throw a MISSING_SESSION error when there is no session", async () => {
+      const revokeToken = vi.fn();
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: null, error: null }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.MISSING_SESSION
+      });
+      expect(revokeToken).not.toHaveBeenCalled();
+    });
+
+    it("should throw a MISSING_REFRESH_TOKEN error when the session has no refresh token", async () => {
+      const revokeToken = vi.fn();
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: {
+            ...sessionWithRefreshToken,
+            tokenSet: { accessToken: "at_123", expiresAt: 9999999999 }
+          },
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.MISSING_REFRESH_TOKEN
+      });
+      expect(revokeToken).not.toHaveBeenCalled();
+    });
+
+    it("should re-throw the error returned by revokeToken", async () => {
+      const revocationError = new TokenRevocationError(
+        TokenRevocationErrorCode.FAILED_TO_REVOKE,
+        "Revocation request failed."
+      );
+      const revokeToken = vi.fn().mockResolvedValue([revocationError, null]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: sessionWithRefreshToken,
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.FAILED_TO_REVOKE
+      });
     });
   });
 

@@ -19,7 +19,9 @@ import {
   ConnectAccountError,
   ConnectAccountErrorCodes,
   InvalidConfigurationError,
-  MyAccountApiError
+  MyAccountApiError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
@@ -4003,6 +4005,114 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(response.status).toEqual(307);
         const cookie = response.cookies.get("__session");
         expect(cookie?.maxAge).toEqual(0);
+      });
+
+      it("should call revocation endpoint on logout when session has a refresh token", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const onRevocationRequest = vi.fn(
+          async () => {}
+        ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({ onRevocationRequest })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(onRevocationRequest).toHaveBeenCalledOnce();
+
+        const body = await onRevocationRequest.mock.calls[0][0].clone().text();
+        const params = new URLSearchParams(body);
+        expect(params.get("token")).toEqual(DEFAULT.refreshToken);
+      });
+
+      it("should not block logout if revocation fails and should warn", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            revocationErrorResponse: new Response(
+              JSON.stringify({ error: "server_error" }),
+              { status: 500 }
+            )
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("[nextjs-auth0]"),
+          expect.anything()
+        );
+
+        warnSpy.mockRestore();
       });
     });
   });
@@ -11358,6 +11468,128 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
       expect((fetcher as any).config.dpopHandle).toBeUndefined();
       expect((fetcher as any).hooks.isDpopEnabled()).toBe(false);
+    });
+  });
+
+  describe("revokeToken", () => {
+    async function createAuthClient(
+      fetch: ReturnType<typeof getMockAuthorizationServer>
+    ) {
+      const secret = await generateSecret(32);
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret }),
+        sessionStore: new StatelessSessionStore({ secret }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch
+      });
+    }
+
+    it("should revoke a token and forward client credentials", async () => {
+      let capturedBody: URLSearchParams | undefined;
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          onRevocationRequest: async (request) => {
+            capturedBody = new URLSearchParams(await request.text());
+          }
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).toBeNull();
+      expect(result).toBeUndefined();
+      expect(capturedBody?.get("token")).toBe(DEFAULT.refreshToken);
+      expect(capturedBody?.get("token_type_hint")).toBe("refresh_token");
+      expect(capturedBody?.get("client_id")).toBe(DEFAULT.clientId);
+      expect(capturedBody?.get("client_secret")).toBe(DEFAULT.clientSecret);
+    });
+
+    it("should omit token_type_hint when not provided", async () => {
+      let capturedBody: URLSearchParams | undefined;
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          onRevocationRequest: async (request) => {
+            capturedBody = new URLSearchParams(await request.text());
+          }
+        })
+      );
+
+      const [error] = await authClient.revokeToken(DEFAULT.refreshToken);
+
+      expect(error).toBeNull();
+      expect(capturedBody?.has("token_type_hint")).toBe(false);
+    });
+
+    it("should return a TokenRevocationError when the token is empty", async () => {
+      const authClient = await createAuthClient(getMockAuthorizationServer());
+
+      const [error, result] = await authClient.revokeToken("");
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      expect(error?.code).toBe(TokenRevocationErrorCode.MISSING_REFRESH_TOKEN);
+      expect(result).toBeNull();
+    });
+
+    it("should return a TokenRevocationError when the token is whitespace only", async () => {
+      const authClient = await createAuthClient(getMockAuthorizationServer());
+
+      const [error, result] = await authClient.revokeToken("   ");
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      expect(error?.code).toBe(TokenRevocationErrorCode.MISSING_REFRESH_TOKEN);
+      expect(result).toBeNull();
+    });
+
+    it("should return the original discovery error when discovery fails", async () => {
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          discoveryResponse: new Response(null, { status: 500 })
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).not.toBeNull();
+      expect(error).not.toBeInstanceOf(TokenRevocationError);
+      expect(result).toBeNull();
+    });
+
+    it("should return a TokenRevocationError when the request fails", async () => {
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          revocationErrorResponse: Response.json(
+            {
+              error: "invalid_request",
+              error_description: "bad token"
+            },
+            { status: 400 }
+          )
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      const revocationError = error as TokenRevocationError;
+      expect(revocationError.code).toBe(
+        TokenRevocationErrorCode.FAILED_TO_REVOKE
+      );
+      expect(revocationError.cause?.code).toBe("invalid_request");
+      expect(result).toBeNull();
     });
   });
 });
