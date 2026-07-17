@@ -15,7 +15,7 @@ import type { SessionData } from "../types/index.js";
 import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import { AuthClient } from "./auth-client.js";
-import { encrypt } from "./cookies.js";
+import { decrypt, encrypt } from "./cookies.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
@@ -238,6 +238,41 @@ describe("AuthClient passwordless methods", () => {
       expect(authParams.state).toBeTruthy();
       expect(authParams.redirect_uri).toContain("/auth/callback");
       expect(authParams.response_type).toBe("code");
+    });
+
+    it("includes nonce in authParams sent to Auth0 and stores matching nonce in transaction cookie", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passwordless/start`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({}, { status: 200 });
+          }
+        )
+      );
+
+      const headers = new Headers();
+      const resCookies = new ResponseCookies(headers);
+      await authClient.passwordlessStart(
+        { connection: "email", email: DEFAULT.email, send: "link" },
+        resCookies
+      );
+
+      const authParams = capturedBody.authParams as Record<string, string>;
+      expect(authParams.nonce).toBeTruthy();
+
+      // The transaction cookie must carry the same nonce so the callback can
+      // verify the ID token's nonce claim and prevent replay attacks.
+      const state = authParams.state as string;
+      const txnCookie = resCookies.get(`__txn_${state}`);
+      expect(txnCookie).toBeDefined();
+      const { payload } = (await decrypt(
+        txnCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult;
+      expect(payload.nonce).toBe(authParams.nonce);
     });
 
     it("writes a transaction cookie to resCookies after a successful start", async () => {
