@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -1735,6 +1736,35 @@ describe("Custom Token Exchange", () => {
 
         expect(response).not.toHaveProperty("sessionTransferToken");
         expect(response).not.toHaveProperty("issuedTokenType");
+      });
+    });
+
+    // Pin the claim that handleLogin forwards all query params to /authorize
+    // untouched, so session_transfer_token reaches the authorization endpoint
+    // automatically on the target app side — no middleware change needed.
+    describe("5.9: handleLogin forwards session_transfer_token to /authorize", () => {
+      it("should forward session_transfer_token query param to the authorization URL", async () => {
+        let capturedAuthorizeUrl = "";
+        server.use(
+          http.get(`https://${DEFAULT.domain}/authorize`, ({ request }) => {
+            capturedAuthorizeUrl = request.url;
+            return HttpResponse.text("", { status: 302 });
+          })
+        );
+
+        const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+        loginUrl.searchParams.set("session_transfer_token", "stt_opaque_abc");
+        const request = new NextRequest(loginUrl);
+
+        const response = await authClient.handleLogin(request);
+
+        // handleLogin redirects to /authorize; the location header holds the URL
+        const authorizeUrl = new URL(
+          response.headers.get("location") ?? capturedAuthorizeUrl
+        );
+        expect(authorizeUrl.searchParams.get("session_transfer_token")).toBe(
+          "stt_opaque_abc"
+        );
       });
     });
   });

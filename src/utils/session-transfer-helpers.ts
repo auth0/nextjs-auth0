@@ -96,7 +96,7 @@ export function resolveActorFromSession(
  * query parameters. Pure string builder — no network call, nothing persisted.
  *
  * Throws `CustomTokenExchangeError(EXCHANGE_FAILED)` if `targetLoginUrl` is not a
- * valid absolute URL. `targetLoginUrl` must be a trusted, app-controlled value.
+ * valid absolute `http`/`https` URL. `targetLoginUrl` must be a trusted, app-controlled value.
  *
  * Shared by both the core `AuthClient` and the `Auth0Client` wrapper (including its
  * resolver-mode fallback) so the STT query-param logic and URL guard live in one place.
@@ -116,12 +116,21 @@ export function buildSessionTransferRedirectUrl(
         "Pass a trusted, app-controlled absolute login URL (e.g. https://app.example.com/auth/login)."
     );
   }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new CustomTokenExchangeError(
+      CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+      `Invalid targetLoginUrl: "${targetLoginUrl}" must use http or https.`
+    );
+  }
   url.searchParams.set("session_transfer_token", sessionTransferToken);
   if (opts?.organization) {
     url.searchParams.set("organization", opts.organization);
   }
   return url.toString();
 }
+
+// Auth0 issues STTs with a ~60s lifetime; used as the fallback when expires_in is absent.
+const DEFAULT_STT_EXPIRES_IN_SECONDS = 60;
 
 /**
  * Maps the raw token endpoint response to a `SessionTransferTokenResult`.
@@ -138,7 +147,7 @@ export function parseSessionTransferTokenResponse(raw: {
   return {
     sessionTransferToken: raw.access_token,
     issuedTokenType: raw.issued_token_type,
-    expiresIn: Number(raw.expires_in ?? 60),
+    expiresIn: Number(raw.expires_in ?? DEFAULT_STT_EXPIRES_IN_SECONDS),
     tokenType: raw.token_type
   };
 }

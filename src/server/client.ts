@@ -1299,10 +1299,9 @@ export class Auth0Client {
    * establish a web session **as a customer** in a target app — without the customer's password.
    *
    * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type` automatically.
-   * The actor defaults to the agent session's ID token, which must be unexpired and
-   * asymmetrically signed (RS256/PS256). If it is missing or expired, this throws
-   * `ACTOR_UNAVAILABLE` — no automatic refresh is performed, so refresh the session
-   * or pass a fresh explicit `actor` first.
+   * The actor defaults to the agent session's ID token. If the ID token is expired and a
+   * refresh token is available the SDK silently refreshes the session first. If no refresh
+   * token is available this throws `ACTOR_UNAVAILABLE`.
    *
    * Use the result with `buildSessionTransferRedirect` to redirect the agent's browser
    * to the target app's login URL.

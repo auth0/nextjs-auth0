@@ -211,8 +211,9 @@ export interface SessionTransferTokenOptions {
 
   /**
    * Explicit actor override. Omit to use the agent session's ID token.
-   * The ID token must be unexpired — fails with `ACTOR_UNAVAILABLE` if expired; no automatic refresh.
-   * Precedence: explicit `actor` → session ID token → throws `ACTOR_UNAVAILABLE`.
+   * If the session ID token is expired but a refresh token is available the SDK refreshes it first.
+   * Fails with `ACTOR_UNAVAILABLE` only when no usable token can be resolved.
+   * Precedence: explicit `actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
    */
   actor?: {
     token: string;
@@ -237,7 +238,7 @@ export interface SessionTransferTokenResult {
   /** The Session Transfer Token. One-shot, ~60s. Pass to `buildSessionTransferRedirect`. */
   sessionTransferToken: string;
   /** Always `TOKEN_TYPES.SESSION_TRANSFER_TOKEN`. Branch on this, not `tokenType`. */
-  issuedTokenType: string;
+  issuedTokenType: TOKEN_TYPES.SESSION_TRANSFER_TOKEN | string;
   /** Token lifetime in seconds (~60). */
   expiresIn: number;
   /** `"N_A"` — informational only. Never branch on this. */

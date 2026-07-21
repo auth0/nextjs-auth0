@@ -5077,10 +5077,10 @@ if (actor) {
 
 - **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side (confidential-client RWAs; SPAs/native are out of scope).
 - **One-shot, ~60 s**: The STT is opaque and must never be decoded, cached, or reused. Redeem it immediately.
-- **Actor is mandatory and must be fresh**: The actor token (the agent's session ID token by default) must be an unexpired, asymmetrically-signed (RS256/PS256) JWT. If it is missing or expired the SDK fails with `ACTOR_UNAVAILABLE` — there is no automatic refresh, so refresh the agent session or pass a fresh explicit `actor`.
+- **Actor is mandatory and must be fresh**: The actor token (the agent's session ID token by default) must be an unexpired, asymmetrically-signed (RS256/PS256) JWT. If it is expired and a refresh token is present the SDK automatically refreshes it; otherwise it fails with `ACTOR_UNAVAILABLE`. Pass an explicit `actor` to use a non-session token.
 - **Non-localhost callback**: STT redemption rejects `localhost` redirect URIs — use a real domain (or a tunnel) for the target callback.
 - **Same tenant**: Both agent and target app must be on the same Auth0 tenant.
-- **No refresh, short-lived session**: The impersonation session cannot mint a refresh token and self-expires; re-run the flow to continue.
+- **No refresh token / no `offline_access`**: Auth0 silently drops `offline_access` from the STT scope — the impersonation session has no refresh token and self-expires according to the tenant's session lifetime settings. Pass `scope: "openid profile"` on the target login URL (or via `options.scope`) to make the intent explicit and avoid unexpected scope-negotiation warnings.
 - **No session modification**: The agent's own session is not modified; the STT is never written to `session.tokenSet`.
 
 ## Customizing Auth Handlers

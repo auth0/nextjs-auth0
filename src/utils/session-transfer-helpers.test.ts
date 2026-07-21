@@ -5,8 +5,7 @@ import {
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode
 } from "../errors/index.js";
-import { SessionData } from "../types/index.js";
-import { TOKEN_TYPES } from "../types/token-vault.js";
+import { SessionData, TOKEN_TYPES } from "../types/index.js";
 import {
   buildSessionTransferAudience,
   mapSttServerError,

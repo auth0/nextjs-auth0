@@ -105,6 +105,7 @@ import {
   SessionTransferTokenResult,
   StartInteractiveLoginOptions,
   SUBJECT_TOKEN_TYPES,
+  TOKEN_TYPES,
   TokenSet,
   User,
   VerifyMfaOptions
@@ -3731,10 +3732,10 @@ export class AuthClient {
    * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`.
    * The actor is sourced from the agent session's ID token. The token must be an
    * unexpired, asymmetrically-signed (RS256/PS256) JWT — the server rejects HS256
-   * or expired actor tokens. If the session ID token is missing or already expired,
-   * the exchange fails client-side with `ACTOR_UNAVAILABLE` (no automatic refresh is
-   * performed); refresh the agent session or pass a fresh explicit `actor` first.
-   * Precedence: explicit `options.actor` → session ID token → throws `ACTOR_UNAVAILABLE`.
+   * or expired actor tokens. If the session ID token is expired and a refresh token
+   * is present the SDK silently refreshes it first; if no refresh token is available
+   * the exchange fails client-side with `ACTOR_UNAVAILABLE`.
+   * Precedence: explicit `options.actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
    *
    * **The STT is never cached.** Use it immediately with `buildSessionTransferRedirect`.
    *
@@ -3778,8 +3779,26 @@ export class AuthClient {
       return [tokenTypeError, null];
     }
 
-    // Resolve actor — must come before any network call (client-side guard)
-    const [actorError, actor] = resolveActorFromSession(session, options.actor);
+    // Resolve actor — must come before any network call (client-side guard).
+    // If the session ID token is expired but a refresh token is available, attempt a
+    // silent refresh to get a fresh ID token before giving up with ACTOR_UNAVAILABLE.
+    let [actorError, actor] = resolveActorFromSession(session, options.actor);
+    if (actorError && session?.tokenSet?.refreshToken) {
+      const [refreshError, refreshed] = await this.#refreshTokenSet(
+        session.tokenSet,
+        { requestedScope: DEFAULT_SCOPES }
+      );
+      if (!refreshError && refreshed?.updatedTokenSet?.idToken) {
+        const refreshedSession: SessionData = {
+          ...session,
+          tokenSet: refreshed.updatedTokenSet
+        };
+        [actorError, actor] = resolveActorFromSession(
+          refreshedSession,
+          options.actor
+        );
+      }
+    }
     if (actorError) {
       return [actorError, null];
     }
@@ -3814,8 +3833,8 @@ export class AuthClient {
     params.append("subject_token_type", options.subjectTokenType);
     params.append("audience", audience);
     params.append("scope", finalScope);
-    params.append("actor_token", actor.token);
-    params.append("actor_token_type", actor.type);
+    params.append("actor_token", actor!.token);
+    params.append("actor_token_type", actor!.type);
 
     if (options.organization) {
       params.append("organization", options.organization);
@@ -3903,14 +3922,22 @@ export class AuthClient {
 
     // Parse the raw JSON response ourselves — bypasses oauth4webapi's
     // token_type allowlist which blocks "N_A".
+    // Fall back to text() when the body is not JSON (e.g. plain-text gateway errors)
+    // so the status code and raw message are preserved in the error.
     let rawBody: any;
     try {
       rawBody = await httpResponse.json();
     } catch {
+      let rawText = "";
+      try {
+        rawText = await httpResponse.text();
+      } catch {
+        // ignore — body already consumed or unreadable
+      }
       return [
         new CustomTokenExchangeError(
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
-          "Failed to parse the Session Transfer Token response body."
+          `Failed to parse the Session Transfer Token response body (HTTP ${httpResponse.status}).${rawText ? " " + rawText : ""}`
         ),
         null
       ];
@@ -3934,14 +3961,25 @@ export class AuthClient {
       ];
     }
 
+    // The spec requires branching on issued_token_type to identify an STT.
+    // Reject any response where it is missing or not the STT URN — a plain Bearer
+    // access-token response must never be mistaken for a session transfer token.
+    if (rawBody.issued_token_type !== TOKEN_TYPES.SESSION_TRANSFER_TOKEN) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          `Unexpected issued_token_type: "${rawBody.issued_token_type ?? "(missing)"}". Expected "${TOKEN_TYPES.SESSION_TRANSFER_TOKEN}".`
+        ),
+        null
+      ];
+    }
+
     // STT never decoded, never cached — treat as opaque handle
     return [
       null,
       parseSessionTransferTokenResponse({
         access_token: rawBody.access_token,
-        issued_token_type:
-          rawBody.issued_token_type ??
-          "urn:auth0:params:oauth:token-type:session_transfer_token",
+        issued_token_type: rawBody.issued_token_type,
         expires_in: rawBody.expires_in,
         token_type: rawBody.token_type
       })
