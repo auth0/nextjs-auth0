@@ -223,13 +223,13 @@ describe("parseSessionTransferTokenResponse", () => {
     expect(result.tokenType).toBe("N_A");
   });
 
-  it("should default expiresIn to 60 when absent", () => {
+  it("should leave expiresIn undefined when absent", () => {
     const result = parseSessionTransferTokenResponse({
       access_token: "stt_abc",
       issued_token_type: TOKEN_TYPES.SESSION_TRANSFER_TOKEN
     });
 
-    expect(result.expiresIn).toBe(60);
+    expect(result.expiresIn).toBeUndefined();
   });
 
   it("should leave tokenType undefined when absent", () => {
@@ -274,10 +274,8 @@ describe("mapSttServerError", () => {
     );
   });
 
-  it("should map server errors containing setactor (case-insensitive) to SETACTOR_REQUIRED", () => {
-    expect(mapSttServerError("SETACTOR_IS_REQUIRED")).toBe(
-      CustomTokenExchangeErrorCode.SETACTOR_REQUIRED
-    );
+  it("should return null for codes that merely contain setactor but are not the exact code", () => {
+    expect(mapSttServerError("SETACTOR_IS_REQUIRED")).toBeNull();
   });
 
   it("should map session_transfer_disabled to SESSION_TRANSFER_DISABLED", () => {
@@ -286,10 +284,10 @@ describe("mapSttServerError", () => {
     );
   });
 
-  it("should map errors containing session_transfer (case-insensitive)", () => {
+  it("should return null for codes that merely contain session_transfer but are not the exact code", () => {
     expect(
       mapSttServerError("Session_Transfer_Tokens_Cannot_Be_Requested")
-    ).toBe(CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED);
+    ).toBeNull();
   });
 
   it("should return null for unrelated error codes", () => {

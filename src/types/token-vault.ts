@@ -239,8 +239,8 @@ export interface SessionTransferTokenResult {
   sessionTransferToken: string;
   /** Always `TOKEN_TYPES.SESSION_TRANSFER_TOKEN`. Branch on this, not `tokenType`. */
   issuedTokenType: TOKEN_TYPES.SESSION_TRANSFER_TOKEN | string;
-  /** Token lifetime in seconds (~60). */
-  expiresIn: number;
+  /** Token lifetime in seconds as reported by the server. Undefined when the server omits it. */
+  expiresIn?: number;
   /** `"N_A"` — informational only. Never branch on this. */
   tokenType?: string;
 }

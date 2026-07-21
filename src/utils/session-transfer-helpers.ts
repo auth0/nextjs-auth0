@@ -116,10 +116,14 @@ export function buildSessionTransferRedirectUrl(
         "Pass a trusted, app-controlled absolute login URL (e.g. https://app.example.com/auth/login)."
     );
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
+  const isLocalhost =
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost)) {
     throw new CustomTokenExchangeError(
       CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
-      `Invalid targetLoginUrl: "${targetLoginUrl}" must use http or https.`
+      `Invalid targetLoginUrl: "${targetLoginUrl}" must use https (or http for localhost).`
     );
   }
   url.searchParams.set("session_transfer_token", sessionTransferToken);
@@ -128,9 +132,6 @@ export function buildSessionTransferRedirectUrl(
   }
   return url.toString();
 }
-
-// Auth0 issues STTs with a ~60s lifetime; used as the fallback when expires_in is absent.
-const DEFAULT_STT_EXPIRES_IN_SECONDS = 60;
 
 /**
  * Maps the raw token endpoint response to a `SessionTransferTokenResult`.
@@ -147,7 +148,8 @@ export function parseSessionTransferTokenResponse(raw: {
   return {
     sessionTransferToken: raw.access_token,
     issuedTokenType: raw.issued_token_type,
-    expiresIn: Number(raw.expires_in ?? DEFAULT_STT_EXPIRES_IN_SECONDS),
+    expiresIn:
+      raw.expires_in !== undefined ? Number(raw.expires_in) : undefined,
     tokenType: raw.token_type
   };
 }
@@ -168,13 +170,10 @@ export function mapSttServerError(
   errorCode: string
 ): CustomTokenExchangeErrorCode | null {
   const code = errorCode.toLowerCase();
-  if (code === "setactor_required" || code.includes("setactor")) {
+  if (code === "setactor_required") {
     return CustomTokenExchangeErrorCode.SETACTOR_REQUIRED;
   }
-  if (
-    code === "session_transfer_disabled" ||
-    code.includes("session_transfer")
-  ) {
+  if (code === "session_transfer_disabled") {
     return CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED;
   }
   return null;
