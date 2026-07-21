@@ -172,7 +172,10 @@ const result = await auth0.requestSessionTransferToken({
   reason: "Investigating ticket #1234",
 });
 
-// Redirect the agent's browser to the target app — STT is forwarded as a query param
+// Redirect the agent's browser to the target app — STT is forwarded as a query param.
+// IMPORTANT: targetLoginUrl must be a trusted, app-controlled value. Never derive it
+// from untrusted user input — the STT is single-use and attaching it to a wrong host
+// leaks the token. Validate the origin against an allowlist in production.
 return auth0.buildSessionTransferRedirect("https://target-app.example.com/auth/login", result);
 ```
 

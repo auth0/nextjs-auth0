@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CustomTokenExchangeError } from "@auth0/nextjs-auth0/server";
+import {
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode
+} from "@auth0/nextjs-auth0/server";
 import type { SessionTransferTokenOptions } from "@auth0/nextjs-auth0/types";
 
 import { auth0 } from "@/lib/auth0";
+
+// SECURITY: targetLoginUrl must be a trusted, app-controlled value — never pass
+// untrusted user input here. In production, validate the origin against an
+// allowlist (e.g. STT_ALLOWED_ORIGINS env var) before calling requestSessionTransferToken.
+// The STT is a single-use credential; attaching it to a wrong host leaks the token.
+const ALLOWED_ORIGINS = process.env.STT_ALLOWED_ORIGINS
+  ? new Set(process.env.STT_ALLOWED_ORIGINS.split(",").map((s) => s.trim()))
+  : null; // null = no allowlist configured (demo mode — all origins accepted)
 
 export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
@@ -60,6 +71,16 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  if (ALLOWED_ORIGINS && !ALLOWED_ORIGINS.has(targetUrl.origin)) {
+    return NextResponse.json(
+      {
+        code: "invalid_request",
+        message: `targetLoginUrl origin "${targetUrl.origin}" is not in the allowed list.`
+      },
+      { status: 400 }
+    );
+  }
+
   if (!targetUrl.searchParams.has("scope")) {
     targetUrl.searchParams.set("scope", "openid profile");
   }
@@ -95,9 +116,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ redirectUrl, expiresIn: result.expiresIn });
   } catch (err: unknown) {
     if (err instanceof CustomTokenExchangeError) {
-      // All STT exchange failures (bad input, missing actor, disabled feature,
-      // upstream exchange error) are surfaced to the client as 400 with the typed
-      // code and the underlying cause for diagnosis.
+      // ACTOR_UNAVAILABLE and bad-input cases are client errors (400).
+      // SESSION_TRANSFER_DISABLED and SETACTOR_REQUIRED mean the tenant or Action
+      // is misconfigured — those are server/operator errors (500).
+      const serverErrorCodes = new Set([
+        CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED,
+        CustomTokenExchangeErrorCode.SETACTOR_REQUIRED
+      ]);
+      const status = serverErrorCodes.has(
+        err.code as CustomTokenExchangeErrorCode
+      )
+        ? 500
+        : 400;
       return NextResponse.json(
         {
           code: err.code,
@@ -110,7 +140,7 @@ export async function POST(req: NextRequest) {
                 }
               : undefined
         },
-        { status: 400 }
+        { status }
       );
     }
 
