@@ -210,7 +210,8 @@ export interface SessionTransferTokenOptions {
   scope?: string;
 
   /**
-   * Explicit actor override. Omit to use the agent session's ID token (refreshed if expired).
+   * Explicit actor override. Omit to use the agent session's ID token.
+   * The ID token must be unexpired — fails with `ACTOR_UNAVAILABLE` if expired; no automatic refresh.
    * Precedence: explicit `actor` → session ID token → throws `ACTOR_UNAVAILABLE`.
    */
   actor?: {

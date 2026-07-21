@@ -186,7 +186,7 @@
   - [Basic Usage](#basic-usage-1)
   - [Actor Override](#actor-override)
   - [With Organization](#with-organization-1)
-  - [Error Handling](#error-handling-6)
+  - [Error Handling](#error-handling-5)
   - [Reading the `act` claim on the established session](#reading-the-act-claim-on-the-established-session)
   - [Limitations](#limitations-1)
 - [Customizing Auth Handlers](#customizing-auth-handlers)
