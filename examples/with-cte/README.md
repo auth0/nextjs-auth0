@@ -49,7 +49,7 @@ For the actor token / delegation flow:
 
 For the STT flow (agent establishes a session as a customer in another app):
 
-1. Enable the `cte_session_transfer_token` feature flag on your tenant (raise an ESD request).
+1. Enable the `cte_session_transfer_token` feature flag on your tenant (contact Auth0 support to enable it).
 2. Ensure both the **agent app** and the **target app** are on the same Auth0 tenant.
 3. The target app must use `handleLogin()` (or equivalent) which automatically forwards `session_transfer_token` to `/authorize`.
 4. Use a **non-localhost** callback URL for the target app. STT redemption is rejected on `localhost` redirect URIs, so run behind a real domain or a tunnel (e.g. Cloudflare Tunnel) and set `APP_BASE_URL` to that URL.

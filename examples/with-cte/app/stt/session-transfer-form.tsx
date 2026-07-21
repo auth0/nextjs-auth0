@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 type SttResult = {
   redirectUrl: string;
-  expiresIn: number;
+  expiresIn?: number;
 };
 
 type SttError = {
@@ -256,7 +256,7 @@ export function SessionTransferForm() {
         <div className="rounded-2xl border border-green-200 bg-white p-8 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-green-800">
-              STT ready — expires in {result.expiresIn}s
+              STT ready{result.expiresIn !== undefined ? ` — expires in ${result.expiresIn}s` : ""}
             </h2>
             <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
               one-shot · do not cache
