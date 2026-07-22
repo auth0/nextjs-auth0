@@ -60,14 +60,15 @@ export default async function Dashboard() {
 
           {user.act && (
             <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-              <strong>Impersonation session.</strong> You are acting as{" "}
-              <code className="font-mono">{user.sub}</code> on behalf of{" "}
+              <strong>Impersonation session.</strong> Logged in as{" "}
+              <code className="font-mono">{user.sub}</code> (customer),
+              impersonated by{" "}
               <code className="font-mono">
                 {typeof user.act === "object" && user.act && "sub" in user.act
                   ? String((user.act as { sub?: unknown }).sub)
                   : "an agent"}
-              </code>
-              . This session cannot be refreshed and self-expires.
+              </code>{" "}
+              (agent). This session cannot be refreshed and self-expires.
             </div>
           )}
 
