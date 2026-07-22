@@ -119,7 +119,8 @@ import {
 } from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
-  DEFAULT_SCOPES
+  DEFAULT_SCOPES,
+  DEFAULT_STT_SCOPES
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
@@ -3734,19 +3735,28 @@ export class AuthClient {
    * unexpired, asymmetrically-signed (RS256/PS256) JWT — the server rejects HS256
    * or expired actor tokens. If the session ID token is expired and a refresh token
    * is present the SDK silently refreshes it first; if no refresh token is available
-   * the exchange fails client-side with `ACTOR_UNAVAILABLE`.
+   * the exchange fails client-side with `ACTOR_UNAVAILABLE`. If that refresh itself
+   * requires MFA step-up, the error is `[MfaRequiredError, null, null]` — same as any
+   * other refresh-triggered step-up — rather than being collapsed into `ACTOR_UNAVAILABLE`.
+   * On Multiple Custom Domains (MCD) tenants, a session created for a different domain than
+   * the current request is never used as the actor source (`ACTOR_UNAVAILABLE`) — this holds
+   * even if the caller bypasses `Auth0Client`'s own domain check on session read.
    * Precedence: explicit `options.actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
    *
    * **The STT is never cached.** Use it immediately with `buildSessionTransferRedirect`.
    *
    * @param options - STT exchange options
    * @param session - The agent's current session, used to source the actor token
-   * @returns A tuple of `[error, null]` or `[null, SessionTransferTokenResult]`
+   * @returns A tuple of `[error, null, null]` or `[null, SessionTransferTokenResult, updatedSession]`.
+   * `updatedSession` is non-null only when the agent's ID token was refreshed to resolve the
+   * actor — the caller (`Auth0Client.requestSessionTransferToken`) MUST persist it back to the
+   * session store, or the agent's session cookie will hold a stale refresh token once refresh
+   * token rotation consumes it.
    *
    * @example
    * ```typescript
    * const session = await this.getSession();
-   * const [error, result] = await authClient.requestSessionTransferToken(
+   * const [error, result, updatedSession] = await authClient.requestSessionTransferToken(
    *   { subjectToken, subjectTokenType: "urn:acme:subject" },
    *   session
    * );
@@ -3756,7 +3766,8 @@ export class AuthClient {
     options: SessionTransferTokenOptions,
     session: SessionData | null
   ): Promise<
-    [CustomTokenExchangeError, null] | [null, SessionTransferTokenResult]
+    | [CustomTokenExchangeError | MfaRequiredError, null, null]
+    | [null, SessionTransferTokenResult, SessionData | null]
   > {
     await this.ensureDpopValidated();
 
@@ -3767,6 +3778,7 @@ export class AuthClient {
           CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN,
           "The subject_token is required and cannot be empty."
         ),
+        null,
         null
       ];
     }
@@ -3776,21 +3788,62 @@ export class AuthClient {
       options.subjectTokenType
     );
     if (tokenTypeError) {
-      return [tokenTypeError, null];
+      return [tokenTypeError, null, null];
+    }
+
+    // MCD defense-in-depth: refuse to source the actor from a session created for a
+    // different domain than the current request. `Auth0Client.requestSessionTransferToken`
+    // already enforces this via `getSession()` → `getSessionWithDomainCheck`, but this method
+    // can also be called directly with a session read some other way, so the guard is
+    // duplicated here rather than relied on solely at the caller. Only applies when the actor
+    // is sourced from the session — an explicit `actor` bypasses the session entirely.
+    if (
+      !options.actor &&
+      session?.internal?.mcd &&
+      session.internal.mcd.domain !== this.domain
+    ) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
+          `No usable actor token: the agent session was created for domain '${session.internal.mcd.domain}' ` +
+            `but the current request is for domain '${this.domain}'.`
+        ),
+        null,
+        null
+      ];
     }
 
     // Resolve actor — must come before any network call (client-side guard).
     // If the session ID token is expired but a refresh token is available, attempt a
     // silent refresh to get a fresh ID token before giving up with ACTOR_UNAVAILABLE.
+    // `refreshedSession`, once set, is returned to the caller so it can persist the new
+    // refresh token — #refreshTokenSet only returns the new token set, it does not save it,
+    // and refresh token rotation invalidates the old one still sitting in the session cookie.
+    //
+    // Only attempt this when no explicit `actor` was passed: `resolveActorFromSession` returns
+    // the same ACTOR_UNAVAILABLE code whether the cause is a blank explicit actor or a stale
+    // session ID token, so we can't distinguish them from the error alone. Gating on
+    // `!options.actor` ensures a bad explicit actor never triggers a wasted refresh (or a
+    // confusing MfaRequiredError) for a problem refreshing the session can't fix.
     let [actorError, actor] = resolveActorFromSession(session, options.actor);
-    if (actorError && session?.tokenSet?.refreshToken) {
+    let refreshedSession: SessionData | null = null;
+    if (!options.actor && actorError && session?.tokenSet?.refreshToken) {
       const [refreshError, refreshed] = await this.#refreshTokenSet(
         session.tokenSet,
         { requestedScope: DEFAULT_SCOPES }
       );
+      // A step-up challenge on the refresh is a distinct, recoverable case from "no usable
+      // actor" — surface it to the caller instead of silently falling through to
+      // ACTOR_UNAVAILABLE, which would give the agent no path to complete MFA and retry.
+      if (refreshError instanceof MfaRequiredError) {
+        return [refreshError, null, null];
+      }
       if (!refreshError && refreshed?.updatedTokenSet?.idToken) {
-        const refreshedSession: SessionData = {
+        refreshedSession = {
           ...session,
+          user: refreshed.idTokenClaims
+            ? (refreshed.idTokenClaims as User)
+            : session.user,
           tokenSet: refreshed.updatedTokenSet
         };
         [actorError, actor] = resolveActorFromSession(
@@ -3800,7 +3853,7 @@ export class AuthClient {
       }
     }
     if (actorError) {
-      return [actorError, null];
+      return [actorError, null, null];
     }
 
     // Discover authorization server metadata
@@ -3816,6 +3869,7 @@ export class AuthClient {
             message: discoveryError.message
           })
         ),
+        null,
         null
       ];
     }
@@ -3825,8 +3879,10 @@ export class AuthClient {
     // get the correct per-domain audience.
     const audience = buildSessionTransferAudience(this.domain);
 
-    // Merge scopes (offline_access is silently suppressed by Auth0 for STT)
-    const finalScope = mergeScopes(DEFAULT_SCOPES, options.scope);
+    // Merge scopes. offline_access is excluded from the STT default scopes — Auth0
+    // silently suppresses it for impersonation sessions, so requesting it here would
+    // just be a scope the server ignores.
+    const finalScope = mergeScopes(DEFAULT_STT_SCOPES, options.scope);
 
     const params = new URLSearchParams();
     params.append("subject_token", options.subjectToken);
@@ -3844,7 +3900,9 @@ export class AuthClient {
     }
     if (options.additionalParameters) {
       // Guard against callers overriding parameters the SDK manages — silently
-      // shadowing e.g. audience or actor_token would break the STT contract.
+      // shadowing e.g. audience or actor_token would break the STT contract, and
+      // organization/reason are already appended above so re-appending them here
+      // would produce a duplicate (and ambiguous) query param.
       const reservedParams = new Set([
         "subject_token",
         "subject_token_type",
@@ -3852,7 +3910,9 @@ export class AuthClient {
         "scope",
         "actor_token",
         "actor_token_type",
-        "grant_type"
+        "grant_type",
+        "organization",
+        "reason"
       ]);
       for (const [key, value] of Object.entries(options.additionalParameters)) {
         if (reservedParams.has(key)) {
@@ -3916,6 +3976,7 @@ export class AuthClient {
             message: oauthErr.error_description ?? err.message
           })
         ),
+        null,
         null
       ];
     }
@@ -3939,6 +4000,7 @@ export class AuthClient {
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
           `Failed to parse the Session Transfer Token response body (HTTP ${httpResponse.status}).${rawText ? " " + rawText : ""}`
         ),
+        null,
         null
       ];
     }
@@ -3957,6 +4019,7 @@ export class AuthClient {
             message: rawBody?.error_description ?? errorCode
           })
         ),
+        null,
         null
       ];
     }
@@ -3970,6 +4033,7 @@ export class AuthClient {
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
           `Unexpected issued_token_type: "${rawBody.issued_token_type ?? "(missing)"}". Expected "${TOKEN_TYPES.SESSION_TRANSFER_TOKEN}".`
         ),
+        null,
         null
       ];
     }
@@ -3982,7 +4046,8 @@ export class AuthClient {
         issued_token_type: rawBody.issued_token_type,
         expires_in: rawBody.expires_in,
         token_type: rawBody.token_type
-      })
+      }),
+      refreshedSession
     ];
   }
 

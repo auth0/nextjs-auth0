@@ -8,6 +8,7 @@ import {
 import { SessionData, TOKEN_TYPES } from "../types/index.js";
 import {
   buildSessionTransferAudience,
+  buildSessionTransferRedirectUrl,
   mapSttServerError,
   parseSessionTransferTokenResponse,
   resolveActorFromSession
@@ -202,7 +203,140 @@ describe("resolveActorFromSession", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3: parseSessionTransferTokenResponse
+// 3: buildSessionTransferRedirectUrl
+// ---------------------------------------------------------------------------
+
+describe("buildSessionTransferRedirectUrl", () => {
+  it("should build a redirect URL for an https target", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "https://app.example.com/auth/login",
+      "stt_abc"
+    );
+
+    expect(url).toBe(
+      "https://app.example.com/auth/login?session_transfer_token=stt_abc"
+    );
+  });
+
+  it("should allow http for localhost", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "http://localhost:3000/auth/login",
+      "stt_abc"
+    );
+
+    expect(url).toContain("session_transfer_token=stt_abc");
+  });
+
+  it("should allow http for 127.0.0.1", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "http://127.0.0.1:3000/auth/login",
+      "stt_abc"
+    );
+
+    expect(url).toContain("session_transfer_token=stt_abc");
+  });
+
+  it("should allow http for the [::1] IPv6 loopback address", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "http://[::1]:3000/auth/login",
+      "stt_abc"
+    );
+
+    expect(url).toContain("session_transfer_token=stt_abc");
+  });
+
+  it("should reject a non-loopback http target", () => {
+    expect(() =>
+      buildSessionTransferRedirectUrl(
+        "http://app.example.com/auth/login",
+        "stt_abc"
+      )
+    ).toThrow(CustomTokenExchangeError);
+    expect(() =>
+      buildSessionTransferRedirectUrl(
+        "http://app.example.com/auth/login",
+        "stt_abc"
+      )
+    ).toThrow(/must use https/);
+  });
+
+  it("should reject a javascript: scheme target", () => {
+    expect(() =>
+      buildSessionTransferRedirectUrl("javascript:alert(1)", "stt_abc")
+    ).toThrow(CustomTokenExchangeError);
+  });
+
+  it("should reject a data: scheme target", () => {
+    expect(() =>
+      buildSessionTransferRedirectUrl(
+        "data:text/html,<script></script>",
+        "stt_abc"
+      )
+    ).toThrow(CustomTokenExchangeError);
+  });
+
+  it("should reject a non-absolute URL", () => {
+    expect(() =>
+      buildSessionTransferRedirectUrl("/auth/login", "stt_abc")
+    ).toThrow(CustomTokenExchangeError);
+    expect(() =>
+      buildSessionTransferRedirectUrl("/auth/login", "stt_abc")
+    ).toThrow(/not an absolute URL/);
+  });
+
+  it("should reject a malformed URL", () => {
+    expect(() =>
+      buildSessionTransferRedirectUrl("not a url at all", "stt_abc")
+    ).toThrow(CustomTokenExchangeError);
+  });
+
+  it("should throw CustomTokenExchangeError with EXCHANGE_FAILED code on rejection", () => {
+    try {
+      buildSessionTransferRedirectUrl(
+        "http://app.example.com/auth/login",
+        "stt_abc"
+      );
+      expect.fail("expected buildSessionTransferRedirectUrl to throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CustomTokenExchangeError);
+      expect((err as CustomTokenExchangeError).code).toBe(
+        CustomTokenExchangeErrorCode.EXCHANGE_FAILED
+      );
+    }
+  });
+
+  it("should append organization when provided", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "https://app.example.com/auth/login",
+      "stt_abc",
+      { organization: "org_globex" }
+    );
+
+    expect(url).toContain("organization=org_globex");
+  });
+
+  it("should not append organization when not provided", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "https://app.example.com/auth/login",
+      "stt_abc"
+    );
+
+    expect(url).not.toContain("organization");
+  });
+
+  it("should preserve an existing query string on the target URL", () => {
+    const url = buildSessionTransferRedirectUrl(
+      "https://app.example.com/auth/login?returnTo=/home",
+      "stt_abc"
+    );
+
+    expect(url).toContain("returnTo=%2Fhome");
+    expect(url).toContain("session_transfer_token=stt_abc");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4: parseSessionTransferTokenResponse
 // ---------------------------------------------------------------------------
 
 describe("parseSessionTransferTokenResponse", () => {
@@ -264,7 +398,7 @@ describe("parseSessionTransferTokenResponse", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4: mapSttServerError
+// 5: mapSttServerError
 // ---------------------------------------------------------------------------
 
 describe("mapSttServerError", () => {

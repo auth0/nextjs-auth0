@@ -212,7 +212,8 @@ export interface SessionTransferTokenOptions {
   /**
    * Explicit actor override. Omit to use the agent session's ID token.
    * If the session ID token is expired but a refresh token is available the SDK refreshes it first.
-   * Fails with `ACTOR_UNAVAILABLE` only when no usable token can be resolved.
+   * Fails with `ACTOR_UNAVAILABLE` only when no usable token can be resolved. If that refresh
+   * itself requires MFA step-up, an `MfaRequiredError` is thrown instead.
    * Precedence: explicit `actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
    */
   actor?: {

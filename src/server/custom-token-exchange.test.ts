@@ -14,7 +14,8 @@ import {
 
 import {
   CustomTokenExchangeError,
-  CustomTokenExchangeErrorCode
+  CustomTokenExchangeErrorCode,
+  MfaRequiredError
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
@@ -977,12 +978,16 @@ describe("Custom Token Exchange", () => {
         .sign(keyPair.privateKey);
     }
 
-    function makeAgentSession(idToken?: string): SessionData {
+    function makeAgentSession(
+      idToken?: string,
+      refreshToken?: string
+    ): SessionData {
       return {
         user: { sub: "agent|support-007" },
         tokenSet: {
           accessToken: "at_agent",
           idToken,
+          refreshToken,
           expiresAt: Math.floor(Date.now() / 1000) + 3600
         },
         internal: {
@@ -1161,6 +1166,53 @@ describe("Custom Token Exchange", () => {
         expect(capturedActorToken).toBe(explicitToken);
       });
 
+      it("should NOT attempt a session refresh when an explicit actor is blank, even if the session has a refresh token", async () => {
+        const idToken = await makeAgentIdToken();
+        // Session has a perfectly usable ID token and refresh token — irrelevant here,
+        // since a blank explicit actor should fail on its own terms without touching them.
+        const session = makeAgentSession(
+          idToken,
+          "rt_agent_should_not_be_used"
+        );
+
+        let refreshAttempted = false;
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              if (params.get("grant_type") === "refresh_token") {
+                refreshAttempted = true;
+              }
+              return HttpResponse.json(
+                { error: "unsupported_grant_type" },
+                { status: 400 }
+              );
+            }
+          )
+        );
+
+        const [error, result, refreshedSession] =
+          await authClient.requestSessionTransferToken(
+            {
+              subjectToken: "sub-token",
+              subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+              actor: { token: "  ", type: TOKEN_TYPES.ID_TOKEN }
+            },
+            session
+          );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+        );
+        expect(result).toBeNull();
+        expect(refreshedSession).toBeNull();
+        // A bad explicit actor is a caller input error the session can't fix —
+        // refreshing the agent's own tokens must never be attempted for it.
+        expect(refreshAttempted).toBe(false);
+      });
+
       it("should return ACTOR_UNAVAILABLE when session has no ID token and no explicit actor", async () => {
         const session = makeAgentSession(undefined);
 
@@ -1196,6 +1248,68 @@ describe("Custom Token Exchange", () => {
         expect(result).toBeNull();
       });
 
+      it("should return ACTOR_UNAVAILABLE when the session was created for a different MCD domain", async () => {
+        // Defense-in-depth: Auth0Client.requestSessionTransferToken already enforces this via
+        // getSession() -> getSessionWithDomainCheck, but AuthClient.requestSessionTransferToken
+        // can be called directly, so it must not trust a session tagged for another domain.
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+        session.internal.mcd = {
+          domain: "brand-b.custom.example.com",
+          issuer: `https://brand-b.custom.example.com/`
+        };
+
+        const [error, result, refreshedSession] =
+          await authClient.requestSessionTransferToken(
+            {
+              subjectToken: "sub-token",
+              subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+            },
+            session
+          );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+        );
+        expect(result).toBeNull();
+        expect(refreshedSession).toBeNull();
+      });
+
+      it("should allow an explicit actor even when the session is tagged for a different MCD domain", async () => {
+        // An explicit actor bypasses the session entirely, so the cross-domain guard —
+        // which only protects session-sourced actors — must not apply to it.
+        const session = makeAgentSession(undefined);
+        session.internal.mcd = {
+          domain: "brand-b.custom.example.com",
+          issuer: `https://brand-b.custom.example.com/`
+        };
+        const explicitToken = await makeAgentIdToken();
+
+        server.use(
+          http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+            return HttpResponse.json({
+              issued_token_type: STT_URN,
+              access_token: "stt_explicit_mcd",
+              token_type: "N_A",
+              expires_in: 60
+            });
+          })
+        );
+
+        const [error, result] = await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            actor: { token: explicitToken, type: TOKEN_TYPES.ID_TOKEN }
+          },
+          session
+        );
+
+        expect(error).toBeNull();
+        expect(result?.sessionTransferToken).toBe("stt_explicit_mcd");
+      });
+
       it("should return ACTOR_UNAVAILABLE when session ID token is expired", async () => {
         const expiredToken = await new jose.SignJWT({})
           .setProtectedHeader({ alg: DEFAULT.alg })
@@ -1220,6 +1334,153 @@ describe("Custom Token Exchange", () => {
           CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
         );
         expect(result).toBeNull();
+      });
+
+      it("should refresh the session ID token when expired and a refresh token is present, then use the refreshed token as actor", async () => {
+        const expiredToken = await new jose.SignJWT({})
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject("agent|expired")
+          .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
+          .setIssuer(`https://${DEFAULT.domain}`)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
+          .sign(keyPair.privateKey);
+
+        const refreshedIdToken = await makeAgentIdToken();
+
+        let capturedActorToken = "";
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              const grantType = params.get("grant_type");
+
+              if (grantType === "refresh_token") {
+                return HttpResponse.json({
+                  token_type: "Bearer",
+                  access_token: "at_agent_refreshed",
+                  refresh_token: "rt_agent_rotated",
+                  id_token: refreshedIdToken,
+                  expires_in: 3600,
+                  scope: "openid profile email offline_access"
+                });
+              }
+
+              // STT exchange — capture the actor_token used
+              capturedActorToken = params.get("actor_token") ?? "";
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_refreshed_actor",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        const session = makeAgentSession(expiredToken, "rt_agent_original");
+        const [error, result, refreshedSession] =
+          await authClient.requestSessionTransferToken(
+            {
+              subjectToken: "sub-token",
+              subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+            },
+            session
+          );
+
+        expect(error).toBeNull();
+        expect(result?.sessionTransferToken).toBe("stt_refreshed_actor");
+        expect(capturedActorToken).toBe(refreshedIdToken);
+        // The refreshed token set must be returned so the caller can persist it —
+        // refresh token rotation invalidates the old refresh token in the session cookie.
+        expect(refreshedSession?.tokenSet.refreshToken).toBe(
+          "rt_agent_rotated"
+        );
+        expect(refreshedSession?.tokenSet.idToken).toBe(refreshedIdToken);
+        // session.user must reflect the claims of the *new* ID token, not the expired one —
+        // otherwise the persisted session would carry stale claims (e.g. old auth_time/sub).
+        expect(refreshedSession?.user.sub).toBe("agent|support-007");
+      });
+
+      it("should surface MfaRequiredError when the refresh grant requires step-up, instead of collapsing to ACTOR_UNAVAILABLE", async () => {
+        const expiredToken = await new jose.SignJWT({})
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject("agent|expired")
+          .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
+          .setIssuer(`https://${DEFAULT.domain}`)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
+          .sign(keyPair.privateKey);
+
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              const params = new URLSearchParams(await request.text());
+              if (params.get("grant_type") === "refresh_token") {
+                return HttpResponse.json(
+                  {
+                    error: "mfa_required",
+                    error_description:
+                      "Multi-factor authentication is required.",
+                    mfa_token: "mfa_tok_abc"
+                  },
+                  { status: 403 }
+                );
+              }
+              return HttpResponse.json(
+                { error: "unsupported_grant_type" },
+                { status: 400 }
+              );
+            }
+          )
+        );
+
+        const session = makeAgentSession(expiredToken, "rt_agent_original");
+        const [error, result, refreshedSession] =
+          await authClient.requestSessionTransferToken(
+            {
+              subjectToken: "sub-token",
+              subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+            },
+            session
+          );
+
+        expect(error).toBeInstanceOf(MfaRequiredError);
+        // mfa_token is encrypted (with audience/scope context) before being handed back,
+        // so it won't match the raw server value — just confirm one was produced.
+        expect((error as MfaRequiredError).mfa_token).toBeTruthy();
+        expect(result).toBeNull();
+        expect(refreshedSession).toBeNull();
+      });
+
+      it("should return ACTOR_UNAVAILABLE when session ID token is expired and there is no refresh token", async () => {
+        const expiredToken = await new jose.SignJWT({})
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject("agent|expired")
+          .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
+          .setIssuer(`https://${DEFAULT.domain}`)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
+          .sign(keyPair.privateKey);
+
+        const session = makeAgentSession(expiredToken); // no refreshToken
+        const [error, result, refreshedSession] =
+          await authClient.requestSessionTransferToken(
+            {
+              subjectToken: "sub-token",
+              subjectTokenType: STT_SUBJECT_TOKEN_TYPE
+            },
+            session
+          );
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+        );
+        expect(result).toBeNull();
+        expect(refreshedSession).toBeNull();
       });
     });
 
@@ -1428,6 +1689,46 @@ describe("Custom Token Exchange", () => {
         // Managed params win — the injected overrides are ignored.
         expect(capturedAudience).toBe(`urn:${DEFAULT.domain}:session_transfer`);
         expect(capturedActorToken).toBe(idToken);
+      });
+
+      it("should NOT duplicate organization or reason when also passed via additionalParameters", async () => {
+        const idToken = await makeAgentIdToken();
+        const session = makeAgentSession(idToken);
+
+        let capturedParams: URLSearchParams | undefined;
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/oauth/token`,
+            async ({ request }) => {
+              capturedParams = new URLSearchParams(await request.text());
+              return HttpResponse.json({
+                issued_token_type: STT_URN,
+                access_token: "stt_abc",
+                token_type: "N_A",
+                expires_in: 60
+              });
+            }
+          )
+        );
+
+        await authClient.requestSessionTransferToken(
+          {
+            subjectToken: "sub-token",
+            subjectTokenType: STT_SUBJECT_TOKEN_TYPE,
+            organization: "org_legit",
+            reason: "legit reason",
+            additionalParameters: {
+              organization: "org_injected",
+              reason: "injected reason"
+            }
+          },
+          session
+        );
+
+        // Each managed param must appear exactly once, with the SDK-set value —
+        // additionalParameters must not be able to append a second, conflicting copy.
+        expect(capturedParams?.getAll("organization")).toEqual(["org_legit"]);
+        expect(capturedParams?.getAll("reason")).toEqual(["legit reason"]);
       });
 
       // MCD: the audience must be built from the domain the request is served on,
