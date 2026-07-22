@@ -45,7 +45,17 @@ export async function POST(req: NextRequest) {
 
   let body: SttRequestBody;
   try {
-    body = await req.json();
+    const parsed: unknown = await req.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json(
+        {
+          code: "invalid_request",
+          message: "Request body must be a JSON object."
+        },
+        { status: 400 }
+      );
+    }
+    body = parsed as SttRequestBody;
   } catch {
     return NextResponse.json(
       { code: "invalid_request", message: "Request body must be JSON." },
