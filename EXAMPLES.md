@@ -4981,6 +4981,26 @@ The target app needs no SDK changes — `nextjs-auth0`'s login handler already f
 > [!NOTE]
 > The redeemed impersonation session cannot mint a refresh token and is short-lived (the platform hard-caps it). To continue after it expires, the agent re-runs the whole flow.
 
+Pages Router — pass `req`/`res` so a silently-refreshed actor token set is persisted back to the session cookie:
+
+```ts
+// pages/api/stt.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { subjectToken, subjectTokenType, targetLoginUrl } = req.body;
+
+  const result = await auth0.requestSessionTransferToken(req, res, {
+    subjectToken,
+    subjectTokenType,
+    reason: "Support investigation #1234"
+  });
+
+  const redirect = auth0.buildSessionTransferRedirect(targetLoginUrl, result);
+  res.redirect(307, redirect.headers.get("location")!);
+}
+```
+
 ### Actor Override
 
 The actor (the party making the request on the customer's behalf) defaults to the agent session's ID token. Pass `actor` explicitly to override:
@@ -5068,14 +5088,14 @@ if (actor) {
 
 ### Limitations
 
-- **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side (confidential-client RWAs; SPAs/native are out of scope).
+- **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side (confidential-client RWAs; SPAs/native are out of scope). Supported in both the App Router (Server Components, Server Actions, Route Handlers) and the Pages Router (`requestSessionTransferToken(req, res, options)`).
 - **One-shot, ~60 s**: The STT is opaque and must never be decoded, cached, or reused. Redeem it immediately.
 - **Branch on `issued_token_type`, not `token_type`**: The response carries `token_type: "N_A"` (informational). The SDK already validates that `issued_token_type === "urn:auth0:params:oauth:token-type:session_transfer_token"` before returning; if it doesn't match the exchange throws `EXCHANGE_FAILED`. Use `TOKEN_TYPES.SESSION_TRANSFER_TOKEN` in any downstream checks — never branch on `token_type`.
-- **Actor is mandatory and must be fresh**: The actor token (the agent's session ID token by default) must be an unexpired, asymmetrically-signed (RS256/PS256) JWT. If it is expired and a refresh token is present the SDK automatically refreshes it; otherwise it fails with `ACTOR_UNAVAILABLE`. Pass an explicit `actor` to use a non-session token.
+- **Actor is mandatory and must be fresh**: The actor token (the agent's session ID token by default) must be an unexpired, asymmetrically-signed (RS256/PS256) JWT. If it is expired and a refresh token is present the SDK automatically refreshes it — the refreshed token set is persisted back to the agent's session, since refresh token rotation invalidates the old refresh token; otherwise it fails with `ACTOR_UNAVAILABLE`. If the refresh itself requires MFA step-up, an `MfaRequiredError` is thrown instead. Pass an explicit `actor` to use a non-session token and skip the refresh path entirely.
 - **Non-localhost callback**: STT redemption rejects `localhost` redirect URIs — use a real domain (or a tunnel) for the target callback.
 - **Same tenant**: Both agent and target app must be on the same Auth0 tenant.
 - **No refresh token / no `offline_access`**: Auth0 silently drops `offline_access` from the STT scope — the impersonation session has no refresh token and self-expires according to the tenant's session lifetime settings. Pass `scope: "openid profile"` on the target login URL (or via `options.scope`) to make the intent explicit and avoid unexpected scope-negotiation warnings.
-- **No session modification**: The agent's own session is not modified; the STT is never written to `session.tokenSet`.
+- **STT itself is never written to the agent's session**: `session.tokenSet` never carries the STT. The agent's own session tokens are only touched when the actor's ID token had to be refreshed (see above) — otherwise nothing about the agent's session changes.
 
 ## Customizing Auth Handlers
 
