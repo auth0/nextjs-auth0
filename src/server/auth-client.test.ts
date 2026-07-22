@@ -4346,6 +4346,67 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(transactionCookie!.maxAge).toEqual(0);
     });
 
+    it("should reject the callback when the ID token's nonce does not match the transaction's stored nonce", async () => {
+      const state = "transaction-state";
+      const code = "auth-code";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        // The mock token endpoint returns an ID token signed with a nonce
+        // that differs from the one stored in the transaction below —
+        // this is what a magic-link ID token replay would look like.
+        fetch: getMockAuthorizationServer({ nonce: "attacker-supplied-nonce" })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state: state,
+        returnTo: "/dashboard"
+      };
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handleCallback(request);
+
+      // oauth4webapi's expectedNonce check fails and throws; the SDK
+      // surfaces this as a 500 AuthorizationCodeGrantError, matching the
+      // max_age mismatch case below. No session cookie should be set.
+      expect(response.status).toEqual(500);
+      expect(await response.text()).toEqual(
+        "An error occurred while trying to exchange the authorization code."
+      );
+      expect(response.cookies.get("__session")).toBeUndefined();
+    });
+
     it("should reject at login when session_expiry is already in the past — no session cookie, no redirect to returnTo", async () => {
       // IPSIE: if the upstream IdP asserts a ceiling that is already expired at
       // the moment of login, handleCallback must not persist the session.

@@ -5327,6 +5327,7 @@ export class AuthClient {
         appBaseUrl
       ).toString();
       const state = oauth.generateRandomState();
+      const nonce = oauth.generateRandomNonce();
 
       // Preserve tenant-level authorizationParameters (org, acr_values, etc.)
       // but exclude PKCE and fields we set explicitly.
@@ -5359,6 +5360,7 @@ export class AuthClient {
           response_type: RESPONSE_TYPES.CODE,
           scope,
           state,
+          nonce,
           ...(audience && { audience })
         }
       };
@@ -5366,6 +5368,7 @@ export class AuthClient {
       magicLinkTransactionState = {
         responseType: RESPONSE_TYPES.CODE,
         state,
+        nonce,
         returnTo: this.signInReturnToPath,
         scope,
         audience: this.authorizationParameters.audience as string | undefined,
