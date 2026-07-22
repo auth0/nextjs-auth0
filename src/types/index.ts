@@ -230,7 +230,10 @@ export {
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
-  SUBJECT_TOKEN_TYPES
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult,
+  SUBJECT_TOKEN_TYPES,
+  TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
 export type { ChallengeWithPopupOptions } from "../client/mfa/index.js";

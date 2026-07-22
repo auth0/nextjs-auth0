@@ -28,6 +28,8 @@ import {
   LogoutStrategy,
   SessionData,
   SessionDataStore,
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -38,6 +40,7 @@ import {
 } from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -1289,6 +1292,163 @@ export class Auth0Client {
     if (error !== null) {
       throw error;
     }
+  }
+
+  /**
+   * Requests a Session Transfer Token (STT) that lets an authenticated agent
+   * establish a web session **as a customer** in a target app — without the customer's password.
+   *
+   * This method can be used in Server Components, Server Actions, and Route Handlers in the
+   * **App Router**.
+   *
+   * NOTE: Server Components cannot set cookies. If the actor's ID token needs a silent refresh
+   * (see below), calling this from a Server Component will refresh the token but the updated
+   * token set will not be persisted. Prefer calling this from a Route Handler or Server Action.
+   *
+   * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type` automatically.
+   * The actor defaults to the agent session's ID token. If the ID token is expired and a
+   * refresh token is available the SDK silently refreshes the session first — the refreshed
+   * token set is persisted back to the session cookie (through the `beforeSessionSaved` hook,
+   * if configured), since refresh token rotation invalidates the old refresh token still held
+   * in the session. If no refresh token is available this throws `ACTOR_UNAVAILABLE`. If the
+   * refresh itself requires MFA step-up, this throws `MfaRequiredError`.
+   *
+   * Use the result with `buildSessionTransferRedirect` to redirect the agent's browser
+   * to the target app's login URL.
+   *
+   * **The returned STT is one-shot (~60s) and must never be cached.**
+   *
+   * @example
+   * ```typescript
+   * // app/api/stt/route.ts — App Router Route Handler
+   * const result = await auth0.requestSessionTransferToken({
+   *   subjectToken: mySubjectToken,
+   *   subjectTokenType: "urn:acme:subject",
+   *   reason: "Investigating ticket #1234"
+   * });
+   * return auth0.buildSessionTransferRedirect("https://app.example.com/auth/login", result);
+   * ```
+   */
+  async requestSessionTransferToken(
+    options: SessionTransferTokenOptions
+  ): Promise<SessionTransferTokenResult>;
+
+  /**
+   * Requests a Session Transfer Token (STT) that lets an authenticated agent
+   * establish a web session **as a customer** in a target app — without the customer's password.
+   *
+   * This method can be used in middleware and `getServerSideProps`, API routes in the
+   * **Pages Router**.
+   *
+   * @param req The request object.
+   * @param res The response object.
+   * @param options STT exchange options.
+   *
+   * @example
+   * ```typescript
+   * // pages/api/stt.ts — Pages Router API route
+   * const result = await auth0.requestSessionTransferToken(req, res, {
+   *   subjectToken: mySubjectToken,
+   *   subjectTokenType: "urn:acme:subject"
+   * });
+   * ```
+   */
+  async requestSessionTransferToken(
+    req: PagesRouterRequest | NextRequest,
+    res: PagesRouterResponse | NextResponse,
+    options: SessionTransferTokenOptions
+  ): Promise<SessionTransferTokenResult>;
+
+  async requestSessionTransferToken(
+    arg1: SessionTransferTokenOptions | PagesRouterRequest | NextRequest,
+    arg2?: PagesRouterResponse | NextResponse,
+    arg3?: SessionTransferTokenOptions
+  ): Promise<SessionTransferTokenResult> {
+    let req: PagesRouterRequest | NextRequest | undefined;
+    let res: PagesRouterResponse | NextResponse | undefined;
+    let options: SessionTransferTokenOptions;
+
+    // Determine which overload was called based on arguments — same pattern as getAccessToken.
+    if (
+      arg1 &&
+      (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
+    ) {
+      // Case: requestSessionTransferToken(req, res, options)
+      req = arg1 as PagesRouterRequest | NextRequest;
+      res = arg2;
+      options = arg3 as SessionTransferTokenOptions;
+    } else {
+      // Case: requestSessionTransferToken(options)
+      options = arg1 as SessionTransferTokenOptions;
+    }
+
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+
+    const [error, result, refreshedSession] =
+      await authClient.requestSessionTransferToken(options, session);
+
+    if (error !== null) {
+      throw error;
+    }
+
+    if (refreshedSession) {
+      // Route through finalizeSession so a configured beforeSessionSaved hook runs (or
+      // default ID token claim filtering is applied) — same as every other refresh-and-save
+      // path (e.g. executeGetAccessToken).
+      const finalSession = await authClient.finalizeSession(
+        refreshedSession,
+        refreshedSession.tokenSet.idToken
+      );
+      await this.saveToSession(finalSession, req, res);
+    }
+
+    return result;
+  }
+
+  /**
+   * Builds a `NextResponse` redirect that carries the STT to the target app's login route.
+   *
+   * Returns a redirect to `targetLoginUrl?session_transfer_token=<encoded>(&organization=…)`.
+   * Pure URL builder — no network call, nothing written to session.
+   *
+   * @param targetLoginUrl - The target app's login URL. Must be a trusted, app-controlled value.
+   * @param result - The `SessionTransferTokenResult` from `requestSessionTransferToken`
+   * @param opts - Optional: `organization` to append (same value passed to `requestSessionTransferToken`)
+   *
+   * @example
+   * ```typescript
+   * const result = await auth0.requestSessionTransferToken({ subjectToken, subjectTokenType });
+   * return auth0.buildSessionTransferRedirect("https://app.example.com/auth/login", result);
+   * ```
+   */
+  buildSessionTransferRedirect(
+    targetLoginUrl: string,
+    result: SessionTransferTokenResult,
+    opts?: { organization?: string }
+  ): NextResponse {
+    // buildSessionTransferRedirect is a pure URL builder — delegate directly
+    // to any AuthClient instance since it uses no per-request state.
+    const staticClient = this.provider.getAuthClientForStaticMode();
+    if (staticClient) {
+      return staticClient.buildSessionTransferRedirect(
+        targetLoginUrl,
+        result,
+        opts
+      );
+    }
+    // Fallback for resolver mode with no static client. Uses the same shared
+    // URL builder (with the same absolute-URL guard) as the core AuthClient,
+    // so behaviour is identical on both paths.
+    const url = buildSessionTransferRedirectUrl(
+      targetLoginUrl,
+      result.sessionTransferToken,
+      opts
+    );
+    return NextResponse.redirect(url);
   }
 
   /**

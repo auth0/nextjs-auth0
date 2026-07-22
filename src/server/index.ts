@@ -45,3 +45,16 @@ export type {
   DiscoveryCacheOptions,
   MCDMetadata
 } from "../types/mcd.js";
+
+// Session Transfer Token (CTE Phase 2) types
+export {
+  TOKEN_TYPES,
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult
+} from "../types/token-vault.js";
+
+// Session Transfer Token error codes (extends CustomTokenExchangeErrorCode)
+export {
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode
+} from "../errors/oauth-errors.js";
