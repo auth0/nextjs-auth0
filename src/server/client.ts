@@ -798,7 +798,6 @@ export class Auth0Client {
           fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
-
           discoveryCache,
           provider: this.provider
         });

@@ -949,6 +949,67 @@ describe("Stateless Session Store", async () => {
         }
       );
     });
+
+    describe("session cookie size warning", async () => {
+      const baseSession = (createdAt: number): SessionData => ({
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: { sid: "auth0-sid", createdAt }
+      });
+
+      it("warns when the session cookie exceeds the size threshold", async () => {
+        const secret = await generateSecret(32);
+        const consoleWarnSpy = vi
+          .spyOn(console, "warn")
+          .mockImplementation(() => {});
+        try {
+          const session = baseSession(Math.floor(Date.now() / 1000));
+          // Large custom claim pushes the encoded session well past 4096 bytes
+          // (and across multiple __session chunks).
+          (session.user as Record<string, unknown>).bigClaim = "x".repeat(6000);
+
+          const sessionStore = new StatelessSessionStore({ secret });
+          await sessionStore.set(
+            new RequestCookies(new Headers()),
+            new ResponseCookies(new Headers()),
+            session
+          );
+
+          const warned = consoleWarnSpy.mock.calls.some((c) =>
+            String(c[0]).includes("__session cookie size")
+          );
+          expect(warned).toBe(true);
+        } finally {
+          consoleWarnSpy.mockRestore();
+        }
+      });
+
+      it("does not warn for a small session cookie", async () => {
+        const secret = await generateSecret(32);
+        const consoleWarnSpy = vi
+          .spyOn(console, "warn")
+          .mockImplementation(() => {});
+        try {
+          const sessionStore = new StatelessSessionStore({ secret });
+          await sessionStore.set(
+            new RequestCookies(new Headers()),
+            new ResponseCookies(new Headers()),
+            baseSession(Math.floor(Date.now() / 1000))
+          );
+
+          const warned = consoleWarnSpy.mock.calls.some((c) =>
+            String(c[0]).includes("__session cookie size")
+          );
+          expect(warned).toBe(false);
+        } finally {
+          consoleWarnSpy.mockRestore();
+        }
+      });
+    });
   });
 
   describe("delete", async () => {

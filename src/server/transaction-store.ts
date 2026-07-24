@@ -5,6 +5,16 @@ import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
+// Maximum total byte size of all transaction (`__txn_*`) cookies combined.
+// When the accumulated size meets or exceeds this limit, the oldest cookies are
+// evicted (FIFO by creation timestamp) before a new one is written. One JWE is
+// ~450–555 bytes, so this allows ~6 concurrent in-flight logins — enough for
+// multi-tab use while staying well under the request-header limits enforced by
+// browsers (~4 KB per cookie) and servers/proxies. Intentionally fixed and not
+// configurable: it caps transaction-cookie accumulation regardless of the
+// deployment's header limit, which the SDK cannot know.
+const MAX_TRANSACTION_COOKIE_BYTES = 3500;
+
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
   responseType: RESPONSE_TYPES;
@@ -149,10 +159,9 @@ export class TransactionStore {
    *
    * @param resCookies - The response cookies object to set the transaction cookie on
    * @param transactionState - The transaction state to save
-   * @param reqCookies - Optional request cookies to check for existing transactions.
-   *                     When provided and `enableParallelTransactions` is false,
-   *                     will check for existing transaction cookies. When omitted,
-   *                     the existence check is skipped for performance optimization.
+   * @param reqCookies - Optional request cookies. When provided, enables FIFO
+   *                     eviction of accumulated transaction cookies (capped at
+   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the new cookie.
    * @throws {Error} When transaction state is missing required state parameter
    */
   async save(
@@ -164,30 +173,110 @@ export class TransactionStore {
       throw new Error("Transaction state is required");
     }
 
-    // When parallel transactions are disabled, check if a transaction already exists
-    if (reqCookies && !this.enableParallelTransactions) {
-      const cookieName = this.getTransactionCookieName(transactionState.state);
-      const existingCookie = reqCookies.get(cookieName);
-      if (existingCookie) {
-        console.warn(
-          "A transaction is already in progress. Only one transaction is allowed when parallel transactions are disabled."
-        );
-        return;
-      }
-    }
-
-    const expirationSeconds = this.cookieOptions.maxAge!;
-    const expiration = Math.floor(Date.now() / 1000 + expirationSeconds);
+    const expiration = Math.floor(
+      Date.now() / 1000 + this.cookieOptions.maxAge!
+    );
     const jwe = await cookies.encrypt(
       transactionState,
       this.secret,
       expiration
     );
 
-    resCookies.set(
-      this.getTransactionCookieName(transactionState.state),
-      jwe.toString(),
-      this.cookieOptions
+    // Encode creation timestamp in the value for O(1) FIFO ordering during eviction.
+    // "{ts}:{jwe}" — no cookie name change, backward compatible with legacy bare "{jwe}".
+    const ts = Math.floor(Date.now() / 1000);
+    const newCookieName = this.getTransactionCookieName(transactionState.state);
+    const newCookieValue = `${ts}:${jwe}`;
+
+    // Evict oldest transaction cookies FIFO before writing the new one, so the
+    // accumulated `__txn_*` cookies stay under the fixed byte limit. Only
+    // transaction cookies are measured/deleted — the session and other cookies
+    // are left untouched, and the cookie about to be written is never evicted.
+    if (reqCookies) {
+      this.evictOldestTransactionCookies(
+        reqCookies,
+        resCookies,
+        newCookieName,
+        newCookieValue
+      );
+    }
+
+    resCookies.set(newCookieName, newCookieValue, this.cookieOptions);
+  }
+
+  /**
+   * Evicts the oldest transaction cookies (FIFO by the `{ts}:` value prefix) from
+   * the response so that the accumulated `__txn_*` cookies — including the one
+   * about to be written — stay under {@link MAX_TRANSACTION_COOKIE_BYTES}.
+   *
+   * Only cookies matching the transaction prefix are measured and deleted — the
+   * session, connection-token, and application cookies are never touched. The
+   * cookie about to be (re)written for the current transaction (`newCookieName`)
+   * is never evicted. No-op when the projected total is under the limit.
+   *
+   * @param newCookieName - Name of the cookie about to be written (never evicted).
+   * @param newCookieValue - Value of that cookie; its size is included in the cap
+   *                         so a large new cookie can still trigger eviction.
+   */
+  private evictOldestTransactionCookies(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies,
+    newCookieName: string,
+    newCookieValue: string
+  ) {
+    const sizeOf = (name: string, value: string) =>
+      new TextEncoder().encode(`${name}=${value}`).length;
+
+    const txnCookies = reqCookies
+      .getAll()
+      .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
+
+    // Existing transaction-cookie bytes, excluding any cookie with the same name
+    // as the one we're about to write — its old bytes are replaced, not added.
+    const existingBytes = txnCookies.reduce(
+      (sum, c) =>
+        c.name === newCookieName ? sum : sum + sizeOf(c.name, c.value),
+      0
+    );
+    // Project the total that will be on the request header after this write.
+    const projectedBytes =
+      existingBytes + sizeOf(newCookieName, newCookieValue);
+
+    if (projectedBytes < MAX_TRANSACTION_COOKIE_BYTES) {
+      return;
+    }
+
+    const deleteOptions = {
+      domain: this.cookieOptions.domain,
+      path: this.cookieOptions.path,
+      secure: this.cookieOptions.secure,
+      sameSite: this.cookieOptions.sameSite,
+      httpOnly: this.cookieOptions.httpOnly
+    };
+
+    // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
+    // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
+    const sorted = [...txnCookies].sort((a, b) => {
+      const tsA = parseInt(a.value) || 0;
+      const tsB = parseInt(b.value) || 0;
+      return tsA - tsB;
+    });
+
+    let freed = 0;
+    const target = projectedBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
+    for (const c of sorted) {
+      // Never evict the cookie we are about to (re)write for this state.
+      if (c.name === newCookieName) continue;
+      cookies.deleteCookie(resCookies, c.name, deleteOptions);
+      freed += sizeOf(c.name, c.value);
+      if (freed >= target) break;
+    }
+
+    console.warn(
+      `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
+        `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+        `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
+        `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
     );
   }
 
@@ -199,7 +288,11 @@ export class TransactionStore {
       return null;
     }
 
-    return cookies.decrypt<TransactionState>(cookieValue, this.secret);
+    // Strip "{ts}:" prefix before decryption — backward compatible with legacy bare "{jwe}".
+    const colonIdx = cookieValue.indexOf(":");
+    const jwe = colonIdx !== -1 ? cookieValue.slice(colonIdx + 1) : cookieValue;
+
+    return cookies.decrypt<TransactionState>(jwe, this.secret);
   }
 
   async delete(resCookies: cookies.ResponseCookies, state: string) {

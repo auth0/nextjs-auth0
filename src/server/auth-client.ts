@@ -153,6 +153,7 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "../utils/proxy.js";
+import { isNonNavigationalRequest } from "../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -672,6 +673,9 @@ export class AuthClient {
     const method = req.method;
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
+      if (isNonNavigationalRequest(req)) {
+        return new NextResponse(null, { status: 401 });
+      }
       return this.handleLogin(req);
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
       return this.handleLogout(req);
@@ -947,8 +951,11 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    // Save transaction state
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
 
     return res;
   }
@@ -1598,7 +1605,6 @@ export class AuthClient {
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
-    // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
@@ -4177,7 +4183,11 @@ export class AuthClient {
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
 
     return [null, res];
   }
@@ -5819,7 +5829,11 @@ export class AuthClient {
             "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
         );
       }
-      await this.transactionStore.save(resCookies, magicLinkTransactionState);
+      await this.transactionStore.save(
+        resCookies,
+        magicLinkTransactionState,
+        req?.cookies
+      );
     }
   }
 
