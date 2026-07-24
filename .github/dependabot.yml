@@ -21,3 +21,7 @@ updates:
       semver-major-days: 10
       semver-minor-days: 5
       semver-patch-days: 3
+    groups:
+      codeql-action:
+        patterns:
+          - 'github/codeql-action/*'
