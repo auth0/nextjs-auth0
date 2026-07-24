@@ -50,7 +50,27 @@ export default async function Dashboard() {
                 </dd>
               </div>
             )}
+            <div className="flex justify-between py-2">
+              <dt className="font-medium text-gray-600">Refresh token</dt>
+              <dd className="font-mono text-xs text-gray-900">
+                {tokenSet.refreshToken ? "present" : "none"}
+              </dd>
+            </div>
           </dl>
+
+          {user.act && (
+            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+              <strong>Impersonation session.</strong> Logged in as{" "}
+              <code className="font-mono">{user.sub}</code> (customer),
+              impersonated by{" "}
+              <code className="font-mono">
+                {typeof user.act === "object" && user.act && "sub" in user.act
+                  ? String((user.act as { sub?: unknown }).sub)
+                  : "an agent"}
+              </code>{" "}
+              (agent). This session cannot be refreshed and self-expires.
+            </div>
+          )}
 
           <div className="flex gap-3">
             <a
@@ -58,6 +78,12 @@ export default async function Dashboard() {
               className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-indigo-700"
             >
               Try Token Exchange →
+            </a>
+            <a
+              href="/stt"
+              className="flex-1 rounded-lg bg-violet-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-violet-700"
+            >
+              Session Transfer →
             </a>
             <a
               href="/auth/logout"
