@@ -272,7 +272,26 @@ export enum CustomTokenExchangeErrorCode {
   /**
    * The token exchange request failed.
    */
-  EXCHANGE_FAILED = "exchange_failed"
+  EXCHANGE_FAILED = "exchange_failed",
+
+  /**
+   * No actor could be resolved for the STT exchange: no explicit `actor` was passed
+   * and no usable session ID token is available (missing or expired with no refresh token).
+   * Thrown client-side before any network call.
+   */
+  ACTOR_UNAVAILABLE = "actor_unavailable",
+
+  /**
+   * The CTE Action did not call `setActor`, which is required when requesting an STT.
+   * Surfaces the server 400 response.
+   */
+  SETACTOR_REQUIRED = "setactor_required",
+
+  /**
+   * The `cte_session_transfer_token` feature flag is disabled on the tenant.
+   * Surfaces the server 400 response.
+   */
+  SESSION_TRANSFER_DISABLED = "session_transfer_disabled"
 }
 
 /**

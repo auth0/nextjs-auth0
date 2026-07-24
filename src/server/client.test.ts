@@ -10,6 +10,11 @@ import {
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 
+vi.mock("next/headers.js", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+  cookies: vi.fn().mockResolvedValue({ getAll: () => [] })
+}));
+
 // Define ENV_VARS at the top level for broader scope
 const ENV_VARS = {
   DOMAIN: "AUTH0_DOMAIN",
@@ -665,6 +670,249 @@ describe("Auth0Client", () => {
       await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
         code: TokenRevocationErrorCode.FAILED_TO_REVOKE
       });
+    });
+  });
+
+  describe("requestSessionTransferToken / buildSessionTransferRedirect", () => {
+    let client: Auth0Client;
+
+    const mockSession: SessionData = {
+      user: { sub: "agent|007" },
+      tokenSet: {
+        accessToken: "at_agent",
+        idToken: "id_token_agent",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      },
+      internal: { sid: "sid_agent", createdAt: Math.floor(Date.now() / 1000) }
+    };
+
+    const mockSttResult = {
+      sessionTransferToken: "stt_opaque_123",
+      issuedTokenType:
+        "urn:auth0:params:oauth:token-type:session_transfer_token",
+      expiresIn: 60,
+      tokenType: "N_A"
+    };
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      client = new Auth0Client();
+    });
+
+    it("should call authClient.requestSessionTransferToken with the current session and return the result", async () => {
+      const requestSessionTransferToken = vi
+        .fn()
+        .mockResolvedValue([null, mockSttResult]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken
+      });
+
+      const result = await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(result).toBe(mockSttResult);
+      expect(requestSessionTransferToken).toHaveBeenCalledWith(
+        { subjectToken: "sub-tok", subjectTokenType: "urn:acme:subject" },
+        mockSession
+      );
+    });
+
+    it("should throw when authClient.requestSessionTransferToken returns an error", async () => {
+      const { CustomTokenExchangeError, CustomTokenExchangeErrorCode } =
+        await import("../errors/index.js");
+      const sttError = new CustomTokenExchangeError(
+        CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
+        "No actor available."
+      );
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: null, error: null }),
+        requestSessionTransferToken: vi.fn().mockResolvedValue([sttError, null])
+      });
+
+      await expect(
+        client.requestSessionTransferToken({
+          subjectToken: "sub-tok",
+          subjectTokenType: "urn:acme:subject"
+        })
+      ).rejects.toMatchObject({
+        code: CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+      });
+    });
+
+    it("should pass null session when there is no active session", async () => {
+      const requestSessionTransferToken = vi
+        .fn()
+        .mockResolvedValue([null, mockSttResult]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: null, error: null }),
+        requestSessionTransferToken
+      });
+
+      await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(requestSessionTransferToken).toHaveBeenCalledWith(
+        expect.anything(),
+        null
+      );
+    });
+
+    it("should persist the refreshed session (through finalizeSession) when the actor's ID token was refreshed", async () => {
+      const refreshedSession: SessionData = {
+        ...mockSession,
+        tokenSet: {
+          ...mockSession.tokenSet,
+          idToken: "id_token_agent_refreshed",
+          refreshToken: "rt_agent_rotated"
+        }
+      };
+      const finalizedSession: SessionData = {
+        ...refreshedSession,
+        user: { sub: "agent|007", extra: "filtered" }
+      };
+      const finalizeSession = vi.fn().mockResolvedValue(finalizedSession);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken: vi
+          .fn()
+          .mockResolvedValue([null, mockSttResult, refreshedSession]),
+        finalizeSession
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(finalizeSession).toHaveBeenCalledWith(
+        refreshedSession,
+        refreshedSession.tokenSet.idToken
+      );
+      expect(saveToSession).toHaveBeenCalledWith(
+        finalizedSession,
+        undefined,
+        undefined
+      );
+    });
+
+    it("should not persist a session when the actor's ID token was not refreshed", async () => {
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken: vi
+          .fn()
+          .mockResolvedValue([null, mockSttResult, null])
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("should support the Pages Router overload (req, res, options) and persist via saveToSession(session, req, res)", async () => {
+      const refreshedSession: SessionData = {
+        ...mockSession,
+        tokenSet: {
+          ...mockSession.tokenSet,
+          idToken: "id_token_agent_refreshed",
+          refreshToken: "rt_agent_rotated"
+        }
+      };
+      const finalizeSession = vi.fn().mockResolvedValue(refreshedSession);
+      const requestSessionTransferToken = vi
+        .fn()
+        .mockResolvedValue([null, mockSttResult, refreshedSession]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken,
+        finalizeSession
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const mockReq = {
+        headers: {},
+        cookies: {}
+      } as any;
+      const mockRes = {
+        headers: {},
+        setHeader: vi.fn(),
+        appendHeader: vi.fn()
+      } as any;
+
+      const result = await client.requestSessionTransferToken(
+        mockReq,
+        mockRes,
+        { subjectToken: "sub-tok", subjectTokenType: "urn:acme:subject" }
+      );
+
+      expect(result).toBe(mockSttResult);
+      expect(requestSessionTransferToken).toHaveBeenCalledWith(
+        { subjectToken: "sub-tok", subjectTokenType: "urn:acme:subject" },
+        mockSession
+      );
+      expect(saveToSession).toHaveBeenCalledWith(
+        refreshedSession,
+        mockReq,
+        mockRes
+      );
+    });
+
+    it("buildSessionTransferRedirect should return a redirect with session_transfer_token param", () => {
+      const response = client.buildSessionTransferRedirect(
+        "https://app.example.com/auth/login",
+        mockSttResult
+      );
+
+      expect(response.status).toBeGreaterThanOrEqual(300);
+      expect(response.status).toBeLessThan(400);
+      const location = response.headers.get("location") ?? "";
+      const url = new URL(location);
+      expect(url.searchParams.get("session_transfer_token")).toBe(
+        "stt_opaque_123"
+      );
+    });
+
+    it("buildSessionTransferRedirect should append organization when provided", () => {
+      const response = client.buildSessionTransferRedirect(
+        "https://app.example.com/auth/login",
+        mockSttResult,
+        { organization: "org_abc" }
+      );
+
+      const location = response.headers.get("location") ?? "";
+      const url = new URL(location);
+      expect(url.searchParams.get("organization")).toBe("org_abc");
     });
   });
 

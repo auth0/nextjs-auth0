@@ -1,3 +1,28 @@
+/**
+ * Token type URNs for Custom Token Exchange and Session Transfer flows (RFC 8693).
+ */
+export enum TOKEN_TYPES {
+  /**
+   * OAuth 2.0 ID token.
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-3-3.6 RFC 8693 Section 3-3.6}
+   */
+  ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token",
+
+  /**
+   * OAuth 2.0 access token.
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-3-3.2 RFC 8693 Section 3-3.2}
+   */
+  ACCESS_TOKEN = "urn:ietf:params:oauth:token-type:access_token",
+
+  /**
+   * Session Transfer Token issued by Auth0 (Phase 2 CTE).
+   * When `issued_token_type` equals this value, the `access_token` in the response
+   * is a one-shot STT — not a usable API bearer token. Pass it to
+   * `buildSessionTransferRedirect` to start the impersonation redirect.
+   */
+  SESSION_TRANSFER_TOKEN = "urn:auth0:params:oauth:token-type:session_transfer_token"
+}
+
 export enum SUBJECT_TOKEN_TYPES {
   /**
    * Indicates that the token is an OAuth 2.0 refresh token issued by the given authorization server.
@@ -141,6 +166,84 @@ export interface ActClaim {
   /** Nested actor claim representing a delegation chain. */
   act?: ActClaim;
   [key: string]: unknown;
+}
+
+/**
+ * Options for requesting a Session Transfer Token (STT).
+ *
+ * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`
+ * automatically. You supply `subjectToken` and `subjectTokenType` — your own proof
+ * of which customer to impersonate, validated by your Action.
+ */
+export interface SessionTransferTokenOptions {
+  /**
+   * Your proof of which customer to impersonate.
+   * Opaque to Auth0 — validated only by your CTE Action via `setUserById`.
+   * The SDK never produces this value.
+   */
+  subjectToken: string;
+
+  /**
+   * Your CTE Profile ID that routes the exchange to your Action.
+   * Same validation rules as `CustomTokenExchangeOptions.subjectTokenType` (10–100 chars, valid URI).
+   */
+  subjectTokenType: string;
+
+  /**
+   * Reason for impersonation. Forwarded to the token endpoint as a body param
+   * and readable by your Action at `event.request.body.reason`.
+   * Must be included in `setActor(...)` by your Action for it to appear as `act.reason`.
+   */
+  reason?: string;
+
+  /**
+   * Organization ID or name. Forwarded to `/authorize` by `buildSessionTransferRedirect`.
+   * Required when the STT is issued in an org context.
+   */
+  organization?: string;
+
+  /**
+   * Scopes for the impersonation session tokens.
+   * Merged with SDK default scopes (openid, profile, email).
+   * Note: `offline_access` is silently suppressed by Auth0 for impersonation sessions.
+   */
+  scope?: string;
+
+  /**
+   * Explicit actor override. Omit to use the agent session's ID token.
+   * If the session ID token is expired but a refresh token is available the SDK refreshes it first.
+   * Fails with `ACTOR_UNAVAILABLE` only when no usable token can be resolved. If that refresh
+   * itself requires MFA step-up, an `MfaRequiredError` is thrown instead.
+   * Precedence: explicit `actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
+   */
+  actor?: {
+    token: string;
+    type: TOKEN_TYPES | string;
+  };
+
+  /**
+   * Additional custom parameters forwarded to the token endpoint.
+   * Accessible in your Action via `event.request.body`.
+   */
+  additionalParameters?: Record<string, unknown>;
+}
+
+/**
+ * Result from `requestSessionTransferToken`.
+ *
+ * Branch on `issuedTokenType`, never `tokenType`.
+ * The `sessionTransferToken` is one-shot (~60s) — pass it directly to
+ * `buildSessionTransferRedirect`. Never cache or store it.
+ */
+export interface SessionTransferTokenResult {
+  /** The Session Transfer Token. One-shot, ~60s. Pass to `buildSessionTransferRedirect`. */
+  sessionTransferToken: string;
+  /** Always `TOKEN_TYPES.SESSION_TRANSFER_TOKEN`. Branch on this, not `tokenType`. */
+  issuedTokenType: TOKEN_TYPES.SESSION_TRANSFER_TOKEN | string;
+  /** Token lifetime in seconds as reported by the server. Undefined when the server omits it. */
+  expiresIn?: number;
+  /** `"N_A"` — informational only. Never branch on this. */
+  tokenType?: string;
 }
 
 /**
