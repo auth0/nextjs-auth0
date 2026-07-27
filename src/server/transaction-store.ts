@@ -167,7 +167,7 @@ export class TransactionStore {
   async save(
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState,
-    reqCookies?: cookies.RequestCookies
+    reqCookies?: cookies.RequestCookies | cookies.ReadonlyRequestCookies
   ) {
     if (!transactionState.state) {
       throw new Error("Transaction state is required");
@@ -219,7 +219,7 @@ export class TransactionStore {
    *                         so a large new cookie can still trigger eviction.
    */
   private evictOldestTransactionCookies(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: cookies.RequestCookies | cookies.ReadonlyRequestCookies,
     resCookies: cookies.ResponseCookies,
     newCookieName: string,
     newCookieValue: string
@@ -256,11 +256,10 @@ export class TransactionStore {
 
     // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
     // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
-    const sorted = [...txnCookies].sort((a, b) => {
-      const tsA = parseInt(a.value) || 0;
-      const tsB = parseInt(b.value) || 0;
-      return tsA - tsB;
-    });
+    const sorted = [...txnCookies].sort(
+      (a, b) =>
+        this.parseCookieTimestamp(a.value) - this.parseCookieTimestamp(b.value)
+    );
 
     let freed = 0;
     const target = projectedBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
@@ -278,6 +277,22 @@ export class TransactionStore {
         `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
         `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
     );
+  }
+
+  /**
+   * Extracts the creation timestamp from a cookie value shaped "{ts}:{jwe}".
+   * Legacy bare "{jwe}" values (no colon) have no timestamp and sort first (0).
+   * Uses an explicit split on the first colon rather than `parseInt`, so a
+   * legacy JWE that happens to start with digits is never mistaken for a
+   * timestamp — consistent with the split used in {@link get}.
+   */
+  private parseCookieTimestamp(value: string): number {
+    const colonIdx = value.indexOf(":");
+    if (colonIdx === -1) {
+      return 0;
+    }
+    const ts = Number(value.slice(0, colonIdx));
+    return Number.isFinite(ts) ? ts : 0;
   }
 
   async get(reqCookies: cookies.RequestCookies, state: string) {

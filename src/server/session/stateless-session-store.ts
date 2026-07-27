@@ -125,30 +125,18 @@ export class StatelessSessionStore extends AbstractSessionStore {
       maxAge
     };
 
-    cookies.setChunkedCookie(
+    // Warn when the session cookie is large. This is the main remaining cause of
+    // 431 errors: the session (unlike transaction cookies) is never evicted, so
+    // an oversized session can overflow the request-header limit on its own.
+    // setChunkedCookie returns the total bytes of the chunk(s) it wrote, so no
+    // separate re-scan of resCookies is needed.
+    const sessionCookieBytes = cookies.setChunkedCookie(
       this.sessionCookieName,
       cookieValue,
       options,
       reqCookies,
       resCookies
     );
-
-    // Warn when the session cookie is large. This is the main remaining cause of
-    // 431 errors: the session (unlike transaction cookies) is never evicted, so
-    // an oversized session can overflow the request-header limit on its own.
-    // Measure the total bytes of all `__session` chunks written to the response.
-    const sessionCookieBytes = resCookies
-      .getAll()
-      .filter(
-        (c) =>
-          c.name === this.sessionCookieName ||
-          c.name.startsWith(`${this.sessionCookieName}__`)
-      )
-      .reduce(
-        (sum, c) =>
-          sum + new TextEncoder().encode(`${c.name}=${c.value}`).length,
-        0
-      );
 
     if (sessionCookieBytes >= SESSION_COOKIE_SIZE_WARN_BYTES) {
       console.warn(
