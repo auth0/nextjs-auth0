@@ -803,7 +803,8 @@ export class AuthClient {
 
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
-    req?: NextRequest
+    req?: NextRequest,
+    reqCookies?: RequestCookies | ReadonlyRequestCookies
   ): Promise<NextResponse> {
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
@@ -954,7 +955,7 @@ export class AuthClient {
     await this.transactionStore.save(
       res.cookies,
       transactionState,
-      req?.cookies
+      req?.cookies ?? reqCookies
     );
 
     return res;

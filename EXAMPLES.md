@@ -4087,6 +4087,9 @@ const authClient = new Auth0Client({
 - You want the simplest possible transaction management
 - Users typically don't need multiple concurrent login flows
 
+> [!NOTE]
+> In single transaction mode, starting a new login while one is already in progress overwrites the existing `__txn_` cookie rather than rejecting the new attempt. If a user has two tabs open and starts a login in both, only the most recently started login can complete; the other tab's callback will fail because its transaction state was overwritten. This is expected in single transaction mode — use the default parallel mode if concurrent logins across tabs need to succeed.
+
 ### Transaction Cookie Options
 
 | Option                                    | Type                          | Description                                                                                                                                                                                                                                         |

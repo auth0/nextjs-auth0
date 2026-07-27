@@ -211,6 +211,9 @@ const getAllChunkedCookies = (
  * @param options - Options for setting the cookie.
  * @param reqCookies - The request cookies object, used to enable read-after-write in the same request for middleware.
  * @param resCookies - The response cookies object, used to set the cookies in the response.
+ * @returns The total encoded `name=value` byte size of the cookie(s) written —
+ *          lets callers check against header-size limits without re-scanning
+ *          `resCookies` afterwards.
  */
 export function setChunkedCookie(
   name: string,
@@ -218,7 +221,7 @@ export function setChunkedCookie(
   options: CookieOptions,
   reqCookies: RequestCookies,
   resCookies: ResponseCookies
-): void {
+): number {
   const { transient, ...restOptions } = options;
   const finalOptions = { ...restOptions };
 
@@ -226,7 +229,11 @@ export function setChunkedCookie(
     delete finalOptions.maxAge;
   }
 
-  const valueBytes = new TextEncoder().encode(value).length;
+  const encoder = new TextEncoder();
+  const sizeOf = (cookieName: string, cookieValue: string) =>
+    encoder.encode(`${cookieName}=${cookieValue}`).length;
+
+  const valueBytes = encoder.encode(value).length;
 
   // If value fits in a single cookie, set it directly
   if (valueBytes <= MAX_CHUNK_SIZE) {
@@ -247,12 +254,13 @@ export function setChunkedCookie(
       reqCookies.delete(cookieChunk.name);
     });
 
-    return;
+    return sizeOf(name, value);
   }
 
   // Split value into chunks
   let position = 0;
   let chunkIndex = 0;
+  let totalBytes = 0;
 
   while (position < value.length) {
     const chunk = value.slice(position, position + MAX_CHUNK_SIZE);
@@ -261,6 +269,7 @@ export function setChunkedCookie(
     resCookies.set(chunkName, chunk, finalOptions);
     // to enable read-after-write in the same request for middleware
     reqCookies.set(chunkName, chunk);
+    totalBytes += sizeOf(chunkName, chunk);
     position += MAX_CHUNK_SIZE;
     chunkIndex++;
   }
@@ -292,6 +301,8 @@ export function setChunkedCookie(
     httpOnly: finalOptions.httpOnly
   });
   reqCookies.delete(name);
+
+  return totalBytes;
 }
 
 /**
