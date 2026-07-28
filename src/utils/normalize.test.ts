@@ -282,6 +282,16 @@ describe("normalize.ts", () => {
         });
       });
 
+      it("should preserve ports for insecure issuer URLs", () => {
+        const result = normalizeDomain("http://localhost:8085/realm", {
+          allowInsecureRequests: true
+        });
+        expect(result).toEqual({
+          domain: "localhost",
+          issuer: "http://localhost:8085/realm"
+        });
+      });
+
       it("should accept URLs with paths (e.g. Okta custom auth servers) without adding trailing slash", () => {
         // RFC 8414 does not require a trailing slash. Path-based issuers must be
         // preserved verbatim so they match the provider's discovery document exactly.
