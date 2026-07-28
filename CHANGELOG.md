@@ -1,5 +1,16 @@
 # Change Log
 
+## [v4.26.0](https://github.com/auth0/nextjs-auth0/tree/v4.26.0) (2026-07-28)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.25.0...v4.26.0)
+
+**Added**
+- feat: add session transfer token support to CTE [\#2734](https://github.com/auth0/nextjs-auth0/pull/2734) ([Piyush-85](https://github.com/Piyush-85))
+- feat: add revokeRefreshToken() and revoke refresh token on logout for… [\#2751](https://github.com/auth0/nextjs-auth0/pull/2751) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: preserve ports for insecure issuer URLs [\#2778](https://github.com/auth0/nextjs-auth0/pull/2778) ([ewuerger](https://github.com/ewuerger))
+- fix: generate and store nonce in magic-link transaction for ID token … [\#2753](https://github.com/auth0/nextjs-auth0/pull/2753) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.25.0](https://github.com/auth0/nextjs-auth0/tree/v4.25.0) (2026-07-06)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.24.0...v4.25.0)
 
