@@ -696,7 +696,9 @@ class ClientMfaClient implements MfaClient {
  *
  * @example
  * ```typescript
- * import { mfa, getAccessToken } from '@auth0/nextjs-auth0/client';
+ * import { mfa, getAccessToken, useUser } from '@auth0/nextjs-auth0/client';
+ *
+ * const { user } = useUser();
  *
  * // List authenticators
  * const authenticators = await mfa.getAuthenticators({ mfaToken });
@@ -706,7 +708,11 @@ class ClientMfaClient implements MfaClient {
  *
  * // Verify and complete — tokens stored in session cookie server-side
  * await mfa.verify({ mfaToken, otp: '123456' });
- * const accessToken = await getAccessToken(); // retrieve from session
+ *
+ * // Only retrieve the access token once the user is authenticated
+ * if (user) {
+ *   const accessToken = await getAccessToken(); // retrieve from session
+ * }
  *
  * // Step-up via popup (no redirect)
  * const { token } = await mfa.challengeWithPopup({

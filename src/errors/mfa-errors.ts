@@ -359,7 +359,7 @@ export class MfaRequiredError extends SdkError {
  * try {
  *   await mfa.verify({ mfaToken, otp: code });
  * } catch (error) {
- *   if (error instanceof MfaTokenExpiredError) {
+ *   if (error?.code === "mfa_token_expired") {
  *     // Restart MFA flow - context was lost
  *     redirect("/auth/login?prompt=mfa");
  *   }
