@@ -266,3 +266,5 @@ export class ServerMfaClient implements MfaClient {
     }
   }
 }
+
+console.log('inside mfa-client');
