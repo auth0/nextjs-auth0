@@ -29,3 +29,5 @@ export function filterDefaultIdTokenClaims(claims: { [key: string]: any }) {
     return acc;
   }, {} as User);
 }
+
+console.log('User.ts file');
