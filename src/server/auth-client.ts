@@ -224,7 +224,7 @@ export type OnCallbackContext = {
   /**
    * The return strategy for this callback flow.
    * - 'redirect' (default): Standard OAuth redirect flow
-   * - 'postMessage': Popup flow returning via window.postMessage
+   * - 'popup': Popup flow returning via window.postMessage
    * Hook authors can use this to detect popup flows and adapt behavior.
    */
   challengeMode?: "redirect" | "popup";
@@ -2758,7 +2758,7 @@ export class AuthClient {
   /**
    * Handle errors during the OAuth callback flow.
    *
-   * For popup flows (`challengeMode: 'postMessage'`): returns error details
+   * For popup flows (`challengeMode: 'popup'`): returns error details
    * as a postMessage HTML page instead of redirecting. The parent window
    * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
    * and the promise returned by `challengeWithPopup()` rejects with a typed error.

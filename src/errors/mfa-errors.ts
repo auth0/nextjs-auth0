@@ -357,9 +357,9 @@ export class MfaRequiredError extends SdkError {
  * @example
  * ```typescript
  * try {
- *   await auth0.completeMfaChallenge(mfaToken, code);
+ *   await mfa.verify({ mfaToken, otp: code });
  * } catch (error) {
- *   if (error instanceof MfaTokenNotFoundError) {
+ *   if (error instanceof MfaTokenExpiredError) {
  *     // Restart MFA flow - context was lost
  *     redirect("/auth/login?prompt=mfa");
  *   }
