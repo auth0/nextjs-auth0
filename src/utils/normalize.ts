@@ -164,6 +164,7 @@ export function normalizeDomain(
   let hostname: string;
   let scheme = "https";
   let urlPath = "/";
+  let port = "";
 
   try {
     // Try to parse as a URL (case-insensitive scheme detection)
@@ -172,6 +173,7 @@ export function normalizeDomain(
       const url = new URL(trimmed);
       hostname = url.hostname;
       scheme = url.protocol.replace(":", "");
+      port = url.port;
 
       // Reject query strings and fragments; paths are allowed for providers like
       // Okta custom authorization servers (e.g. myorg.okta.com/oauth2/default)
@@ -212,7 +214,8 @@ export function normalizeDomain(
     issuer = normalizeIssuer(options.issuerHint);
   } else {
     const protocol = options?.allowInsecureRequests ? scheme : "https";
-    const rawIssuer = `${protocol}://${normalizedHostname}${urlPath}`;
+    const portSuffix = options?.allowInsecureRequests && port ? `:${port}` : "";
+    const rawIssuer = `${protocol}://${normalizedHostname}${portSuffix}${urlPath}`;
     // For root-path issuers (hostname only), add a trailing slash to match
     // Auth0's canonical issuer format (https://tenant.auth0.com/).
     // For path-based issuers (e.g. Okta /oauth2/default, IBM /oidc/endpoint/default),
