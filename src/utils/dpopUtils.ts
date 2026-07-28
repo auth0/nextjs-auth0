@@ -345,3 +345,5 @@ export async function validateDpopConfiguration(
   // No DPoP keypair available, but DPoP is enabled, return options without keypair
   return { dpopKeyPair: undefined, dpopOptions };
 }
+
+console.log('in dpopUtils.ts');
