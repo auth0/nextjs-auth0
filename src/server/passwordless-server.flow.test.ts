@@ -268,8 +268,14 @@ describe("AuthClient passwordless methods", () => {
       const state = authParams.state as string;
       const txnCookie = resCookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
+      // Strip the {ts}: prefix added by the transaction store before decrypting
+      const colonIdx = txnCookie!.value.indexOf(":");
+      const jweValue =
+        colonIdx !== -1
+          ? txnCookie!.value.slice(colonIdx + 1)
+          : txnCookie!.value;
       const { payload } = (await decrypt(
-        txnCookie!.value,
+        jweValue,
         secret
       )) as jose.JWTDecryptResult;
       expect(payload.nonce).toBe(authParams.nonce);
