@@ -81,3 +81,5 @@ export {
   PasskeyEnrollmentVerifyError,
   type PasskeyApiErrorResponse
 } from "./passkey-errors.js";
+
+console.log('in errors/index.ts');
