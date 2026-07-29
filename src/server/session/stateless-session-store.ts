@@ -126,9 +126,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
     );
 
     // Store connection access tokens, each in its own cookie
-    if (connectionTokenSets?.length) {
+    const connectionTokenSetCount = connectionTokenSets?.length ?? 0;
+    if (connectionTokenSetCount) {
       await Promise.all(
-        connectionTokenSets.map((connectionTokenSet, index) =>
+        connectionTokenSets!.map((connectionTokenSet, index) =>
           this.storeInCookie(
             reqCookies,
             resCookies,
@@ -138,6 +139,26 @@ export class StatelessSessionStore extends AbstractSessionStore {
           )
         )
       );
+    }
+
+    // The connection token cookies are indexed positionally (`__FC_0..n-1`). If
+    // the array has shrunk since it was last written (e.g. an account was
+    // disconnected), the trailing higher-index cookies would otherwise linger as
+    // orphans and be re-assembled into the session on the next read. Delete any
+    // `__FC_i` present in the request whose index is beyond the current length.
+    for (const cookie of this.getConnectionTokenSetsCookies(reqCookies)) {
+      const index = this.parseConnectionTokenSetCookieIndex(cookie.name);
+      // Only reconcile cookies this store wrote (`__FC_<index>`). Any other
+      // `__FC`-prefixed cookie is left untouched.
+      if (index !== null && index >= connectionTokenSetCount) {
+        cookies.deleteCookie(resCookies, cookie.name, {
+          domain: this.cookieConfig.domain,
+          path: this.cookieConfig.path,
+          secure: this.cookieConfig.secure,
+          sameSite: this.cookieConfig.sameSite,
+          httpOnly: this.cookieConfig.httpOnly
+        });
+      }
     }
 
     // Any existing v3 cookie can be deleted as soon as we have set a v4 cookie.
@@ -253,5 +274,24 @@ export class StatelessSessionStore extends AbstractSessionStore {
       .filter((cookie) =>
         cookie.name.startsWith(this.connectionTokenSetsCookieName)
       );
+  }
+
+  /**
+   * Parses the positional index out of a connection token set cookie name
+   * (e.g. `__FC_2` -> `2`). Returns `null` when the name does not match the
+   * expected `<prefix>_<index>` shape.
+   */
+  private parseConnectionTokenSetCookieIndex(
+    cookieName: string
+  ): number | null {
+    const prefix = `${this.connectionTokenSetsCookieName}_`;
+    if (!cookieName.startsWith(prefix)) {
+      return null;
+    }
+    const suffix = cookieName.slice(prefix.length);
+    if (!/^\d+$/.test(suffix)) {
+      return null;
+    }
+    return Number(suffix);
   }
 }

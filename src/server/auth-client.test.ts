@@ -18,6 +18,7 @@ import {
   BackchannelAuthenticationError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  DisconnectAccountError,
   InvalidConfigurationError,
   MyAccountApiError,
   TokenRevocationError,
@@ -118,7 +119,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onCompleteConnectAccountRequest,
     completeConnectAccountErrorResponse,
     onRevocationRequest,
-    revocationErrorResponse
+    revocationErrorResponse,
+    onListConnectedAccountsRequest,
+    listConnectedAccountsResponses,
+    onDeleteConnectedAccountRequest,
+    deleteConnectedAccountErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -134,7 +139,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     completeConnectAccountErrorResponse?: Response;
     onRevocationRequest?: (request: Request) => Promise<void>;
     revocationErrorResponse?: Response;
+    onListConnectedAccountsRequest?: (request: Request) => Promise<void>;
+    // Successive responses for the paginated list endpoint. Each call consumes
+    // the next entry; the last entry is reused once exhausted.
+    listConnectedAccountsResponses?: Response[];
+    onDeleteConnectedAccountRequest?: (request: Request) => Promise<void>;
+    deleteConnectedAccountErrorResponse?: Response;
   } = {}) {
+    let listConnectedAccountsCallCount = 0;
     // this function acts as a mock authorization server
     return vi.fn(
       async (
@@ -282,6 +294,41 @@ ca/T0LLtgmbMmxSv/MmzIg==
               status: 201
             }
           );
+        }
+
+        // List connected accounts
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts" &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          if (onListConnectedAccountsRequest) {
+            await onListConnectedAccountsRequest(new Request(input, init));
+          }
+
+          if (listConnectedAccountsResponses?.length) {
+            const index = Math.min(
+              listConnectedAccountsCallCount,
+              listConnectedAccountsResponses.length - 1
+            );
+            listConnectedAccountsCallCount++;
+            return listConnectedAccountsResponses[index];
+          }
+
+          return Response.json({ accounts: [] }, { status: 200 });
+        }
+
+        // Delete connected account
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          if (onDeleteConnectedAccountRequest) {
+            await onDeleteConnectedAccountRequest(new Request(input, init));
+          }
+          if (deleteConnectedAccountErrorResponse) {
+            return deleteConnectedAccountErrorResponse;
+          }
+          return new Response(null, { status: 204 });
         }
 
         // Revocation endpoint
@@ -9506,7 +9553,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: undefined,
+        loginHint: "000100123"
       });
     });
 
@@ -9609,7 +9658,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: undefined,
+        loginHint: "000100123"
       });
       expect(fetchSpy).toHaveBeenCalled();
     });
@@ -10052,6 +10103,268 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error).toBeTruthy();
       expect(error?.code).toBe("failed_to_exchange_refresh_token");
       expect(connectionTokenSet).toBeNull();
+    });
+  });
+
+  describe("listConnectedAccounts", async () => {
+    function buildAuthClient(fetchSpy: any) {
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret: "secret" }),
+        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret: "secret",
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+    }
+
+    const tokenSet = {
+      accessToken: "my-account-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+
+    it("returns the mapped connected accounts from a single page", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                {
+                  id: "cac_1",
+                  connection: "google-oauth2",
+                  access_type: "offline",
+                  scopes: ["email"],
+                  created_at: "2024-01-01T00:00:00.000Z",
+                  expires_at: "2024-02-01T00:00:00.000Z",
+                  org_id: "org_123"
+                }
+              ]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts).toEqual([
+        {
+          id: "cac_1",
+          connection: "google-oauth2",
+          accessType: "offline",
+          scopes: ["email"],
+          createdAt: "2024-01-01T00:00:00.000Z",
+          expiresAt: "2024-02-01T00:00:00.000Z",
+          orgId: "org_123"
+        }
+      ]);
+    });
+
+    it("maps orgId as undefined for accounts not bound to an organization", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [{ id: "cac_1", connection: "google-oauth2" }]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts?.[0].orgId).toBeUndefined();
+    });
+
+    it("follows pagination via the next token", async () => {
+      const listConnectedAccountsResponses = [
+        Response.json(
+          {
+            accounts: [{ id: "cac_1", connection: "google-oauth2" }],
+            next: "page-2"
+          },
+          { status: 200 }
+        ),
+        Response.json(
+          { accounts: [{ id: "cac_2", connection: "github" }] },
+          { status: 200 }
+        )
+      ];
+      const nextParams: (string | null)[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses,
+        onListConnectedAccountsRequest: async (req) => {
+          nextParams.push(new URL(req.url).searchParams.get("next"));
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts?.map((a) => a.id)).toEqual(["cac_1", "cac_2"]);
+      // First request has no next param, second passes the token from page 1.
+      expect(nextParams).toEqual([null, "page-2"]);
+    });
+
+    it("returns a FAILED_TO_LIST error on a non-ok response", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              type: "https://auth0.com/errors",
+              title: "Forbidden",
+              detail: "insufficient scope"
+            },
+            { status: 403 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.cause?.status).toBe(403);
+    });
+  });
+
+  describe("disconnectAccount", async () => {
+    function buildAuthClient(fetchSpy: any) {
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret: "secret" }),
+        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret: "secret",
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+    }
+
+    const tokenSet = {
+      accessToken: "my-account-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+
+    it("deletes every account matching the connection", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                { id: "cac_1", connection: "google-oauth2" },
+                { id: "cac_2", connection: "github" },
+                { id: "cac_3", connection: "google-oauth2" }
+              ]
+            },
+            { status: 200 }
+          )
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(error).toBeNull();
+      expect(deletedIds).toEqual(["cac_1", "cac_3"]);
+      expect(removed?.map((a) => a.id)).toEqual(["cac_1", "cac_3"]);
+    });
+
+    it("is idempotent when no account matches the connection", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_2", connection: "github" }] },
+            { status: 200 }
+          )
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(error).toBeNull();
+      expect(deletedIds).toEqual([]);
+      expect(removed).toEqual([]);
+    });
+
+    it("propagates a list error without attempting deletes", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json({ title: "Nope", detail: "no" }, { status: 401 })
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error?.code).toBe("failed_to_list");
+      expect(deletedIds).toEqual([]);
+    });
+
+    it("returns a FAILED_TO_DELETE error when a delete fails", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ],
+        deleteConnectedAccountErrorResponse: Response.json(
+          { title: "Too many", detail: "rate limited" },
+          { status: 429 }
+        )
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.cause?.status).toBe(429);
     });
   });
 

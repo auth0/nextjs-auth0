@@ -29,7 +29,9 @@ export { MtlsError, MtlsErrorCode } from "./mtls-errors.js";
 export {
   MyAccountApiError,
   ConnectAccountError,
-  ConnectAccountErrorCodes
+  ConnectAccountErrorCodes,
+  DisconnectAccountError,
+  DisconnectAccountErrorCodes
 } from "./my-account-errors.js";
 
 export {

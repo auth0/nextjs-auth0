@@ -20,6 +20,8 @@ import {
   ConnectAccountErrorCodes,
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode,
+  DisconnectAccountError,
+  DisconnectAccountErrorCodes,
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
@@ -58,7 +60,8 @@ import {
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
   ConnectAccountRequest,
-  ConnectAccountResponse
+  ConnectAccountResponse,
+  ConnectedAccount
 } from "../types/connected-accounts.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -3452,7 +3455,8 @@ export class AuthClient {
             Math.floor(Date.now() / 1000) +
             Number(tokenEndpointResponse.expires_in),
           scope: tokenEndpointResponse.scope,
-          connection: options.connection
+          connection: options.connection,
+          ...(options.login_hint ? { loginHint: options.login_hint } : {})
         }
       ];
     }
@@ -4329,6 +4333,178 @@ export class AuthClient {
         null
       ];
     }
+  }
+
+  /**
+   * Lists the connected accounts for the current user via the My Account API.
+   *
+   * Handles pagination transparently (the endpoint returns at most 20 accounts
+   * per page and an optional `next` token) so the full set is always returned.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+   */
+  async listConnectedAccounts(
+    tokenSet: TokenSet
+  ): Promise<[null, ConnectedAccount[]] | [DisconnectAccountError, null]> {
+    try {
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt || 0,
+          scope: tokenSet.scope,
+          token_type: tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const accounts: ConnectedAccount[] = [];
+      let next: string | undefined;
+
+      do {
+        const url = new URL("/me/v1/connected-accounts/accounts", this.issuer);
+        if (next) {
+          url.searchParams.set("next", next);
+        }
+
+        const res = await fetcher.fetchWithAuth(url.toString(), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          return buildDisconnectAccountErrorResponse(
+            res,
+            DisconnectAccountErrorCodes.FAILED_TO_LIST
+          );
+        }
+
+        const body = await res.json();
+        for (const account of body.accounts ?? []) {
+          accounts.push({
+            id: account.id,
+            connection: account.connection,
+            accessType: account.access_type,
+            scopes: account.scopes,
+            createdAt: account.created_at,
+            expiresAt: account.expires_at,
+            orgId: account.org_id
+          });
+        }
+        next = body.next;
+      } while (next);
+
+      return [null, accounts];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to list the connected accounts.";
+      if (e instanceof DPoPError) {
+        message = e.message;
+      }
+      return [
+        new DisconnectAccountError({
+          code: DisconnectAccountErrorCodes.FAILED_TO_LIST,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Deletes a single connected account by its id via the My Account API.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+   */
+  private async deleteConnectedAccount(
+    tokenSet: TokenSet,
+    id: string
+  ): Promise<[null, null] | [DisconnectAccountError, null]> {
+    try {
+      const url = new URL(
+        `/me/v1/connected-accounts/accounts/${encodeURIComponent(id)}`,
+        this.issuer
+      );
+
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt || 0,
+          scope: tokenSet.scope,
+          token_type: tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const res = await fetcher.fetchWithAuth(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!res.ok) {
+        return buildDisconnectAccountErrorResponse(
+          res,
+          DisconnectAccountErrorCodes.FAILED_TO_DELETE
+        );
+      }
+
+      return [null, null];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to delete the connected account.";
+      if (e instanceof DPoPError) {
+        message = e.message;
+      }
+      return [
+        new DisconnectAccountError({
+          code: DisconnectAccountErrorCodes.FAILED_TO_DELETE,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Disconnects all connected accounts for the given connection.
+   *
+   * Resolves the connection name to the connected-account id(s) via the list
+   * endpoint (the delete endpoint is keyed by id), then deletes each. The
+   * operation is idempotent: if the server reports no accounts for the
+   * connection, it returns the empty list without error so callers can still
+   * reconcile local state.
+   */
+  async disconnectAccount(
+    tokenSet: TokenSet,
+    connection: string
+  ): Promise<[null, ConnectedAccount[]] | [DisconnectAccountError, null]> {
+    const [listError, accounts] = await this.listConnectedAccounts(tokenSet);
+    if (listError) {
+      return [listError, null];
+    }
+
+    const matching = accounts.filter(
+      (account) => account.connection === connection
+    );
+
+    const removed: ConnectedAccount[] = [];
+    for (const account of matching) {
+      const [deleteError] = await this.deleteConnectedAccount(
+        tokenSet,
+        account.id
+      );
+      if (deleteError) {
+        return [deleteError, null];
+      }
+      removed.push(account);
+    }
+
+    return [null, removed];
   }
 
   private async getOpenIdClientConfig(): Promise<
@@ -6694,6 +6870,42 @@ export async function buildConnectAccountErrorResponse(
       new ConnectAccountError({
         code: errorCode,
         message: `The request to ${actionVerb} the connect account flow failed with status ${res.status}.`
+      }),
+      null
+    ];
+  }
+}
+
+export async function buildDisconnectAccountErrorResponse(
+  res: Response,
+  errorCode: DisconnectAccountErrorCodes
+): Promise<[DisconnectAccountError, null]> {
+  const actionVerb =
+    errorCode === DisconnectAccountErrorCodes.FAILED_TO_LIST
+      ? "list the connected accounts"
+      : "delete the connected account";
+
+  try {
+    const errorBody = await res.json();
+    return [
+      new DisconnectAccountError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`,
+        cause: new MyAccountApiError({
+          type: errorBody.type,
+          title: errorBody.title,
+          detail: errorBody.detail,
+          status: res.status,
+          validationErrors: errorBody.validation_errors
+        })
+      }),
+      null
+    ];
+  } catch (e) {
+    return [
+      new DisconnectAccountError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`
       }),
       null
     ];

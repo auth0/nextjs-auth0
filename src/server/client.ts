@@ -11,6 +11,8 @@ import {
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  DisconnectAccountError,
+  DisconnectAccountErrorCodes,
   InvalidConfigurationError,
   MfaRequiredError,
   TokenRevocationError,
@@ -22,8 +24,10 @@ import {
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   ConnectAccountOptions,
+  ConnectedAccount,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
+  DisconnectAccountOptions,
   GetAccessTokenOptions,
   LogoutStrategy,
   SessionData,
@@ -1143,9 +1147,14 @@ export class Auth0Client {
       );
     }
 
-    // Find the connection token set in the session
+    // Find the connection token set in the session. When a login hint is
+    // provided, match on it too so multiple accounts can be connected for the
+    // same connection. Without a login hint, match on connection alone
+    // (preserving existing behaviour).
     const existingTokenSet = session.connectionTokenSets?.find(
-      (tokenSet) => tokenSet.connection === options.connection
+      (tokenSet) =>
+        tokenSet.connection === options.connection &&
+        (!options.login_hint || tokenSet.loginHint === options.login_hint)
     );
 
     const [error, retrievedTokenSet] = await authClient.getConnectionTokenSet(
@@ -1175,7 +1184,8 @@ export class Auth0Client {
       // If not, we need to add it.
       if (existingTokenSet) {
         tokenSets = session.connectionTokenSets?.map((tokenSet) =>
-          tokenSet.connection === options.connection
+          tokenSet.connection === options.connection &&
+          (!options.login_hint || tokenSet.loginHint === options.login_hint)
             ? retrievedTokenSet
             : tokenSet
         );
@@ -1702,6 +1712,23 @@ export class Auth0Client {
     return { authClient };
   }
 
+  /**
+   * Mints a My Account API access token, dispatching to the correct
+   * `getAccessToken` overload so the refreshed token set is persisted in both
+   * the App Router (no req/res) and Pages Router / middleware (req + res) paths.
+   * @internal
+   */
+  private async getMyAccountAccessToken(
+    options: GetAccessTokenOptions & { audience: string; scope: string },
+    req?: NextRequest | PagesRouterRequest,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<{ token: string; expiresAt: number; audience?: string }> {
+    if (req && res) {
+      return this.getAccessToken(req, res, options);
+    }
+    return this.getAccessToken(options);
+  }
+
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
@@ -1734,6 +1761,26 @@ export class Auth0Client {
 
   /**
    * Initiates the Connect Account flow to connect a third-party account to the user's profile.
+   *
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   */
+  async connectAccount(options: ConnectAccountOptions): Promise<NextResponse>;
+
+  /**
+   * Initiates the Connect Account flow to connect a third-party account to the user's profile.
+   *
+   * Pass the `req` object when calling from middleware, or when `APP_BASE_URL`
+   * is configured dynamically (as an array of allowed origins), so the redirect
+   * and session are resolved from the request context. The returned
+   * `NextResponse` carries the redirect and the transaction cookies.
+   */
+  async connectAccount(
+    options: ConnectAccountOptions,
+    req: NextRequest | Request
+  ): Promise<NextResponse>;
+
+  /**
+   * Initiates the Connect Account flow to connect a third-party account to the user's profile.
    * If the user does not have an active session, a `ConnectAccountError` is thrown.
    *
    * This method first attempts to obtain an access token with the `create:me:connected_accounts` scope
@@ -1741,13 +1788,26 @@ export class Auth0Client {
    *
    * The user will then be redirected to authorize the connection with the third-party provider.
    *
+   * Pass the `req` object when calling from middleware or when `APP_BASE_URL` is
+   * configured dynamically (as an array of allowed origins), so the redirect and
+   * session are resolved from the request context. In App Router Server Actions
+   * and Route Handlers with a static `APP_BASE_URL`, omit it. Because this
+   * returns a redirect `NextResponse` (rather than writing to a passed-in
+   * response), a Pages Router `ServerResponse` is not accepted here; forward the
+   * returned response's `Location` and `Set-Cookie` headers onto your response.
+   *
    * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
-  async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
-    const reqHeaders = await getHeaders();
-    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+  async connectAccount(
+    options: ConnectAccountOptions,
+    req?: NextRequest | Request
+  ): Promise<NextResponse> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session = await this.getSession();
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
 
     if (!session) {
       throw new ConnectAccountError({
@@ -1766,21 +1826,230 @@ export class Auth0Client {
 
     const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
 
-    const [error, connectAccountResponse] = await authClient.connectAccount({
-      ...options,
-      tokenSet: {
-        accessToken: accessToken.token,
-        expiresAt: accessToken.expiresAt,
-        scope: getMyAccountTokenOpts.scope,
-        audience: accessToken.audience
-      }
-    });
+    const [error, connectAccountResponse] = await authClient.connectAccount(
+      {
+        ...options,
+        tokenSet: {
+          accessToken: accessToken.token,
+          expiresAt: accessToken.expiresAt,
+          scope: getMyAccountTokenOpts.scope,
+          audience: accessToken.audience
+        }
+      },
+      normalizedReq instanceof NextRequest ? normalizedReq : undefined
+    );
 
     if (error) {
       throw error;
     }
 
     return connectAccountResponse;
+  }
+
+  /**
+   * Disconnects (unlinks) all connected accounts for the given connection.
+   *
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   */
+  async disconnectAccount(options: DisconnectAccountOptions): Promise<void>;
+
+  /**
+   * Disconnects (unlinks) all connected accounts for the given connection.
+   *
+   * This method can be used in middleware and API routes in the **Pages Router**.
+   */
+  async disconnectAccount(
+    options: DisconnectAccountOptions,
+    req: PagesRouterRequest | NextRequest | Request,
+    res: PagesRouterResponse | NextResponse
+  ): Promise<void>;
+
+  /**
+   * Disconnects (unlinks) all connected accounts for the given connection.
+   *
+   * This revokes the connection server-side via the My Account API and removes
+   * the corresponding cached connection tokens from the session so they are not
+   * re-assembled on subsequent reads.
+   *
+   * If the user does not have an active session, a `DisconnectAccountError` is thrown.
+   *
+   * In the Pages Router (or middleware), pass the `req` and `res` objects so the
+   * pruned session can be persisted to the response cookies. In App Router Server
+   * Actions and Route Handlers, omit them.
+   *
+   * Note: disconnect is connection-scoped. All accounts connected through the
+   * given connection are disconnected. Per-account disconnect is not currently
+   * supported because the My Account API keys connected accounts by id and does
+   * not expose the login hint used to disambiguate multiple accounts on the same
+   * connection.
+   */
+  async disconnectAccount(
+    options: DisconnectAccountOptions,
+    req?: PagesRouterRequest | NextRequest | Request,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<void> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+
+    if (!session) {
+      throw new DisconnectAccountError({
+        code: DisconnectAccountErrorCodes.MISSING_SESSION,
+        message: "The user does not have an active session."
+      });
+    }
+
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers, e.g.
+    // https://myorg.okta.com/oauth2/default/) so the audience is correct.
+    const getMyAccountTokenOpts = {
+      audience: `${authClient.issuer}me/`,
+      scope: "read:me:connected_accounts delete:me:connected_accounts"
+    };
+
+    const accessToken = await this.getMyAccountAccessToken(
+      getMyAccountTokenOpts,
+      normalizedReq,
+      res
+    );
+
+    const [error] = await authClient.disconnectAccount(
+      {
+        accessToken: accessToken.token,
+        expiresAt: accessToken.expiresAt,
+        scope: getMyAccountTokenOpts.scope,
+        audience: accessToken.audience
+      },
+      options.connection
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    // Remove the cached connection tokens for this connection so they are not
+    // re-assembled into the session on the next read. When no entries remain,
+    // omit the property entirely (mirroring how the store persists it).
+    if (session.connectionTokenSets?.length) {
+      const remaining = session.connectionTokenSets.filter(
+        (tokenSet) => tokenSet.connection !== options.connection
+      );
+
+      if (remaining.length !== session.connectionTokenSets.length) {
+        const { connectionTokenSets: _removed, ...rest } = session;
+        await this.saveToSession(
+          remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
+          normalizedReq,
+          res
+        );
+      }
+    }
+  }
+
+  /**
+   * Lists the connected accounts for the current user from the My Account API.
+   *
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   */
+  async getConnectedAccounts(): Promise<ConnectedAccount[]>;
+
+  /**
+   * Lists the connected accounts for the current user from the My Account API.
+   *
+   * This method can be used in middleware and API routes in the **Pages Router**.
+   */
+  async getConnectedAccounts(
+    req: PagesRouterRequest | NextRequest | Request,
+    res: PagesRouterResponse | NextResponse
+  ): Promise<ConnectedAccount[]>;
+
+  /**
+   * Lists the connected accounts for the current user from the My Account API.
+   *
+   * The My Account API is the source of truth, so this also reconciles the
+   * session: any locally cached connection tokens (`connectionTokenSets`) whose
+   * connection is no longer present server-side are pruned, so they are not
+   * re-assembled into the session on subsequent reads. Because this reconciles
+   * (and may write cookies), call it from a context that can set cookies.
+   *
+   * In the Pages Router (or middleware), pass the `req` and `res` objects so the
+   * reconciled session can be persisted to the response cookies. In App Router
+   * Route Handlers and Server Actions, omit them (a Server Component cannot set
+   * cookies, so reconciliation there will not be persisted).
+   *
+   * If the user does not have an active session, a `DisconnectAccountError` is thrown.
+   *
+   * Note: reconciliation is connection-scoped. If a user has multiple accounts
+   * on the same connection and only some are disconnected server-side, the
+   * connection still appears in the list, so the local tokens are retained. This
+   * mirrors the connection-scoped behaviour of {@link disconnectAccount}.
+   */
+  async getConnectedAccounts(
+    req?: PagesRouterRequest | NextRequest | Request,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<ConnectedAccount[]> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+
+    if (!session) {
+      throw new DisconnectAccountError({
+        code: DisconnectAccountErrorCodes.MISSING_SESSION,
+        message: "The user does not have an active session."
+      });
+    }
+
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers) so the audience is correct.
+    const getMyAccountTokenOpts = {
+      audience: `${authClient.issuer}me/`,
+      scope: "read:me:connected_accounts"
+    };
+
+    const accessToken = await this.getMyAccountAccessToken(
+      getMyAccountTokenOpts,
+      normalizedReq,
+      res
+    );
+
+    const [error, accounts] = await authClient.listConnectedAccounts({
+      accessToken: accessToken.token,
+      expiresAt: accessToken.expiresAt,
+      scope: getMyAccountTokenOpts.scope,
+      audience: accessToken.audience
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // Reconcile: drop cached connection tokens whose connection is no longer
+    // present server-side.
+    if (session.connectionTokenSets?.length) {
+      const serverConnections = new Set(
+        accounts.map((account) => account.connection)
+      );
+      const remaining = session.connectionTokenSets.filter((tokenSet) =>
+        serverConnections.has(tokenSet.connection)
+      );
+
+      if (remaining.length !== session.connectionTokenSets.length) {
+        const { connectionTokenSets: _removed, ...rest } = session;
+        await this.saveToSession(
+          remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
+          normalizedReq,
+          res
+        );
+      }
+    }
+
+    return accounts;
   }
 
   // Pages Router overload - no arguments
