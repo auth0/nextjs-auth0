@@ -4161,7 +4161,7 @@ If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookie
 
 **This is fixed in the current SDK version.** The SDK now:
 
-1. Returns `401` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
+1. Returns `204 No Content` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
 2. Automatically evicts accumulated `__txn_*` cookies once their combined size reaches a fixed internal limit (3500 bytes, roughly six concurrent in-flight logins) — oldest-first (FIFO) by creation timestamp — before writing the new cookie. Only transaction cookies are measured and evicted; the session and other cookies are never touched. This limit is not configurable.
 
 #### Recommended practices to avoid transaction cookie accumulation
