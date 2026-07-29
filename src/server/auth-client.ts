@@ -4896,8 +4896,8 @@ export class AuthClient {
       );
     }
 
-    // Decrypt token to extract audience
-    const { audience } = await decryptMfaToken(
+    // Decrypt token to extract audience and the requested scope
+    const { audience, scope: requestedScope } = await decryptMfaToken(
       encryptedMfaToken,
       this.sessionStore.secret
     );
@@ -4907,6 +4907,7 @@ export class AuthClient {
     const newAccessTokenSet = {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
+      requestedScope,
       // oauth4webapi TokenEndpointResponse does NOT include audience field
       audience: audience || "",
       expiresAt:
@@ -4920,13 +4921,18 @@ export class AuthClient {
     // audience + scope (not audience alone) to match findAccessTokenSet, which
     // deliberately holds multiple same-audience token sets distinguished by
     // scope; keying on audience alone would evict a differently-scoped token.
+    // Key on the requested scope (always present, with a fallback to the
+    // granted scope for legacy entries): the granted `scope` may be reduced or
+    // omitted by the server, which would otherwise collide distinct requests.
     const normalizeScope = (scope?: string) =>
       (scope ?? "").trim().split(/\s+/).filter(Boolean).sort().join(" ");
-    const newScope = normalizeScope(newAccessTokenSet.scope);
+    const newScope = normalizeScope(
+      newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
+    );
     const existingIdx = session.accessTokens.findIndex(
       (t) =>
         t.audience === newAccessTokenSet.audience &&
-        normalizeScope(t.scope) === newScope
+        normalizeScope(t.requestedScope ?? t.scope) === newScope
     );
     if (existingIdx >= 0) {
       session.accessTokens[existingIdx] = newAccessTokenSet;

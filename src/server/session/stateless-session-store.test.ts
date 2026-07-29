@@ -623,7 +623,7 @@ describe("Stateless Session Store", async () => {
         expect(responseCookies.set).toHaveBeenCalledWith(
           "__session",
           expect.any(String),
-          expect.not.objectContaining({ maxAge: 0, path: "/" })
+          expect.not.objectContaining({ maxAge: 0 })
         );
         // Verify deterministic deletes of __session__0..4
         expect(responseCookies.set).toHaveBeenCalledWith(
@@ -969,7 +969,7 @@ describe("Stateless Session Store", async () => {
       expect(setSpy).toHaveBeenCalledWith(
         "__session",
         expect.any(String),
-        expect.not.objectContaining({ maxAge: 0, path: "/" })
+        expect.not.objectContaining({ maxAge: 0 })
       );
 
       // Verify legacy cookie base is deleted
