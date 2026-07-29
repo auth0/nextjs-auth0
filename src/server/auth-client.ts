@@ -775,8 +775,14 @@ export class AuthClient {
       // request if possible.
       const res = NextResponse.next();
 
+      // Skip the rolling-session write on prefetch requests. A prefetch (link
+      // hover / viewport preload) is not user activity, so it should not extend
+      // the session — and writing a `Set-Cookie` on it is wasteful (re-encrypts
+      // the JWE) and, for chunked sessions, runs cookie cleanup against a stale
+      // request snapshot, which can strand orphaned `__session__N` chunks.
       if (
         this.sessionStore.isRolling &&
+        !isNonNavigationalRequest(req) &&
         (await this.sessionStore.shouldRollSession(req))
       ) {
         const { error, session } = await this.getSessionWithDomainCheck(

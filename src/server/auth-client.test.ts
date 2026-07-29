@@ -840,6 +840,69 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(updatedSessionCookie?.maxAge).toEqual(1800);
       });
 
+      it("should not roll the session on a prefetch request", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret,
+
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+        // Next.js prefetch marker — a prefetch is not user activity and must not
+        // extend the rolling session (nor emit a wasteful `Set-Cookie`).
+        headers.append("next-router-prefetch", "1");
+        const request = new NextRequest(
+          "https://example.com/dashboard/projects",
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handler(request);
+
+        // assert the session cookie was NOT re-written on the prefetch request
+        const updatedSessionCookie = response.cookies.get("__session");
+        expect(updatedSessionCookie).toBeUndefined();
+      });
+
       it("should pass the request through if there is no session", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({
