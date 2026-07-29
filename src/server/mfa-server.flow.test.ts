@@ -659,6 +659,106 @@ describe("AuthClient MFA Methods", () => {
       expect(updatedSession?.accessTokens?.length).toBe(2);
     });
 
+    it("should keep separate entries for the same audience at different scopes", async () => {
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: "id-token",
+          accessToken: "old-access-token",
+          refreshToken: "refresh-token",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const reqHeaders = new Headers();
+      reqHeaders.append("cookie", `__session=${sessionCookie}`);
+
+      const audience = "https://api.example.com";
+      const readToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        audience,
+        "read:data",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+      const writeToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        audience,
+        "write:data",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      // Return a scope matching the step-up so the two token sets differ only
+      // by scope (same audience).
+      const scopeByToken: Record<string, string> = {
+        "read-access-token": "read:data",
+        "write-access-token": "write:data"
+      };
+      let issued = 0;
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          const accessToken =
+            issued === 0 ? "read-access-token" : "write-access-token";
+          issued += 1;
+          return HttpResponse.json({
+            access_token: accessToken,
+            token_type: "Bearer",
+            expires_in: 3600,
+            scope: scopeByToken[accessToken]
+          });
+        })
+      );
+
+      const reqCookies = new RequestCookies(reqHeaders);
+      const resCookies = new ResponseCookies(new Headers());
+
+      // Step up for the audience at scope read:data.
+      const readRes = await authClient.mfaVerify({
+        mfaToken: readToken,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        readRes,
+        readToken,
+        reqCookies,
+        resCookies
+      );
+
+      // Step up for the SAME audience at a different scope write:data — must
+      // append, not replace, so the read:data token survives.
+      const writeRes = await authClient.mfaVerify({
+        mfaToken: writeToken,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        writeRes,
+        writeToken,
+        reqCookies,
+        resCookies
+      );
+
+      const updatedSession = await sessionStore.get(reqCookies);
+      const forAudience = updatedSession?.accessTokens?.filter(
+        (t) => t.audience === audience
+      );
+      // Both scope-distinct tokens are retained for the audience.
+      expect(forAudience?.length).toBe(2);
+      const scopes = forAudience?.map((t) => t.scope);
+      expect(scopes).toContain("read:data");
+      expect(scopes).toContain("write:data");
+    });
+
     it("should work without session (stateless operation)", async () => {
       const encryptedToken = await encryptMfaToken(
         DEFAULT.mfaToken,

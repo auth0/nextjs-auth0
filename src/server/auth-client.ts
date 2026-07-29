@@ -4914,12 +4914,19 @@ export class AuthClient {
       token_type: tokenResponse.token_type
     };
 
-    // Replace an existing token for the same audience, or append a new one.
-    // Without this, each MFA step-up appends another full token set for the same
-    // audience — growing the session cookie unbounded (and eventually a 431).
-    // Mirrors mergePopupTokenIntoSession's replace-or-append behavior.
+    // Replace an existing token for the same audience AND scope, or append a
+    // new one. Without this, each MFA step-up appends another full token set —
+    // growing the session cookie unbounded (and eventually a 431). The key is
+    // audience + scope (not audience alone) to match findAccessTokenSet, which
+    // deliberately holds multiple same-audience token sets distinguished by
+    // scope; keying on audience alone would evict a differently-scoped token.
+    const normalizeScope = (scope?: string) =>
+      (scope ?? "").trim().split(/\s+/).filter(Boolean).sort().join(" ");
+    const newScope = normalizeScope(newAccessTokenSet.scope);
     const existingIdx = session.accessTokens.findIndex(
-      (t) => t.audience === newAccessTokenSet.audience
+      (t) =>
+        t.audience === newAccessTokenSet.audience &&
+        normalizeScope(t.scope) === newScope
     );
     if (existingIdx >= 0) {
       session.accessTokens[existingIdx] = newAccessTokenSet;
