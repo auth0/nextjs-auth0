@@ -496,6 +496,169 @@ describe("AuthClient MFA Methods", () => {
       );
     });
 
+    it("should replace (not append) the access token for the same audience on repeated step-up", async () => {
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: "id-token",
+          accessToken: "old-access-token",
+          refreshToken: "refresh-token",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const reqHeaders = new Headers();
+      reqHeaders.append("cookie", `__session=${sessionCookie}`);
+
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "read:data",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      let issued = 0;
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          issued += 1;
+          return HttpResponse.json({
+            access_token: `mfa-access-token-${issued}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+            scope: "read:data"
+          });
+        })
+      );
+
+      const reqCookies = new RequestCookies(reqHeaders);
+      const resCookies = new ResponseCookies(new Headers());
+
+      // First step-up for the audience.
+      const first = await authClient.mfaVerify({
+        mfaToken: encryptedToken,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        first,
+        encryptedToken,
+        reqCookies,
+        resCookies
+      );
+
+      // Second step-up for the SAME audience — must replace, not stack.
+      const second = await authClient.mfaVerify({
+        mfaToken: encryptedToken,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        second,
+        encryptedToken,
+        reqCookies,
+        resCookies
+      );
+
+      const updatedSession = await sessionStore.get(reqCookies);
+      const forAudience = updatedSession?.accessTokens?.filter(
+        (t) => t.audience === "https://api.example.com"
+      );
+      // Exactly one entry for the audience (replaced, not appended)...
+      expect(forAudience?.length).toBe(1);
+      // ...holding the latest token.
+      expect(forAudience?.[0].accessToken).toBe("mfa-access-token-2");
+    });
+
+    it("should keep separate entries for different audiences", async () => {
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: "id-token",
+          accessToken: "old-access-token",
+          refreshToken: "refresh-token",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const reqHeaders = new Headers();
+      reqHeaders.append("cookie", `__session=${sessionCookie}`);
+
+      const tokenA = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api-a.example.com",
+        "read:data",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+      const tokenB = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api-b.example.com",
+        "read:data",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          return HttpResponse.json({
+            access_token: "at",
+            token_type: "Bearer",
+            expires_in: 3600,
+            scope: "read:data"
+          });
+        })
+      );
+
+      const reqCookies = new RequestCookies(reqHeaders);
+      const resCookies = new ResponseCookies(new Headers());
+
+      const resA = await authClient.mfaVerify({
+        mfaToken: tokenA,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        resA,
+        tokenA,
+        reqCookies,
+        resCookies
+      );
+
+      const resB = await authClient.mfaVerify({
+        mfaToken: tokenB,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        resB,
+        tokenB,
+        reqCookies,
+        resCookies
+      );
+
+      const updatedSession = await sessionStore.get(reqCookies);
+      const audiences = updatedSession?.accessTokens?.map((t) => t.audience);
+      expect(audiences).toContain("https://api-a.example.com");
+      expect(audiences).toContain("https://api-b.example.com");
+      expect(updatedSession?.accessTokens?.length).toBe(2);
+    });
+
     it("should work without session (stateless operation)", async () => {
       const encryptedToken = await encryptMfaToken(
         DEFAULT.mfaToken,

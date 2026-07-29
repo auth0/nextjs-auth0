@@ -4903,7 +4903,8 @@ export class AuthClient {
     );
 
     session.accessTokens = session.accessTokens || [];
-    session.accessTokens.push({
+
+    const newAccessTokenSet = {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
       // oauth4webapi TokenEndpointResponse does NOT include audience field
@@ -4911,7 +4912,20 @@ export class AuthClient {
       expiresAt:
         Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
       token_type: tokenResponse.token_type
-    });
+    };
+
+    // Replace an existing token for the same audience, or append a new one.
+    // Without this, each MFA step-up appends another full token set for the same
+    // audience — growing the session cookie unbounded (and eventually a 431).
+    // Mirrors mergePopupTokenIntoSession's replace-or-append behavior.
+    const existingIdx = session.accessTokens.findIndex(
+      (t) => t.audience === newAccessTokenSet.audience
+    );
+    if (existingIdx >= 0) {
+      session.accessTokens[existingIdx] = newAccessTokenSet;
+    } else {
+      session.accessTokens.push(newAccessTokenSet);
+    }
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
