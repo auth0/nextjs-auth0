@@ -404,6 +404,7 @@ export interface VerifyMfaOptionsBase {
  * @example
  * ```typescript
  * import { mfa } from '@auth0/nextjs-auth0/client';
+ * import { MfaVerifyError } from '@auth0/nextjs-auth0/errors';
  *
  * try {
  *   await mfa.verify({

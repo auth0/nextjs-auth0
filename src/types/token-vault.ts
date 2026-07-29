@@ -44,7 +44,7 @@ export enum SUBJECT_TOKEN_TYPES {
  */
 export interface AccessTokenForConnectionOptions {
   /**
-   * The connection name for while you want to retrieve the access token.
+   * The connection name for which you want to retrieve the access token.
    */
   connection: string;
 
