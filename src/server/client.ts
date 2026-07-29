@@ -1164,6 +1164,28 @@ export class Auth0Client {
     );
 
     if (error !== null) {
+      // The refresh-token -> connection-token exchange failed (e.g. the upstream
+      // refresh token was revoked or expired). Any connection token we had
+      // cached for this account is now dead, so drop it from the session and
+      // persist the change. This deletes the orphaned `__FC` cookie via the
+      // stateless session store, preventing it from lingering and contributing
+      // to request-header bloat (see gh-2450). Then rethrow the original error.
+      if (
+        existingTokenSet &&
+        error.code === AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE &&
+        session.connectionTokenSets?.length
+      ) {
+        const remaining = session.connectionTokenSets.filter(
+          (tokenSet) => tokenSet !== existingTokenSet
+        );
+        const { connectionTokenSets: _removed, ...rest } = session;
+        await this.saveToSession(
+          remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
+          normalizedReq,
+          res
+        );
+      }
+
       throw error;
     }
 

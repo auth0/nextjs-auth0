@@ -156,6 +156,8 @@
 - [Connected Accounts](#connected-accounts)
   - [`onCallback` hook](#oncallback-hook)
   - [`connectAccount` method](#connectaccount-method)
+  - [`getConnectedAccounts` method](#getconnectedaccounts-method)
+  - [`disconnectAccount` method](#disconnectaccount-method)
 - [Back-Channel Logout](#back-channel-logout)
 - [Session Expiry from the Upstream IdP](#session-expiry-from-the-upstream-idp)
 - [Combining middleware](#combining-middleware)
@@ -4277,7 +4279,14 @@ export const auth0 = new Auth0Client({
 
 ### `connectAccount` method
 
-In case you'd like to have more control over the connected accounts flow, a `connectAccount` method is also available on the Auth0 client instance. For example, you could mount a custom route to start the connected accounts flow, like so:
+In case you'd like to have more control over the connected accounts flow, a `connectAccount` method is also available on the Auth0 client instance. It accepts an object with the following properties:
+
+- `connection`: (required) the name of the connection to link the account with (e.g., `google-oauth2`, `facebook`).
+- `scopes`: (optional) the scopes to request from the Identity Provider during the connect flow.
+- `authorizationParams`: (optional) additional parameters passed to the authorization server. This is where a `login_hint` is supplied to pre-select which upstream account to connect (see below).
+- `returnTo`: (optional) the URL to redirect to after the account is connected.
+
+The method returns a `NextResponse` that carries the redirect and transaction cookies. For example, you could mount a custom route to start the connected accounts flow, like so:
 
 ```ts
 import { auth0 } from "@/lib/auth0";
@@ -4297,8 +4306,143 @@ export async function GET() {
 }
 ```
 
+#### Connecting a specific account with `login_hint`
+
+To connect a specific upstream account (for example, when a user wants to link more than one account on the same connection), pass a `login_hint` through `authorizationParams`. It is forwarded to the authorization server so the correct account is pre-selected during the connect flow:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  const res = await auth0.connectAccount({
+    connection: "google-oauth2",
+    scopes: ["openid", "profile", "offline_access"],
+    authorizationParams: {
+      login_hint: "alice@example.com"
+    },
+    returnTo: "/connected"
+  });
+
+  return res;
+}
+```
+
+> [!NOTE]
+> The `login_hint` on `connectAccount` (an authorization-request parameter passed via `authorizationParams`) is distinct from the top-level `login_hint` on [`getAccessTokenForConnection`](#getting-access-tokens-for-connections) (a token-exchange parameter). Connecting an account and later retrieving a token for it are separate operations, so the hint is supplied in the place appropriate to each.
+
+#### Middleware and dynamic base URLs
+
+When calling from middleware, or when `APP_BASE_URL` is configured dynamically (as an array of allowed origins), pass the `req` object so the redirect and session are resolved from the request context:
+
+```ts
+import { NextRequest } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function middleware(request: NextRequest) {
+  const res = await auth0.connectAccount(
+    { connection: "google-oauth2", returnTo: "/connected" },
+    request
+  );
+
+  return res;
+}
+```
+
 > [!IMPORTANT]  
 > You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
+
+### `getConnectedAccounts` method
+
+The `getConnectedAccounts` method lists the current user's connected accounts from the [My Account API](https://auth0.com/docs/manage-users/my-account-api). It returns an array of `ConnectedAccount` objects, each with the following shape:
+
+- `id`: the unique identifier of the connected account (e.g., `cac_...`).
+- `connection`: the name of the connection the account is linked through.
+- `accessType`: the access type (typically `offline`).
+- `scopes`: the scopes granted for the connected account.
+- `createdAt`: ISO date string of when the account was connected.
+- `expiresAt`: (optional) ISO date string of when the connected account expires.
+- `orgId`: (optional) the organization ID the connected account is scoped to. Only present for accounts bound to an organization.
+
+Because the My Account API is the source of truth, this method also reconciles the session: any locally cached connection tokens whose connection is no longer present server-side are pruned, so stale tokens are not re-assembled on subsequent reads. As this may write cookies, call it from a context that can set them.
+
+#### On the server (App Router)
+
+```ts
+import { NextResponse } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  const accounts = await auth0.getConnectedAccounts();
+
+  return NextResponse.json({ accounts });
+}
+```
+
+> [!IMPORTANT]  
+> Server Components cannot set cookies. Reconciliation performed while calling `getConnectedAccounts()` in a Server Component will not be persisted. Call it from a Route Handler, Server Action, or middleware if you need the reconciled session to be saved.
+
+#### On the server (Pages Router) and middleware
+
+Pass the `req` and `res` objects so the reconciled session can be persisted to the response cookies:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const accounts = await auth0.getConnectedAccounts(req, res);
+
+  res.status(200).json({ accounts });
+}
+```
+
+### `disconnectAccount` method
+
+The `disconnectAccount` method disconnects (unlinks) connected accounts for a given connection via the [My Account API](https://auth0.com/docs/manage-users/my-account-api). It revokes the connection server-side and removes the corresponding cached connection tokens from the session so they are not re-assembled on subsequent reads. It accepts an object with the following property:
+
+- `connection`: (required) the name of the connection to disconnect (e.g., `google-oauth2`, `facebook`).
+
+> [!NOTE]
+> Disconnect is connection-scoped: **all** accounts connected through the given connection are disconnected. Per-account disconnect is not currently supported because the My Account API keys connected accounts by `id` and does not expose the login hint used to disambiguate multiple accounts on the same connection.
+
+#### On the server (App Router)
+
+```ts
+import { NextResponse } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function POST() {
+  await auth0.disconnectAccount({ connection: "google-oauth2" });
+
+  return NextResponse.json({ message: "Disconnected!" });
+}
+```
+
+#### On the server (Pages Router) and middleware
+
+Pass the `req` and `res` objects so the pruned session can be persisted to the response cookies:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  await auth0.disconnectAccount({ connection: "google-oauth2" }, req, res);
+
+  res.status(200).json({ message: "Disconnected!" });
+}
+```
 
 ## Back-Channel Logout
 
@@ -4675,7 +4819,27 @@ export const GET = async (req: NextRequest) => {
 You can retrieve an access token for a connection using the `getAccessTokenForConnection()` method, which accepts an object with the following properties:
 
 - `connection`: The federated connection for which an access token should be retrieved.
-- `login_hint`: The optional login_hint parameter to pass to the `/authorize` endpoint.
+- `login_hint`: (optional) The login hint identifying which connected account to retrieve a token for. Provide it when a user has connected more than one account on the same connection so the correct one is selected; the token is then cached per `connection` + `login_hint`. When omitted, the token is matched and cached by `connection` alone (the default behavior).
+
+Without a login hint (default, single account per connection):
+
+```ts
+const token = await auth0.getAccessTokenForConnection({
+  connection: "google-oauth2"
+});
+```
+
+With a login hint (to target a specific account among several on the same connection):
+
+```ts
+const token = await auth0.getAccessTokenForConnection({
+  connection: "google-oauth2",
+  login_hint: "alice@example.com"
+});
+```
+
+> [!NOTE]
+> If the underlying refresh-token exchange fails (for example, the upstream refresh token was revoked), the stale cached connection token for that account is cleared from the session before the error is thrown, so it is not left behind on subsequent requests.
 
 ### On the server (App Router)
 

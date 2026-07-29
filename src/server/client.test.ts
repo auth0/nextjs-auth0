@@ -4,6 +4,8 @@ import { ResponseCookies } from "@edge-runtime/cookies";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   DomainResolutionError,
   InvalidConfigurationError,
   TokenRevocationError,
@@ -733,6 +735,106 @@ describe("Auth0Client", () => {
         expect.objectContaining({ accessToken: "fc_g" }),
         expect.objectContaining({ connection: "google-oauth2" })
       );
+    });
+
+    it("clears the cached connection token when the exchange fails, then rethrows", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_dead",
+          expiresAt: 999
+        }
+      ]);
+      const exchangeError = new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+        "Failed to exchange the refresh token."
+      );
+      const getConnectionTokenSet = vi
+        .fn()
+        .mockResolvedValue([exchangeError, null]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await expect(
+        client.getAccessTokenForConnection({ connection: "google-oauth2" })
+      ).rejects.toBe(exchangeError);
+
+      // The dead connection token set was the only entry, so the property is
+      // omitted entirely (which deletes the orphaned `__FC` cookie).
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toBeUndefined();
+    });
+
+    it("clears only the matching account on exchange failure, keeping siblings", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_alice",
+          expiresAt: 999,
+          loginHint: "alice@example.com"
+        },
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_bob",
+          expiresAt: 999,
+          loginHint: "bob@example.com"
+        }
+      ]);
+      const exchangeError = new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+        "Failed to exchange the refresh token."
+      );
+      const getConnectionTokenSet = vi
+        .fn()
+        .mockResolvedValue([exchangeError, null]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await expect(
+        client.getAccessTokenForConnection({
+          connection: "google-oauth2",
+          login_hint: "bob@example.com"
+        })
+      ).rejects.toBe(exchangeError);
+
+      // Only Bob's dead entry is pruned; Alice's cached token survives.
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ loginHint: "alice@example.com" })
+      ]);
+    });
+
+    it("does not touch the session on a non-exchange error", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_g",
+          expiresAt: 999
+        }
+      ]);
+      const otherError = new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
+        "The refresh token is missing."
+      );
+      const getConnectionTokenSet = vi
+        .fn()
+        .mockResolvedValue([otherError, null]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await expect(
+        client.getAccessTokenForConnection({ connection: "google-oauth2" })
+      ).rejects.toBe(otherError);
+
+      // A transient/other error must not nuke a potentially valid cached token.
+      expect(saveToSession).not.toHaveBeenCalled();
     });
   });
 
