@@ -157,6 +157,13 @@ const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
 const CHUNK_PREFIX = "__";
 const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
 const LEGACY_CHUNK_INDEX_REGEX = /\.(\d+)$/;
+// Upper bound on chunk indices to clear when a chunked cookie shrinks (or is
+// replaced by a single cookie). 5 × 3500 = 17,500 bytes — far beyond any real
+// session, so no valid chunk is ever missed. Deleting a deterministic index
+// range instead of scanning `reqCookies` avoids leaving orphaned chunks when a
+// concurrent request/tab wrote a higher-index chunk not present in this
+// request's (stale) cookie snapshot.
+const MAX_CHUNKS = 5;
 
 /**
  * Retrieves the index of a cookie based on its name.
@@ -241,18 +248,23 @@ export function setChunkedCookie(
     // to enable read-after-write in the same request for middleware
     reqCookies.set(name, value);
 
-    // When we are writing a non-chunked cookie, we should remove the chunked cookies
-    // Remove any previously stored chunks for this cookie name
-    getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
-      deleteCookie(resCookies, cookieChunk.name, {
+    // When we are writing a non-chunked cookie, remove any previously stored
+    // chunks for this cookie name. Delete a deterministic index range rather
+    // than scanning `reqCookies` — a concurrent request/tab may have written a
+    // higher-index chunk that this request's cookie snapshot does not include,
+    // which a snapshot-based scan would leave orphaned. The browser ignores
+    // deletions for cookies that do not exist.
+    for (let i = 0; i < MAX_CHUNKS; i++) {
+      const chunkName = `${name}${CHUNK_PREFIX}${i}`;
+      deleteCookie(resCookies, chunkName, {
         path: finalOptions.path,
         domain: finalOptions.domain,
         secure: finalOptions.secure,
         sameSite: finalOptions.sameSite,
         httpOnly: finalOptions.httpOnly
       });
-      reqCookies.delete(cookieChunk.name);
-    });
+      reqCookies.delete(chunkName);
+    }
 
     return sizeOf(name, value);
   }
@@ -274,22 +286,21 @@ export function setChunkedCookie(
     chunkIndex++;
   }
 
-  // clear unused chunks
-  const chunks = getAllChunkedCookies(reqCookies, name);
-  const chunksToRemove = chunks.length - chunkIndex;
-  if (chunksToRemove > 0) {
-    for (let i = 0; i < chunksToRemove; i++) {
-      const chunkIndexToRemove = chunkIndex + i;
-      const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
-      deleteCookie(resCookies, chunkName, {
-        path: finalOptions.path,
-        domain: finalOptions.domain,
-        secure: finalOptions.secure,
-        sameSite: finalOptions.sameSite,
-        httpOnly: finalOptions.httpOnly
-      });
-      reqCookies.delete(chunkName);
-    }
+  // Clear any now-unused higher-index chunks. Delete a deterministic range
+  // (`chunkIndex .. MAX_CHUNKS-1`) rather than scanning `reqCookies`: a
+  // concurrent request/tab may have written a higher-index chunk that this
+  // request's cookie snapshot does not include, which a snapshot-based scan
+  // would leave orphaned. The browser ignores deletions for absent cookies.
+  for (let i = chunkIndex; i < MAX_CHUNKS; i++) {
+    const chunkName = `${name}${CHUNK_PREFIX}${i}`;
+    deleteCookie(resCookies, chunkName, {
+      path: finalOptions.path,
+      domain: finalOptions.domain,
+      secure: finalOptions.secure,
+      sameSite: finalOptions.sameSite,
+      httpOnly: finalOptions.httpOnly
+    });
+    reqCookies.delete(chunkName);
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
@@ -376,9 +387,21 @@ export function deleteChunkedCookie(
   // Delete main cookie
   deleteCookie(resCookies, name, options);
 
-  getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
-    deleteCookie(resCookies, cookie.name, options); // Delete each filtered cookie
-  });
+  if (isLegacyCookie) {
+    // Legacy `{name}.{index}` chunks are no longer written, so their count is
+    // whatever a prior SDK version left behind — scan the request to find them.
+    getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
+      deleteCookie(resCookies, cookie.name, options);
+    });
+    return;
+  }
+
+  // Delete a deterministic index range instead of scanning `reqCookies`, so a
+  // chunk written by a concurrent request/tab (absent from this request's
+  // snapshot) is still removed. The browser ignores deletions for absent cookies.
+  for (let i = 0; i < MAX_CHUNKS; i++) {
+    deleteCookie(resCookies, `${name}${CHUNK_PREFIX}${i}`, options);
+  }
 }
 
 /**

@@ -615,15 +615,44 @@ describe("Stateless Session Store", async () => {
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.set).toHaveBeenCalledTimes(4);
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          1,
+        // setChunkedCookie for __session now makes 6 calls (1 set + 5 deletes of __session__0..4)
+        // Then legacy cookie deletion: 1 base + 2 legacy chunks = 3
+        // Total: 6 + 1 + 2 = 9 calls
+        expect(responseCookies.set).toHaveBeenCalledTimes(9);
+        // Verify main __session cookie is set (without maxAge: 0)
+        expect(responseCookies.set).toHaveBeenCalledWith(
           "__session",
           expect.any(String),
           expect.not.objectContaining({ maxAge: 0, path: "/" })
         );
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          2,
+        // Verify deterministic deletes of __session__0..4
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__0`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__1`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__2`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__3`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__4`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        // Verify legacy cookie base is deleted
+        expect(responseCookies.set).toHaveBeenCalledWith(
           LEGACY_COOKIE_NAME,
           "",
           {
@@ -634,8 +663,8 @@ describe("Stateless Session Store", async () => {
             secure: false
           }
         );
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          3,
+        // Verify legacy chunks .0 and .1 are deleted
+        expect(responseCookies.set).toHaveBeenCalledWith(
           `${LEGACY_COOKIE_NAME}.0`,
           "",
           {
@@ -646,8 +675,7 @@ describe("Stateless Session Store", async () => {
             secure: false
           }
         );
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          4,
+        expect(responseCookies.set).toHaveBeenCalledWith(
           `${LEGACY_COOKIE_NAME}.1`,
           "",
           {
@@ -928,26 +956,30 @@ describe("Stateless Session Store", async () => {
       const decryptedPayload = decryptedNewSession!.payload;
       expect(decryptedPayload).toEqual(expect.objectContaining(sessionToSet));
 
-      // set should be called once for setting the new session cookie and once for deleting the legacy cookie
-      expect(setSpy).toHaveBeenCalledTimes(2);
-      expect(setSpy).toHaveBeenNthCalledWith(
-        1,
+      // setChunkedCookie for __session makes 6 calls (1 set + 5 deletes of __session__0..4)
+      // legacyCookiesInSetup will have entries from setChunkedCookie on the legacy cookie
+      // For a chunked legacy cookie, it would be: 3 sets + 2 deletes + 1 base delete = 6 calls in setup
+      // But those were on tempResCookies. In sessionStore.set, we have:
+      // - 6 calls for __session from setChunkedCookie
+      // - 1 call for deleting legacy cookie base
+      // Total: 7 calls
+      expect(setSpy).toHaveBeenCalledTimes(7);
+
+      // Verify main __session cookie is set
+      expect(setSpy).toHaveBeenCalledWith(
         "__session",
         expect.any(String),
         expect.not.objectContaining({ maxAge: 0, path: "/" })
       );
-      expect(setSpy).toHaveBeenNthCalledWith(
-        2,
-        legacyCookiesInSetup[0].name,
-        "",
-        {
-          httpOnly: true,
-          maxAge: 0,
-          path: "/",
-          sameSite: "lax",
-          secure: false
-        }
-      );
+
+      // Verify legacy cookie base is deleted
+      expect(setSpy).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: false
+      });
     });
 
     describe("session cookie size warning", async () => {
