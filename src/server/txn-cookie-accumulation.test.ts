@@ -91,6 +91,14 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
       ).toBe(true);
     });
 
+    it("returns true when sec-purpose is prefetch;prerender (Speculation Rules)", () => {
+      expect(
+        isNonNavigationalRequest(
+          makeReq({ "sec-purpose": "prefetch;prerender" })
+        )
+      ).toBe(true);
+    });
+
     it("returns true when x-middleware-prefetch is 1", () => {
       expect(
         isNonNavigationalRequest(makeReq({ "x-middleware-prefetch": "1" }))

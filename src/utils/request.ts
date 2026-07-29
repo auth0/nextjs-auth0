@@ -25,6 +25,11 @@ export const isRequest = (req: Req): req is Request | NextRequest => {
  * - `next-router-prefetch` / `x-middleware-prefetch` — Next.js prefetch markers
  * - `purpose` / `sec-purpose` = `prefetch` — W3C/browser prefetch hints
  *
+ * `sec-purpose` is matched with `includes("prefetch")` rather than an exact
+ * equality: Chromium's Speculation Rules API sends `Sec-Purpose: prefetch;prerender`
+ * for prerender hints, which is still a machine request that never completes OAuth.
+ * `prefetch` only appears as a structured purpose token, so the substring match is safe.
+ *
  * Intentionally excludes:
  * - `sec-fetch-mode` — also set on legitimate fetch()/XHR calls to /auth/login.
  * - `accept: text/x-component` — sent by ALL App Router RSC requests, including
@@ -35,7 +40,7 @@ export const isNonNavigationalRequest = (req: NextRequest): boolean => {
   return (
     req.headers.get("next-router-prefetch") === "1" ||
     req.headers.get("purpose") === "prefetch" ||
-    req.headers.get("sec-purpose") === "prefetch" ||
+    (req.headers.get("sec-purpose")?.includes("prefetch") ?? false) ||
     req.headers.get("x-middleware-prefetch") === "1"
   );
 };
