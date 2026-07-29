@@ -674,7 +674,11 @@ export class AuthClient {
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
       if (isNonNavigationalRequest(req)) {
-        return new NextResponse(null, { status: 401 });
+        // 204 No Content signals "intentionally did nothing" for prefetch/
+        // non-navigational requests, avoiding polluting auth-failure telemetry
+        // and access logs. Next.js discards prefetch responses regardless, so
+        // behavior is unaffected.
+        return new NextResponse(null, { status: 204 });
       }
       return this.handleLogin(req);
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {

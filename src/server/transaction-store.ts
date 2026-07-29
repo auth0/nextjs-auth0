@@ -5,14 +5,14 @@ import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
-// Maximum total byte size of all transaction (`__txn_*`) cookies combined.
-// When the accumulated size meets or exceeds this limit, the oldest cookies are
-// evicted (FIFO by creation timestamp) before a new one is written. One JWE is
-// ~450–555 bytes, so this allows ~6 concurrent in-flight logins — enough for
-// multi-tab use while staying well under the request-header limits enforced by
-// browsers (~4 KB per cookie) and servers/proxies. Intentionally fixed and not
-// configurable: it caps transaction-cookie accumulation regardless of the
-// deployment's header limit, which the SDK cannot know.
+// Default maximum total byte size of all transaction (`__txn_*`) cookies
+// combined. When the accumulated size meets or exceeds this limit, the oldest
+// cookies are evicted (FIFO by creation timestamp) before a new one is written.
+// One JWE is ~450–555 bytes, so this allows ~6 concurrent in-flight logins —
+// enough for multi-tab use while staying well under the request-header limits
+// enforced by browsers (~4 KB per cookie) and servers/proxies. Intentionally
+// fixed and not configurable: it caps transaction-cookie accumulation regardless
+// of the deployment's header limit, which the SDK cannot know.
 const MAX_TRANSACTION_COOKIE_BYTES = 3500;
 
 export interface TransactionState extends jose.JWTPayload {
@@ -161,7 +161,8 @@ export class TransactionStore {
    * @param transactionState - The transaction state to save
    * @param reqCookies - Optional request cookies. When provided, enables FIFO
    *                     eviction of accumulated transaction cookies (capped at
-   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the new cookie.
+   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the
+   *                     new cookie.
    * @throws {Error} When transaction state is missing required state parameter
    */
   async save(

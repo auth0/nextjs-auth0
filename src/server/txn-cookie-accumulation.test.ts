@@ -234,10 +234,15 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
     const newState = "newstate";
     await store.save(resCookies, makeTransactionState(newState), reqCookies);
 
-    // Older cookie evicted first
+    // Older cookie evicted first — present as a deletion tombstone (maxAge 0).
     expect(resCookies.get(`__txn_${olderState}`)?.maxAge).toBe(0);
-    // Newer cookie untouched — eviction stopped after freeing enough
-    expect(resCookies.get(`__txn_${newerState}`)?.maxAge).not.toBe(0);
+    // Newer cookie untouched — eviction stopped after freeing enough. Since it
+    // was never deleted it must NOT appear as a tombstone on the response; it
+    // may be absent (untouched) but must never be present with maxAge 0.
+    const newerCookie = resCookies.get(`__txn_${newerState}`);
+    if (newerCookie !== undefined) {
+      expect(newerCookie.maxAge).not.toBe(0);
+    }
     // New cookie written
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
@@ -455,8 +460,12 @@ describe("Fix 4 — callback cleanup: delete(state)", () => {
     await store.delete(resCookies, "stateA");
 
     expect(resCookies.get("__txn_stateA")?.maxAge).toBe(0);
-    expect(resCookies.get("__txn_stateB")?.value).toBe("2000:jwe_b");
-    expect(resCookies.get("__txn_stateB")?.maxAge).not.toBe(0);
+    // stateB must still be present with its original value and not a deletion
+    // tombstone (maxAge 0).
+    const stateB = resCookies.get("__txn_stateB");
+    expect(stateB).toBeDefined();
+    expect(stateB?.value).toBe("2000:jwe_b");
+    expect(stateB?.maxAge).not.toBe(0);
   });
 
   it("does not throw when deleting a non-existent state", async () => {
@@ -593,7 +602,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     });
   });
 
-  it("Fix 1 — known prefetch header returns 401 and no __txn_* cookie is written", async () => {
+  it("Fix 1 — known prefetch header returns 204 and no __txn_* cookie is written", async () => {
     const authClient = makeAuthClient();
     const req = new NextRequest("http://localhost:3000/auth/login", {
       headers: { "next-router-prefetch": "1" }
@@ -601,7 +610,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
 
     const res = await authClient.handler(req);
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(204);
     const txnCookies = res.cookies
       .getAll()
       .filter((c) => c.name.startsWith("__txn_") && c.maxAge !== 0);
@@ -650,8 +659,13 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
 
     // Completing cookie deleted
     expect(callbackRes.cookies.get(`__txn_${state}`)?.maxAge).toBe(0);
-    // Tab B real login cookie must NOT be deleted
-    expect(callbackRes.cookies.get("__txn_tabB")?.maxAge).not.toBe(0);
+    // Tab B real login cookie must NOT be deleted — it may be absent from the
+    // response (never touched) but must never appear as a deletion tombstone
+    // (present with maxAge 0 and an empty value).
+    const tabB = callbackRes.cookies.get("__txn_tabB");
+    if (tabB !== undefined) {
+      expect(tabB.maxAge).not.toBe(0);
+    }
     // Session written
     expect(callbackRes.cookies.get("__session")?.value).toBeTruthy();
   });

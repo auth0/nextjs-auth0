@@ -25,6 +25,12 @@ import {
 // header limits are hit.
 const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
 
+// Under rolling sessions, set() runs on ~every authenticated request, so a
+// legitimately large-but-working session would otherwise log the size warning
+// on every request. Emit it once per process to keep the diagnostic without
+// spamming logs.
+let sessionSizeWarningEmitted = false;
+
 interface StatelessSessionStoreOptions {
   secret: string;
 
@@ -138,7 +144,11 @@ export class StatelessSessionStore extends AbstractSessionStore {
       resCookies
     );
 
-    if (sessionCookieBytes >= SESSION_COOKIE_SIZE_WARN_BYTES) {
+    if (
+      sessionCookieBytes >= SESSION_COOKIE_SIZE_WARN_BYTES &&
+      !sessionSizeWarningEmitted
+    ) {
+      sessionSizeWarningEmitted = true;
       console.warn(
         `The ${this.sessionCookieName} cookie size is ${sessionCookieBytes} bytes, which may ` +
           "exceed request header size limits and cause 431 Request Header Fields Too Large errors " +
