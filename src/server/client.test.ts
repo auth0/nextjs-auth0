@@ -1193,6 +1193,43 @@ describe("Auth0Client", () => {
         res
       );
     });
+
+    it("prunes from the session re-read after the mint, preserving a rotated refresh token", async () => {
+      // Pre-mint snapshot has the old refresh token.
+      const preMint = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
+      ]);
+      // Minting the My Account token refreshes the primary token, rotating the
+      // refresh token and persisting a new session. The re-read must see this.
+      const postMint = {
+        ...preMint,
+        tokenSet: { ...preMint.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      // First call (initial read) -> preMint; second call (re-read) -> postMint.
+      vi.spyOn(client as any, "getSessionFromAuthClient")
+        .mockResolvedValueOnce(preMint)
+        .mockResolvedValueOnce(postMint);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/"
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      // The rotated refresh token survives (not clobbered by the stale snapshot)
+      expect(saved.tokenSet.refreshToken).toBe("rotated_refresh_token");
+      // ...and the disconnected connection is still pruned.
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ connection: "github" })
+      ]);
+    });
   });
 
   describe("getConnectedAccounts", () => {
@@ -1445,8 +1482,17 @@ describe("Auth0Client", () => {
         const eq = pair.indexOf("=");
         const name = pair.slice(0, eq);
         const value = pair.slice(eq + 1);
+        // A cookie is reclaimed either via `Max-Age=0` (how `deleteCookie`
+        // writes it) or via a past `Expires` date (how `ResponseCookies.delete`
+        // writes it when the orphan deletion is mirrored onto a shared jar).
         const maxAge0 = attrs.some((a) => a.toLowerCase() === "max-age=0");
-        state.set(name, { deleted: value === "" && maxAge0, value });
+        const expiredEpoch = attrs.some(
+          (a) => a.toLowerCase() === "expires=thu, 01 jan 1970 00:00:00 gmt"
+        );
+        state.set(name, {
+          deleted: value === "" && (maxAge0 || expiredEpoch),
+          value
+        });
       }
       return state;
     }

@@ -4360,8 +4360,20 @@ export class AuthClient {
 
       const accounts: ConnectedAccount[] = [];
       let next: string | undefined;
+      // `next` is server-controlled. Guard against a server that echoes the same
+      // token or cycles, which would otherwise loop and grow `accounts` without
+      // bound on the request thread.
+      const seenNext = new Set<string>();
+      const MAX_PAGES = 100;
+      let pages = 0;
 
       do {
+        if (++pages > MAX_PAGES || (next && seenNext.has(next))) {
+          break;
+        }
+        if (next) {
+          seenNext.add(next);
+        }
         const url = new URL("/me/v1/connected-accounts/accounts", this.issuer);
         if (next) {
           url.searchParams.set("next", next);

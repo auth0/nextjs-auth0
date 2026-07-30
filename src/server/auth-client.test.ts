@@ -19,6 +19,8 @@ import {
   ConnectAccountError,
   ConnectAccountErrorCodes,
   DisconnectAccountError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidConfigurationError,
   MyAccountApiError,
   TokenRevocationError,
@@ -33,7 +35,7 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient } from "./auth-client.js";
+import { AuthClient, buildConnectAccountErrorResponse } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -10241,6 +10243,85 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error?.code).toBe("failed_to_list");
       expect(error?.cause?.status).toBe(403);
     });
+
+    it("stops paginating when the server repeats the same next token", async () => {
+      // A server that echoes the same `next` token on every page would loop
+      // forever without the cycle guard. We stop as soon as a token repeats.
+      // Each call returns a fresh Response (bodies can only be read once).
+      let requests = 0;
+      const base = getMockAuthorizationServer();
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts" &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          requests++;
+          return Response.json(
+            {
+              accounts: [{ id: "cac_1", connection: "google-oauth2" }],
+              next: "same-token"
+            },
+            { status: 200 }
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      // First page (no token) + one page for "same-token", then the repeat is
+      // detected before a third request is issued.
+      expect(requests).toBe(2);
+      expect(accounts?.map((a) => a.id)).toEqual(["cac_1", "cac_1"]);
+    });
+
+    it("returns a FAILED_TO_LIST error when the fetch throws", async () => {
+      // A transport-level failure (e.g. network error) is thrown, not returned
+      // as a non-ok Response, and must be caught and surfaced as a typed error.
+      const fetchSpy = vi.fn(async () => {
+        throw new TypeError("network down");
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe(
+        "An unexpected error occurred while trying to list the connected accounts."
+      );
+    });
+
+    it("surfaces a DPoPError message when listing throws one", async () => {
+      // A DPoP failure throws a DPoPError; its message is passed through rather
+      // than the generic fallback. Discovery must succeed first (it also uses
+      // this.fetch), so only the accounts request throws.
+      const base = getMockAuthorizationServer();
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname === "/me/v1/connected-accounts/accounts") {
+          throw new DPoPError(
+            DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+            "DPoP keypair is missing."
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe("DPoP keypair is missing.");
+    });
   });
 
   describe("disconnectAccount", async () => {
@@ -10365,6 +10446,120 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error).toBeInstanceOf(DisconnectAccountError);
       expect(error?.code).toBe("failed_to_delete");
       expect(error?.cause?.status).toBe(429);
+    });
+
+    it("returns a FAILED_TO_DELETE error when the delete fetch throws", async () => {
+      // List succeeds, but the DELETE transport call throws (e.g. network
+      // error). The thrown error must be caught and surfaced as a typed error.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          throw new TypeError("network down");
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.message).toBe(
+        "An unexpected error occurred while trying to delete the connected account."
+      );
+    });
+
+    it("surfaces a DPoPError message when the delete throws one", async () => {
+      // List succeeds; the DELETE throws a DPoPError whose message is passed
+      // through rather than the generic fallback.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          throw new DPoPError(
+            DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+            "DPoP keypair is missing."
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.message).toBe("DPoP keypair is missing.");
+    });
+  });
+
+  describe("buildConnectAccountErrorResponse", async () => {
+    it("falls back to a plain error when the response body is not JSON", async () => {
+      // Some error responses (e.g. an upstream proxy 502) carry a non-JSON
+      // body; `res.json()` then throws and we must still return a typed error
+      // without a MyAccountApiError cause.
+      const res = new Response("<html>Bad Gateway</html>", {
+        status: 502,
+        headers: { "content-type": "text/html" }
+      });
+
+      const [error, result] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_INITIATE
+      );
+
+      expect(result).toBeNull();
+      expect(error).toBeInstanceOf(ConnectAccountError);
+      expect(error?.code).toBe(ConnectAccountErrorCodes.FAILED_TO_INITIATE);
+      expect(error?.message).toBe(
+        "The request to initiate the connect account flow failed with status 502."
+      );
+      // No parseable body means no MyAccountApiError cause is attached.
+      expect(error?.cause).toBeUndefined();
+    });
+
+    it("uses the complete verb for a FAILED_TO_COMPLETE code", async () => {
+      const res = new Response("not json", {
+        status: 500,
+        headers: { "content-type": "text/plain" }
+      });
+
+      const [error] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+      );
+
+      expect(error?.message).toBe(
+        "The request to complete the connect account flow failed with status 500."
+      );
     });
   });
 

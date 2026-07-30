@@ -158,6 +158,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
           sameSite: this.cookieConfig.sameSite,
           httpOnly: this.cookieConfig.httpOnly
         });
+        // Mirror the deletion into reqCookies so a subsequent get()/set() in the
+        // same request does not re-assemble the orphaned `__FC_i` into the
+        // session (storeInCookie writes reqCookies for read-after-write too).
+        reqCookies.delete(cookie.name);
       }
     }
 

@@ -1205,11 +1205,12 @@ export class Auth0Client {
       // we need to update the item in the array
       // If not, we need to add it.
       if (existingTokenSet) {
+        // Replace only the specific entry we matched, by identity. Matching on
+        // connection (+ optional login_hint) again would, when no login_hint is
+        // supplied, overwrite every entry for the connection with this single
+        // token set, collapsing distinct per-account tokens into duplicates.
         tokenSets = session.connectionTokenSets?.map((tokenSet) =>
-          tokenSet.connection === options.connection &&
-          (!options.login_hint || tokenSet.loginHint === options.login_hint)
-            ? retrievedTokenSet
-            : tokenSet
+          tokenSet === existingTokenSet ? retrievedTokenSet : tokenSet
         );
       } else {
         tokenSets = [...(session.connectionTokenSets || []), retrievedTokenSet];
@@ -1955,13 +1956,23 @@ export class Auth0Client {
     // Remove the cached connection tokens for this connection so they are not
     // re-assembled into the session on the next read. When no entries remain,
     // omit the property entirely (mirroring how the store persists it).
-    if (session.connectionTokenSets?.length) {
-      const remaining = session.connectionTokenSets.filter(
+    //
+    // Re-read the session before pruning: minting the My Account token above can
+    // refresh the primary token, which rotates the refresh token and persists a
+    // new session. Writing back the pre-mint snapshot would clobber that rotated
+    // refresh token (and the freshly cached token), logging the user out on the
+    // next refresh. Prune from the latest persisted session instead.
+    const latestSession =
+      (await this.getSessionFromAuthClient(authClient, normalizedReq)) ??
+      session;
+
+    if (latestSession.connectionTokenSets?.length) {
+      const remaining = latestSession.connectionTokenSets.filter(
         (tokenSet) => tokenSet.connection !== options.connection
       );
 
-      if (remaining.length !== session.connectionTokenSets.length) {
-        const { connectionTokenSets: _removed, ...rest } = session;
+      if (remaining.length !== latestSession.connectionTokenSets.length) {
+        const { connectionTokenSets: _removed, ...rest } = latestSession;
         await this.saveToSession(
           remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
           normalizedReq,
@@ -2053,16 +2064,26 @@ export class Auth0Client {
 
     // Reconcile: drop cached connection tokens whose connection is no longer
     // present server-side.
-    if (session.connectionTokenSets?.length) {
+    //
+    // Re-read the session before pruning: minting the My Account token above can
+    // refresh the primary token, which rotates the refresh token and persists a
+    // new session. Writing back the pre-mint snapshot would clobber that rotated
+    // refresh token (and the freshly cached token), logging the user out on the
+    // next refresh. Prune from the latest persisted session instead.
+    const latestSession =
+      (await this.getSessionFromAuthClient(authClient, normalizedReq)) ??
+      session;
+
+    if (latestSession.connectionTokenSets?.length) {
       const serverConnections = new Set(
         accounts.map((account) => account.connection)
       );
-      const remaining = session.connectionTokenSets.filter((tokenSet) =>
+      const remaining = latestSession.connectionTokenSets.filter((tokenSet) =>
         serverConnections.has(tokenSet.connection)
       );
 
-      if (remaining.length !== session.connectionTokenSets.length) {
-        const { connectionTokenSets: _removed, ...rest } = session;
+      if (remaining.length !== latestSession.connectionTokenSets.length) {
+        const { connectionTokenSets: _removed, ...rest } = latestSession;
         await this.saveToSession(
           remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
           normalizedReq,
