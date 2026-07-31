@@ -1736,20 +1736,93 @@ export class Auth0Client {
   }
 
   /**
-   * Mints a My Account API access token, dispatching to the correct
-   * `getAccessToken` overload so the refreshed token set is persisted in both
-   * the App Router (no req/res) and Pages Router / middleware (req + res) paths.
+   * Mints a My Account API access token. Minting can silently refresh the
+   * primary token, which rotates (and invalidates) the shared refresh token, so
+   * that rotation must be persisted or the next refresh triggers reuse-detection
+   * and logs the user out.
+   *
+   * Returns the access token, the session reflecting any rotation, and a
+   * `sessionChanged` flag indicating whether the mint rotated the token set.
+   *
+   * By default the rotated session is persisted here. Callers that write the
+   * session again afterwards (e.g. to prune connectionTokenSets) should pass
+   * `persist: false` and perform a single write from the returned `session`,
+   * so the response does not carry two conflicting `Set-Cookie` writes for the
+   * same session and connection cookies. Such callers must start from the
+   * returned `session` (not a fresh cookie re-read): in the Pages Router,
+   * request cookies are rebuilt from the original request headers and never
+   * reflect writes made during this request, so a re-read would clobber the
+   * rotated refresh token. When `persist` is false and the caller ends up not
+   * writing (nothing to prune), it must still persist the rotated session when
+   * `sessionChanged` is true.
    * @internal
    */
-  private async getMyAccountAccessToken(
+  private async mintMyAccountToken(
     options: GetAccessTokenOptions & { audience: string; scope: string },
     req?: NextRequest | PagesRouterRequest,
-    res?: PagesRouterResponse | NextResponse
-  ): Promise<{ token: string; expiresAt: number; audience?: string }> {
-    if (req && res) {
-      return this.getAccessToken(req, res, options);
+    res?: PagesRouterResponse | NextResponse,
+    { persist = true }: { persist?: boolean } = {}
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    audience?: string;
+    session: SessionData;
+    sessionChanged: boolean;
+  }> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+    if (!session) {
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
     }
-    return this.getAccessToken(options);
+
+    const [error, tokenSetResponse] = await authClient.getTokenSet(
+      session,
+      options
+    );
+    if (error) {
+      throw error;
+    }
+
+    const { tokenSet, idTokenClaims } = tokenSetResponse;
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      {
+        scope: this.#options.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.#options.authorizationParameters?.audience
+      }
+    );
+
+    let persistedSession: SessionData = session;
+    const sessionChanged = !!sessionChanges;
+    if (sessionChanges) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      const finalSession = await authClient.finalizeSession(
+        { ...session, ...sessionChanges },
+        tokenSet.idToken
+      );
+      persistedSession = finalSession;
+      if (persist) {
+        await this.saveToSession(finalSession, req, res);
+      }
+    }
+
+    return {
+      token: tokenSet.accessToken,
+      expiresAt: tokenSet.expiresAt,
+      audience: tokenSet.audience,
+      session: persistedSession,
+      sessionChanged
+    };
   }
 
   async startInteractiveLogin(
@@ -1847,7 +1920,16 @@ export class Auth0Client {
       scope: "create:me:connected_accounts"
     };
 
-    const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
+    // Defer persistence: connectAccount returns its own redirect response, so a
+    // rotated session must be written onto that response's cookies below (an
+    // ambient cookies() write would not attach to the returned redirect, and in
+    // middleware/Pages there is no response to write to here at all).
+    const accessToken = await this.mintMyAccountToken(
+      getMyAccountTokenOpts,
+      normalizedReq,
+      undefined,
+      { persist: false }
+    );
 
     const [error, connectAccountResponse] = await authClient.connectAccount(
       {
@@ -1864,6 +1946,23 @@ export class Auth0Client {
 
     if (error) {
       throw error;
+    }
+
+    // If the mint rotated the refresh token, persist it onto the redirect
+    // response so the rotated token is not dropped (which would trigger
+    // reuse-detection and log the user out on the next refresh). Writing to the
+    // response cookies works across App Router, middleware, and Pages Router
+    // since the caller forwards this response's Set-Cookie headers.
+    if (accessToken.sessionChanged) {
+      const reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : await cookies();
+      await this.sessionStore.set(
+        reqCookies,
+        connectAccountResponse.cookies,
+        accessToken.session
+      );
     }
 
     return connectAccountResponse;
@@ -1933,10 +2032,14 @@ export class Auth0Client {
       scope: "read:me:connected_accounts delete:me:connected_accounts"
     };
 
-    const accessToken = await this.getMyAccountAccessToken(
+    // Defer persistence: this method may write the session again below to prune
+    // connectionTokenSets. Writing once (from the mint's rotated session) avoids
+    // emitting two conflicting `Set-Cookie` writes for the same cookies.
+    const accessToken = await this.mintMyAccountToken(
       getMyAccountTokenOpts,
       normalizedReq,
-      res
+      res,
+      { persist: false }
     );
 
     const [error] = await authClient.disconnectAccount(
@@ -1957,15 +2060,13 @@ export class Auth0Client {
     // re-assembled into the session on the next read. When no entries remain,
     // omit the property entirely (mirroring how the store persists it).
     //
-    // Re-read the session before pruning: minting the My Account token above can
-    // refresh the primary token, which rotates the refresh token and persists a
-    // new session. Writing back the pre-mint snapshot would clobber that rotated
-    // refresh token (and the freshly cached token), logging the user out on the
-    // next refresh. Prune from the latest persisted session instead.
-    const latestSession =
-      (await this.getSessionFromAuthClient(authClient, normalizedReq)) ??
-      session;
+    // Prune from the session the mint produced, not a fresh cookie re-read. In
+    // the Pages Router, request cookies are rebuilt from the original request
+    // headers and never reflect writes made during the mint, so a re-read would
+    // clobber the rotated refresh token.
+    const latestSession = accessToken.session;
 
+    let pruned = false;
     if (latestSession.connectionTokenSets?.length) {
       const remaining = latestSession.connectionTokenSets.filter(
         (tokenSet) => tokenSet.connection !== options.connection
@@ -1978,7 +2079,14 @@ export class Auth0Client {
           normalizedReq,
           res
         );
+        pruned = true;
       }
+    }
+
+    // Nothing was pruned, but the mint may have rotated the token set. Persist
+    // it here since mintMyAccountToken was told not to (persist: false).
+    if (!pruned && accessToken.sessionChanged) {
+      await this.saveToSession(latestSession, normalizedReq, res);
     }
   }
 
@@ -2045,10 +2153,14 @@ export class Auth0Client {
       scope: "read:me:connected_accounts"
     };
 
-    const accessToken = await this.getMyAccountAccessToken(
+    // Defer persistence: this method may write the session again below to prune
+    // stale connectionTokenSets. Writing once (from the mint's rotated session)
+    // avoids emitting two conflicting `Set-Cookie` writes for the same cookies.
+    const accessToken = await this.mintMyAccountToken(
       getMyAccountTokenOpts,
       normalizedReq,
-      res
+      res,
+      { persist: false }
     );
 
     const [error, accounts] = await authClient.listConnectedAccounts({
@@ -2065,15 +2177,13 @@ export class Auth0Client {
     // Reconcile: drop cached connection tokens whose connection is no longer
     // present server-side.
     //
-    // Re-read the session before pruning: minting the My Account token above can
-    // refresh the primary token, which rotates the refresh token and persists a
-    // new session. Writing back the pre-mint snapshot would clobber that rotated
-    // refresh token (and the freshly cached token), logging the user out on the
-    // next refresh. Prune from the latest persisted session instead.
-    const latestSession =
-      (await this.getSessionFromAuthClient(authClient, normalizedReq)) ??
-      session;
+    // Prune from the session the mint produced, not a fresh cookie re-read. In
+    // the Pages Router, request cookies are rebuilt from the original request
+    // headers and never reflect writes made during the mint, so a re-read would
+    // clobber the rotated refresh token.
+    const latestSession = accessToken.session;
 
+    let reconciled = false;
     if (latestSession.connectionTokenSets?.length) {
       const serverConnections = new Set(
         accounts.map((account) => account.connection)
@@ -2089,7 +2199,14 @@ export class Auth0Client {
           normalizedReq,
           res
         );
+        reconciled = true;
       }
+    }
+
+    // Nothing was reconciled, but the mint may have rotated the token set.
+    // Persist it here since mintMyAccountToken was told not to (persist: false).
+    if (!reconciled && accessToken.sessionChanged) {
+      await this.saveToSession(latestSession, normalizedReq, res);
     }
 
     return accounts;

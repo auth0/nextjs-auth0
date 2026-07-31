@@ -10244,10 +10244,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error?.cause?.status).toBe(403);
     });
 
-    it("stops paginating when the server repeats the same next token", async () => {
+    it("fails with FAILED_TO_LIST when the server repeats the same next token", async () => {
       // A server that echoes the same `next` token on every page would loop
-      // forever without the cycle guard. We stop as soon as a token repeats.
-      // Each call returns a fresh Response (bodies can only be read once).
+      // forever without the cycle guard. Returning the partial list as success
+      // is unsafe (callers reconcile against it destructively), so we surface a
+      // FAILED_TO_LIST error instead. Each call returns a fresh Response
+      // (bodies can only be read once).
       let requests = 0;
       const base = getMockAuthorizationServer();
       const fetchSpy = vi.fn(async (input: any, init?: any) => {
@@ -10272,11 +10274,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const [error, accounts] =
         await authClient.listConnectedAccounts(tokenSet);
 
-      expect(error).toBeNull();
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe(
+        "Connected-account pagination did not terminate safely."
+      );
       // First page (no token) + one page for "same-token", then the repeat is
       // detected before a third request is issued.
       expect(requests).toBe(2);
-      expect(accounts?.map((a) => a.id)).toEqual(["cac_1", "cac_1"]);
     });
 
     it("returns a FAILED_TO_LIST error when the fetch throws", async () => {

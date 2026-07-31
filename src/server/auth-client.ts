@@ -4250,7 +4250,7 @@ export class AuthClient {
     } catch (e: any) {
       let message =
         "An unexpected error occurred while trying to initiate the connect account flow.";
-      if (e instanceof DPoPError) {
+      if (isDPoPError(e)) {
         message = e.message;
       }
       return [
@@ -4369,7 +4369,18 @@ export class AuthClient {
 
       do {
         if (++pages > MAX_PAGES || (next && seenNext.has(next))) {
-          break;
+          // The server returned a non-terminating cursor (page cap exceeded or
+          // a repeated `next` token). Returning the partial list as success is
+          // unsafe: callers reconcile against it destructively (pruning cached
+          // tokens for omitted accounts, and disconnectAccount would leave
+          // additional matching accounts linked). Fail loudly instead.
+          return [
+            new DisconnectAccountError({
+              code: DisconnectAccountErrorCodes.FAILED_TO_LIST,
+              message: "Connected-account pagination did not terminate safely."
+            }),
+            null
+          ];
         }
         if (next) {
           seenNext.add(next);
@@ -4412,7 +4423,7 @@ export class AuthClient {
     } catch (e: any) {
       let message =
         "An unexpected error occurred while trying to list the connected accounts.";
-      if (e instanceof DPoPError) {
+      if (isDPoPError(e)) {
         message = e.message;
       }
       return [
@@ -4469,7 +4480,7 @@ export class AuthClient {
     } catch (e: any) {
       let message =
         "An unexpected error occurred while trying to delete the connected account.";
-      if (e instanceof DPoPError) {
+      if (isDPoPError(e)) {
         message = e.message;
       }
       return [
@@ -6922,6 +6933,24 @@ export async function buildDisconnectAccountErrorResponse(
       null
     ];
   }
+}
+
+/**
+ * Identifies a DPoP failure by its `code` rather than an `instanceof` check.
+ * `instanceof` is unreliable across module/realm boundaries (duplicate copies
+ * of the error class), so we match on the well-known DPoP error codes instead.
+ *
+ * @internal
+ */
+function isDPoPError(
+  e: unknown
+): e is { code: DPoPErrorCode; message: string } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    Object.values(DPoPErrorCode).includes((e as { code: DPoPErrorCode }).code)
+  );
 }
 
 /**

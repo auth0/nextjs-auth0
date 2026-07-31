@@ -893,15 +893,17 @@ describe("Auth0Client", () => {
     });
 
     it("mints a create-scoped My Account token and returns the redirect response", async () => {
+      const session = sessionWith();
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
-        sessionWith()
+        session
       );
-      const getAccessToken = vi
-        .spyOn(client as any, "getAccessToken")
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
         .mockResolvedValue({
           token: "my_account_token",
           expiresAt: 12345,
-          audience: "https://test.auth0.com/me/"
+          audience: "https://test.auth0.com/me/",
+          session
         });
       const redirect = NextResponse.redirect("https://test.auth0.com/connect");
       const connect = vi.fn().mockResolvedValue([null, redirect]);
@@ -912,11 +914,14 @@ describe("Auth0Client", () => {
       });
 
       expect(result).toBe(redirect);
-      expect(getAccessToken).toHaveBeenCalledWith(
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
         expect.objectContaining({
           audience: "https://test.auth0.com/me/",
           scope: "create:me:connected_accounts"
-        })
+        }),
+        undefined,
+        undefined,
+        { persist: false }
       );
       expect(connect).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -931,10 +936,11 @@ describe("Auth0Client", () => {
       const getSessionFromAuthClient = vi
         .spyOn(client as any, "getSessionFromAuthClient")
         .mockResolvedValue(sessionWith());
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session: sessionWith()
       });
       const redirect = NextResponse.redirect("https://test.auth0.com/connect");
       const connect = vi.fn().mockResolvedValue([null, redirect]);
@@ -956,10 +962,11 @@ describe("Auth0Client", () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         sessionWith()
       );
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session: sessionWith()
       });
       const connectError = new Error("connect failed");
       mockAuthClientWith(vi.fn().mockResolvedValue([connectError, null]));
@@ -967,6 +974,67 @@ describe("Auth0Client", () => {
       await expect(
         client.connectAccount({ connection: "google-oauth2" })
       ).rejects.toThrow("connect failed");
+    });
+
+    it("persists a rotated refresh token onto the redirect response", async () => {
+      const session = sessionWith();
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      // The mint refreshed the primary token, rotating the refresh token.
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      const redirect = NextResponse.redirect("https://test.auth0.com/connect");
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, redirect]));
+      const set = vi
+        .spyOn(client["sessionStore"] as any, "set")
+        .mockResolvedValue(undefined);
+
+      const result = await client.connectAccount({
+        connection: "google-oauth2"
+      });
+
+      expect(result).toBe(redirect);
+      // The rotated session is written onto the redirect response's cookies so
+      // it is not dropped (which would trigger reuse-detection on next refresh).
+      expect(set).toHaveBeenCalledTimes(1);
+      const [, resCookies, savedSession] = set.mock.calls[0];
+      expect(resCookies).toBe(redirect.cookies);
+      expect((savedSession as SessionData).tokenSet.refreshToken).toBe(
+        "rotated_refresh_token"
+      );
+    });
+
+    it("does not write the session when the mint did not rotate the token", async () => {
+      const session = sessionWith();
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session,
+        sessionChanged: false
+      });
+      const redirect = NextResponse.redirect("https://test.auth0.com/connect");
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, redirect]));
+      const set = vi
+        .spyOn(client["sessionStore"] as any, "set")
+        .mockResolvedValue(undefined);
+
+      await client.connectAccount({ connection: "google-oauth2" });
+
+      expect(set).not.toHaveBeenCalled();
     });
   });
 
@@ -1037,12 +1105,13 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      const getAccessToken = vi
-        .spyOn(client as any, "getAccessToken")
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
         .mockResolvedValue({
           token: "my_account_token",
           expiresAt: 12345,
-          audience: "https://test.auth0.com/me/"
+          audience: "https://test.auth0.com/me/",
+          session
         });
       const disconnect = vi.fn().mockResolvedValue([null, []]);
       mockAuthClientWith(disconnect);
@@ -1050,11 +1119,14 @@ describe("Auth0Client", () => {
       await client.disconnectAccount({ connection: "google-oauth2" });
 
       // Correct My Account audience + scopes were requested.
-      expect(getAccessToken).toHaveBeenCalledWith(
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
         expect.objectContaining({
           audience: "https://test.auth0.com/me/",
           scope: "read:me:connected_accounts delete:me:connected_accounts"
-        })
+        }),
+        undefined,
+        undefined,
+        { persist: false }
       );
       // The connection name (not id) was passed to the auth client.
       expect(disconnect).toHaveBeenCalledWith(
@@ -1084,10 +1156,11 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
 
@@ -1107,10 +1180,11 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
 
@@ -1129,10 +1203,11 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       const disconnectError = new Error("delete failed");
       mockAuthClientWith(vi.fn().mockResolvedValue([disconnectError, null]));
@@ -1154,12 +1229,13 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      const getAccessToken = vi
-        .spyOn(client as any, "getAccessToken")
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
         .mockResolvedValue({
           token: "my_account_token",
           expiresAt: 12345,
-          audience: "https://test.auth0.com/me/"
+          audience: "https://test.auth0.com/me/",
+          session
         });
       mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
 
@@ -1173,14 +1249,15 @@ describe("Auth0Client", () => {
         expect.anything(),
         req
       );
-      // The My Account token is minted through the Pages Router
-      // getAccessToken(req, res, options) overload so refreshed tokens persist.
-      expect(getAccessToken).toHaveBeenCalledWith(
-        req,
-        res,
+      // mintMyAccountToken is called with req/res so the rotated refresh token
+      // persists to the Pages Router response.
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
         expect.objectContaining({
           scope: "read:me:connected_accounts delete:me:connected_accounts"
-        })
+        }),
+        req,
+        res,
+        { persist: false }
       );
       // The pruned session is written back to the Pages Router response.
       expect(saveToSession).toHaveBeenCalledWith(
@@ -1194,29 +1271,32 @@ describe("Auth0Client", () => {
       );
     });
 
-    it("prunes from the session re-read after the mint, preserving a rotated refresh token", async () => {
+    it("prunes from the session the mint persisted, preserving a rotated refresh token", async () => {
       // Pre-mint snapshot has the old refresh token.
       const preMint = sessionWith([
         { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
         { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
       ]);
       // Minting the My Account token refreshes the primary token, rotating the
-      // refresh token and persisting a new session. The re-read must see this.
+      // refresh token. mintMyAccountToken returns the persisted snapshot so
+      // pruning does not clobber the rotated token via a stale re-read.
       const postMint = {
         ...preMint,
         tokenSet: { ...preMint.tokenSet, refreshToken: "rotated_refresh_token" }
       };
-      // First call (initial read) -> preMint; second call (re-read) -> postMint.
-      vi.spyOn(client as any, "getSessionFromAuthClient")
-        .mockResolvedValueOnce(preMint)
-        .mockResolvedValueOnce(postMint);
+      // Initial session read returns preMint (used only for MISSING_SESSION guard).
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        preMint
+      );
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      // mintMyAccountToken returns postMint as the persisted session.
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session: postMint
       });
       mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
 
@@ -1229,6 +1309,66 @@ describe("Auth0Client", () => {
       expect(saved.connectionTokenSets).toEqual([
         expect.objectContaining({ connection: "github" })
       ]);
+    });
+
+    it("persists a rotated session even when there is nothing to prune", async () => {
+      // No cached connection tokens, so nothing is pruned, but the mint rotated
+      // the refresh token: it must still be persisted (single write).
+      const session = sessionWith(undefined);
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      // A single write persists the rotated token; no double write.
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
+    });
+
+    it("does not write the session when the mint did not rotate and nothing is pruned", async () => {
+      const session = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session,
+        sessionChanged: false
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      expect(saveToSession).not.toHaveBeenCalled();
     });
   });
 
@@ -1292,12 +1432,13 @@ describe("Auth0Client", () => {
         session
       );
       vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
-      const getAccessToken = vi
-        .spyOn(client as any, "getAccessToken")
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
         .mockResolvedValue({
           token: "my_account_token",
           expiresAt: 12345,
-          audience: "https://test.auth0.com/me/"
+          audience: "https://test.auth0.com/me/",
+          session
         });
       const accounts = [
         { id: "cac_1", connection: "google-oauth2" },
@@ -1308,11 +1449,14 @@ describe("Auth0Client", () => {
       const result = await client.getConnectedAccounts();
 
       expect(result).toEqual(accounts);
-      expect(getAccessToken).toHaveBeenCalledWith(
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
         expect.objectContaining({
           audience: "https://test.auth0.com/me/",
           scope: "read:me:connected_accounts"
-        })
+        }),
+        undefined,
+        undefined,
+        { persist: false }
       );
     });
 
@@ -1327,10 +1471,11 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       // Server only knows about google-oauth2; slack was disconnected elsewhere.
       mockAuthClientWith(
@@ -1365,10 +1510,11 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       mockAuthClientWith(
         vi
@@ -1389,10 +1535,11 @@ describe("Auth0Client", () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         session
       );
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: 12345,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       const listError = new Error("list failed");
       mockAuthClientWith(vi.fn().mockResolvedValue([listError, null]));
@@ -1413,12 +1560,13 @@ describe("Auth0Client", () => {
       const saveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      const getAccessToken = vi
-        .spyOn(client as any, "getAccessToken")
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
         .mockResolvedValue({
           token: "my_account_token",
           expiresAt: 12345,
-          audience: "https://test.auth0.com/me/"
+          audience: "https://test.auth0.com/me/",
+          session
         });
       // Server only knows about google-oauth2; slack was disconnected elsewhere.
       mockAuthClientWith(
@@ -1441,12 +1589,13 @@ describe("Auth0Client", () => {
         expect.anything(),
         req
       );
-      // The My Account token is minted through the Pages Router
-      // getAccessToken(req, res, options) overload.
-      expect(getAccessToken).toHaveBeenCalledWith(
+      // mintMyAccountToken is called with req/res so the rotated refresh token
+      // persists to the Pages Router response.
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "read:me:connected_accounts" }),
         req,
         res,
-        expect.objectContaining({ scope: "read:me:connected_accounts" })
+        { persist: false }
       );
       // The reconciled (pruned) session is written back to the Pages Router response.
       expect(saveToSession).toHaveBeenCalledWith(
@@ -1457,6 +1606,50 @@ describe("Auth0Client", () => {
         }),
         req,
         res
+      );
+    });
+
+    it("persists a rotated session even when nothing needs reconciling", async () => {
+      // No cached connection tokens, so nothing is reconciled, but the mint
+      // rotated the refresh token: it must still be persisted (single write).
+      const session = sessionWith(undefined);
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      mockAuthClientWith(
+        vi
+          .fn()
+          .mockResolvedValue([
+            null,
+            [{ id: "cac_1", connection: "google-oauth2" }]
+          ])
+      );
+
+      await client.getConnectedAccounts();
+
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
       );
     });
   });
@@ -1571,10 +1764,11 @@ describe("Auth0Client", () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         session
       );
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: Math.floor(Date.now() / 1000) + 3600,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
         issuer: "https://test.auth0.com/",
@@ -1603,10 +1797,11 @@ describe("Auth0Client", () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         session
       );
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: Math.floor(Date.now() / 1000) + 3600,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
         issuer: "https://test.auth0.com/",
@@ -1631,10 +1826,11 @@ describe("Auth0Client", () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         session
       );
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: Math.floor(Date.now() / 1000) + 3600,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
         issuer: "https://test.auth0.com/",
@@ -1665,10 +1861,11 @@ describe("Auth0Client", () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         session
       );
-      vi.spyOn(client as any, "getAccessToken").mockResolvedValue({
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
         token: "my_account_token",
         expiresAt: Math.floor(Date.now() / 1000) + 3600,
-        audience: "https://test.auth0.com/me/"
+        audience: "https://test.auth0.com/me/",
+        session
       });
       // Disconnect a connection the user does not have -> no local change.
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
