@@ -49,6 +49,64 @@ describe("filterDefaultIdTokenClaims", async () => {
     });
   });
 
+  it("should retain urn:auth0:my_org_current_user_permissions with populated permissions", () => {
+    const permissions = ["my_org:read_members", "my_org:invite_members"];
+    expect(
+      filterDefaultIdTokenClaims({
+        sub: "user_123",
+        "urn:auth0:my_org_current_user_permissions": permissions
+      })
+    ).toEqual({
+      sub: "user_123",
+      "urn:auth0:my_org_current_user_permissions": permissions
+    });
+  });
+
+  it("should retain urn:auth0:my_org_current_user_permissions when the array is empty", () => {
+    expect(
+      filterDefaultIdTokenClaims({
+        sub: "user_123",
+        "urn:auth0:my_org_current_user_permissions": []
+      })
+    ).toEqual({
+      sub: "user_123",
+      "urn:auth0:my_org_current_user_permissions": []
+    });
+  });
+
+  it("should retain all standard claims together with urn:auth0:my_org_current_user_permissions", () => {
+    const permissions = ["my_org:manage_member_roles"];
+    expect(
+      filterDefaultIdTokenClaims({
+        sub: "user_123",
+        name: "Jane",
+        email: "jane@example.com",
+        org_id: "org_456",
+        "urn:auth0:my_org_current_user_permissions": permissions,
+        iat: 1234567890,
+        exp: 9999999999
+      })
+    ).toEqual({
+      sub: "user_123",
+      name: "Jane",
+      email: "jane@example.com",
+      org_id: "org_456",
+      "urn:auth0:my_org_current_user_permissions": permissions
+    });
+  });
+
+  it("should strip unrecognised custom claims while preserving standard ones", () => {
+    expect(
+      filterDefaultIdTokenClaims({
+        sub: "user_123",
+        custom_claim: "foo",
+        "https://example.com/role": "admin"
+      })
+    ).toEqual({
+      sub: "user_123"
+    });
+  });
+
   it("should return an empty object if no claims are provided", () => {
     expect(filterDefaultIdTokenClaims({})).toEqual({});
   });

@@ -3701,6 +3701,59 @@ Common scopes for My Organization API:
 - `roles:read` - Read organization roles
 - `roles:manage` - Manage organization roles
 
+### Reading Organization Permissions
+
+Auth0 includes a `urn:auth0:my_org_current_user_permissions` claim in the ID token containing all `my_org:*` permissions the authenticated user holds in their current organization. The SDK passes this claim through to `session.user` automatically — no additional scope or `beforeSessionSaved` configuration is required.
+
+The permissions are cached in the encrypted session cookie and refreshed only when the ID token is re-issued, so there is no extra network call on each component mount.
+
+#### Server Component
+
+```tsx
+import { auth0 } from "@/lib/auth0";
+
+export default async function Page() {
+  const session = await auth0.getSession();
+  const permissions: string[] =
+    session?.user["urn:auth0:my_org_current_user_permissions"] ?? [];
+
+  const canInvite = permissions.includes("my_org:invite_members");
+
+  return (
+    <div>
+      {canInvite && <InviteMemberButton />}
+    </div>
+  );
+}
+```
+
+#### Client Component
+
+```tsx
+"use client";
+
+import { useUser } from "@auth0/nextjs-auth0";
+
+export function OrgActions() {
+  const { user } = useUser();
+  const permissions: string[] =
+    user?.["urn:auth0:my_org_current_user_permissions"] ?? [];
+
+  const canInvite = permissions.includes("my_org:invite_members");
+  const canManageRoles = permissions.includes("my_org:manage_member_roles");
+
+  return (
+    <div>
+      <button disabled={!canInvite}>Invite Member</button>
+      <button disabled={!canManageRoles}>Manage Roles</button>
+    </div>
+  );
+}
+```
+
+> [!NOTE]
+> This claim is for UI gating only. The My Organization API enforces authorization server-side on every request regardless of what the claim contains.
+
 ### Integration with UI Components
 
 When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
@@ -4359,6 +4412,7 @@ By default, the following properties claims from the ID token are added to the `
 - `email`
 - `email_verified`
 - `org_id`
+- `urn:auth0:my_org_current_user_permissions` — effective `my_org:*` permissions for the authenticated user in their current organization. Present when Auth0's My Organization API is enabled. Useful for permission-based UI gating (see [Reading Organization Permissions](#reading-organization-permissions)).
 
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](#beforesessionsaved))
 
