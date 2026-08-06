@@ -1750,6 +1750,262 @@ describe("Auth0Client", () => {
       });
     });
   });
+
+  describe("Enterprise Connect mode (appType: b2b_integration)", () => {
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleWarnSpy.mockRestore();
+    });
+
+    /** Minimal EC client with no configuration warnings triggered. */
+    function ecClient(overrides: Record<string, unknown> = {}) {
+      return new Auth0Client({
+        appType: "b2b_integration",
+        authorizationParameters: {
+          scope: "openid profile email",
+          organization: "org_abc123"
+        },
+        ...overrides
+      });
+    }
+
+    describe("unavailable session-backed methods", () => {
+      // Every async member listed in EC_UNAVAILABLE_MEMBERS, with the argument
+      // shape each one needs to be callable at all.
+      const METHODS: Array<[string, () => unknown[]]> = [
+        ["getSession", () => []],
+        ["getAccessToken", () => []],
+        [
+          "getAccessTokenForConnection",
+          () => [{ connection: "google-oauth2" }]
+        ],
+        ["revokeRefreshToken", () => []],
+        ["requestSessionTransferToken", () => []],
+        ["updateSession", () => [{ user: { sub: "user_1" } }]],
+        ["connectAccount", () => [{ connection: "google-oauth2" }]],
+        ["createFetcher", () => []]
+      ];
+
+      it.each(METHODS)("rejects from %s", async (method, args) => {
+        const client = ecClient() as unknown as Record<
+          string,
+          (...a: unknown[]) => Promise<unknown>
+        >;
+
+        await expect(client[method](...args())).rejects.toThrow(
+          InvalidConfigurationError
+        );
+      });
+
+      it.each(METHODS)(
+        "names %s in the error message",
+        async (method, args) => {
+          const client = ecClient() as unknown as Record<
+            string,
+            (...a: unknown[]) => Promise<unknown>
+          >;
+
+          await expect(client[method](...args())).rejects.toThrow(
+            new RegExp(
+              `${method}\\(\\) is not available when appType is 'b2b_integration'`
+            )
+          );
+        }
+      );
+
+      it("rejects rather than throwing synchronously, so await/catch works", () => {
+        const client = ecClient();
+
+        // Calling without awaiting must not throw — otherwise `.catch()` and
+        // `try { await ... }` would both miss it.
+        let promise: Promise<unknown>;
+        expect(() => {
+          promise = client.getSession();
+        }).not.toThrow();
+
+        return expect(promise!).rejects.toThrow(InvalidConfigurationError);
+      });
+
+      it("carries method-specific guidance, not just a generic refusal", async () => {
+        const client = ecClient();
+
+        await expect(client.getSession()).rejects.toThrow(
+          /Read the user from the session store you populated in onCallback/
+        );
+        await expect(client.getAccessToken()).rejects.toThrow(
+          /not issued refresh tokens/
+        );
+        await expect(client.revokeRefreshToken()).rejects.toThrow(
+          /nothing to revoke/
+        );
+        await expect(client.updateSession({} as SessionData)).rejects.toThrow(
+          /Write to your own session store instead/
+        );
+      });
+
+      it("rejects before touching request context, so no request is needed", async () => {
+        // Regression guard: replacing the method means resolveRequestContext is
+        // never reached, so the developer sees the mode error rather than a
+        // cookies/headers error.
+        await expect(ecClient().getSession()).rejects.toThrow(
+          /not available when appType/
+        );
+      });
+    });
+
+    describe("unavailable sub-clients", () => {
+      it.each(["passwordless", "passkey"])(
+        "throws on %s property access",
+        (member) => {
+          const client = ecClient() as unknown as Record<string, unknown>;
+
+          // Getters throw on access: there is no sub-client to hand back.
+          expect(() => client[member]).toThrow(InvalidConfigurationError);
+          expect(() => client[member]).toThrow(
+            new RegExp(`${member} is not available when appType`)
+          );
+        }
+      );
+
+      it("leaves mfa available, since it holds no session state", () => {
+        expect(() => ecClient().mfa).not.toThrow();
+      });
+    });
+
+    describe("members the flow depends on stay available", () => {
+      // Guarding any of these would break Enterprise Connect itself.
+      it("keeps middleware, which mounts the auth routes", () => {
+        expect(typeof ecClient().middleware).toBe("function");
+      });
+
+      it.each([
+        "startInteractiveLogin",
+        "customTokenExchange",
+        "getTokenByBackchannelAuth",
+        "buildSessionTransferRedirect"
+      ])("keeps %s callable", (member) => {
+        const client = ecClient() as unknown as Record<string, unknown>;
+        expect(typeof client[member]).toBe("function");
+      });
+    });
+
+    describe("private field access after member replacement", () => {
+      it("does not break methods that read #options", async () => {
+        // Replacing members with own properties (rather than wrapping the
+        // instance in a Proxy) keeps `this` as the real instance, so private
+        // field reads still work.
+        const client = ecClient();
+
+        expect(() => client.middleware).not.toThrow();
+        await expect(
+          client.middleware(
+            new NextRequest(new URL("https://myapp.test/"), { method: "GET" })
+          )
+        ).resolves.toBeDefined();
+      });
+    });
+
+    describe("configuration warnings", () => {
+      it("warns when offline_access is in an explicit scope", () => {
+        ecClient({
+          authorizationParameters: {
+            scope: "openid profile email offline_access",
+            organization: "org_abc123"
+          }
+        });
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("'offline_access' is in scope")
+        );
+      });
+
+      it("warns when scope is left at the default, which includes offline_access", () => {
+        ecClient({
+          authorizationParameters: { organization: "org_abc123" }
+        });
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("'offline_access' is in scope")
+        );
+      });
+
+      it("does not warn about scope when offline_access is absent", () => {
+        ecClient();
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("'offline_access' is in scope")
+        );
+      });
+
+      it("does not treat a scope merely containing the substring as offline_access", () => {
+        ecClient({
+          authorizationParameters: {
+            scope: "openid profile email offline_access_audit",
+            organization: "org_abc123"
+          }
+        });
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("'offline_access' is in scope")
+        );
+      });
+
+      it("warns when no default organization is configured", () => {
+        ecClient({
+          authorizationParameters: { scope: "openid profile email" }
+        });
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("no default 'organization' is set")
+        );
+      });
+
+      it("does not warn about organization when one is configured", () => {
+        ecClient();
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("no default 'organization' is set")
+        );
+      });
+    });
+
+    describe("without appType (no regression)", () => {
+      it("leaves getSession returning null rather than throwing", async () => {
+        const { cookies } = await import("next/headers.js");
+        vi.mocked(cookies).mockResolvedValue({
+          getAll: () => [],
+          get: () => undefined
+        } as unknown as Awaited<ReturnType<typeof cookies>>);
+
+        const client = new Auth0Client({
+          authorizationParameters: { scope: "openid profile email" }
+        });
+
+        await expect(client.getSession()).resolves.toBeNull();
+      });
+
+      it("emits no Enterprise Connect warnings", () => {
+        new Auth0Client({});
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("'offline_access' is in scope")
+        );
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("no default 'organization' is set")
+        );
+      });
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {

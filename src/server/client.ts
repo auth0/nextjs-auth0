@@ -83,6 +83,61 @@ import {
   TransactionStore
 } from "./transaction-store.js";
 
+/**
+ * Members of {@link Auth0Client} that cannot work when
+ * `appType: 'b2b_integration'` is set, mapped to the guidance shown when one is
+ * used. Each depends on an Auth0-managed session or a refresh token, and
+ * Enterprise Connect creates neither.
+ *
+ * This is the single source of truth for the restriction: the constructor walks
+ * this object and replaces each member with one that throws. Adding a
+ * session-backed method to `Auth0Client` means adding a line here.
+ *
+ * Deliberately excluded, because they hold no session state and the flow depends
+ * on them: `middleware` (mounts `/auth/login`, `/auth/callback`, `/auth/logout`),
+ * `startInteractiveLogin`, `customTokenExchange`, `getTokenByBackchannelAuth`,
+ * `buildSessionTransferRedirect` and `mfa`.
+ */
+const EC_UNAVAILABLE_MEMBERS: Record<string, string> = {
+  getSession:
+    "Auth0 does not hold a session in this mode. Read the user from the session " +
+    "store you populated in onCallback.",
+  getAccessToken:
+    "b2b_integration clients are not issued refresh tokens, so there is no token " +
+    "to return or renew. Use the tokens passed to onCallback if you need to call " +
+    "an API on the user's behalf.",
+  getAccessTokenForConnection:
+    "This reads the token set from an Auth0 session, which does not exist in this " +
+    "mode. Store connection tokens yourself from the onCallback session if needed.",
+  revokeRefreshToken:
+    "b2b_integration clients are not issued refresh tokens, so there is nothing " +
+    "to revoke.",
+  requestSessionTransferToken:
+    "Session transfer reads and refreshes an Auth0 session, which does not exist " +
+    "in this mode.",
+  updateSession:
+    "There is no Auth0 session cookie to update in this mode. Write to your own " +
+    "session store instead.",
+  connectAccount:
+    "Connecting an account requires an existing Auth0 session, which is not " +
+    "created in this mode.",
+  createFetcher:
+    "The fetcher attaches an access token read from an Auth0 session, which does " +
+    "not exist in this mode. Pass your own token to fetch directly.",
+  passwordless:
+    "Passwordless establishes an Auth0 session, which conflicts with this mode. " +
+    "Authentication must go through the enterprise IdP via /auth/login.",
+  passkey:
+    "Passkeys establish an Auth0 session, which conflicts with this mode. " +
+    "Authentication must go through the enterprise IdP via /auth/login."
+};
+
+/**
+ * Subset of {@link EC_UNAVAILABLE_MEMBERS} that are getters rather than methods,
+ * and so must throw on property access instead of on invocation.
+ */
+const EC_UNAVAILABLE_GETTERS = new Set(["passwordless", "passkey"]);
+
 export interface Auth0ClientOptions {
   // authorization server configuration
   /**
@@ -207,9 +262,45 @@ export interface Auth0ClientOptions {
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
+   * **Enterprise Connect:** when `appType` is `'b2b_integration'`, the SDK skips
+   * writing the Auth0 session cookie after this hook returns. Persist identity to
+   * your own store inside the hook. Return a `NextResponse` to control the redirect
+   * destination, or return nothing to let the SDK redirect to `returnTo`.
+   *
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
+
+  /**
+   * The Auth0 application type.
+   *
+   * Set to `'b2b_integration'` for Enterprise Connect, where Auth0 acts as a pure
+   * SSO relay and your application remains the session authority. This changes
+   * three things:
+   *
+   * - The Auth0 session cookie is never written. `onCallback` is responsible for
+   *   persisting identity to your own store.
+   * - {@link Auth0Client.getSession} and {@link Auth0Client.getAccessToken} throw,
+   *   rather than returning `null`, because Auth0 holds no session to read.
+   * - Configuration that cannot work in this mode (`offline_access` in scope, or a
+   *   missing default `organization`) is reported at initialization.
+   *
+   * @example
+   * ```ts
+   * export const auth0 = new Auth0Client({
+   *   appType: "b2b_integration",
+   *   authorizationParameters: {
+   *     scope: "openid profile email",
+   *     organization: "org_abc123"
+   *   },
+   *   async onCallback(error, ctx, session) {
+   *     if (error) throw error;
+   *     if (session?.user) await mySessionStore.upsert(session.user);
+   *   }
+   * });
+   * ```
+   */
+  appType?: "b2b_integration";
 
   // provide a session store to persist sessions in your own data store
   /**
@@ -751,6 +842,36 @@ export class Auth0Client {
         return runtimeDomain;
       });
 
+    // Enterprise Connect: disable everything that depends on an Auth0 session, and
+    // surface configuration that cannot work in this mode at startup rather than as
+    // a confusing failure on a later request.
+    if (options.appType === "b2b_integration") {
+      this.disableSessionMembersForEnterpriseConnect();
+
+      const scope = options.authorizationParameters?.scope ?? DEFAULT_SCOPES;
+
+      if (
+        typeof scope === "string" &&
+        scope.split(/\s+/).includes("offline_access")
+      ) {
+        console.warn(
+          "WARNING: 'offline_access' is in scope but b2b_integration clients are not " +
+            "issued refresh tokens. Set authorizationParameters.scope to " +
+            "'openid profile email' to drop it — the default scope includes offline_access."
+        );
+      }
+
+      if (!options.authorizationParameters?.organization) {
+        console.warn(
+          "WARNING: appType is 'b2b_integration' but no default 'organization' is set in " +
+            "authorizationParameters. Without an organization on the /authorize request, " +
+            "Auth0 shows a hosted organization-selection screen, and that prompt rejects " +
+            "the 'connection' parameter with invalid_request. Pass 'organization' per " +
+            "login (via /auth/login query params) or set a default here."
+        );
+      }
+    }
+
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
@@ -780,6 +901,7 @@ export class Auth0Client {
 
           beforeSessionSaved: options.beforeSessionSaved,
           onCallback: options.onCallback,
+          appType: options.appType,
 
           routes: this.routes,
 
@@ -1653,6 +1775,52 @@ export class Auth0Client {
 
   private createRequestCookies(req: PagesRouterRequest) {
     return new RequestCookies(toHeadersFromIncomingMessage(req));
+  }
+
+  /**
+   * Replaces every session-backed member with one that throws, for Enterprise
+   * Connect clients.
+   *
+   * Called once from the constructor. Each entry is defined as an own property on
+   * the instance, shadowing the prototype implementation, so the real method is
+   * never reachable. Members absent from {@link EC_UNAVAILABLE_MEMBERS} are
+   * untouched — notably `middleware`, which mounts the routes the whole flow
+   * depends on.
+   *
+   * This is done here rather than by wrapping the instance in a `Proxy`: methods
+   * read the `#options` private field, which throws a `TypeError` when invoked
+   * with a `Proxy` as `this`.
+   */
+  private disableSessionMembersForEnterpriseConnect(): void {
+    for (const [member, guidance] of Object.entries(EC_UNAVAILABLE_MEMBERS)) {
+      // Getters (`passwordless`, `passkey`) must throw on access, not on call:
+      // there is no sub-client to hand back.
+      const isGetter = EC_UNAVAILABLE_GETTERS.has(member);
+      const label = isGetter ? member : `${member}()`;
+
+      const error = () =>
+        new InvalidConfigurationError(
+          `${label} is not available when appType is 'b2b_integration'. ${guidance}`
+        );
+
+      Object.defineProperty(this, member, {
+        configurable: true,
+        enumerable: false,
+        ...(isGetter
+          ? {
+              get: () => {
+                throw error();
+              }
+            }
+          : {
+              // Reject rather than throw synchronously: every replaced method is
+              // async, so callers reasonably expect `.catch()` and `try` around
+              // `await` to handle this.
+              value: () => Promise.reject(error()),
+              writable: true
+            })
+      });
+    }
   }
 
   /**

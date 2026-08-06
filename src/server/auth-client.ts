@@ -233,7 +233,17 @@ export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
   session: SessionData | null
-) => Promise<NextResponse>;
+  /**
+   * Returning `null` or nothing suppresses the Auth0 session cookie — the hook is
+   * expected to have persisted identity elsewhere. This is only valid on the
+   * successful callback path; error paths and the connected-account flow still
+   * require a `NextResponse`.
+   *
+   * When `appType: "b2b_integration"` is set the cookie is suppressed regardless
+   * of the return value, so returning nothing is the idiomatic Enterprise Connect
+   * pattern. Return a `NextResponse` to control the redirect destination.
+   */
+) => Promise<NextResponse | null | void>;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -324,6 +334,8 @@ export interface AuthClientOptions {
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
 
+  appType?: "b2b_integration";
+
   routes: Routes;
 
   // custom fetch implementation to allow for dependency injection
@@ -401,6 +413,8 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
+
+  private appType?: "b2b_integration";
 
   private routes: Routes;
 
@@ -564,6 +578,8 @@ export class AuthClient {
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
+
+    this.appType = options.appType;
 
     // routes
     this.routes = options.routes;
@@ -1154,7 +1170,17 @@ export class AuthClient {
       state
     );
     if (!transactionStateCookie) {
-      return this.onCallback(new InvalidStateError(), {}, null);
+      const errorRes = await this.onCallback(new InvalidStateError(), {}, null);
+
+      if (!errorRes) {
+        throw new InvalidConfigurationError(
+          "onCallback must return a NextResponse when handling an error. " +
+            "Stateless passthrough (returning null) is only supported on the " +
+            "successful callback path."
+        );
+      }
+
+      return errorRes;
     }
 
     const transactionState = transactionStateCookie.payload;
@@ -1255,6 +1281,14 @@ export class AuthClient {
         },
         session
       );
+
+      if (!res) {
+        throw new InvalidConfigurationError(
+          "onCallback must return a NextResponse when connecting an account. " +
+            "Stateless passthrough (returning null) is not supported for the " +
+            "connect-account flow, which requires an existing Auth0 session."
+        );
+      }
 
       await this.transactionStore.delete(res.cookies, state);
 
@@ -1579,6 +1613,24 @@ export class AuthClient {
     }
 
     const res = await this.onCallback(null, onCallbackCtx, session);
+
+    // Stateless passthrough (Enterprise Connect). Auth0 acted as an SSO relay
+    // only — the hook has persisted identity itself, so no session cookie is
+    // written and beforeSessionSaved is not run.
+    //
+    // `appType` opts in for every callback; returning null/undefined opts in
+    // per-callback for apps that cannot set it.
+    if (this.appType === "b2b_integration" || !res) {
+      const passthroughRes =
+        res ??
+        NextResponse.redirect(
+          createRouteUrl(onCallbackCtx.returnTo || "/", appBaseUrl).toString()
+        );
+
+      await this.transactionStore.delete(passthroughRes.cookies, state);
+
+      return passthroughRes;
+    }
 
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
@@ -2802,6 +2854,14 @@ export class AuthClient {
     }
 
     const response = await this.onCallback(error, ctx, null);
+
+    if (!response) {
+      throw new InvalidConfigurationError(
+        "onCallback must return a NextResponse when handling an error. " +
+          "Stateless passthrough (returning null) is only supported on the " +
+          "successful callback path."
+      );
+    }
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {

@@ -32,7 +32,7 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient } from "./auth-client.js";
+import { AuthClient, type AuthClientOptions } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -5706,6 +5706,251 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie has not been set
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeUndefined();
+      });
+    });
+
+    describe("stateless passthrough (Enterprise Connect)", async () => {
+      /**
+       * Drives a successful callback and returns the response, so each test can
+       * assert on cookies and redirect target.
+       */
+      async function runCallback({
+        onCallback,
+        appType,
+        returnTo = "/dashboard"
+      }: {
+        onCallback: AuthClientOptions["onCallback"];
+        appType?: "b2b_integration";
+        returnTo?: string;
+      }) {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          onCallback,
+          appType
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 60 * 60);
+
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+
+        return authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+      }
+
+      it("skips the session cookie when appType is b2b_integration", async () => {
+        const onCallback = vi.fn().mockResolvedValue(undefined);
+
+        const response = await runCallback({
+          onCallback,
+          appType: "b2b_integration"
+        });
+
+        // The hook still receives the session so it can persist identity itself.
+        // Claims are unfiltered here: beforeSessionSaved and the default claim
+        // filter both belong to the session-write path, which passthrough skips.
+        expect(onCallback).toHaveBeenCalledWith(
+          null,
+          expect.objectContaining({ returnTo: "/dashboard" }),
+          expect.objectContaining({
+            user: expect.objectContaining({ sub: DEFAULT.sub })
+          })
+        );
+
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("redirects to returnTo when the hook returns nothing", async () => {
+        const response = await runCallback({
+          onCallback: vi.fn().mockResolvedValue(undefined),
+          appType: "b2b_integration",
+          returnTo: "/dashboard"
+        });
+
+        expect(response.status).toEqual(307);
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/dashboard"
+        );
+      });
+
+      it("falls back to the app base URL when the transaction has no returnTo", async () => {
+        const response = await runCallback({
+          onCallback: vi.fn().mockResolvedValue(undefined),
+          appType: "b2b_integration",
+          returnTo: ""
+        });
+
+        expect(response.status).toEqual(307);
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/"
+        );
+      });
+
+      it("honours a response returned by the hook over the returnTo redirect", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/welcome", DEFAULT.appBaseUrl))
+            ),
+          appType: "b2b_integration",
+          returnTo: "/dashboard"
+        });
+
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/welcome"
+        );
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("clears the transaction cookie on the passthrough path", async () => {
+        const response = await runCallback({
+          onCallback: vi.fn().mockResolvedValue(undefined),
+          appType: "b2b_integration"
+        });
+
+        const txnCookie = response.cookies.get("__txn_transaction-state");
+        expect(txnCookie?.value).toEqual("");
+        expect(txnCookie?.maxAge).toEqual(0);
+      });
+
+      it("skips the session cookie when the hook returns null without appType", async () => {
+        const response = await runCallback({
+          onCallback: vi.fn().mockResolvedValue(null),
+          returnTo: "/dashboard"
+        });
+
+        expect(response.cookies.get("__session")).toBeUndefined();
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/dashboard"
+        );
+      });
+
+      it("still writes the session cookie when appType is not set", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
+        });
+
+        expect(response.cookies.get("__session")).toBeDefined();
+      });
+
+      it("does not run beforeSessionSaved on the passthrough path", async () => {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const beforeSessionSaved = vi.fn();
+
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          appType: "b2b_integration",
+          beforeSessionSaved,
+          onCallback: vi.fn().mockResolvedValue(undefined)
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(
+            {
+              nonce: "nonce-value",
+              maxAge: 3600,
+              codeVerifier: "code-verifier",
+              responseType: RESPONSE_TYPES.CODE,
+              state,
+              returnTo: "/dashboard"
+            } satisfies TransactionState,
+            secret,
+            Math.floor(Date.now() / 1000 + 60 * 60)
+          )}`
+        );
+
+        await authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+
+        expect(beforeSessionSaved).not.toHaveBeenCalled();
+      });
+
+      it("throws when the hook returns null on the invalid-state error path", async () => {
+        const secret = await generateSecret(32);
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          appType: "b2b_integration",
+          onCallback: vi.fn().mockResolvedValue(null)
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", "transaction-state");
+
+        // No matching __txn_ cookie, so the invalid-state path runs.
+        await expect(
+          authClient.handleCallback(new NextRequest(url, { method: "GET" }))
+        ).rejects.toThrow(/must return a NextResponse when handling an error/);
       });
     });
 
