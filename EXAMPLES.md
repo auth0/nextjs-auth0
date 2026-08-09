@@ -6116,3 +6116,156 @@ if (session) {
   console.log("Session issuer:", session.internal.mcd?.issuer);
 }
 ```
+
+## Enterprise Connect (B2B Integration)
+
+Enterprise Connect lets a B2B SaaS application layer enterprise SSO on top of its own auth server without replacing it. Auth0 acts as a pure SSO relay — it federates to the customer's enterprise IdP (Okta, Azure AD, SAML, etc.) and returns an ID token. The SaaS app's own auth server remains the session authority.
+
+Set `appType: 'b2b_integration'` to put the SDK into this mode.
+
+### How it works
+
+1. The user enters their email on your login page.
+2. Your server calls `isFederatedDomain` to check whether Auth0 manages SSO for that email domain.
+3. If yes, your app redirects to `/auth/login` with `connection` and `organization` looked up from your database.
+4. Auth0 federates to the enterprise IdP, validates the assertion, and redirects back to `/auth/callback`.
+5. `onCallback` fires with the ID token claims — your app writes its own session and returns a `NextResponse`.
+6. Auth0 never writes a session cookie. `getSession()` is unavailable in this mode.
+
+### Domain discovery
+
+```ts
+// app/api/check-domain/route.ts
+import { isFederatedDomain } from "@auth0/nextjs-auth0/server";
+import { NextRequest, NextResponse } from "next/server";
+
+export async function POST(req: NextRequest) {
+  const { email } = await req.json();
+  const emailDomain = email.split("@")[1];
+  const isFederated = await isFederatedDomain(process.env.AUTH0_DOMAIN!, emailDomain);
+  return NextResponse.json({ isFederated });
+}
+```
+
+`isFederatedDomain` calls Auth0's WebFinger endpoint and caches results (60 s for managed domains, 15 s for unmanaged). Call it server-side only — never from the browser.
+
+### Initialize the SDK
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { NextResponse } from "next/server";
+
+export const auth0 = new Auth0Client({
+  appType: "b2b_integration",
+  authorizationParameters: {
+    scope: "openid profile email",  // no offline_access — EC has no refresh token
+  },
+  async onCallback(error, ctx, session) {
+    if (error) throw error;
+    if (!session?.user) return;
+
+    // Validate org_id before trusting the login
+    const orgId = session.user["org_id"] as string;
+
+    // Write your own session. Auth0 does not manage it.
+    // For a cookie-based session you must return a NextResponse with the cookie.
+    const encoded = Buffer.from(JSON.stringify({
+      sub: session.user.sub,
+      email: session.user.email,
+      orgId,
+    })).toString("base64");
+
+    const res = NextResponse.redirect(
+      new URL(ctx.returnTo ?? "/dashboard", process.env.APP_BASE_URL)
+    );
+    res.cookies.set("app_session", encoded, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+    return res;
+  }
+});
+```
+
+`session.user` in `onCallback` contains all raw ID token claims unfiltered, including `org_id`, any UAP-mapped enterprise IdP claims (`department`, `employee_id`, etc.), and OIDC protocol claims (`iss`, `aud`, `exp`). Persist only the claims you need.
+
+### Login form
+
+```tsx
+"use client";
+
+export default function LoginPage() {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;
+
+    const { isFederated, connection, orgId } = await fetch("/api/check-domain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    }).then(r => r.json());
+
+    if (isFederated) {
+      // connection and orgId come from your database via the check-domain route
+      const params = new URLSearchParams({ connection, organization: orgId, login_hint: email });
+      window.location.href = `/auth/login?${params}`;
+    } else {
+      // route through your existing login
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="email" type="email" required />
+      <button type="submit">Continue</button>
+    </form>
+  );
+}
+```
+
+Always pass `organization` alongside `connection`. `b2b_integration` clients require `organization_usage: "require"` — omitting it shows the Auth0 org-selection prompt, which rejects the `connection` parameter.
+
+Do not set a static `organization` in `authorizationParameters` — each enterprise customer has their own `org_id`. Look it up from your database by email domain on each login.
+
+### Protected pages
+
+```ts
+// app/dashboard/page.tsx
+import { redirect } from "next/navigation";
+import { getAppSession } from "@/lib/session"; // your own store
+
+export default async function Dashboard() {
+  const session = await getAppSession(); // auth0.getSession() throws in EC mode
+  if (!session) redirect("/login");
+  return <p>Welcome, {session.email}</p>;
+}
+```
+
+### Logout
+
+```ts
+// app/api/logout/route.ts
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  const res = NextResponse.redirect(
+    new URL("/auth/logout?federated=true", process.env.APP_BASE_URL)
+  );
+  res.cookies.set("app_session", "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
+  return res;
+}
+```
+
+The SDK's logout route handles EC mode automatically — it uses the OIDC `end_session_endpoint` directly and sets `federated=true` to terminate the enterprise IdP session via SAML SLO.
+
+For SAML IdPs, ensure the IdP application has `logout.callback` configured in the SAML addon settings, otherwise the IdP session persists after logout and the next login reuses the previous user's session.
+
+### Unavailable methods
+
+The following throw `InvalidConfigurationError` in EC mode because they require an Auth0-managed session or refresh token that EC does not create:
+
+`getSession`, `getAccessToken`, `getAccessTokenForConnection`, `revokeRefreshToken`, `requestSessionTransferToken`, `updateSession`, `connectAccount`, `createFetcher`, `buildSessionTransferRedirect`, `getTokenByBackchannelAuth`, `passwordless`, `passkey`, `mfa`
+
+See `examples/with-enterprise-connect` for a working end-to-end example.
