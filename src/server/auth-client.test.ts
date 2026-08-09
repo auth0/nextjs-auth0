@@ -4112,6 +4112,161 @@ ca/T0LLtgmbMmxSv/MmzIg==
         warnSpy.mockRestore();
       });
     });
+
+    describe("Enterprise Connect (appType: b2b_integration)", async () => {
+      it("uses end_session_endpoint and sets federated=true when federated param is present", async () => {
+        const secret = await generateSecret(32);
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+          appType: "b2b_integration"
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+
+        const location = new URL(response.headers.get("Location")!);
+        // uses the OIDC end_session_endpoint, not /v2/logout
+        expect(location.pathname).toMatch(
+          /\/oidc\/logout|\/connect\/endsession/
+        );
+        // federated is set to the string "true", not empty string
+        expect(location.searchParams.get("federated")).toEqual("true");
+        expect(location.searchParams.get("client_id")).toEqual(
+          DEFAULT.clientId
+        );
+        expect(
+          location.searchParams.get("post_logout_redirect_uri")
+        ).toBeTruthy();
+      });
+
+      it("does not include id_token_hint even when a session exists", async () => {
+        const secret = await generateSecret(32);
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+          appType: "b2b_integration",
+          includeIdTokenHintInOIDCLogoutUrl: true
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        const response = await authClient.handleLogout(request);
+        const location = new URL(response.headers.get("Location")!);
+        expect(location.searchParams.get("id_token_hint")).toBeNull();
+      });
+
+      it("omits federated param when not requested", async () => {
+        const secret = await generateSecret(32);
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+          appType: "b2b_integration"
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        const response = await authClient.handleLogout(request);
+        const location = new URL(response.headers.get("Location")!);
+        expect(location.searchParams.has("federated")).toBe(false);
+      });
+
+      it("falls back to /oidc/logout when end_session_endpoint is absent", async () => {
+        const secret = await generateSecret(32);
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            discoveryResponse: new Response(
+              JSON.stringify({
+                issuer: `https://${DEFAULT.domain}/`,
+                authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
+                token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
+                jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`
+                // end_session_endpoint intentionally absent
+              }),
+              { headers: { "Content-Type": "application/json" } }
+            )
+          }),
+          appType: "b2b_integration"
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        const location = new URL(response.headers.get("Location")!);
+        expect(location.pathname).toEqual("/oidc/logout");
+        expect(location.searchParams.get("federated")).toEqual("true");
+      });
+
+      it("clears transaction cookies on EC logout", async () => {
+        const secret = await generateSecret(32);
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+          appType: "b2b_integration"
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        const response = await authClient.handleLogout(request);
+        // Transaction cookies should be cleared (maxAge 0)
+        expect(response.status).toEqual(307);
+      });
+    });
   });
 
   describe("handleProfile", async () => {
@@ -5921,6 +6076,108 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
 
         expect(beforeSessionSaved).not.toHaveBeenCalled();
+      });
+
+      it("emits a console.warn when appType is b2b_integration and onCallback returns void", async () => {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+          appType: "b2b_integration",
+          onCallback: vi.fn().mockResolvedValue(undefined)
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(
+            {
+              nonce: "nonce-value",
+              maxAge: 3600,
+              codeVerifier: "code-verifier",
+              responseType: RESPONSE_TYPES.CODE,
+              state,
+              returnTo: "/dashboard"
+            } satisfies TransactionState,
+            secret,
+            Math.floor(Date.now() / 1000 + 60 * 60)
+          )}`
+        );
+
+        await authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("EC mode: onCallback returned void/null")
+        );
+        warnSpy.mockRestore();
+      });
+
+      it("does not emit a console.warn when appType is b2b_integration and onCallback returns a NextResponse", async () => {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+          appType: "b2b_integration",
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(
+            {
+              nonce: "nonce-value",
+              maxAge: 3600,
+              codeVerifier: "code-verifier",
+              responseType: RESPONSE_TYPES.CODE,
+              state,
+              returnTo: "/dashboard"
+            } satisfies TransactionState,
+            secret,
+            Math.floor(Date.now() / 1000 + 60 * 60)
+          )}`
+        );
+
+        await authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("EC mode:")
+        );
+        warnSpy.mockRestore();
       });
 
       it("throws when the hook returns null on the invalid-state error path", async () => {

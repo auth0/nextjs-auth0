@@ -91,12 +91,20 @@ import {
  *
  * This is the single source of truth for the restriction: the constructor walks
  * this object and replaces each member with one that throws. Adding a
- * session-backed method to `Auth0Client` means adding a line here.
+ * session-backed method to `Auth0Client` means adding a line here — and, if it is
+ * a getter or a synchronous method, to {@link EC_UNAVAILABLE_GETTERS} or
+ * {@link EC_UNAVAILABLE_SYNC_METHODS} as well.
  *
  * Deliberately excluded, because they hold no session state and the flow depends
  * on them: `middleware` (mounts `/auth/login`, `/auth/callback`, `/auth/logout`),
- * `startInteractiveLogin`, `customTokenExchange`, `getTokenByBackchannelAuth`,
- * `buildSessionTransferRedirect` and `mfa`.
+ * `startInteractiveLogin`, and `customTokenExchange`.
+ *
+ * Note for maintainers: because the replacements are own properties on the
+ * instance, they also shadow internal `this.<member>()` calls. Every current
+ * caller of `this.getSession()` inside this class is itself listed here, so the
+ * shadow is only ever hit on an already-blocked path. A future member that stays
+ * available must not read the session via `this.getSession()` — use the private
+ * `getSessionFromAuthClient` helper, which is never shadowed.
  */
 const EC_UNAVAILABLE_MEMBERS: Record<string, string> = {
   getSession:
@@ -124,19 +132,37 @@ const EC_UNAVAILABLE_MEMBERS: Record<string, string> = {
   createFetcher:
     "The fetcher attaches an access token read from an Auth0 session, which does " +
     "not exist in this mode. Pass your own token to fetch directly.",
+  buildSessionTransferRedirect:
+    "Session transfer requires an existing Auth0 session to transfer, which is not " +
+    "created in this mode.",
+  getTokenByBackchannelAuth:
+    "CIBA requires the auth_req_id from /bc-authorize to be held between requests, " +
+    "and Enterprise Connect stores no transaction state across them.",
   passwordless:
     "Passwordless establishes an Auth0 session, which conflicts with this mode. " +
     "Authentication must go through the enterprise IdP via /auth/login.",
   passkey:
     "Passkeys establish an Auth0 session, which conflicts with this mode. " +
-    "Authentication must go through the enterprise IdP via /auth/login."
+    "Authentication must go through the enterprise IdP via /auth/login.",
+  mfa:
+    "MFA requires Auth0 to manage authentication state across requests, which " +
+    "does not exist in this mode. MFA must be handled by the enterprise IdP."
 };
 
 /**
  * Subset of {@link EC_UNAVAILABLE_MEMBERS} that are getters rather than methods,
  * and so must throw on property access instead of on invocation.
  */
-const EC_UNAVAILABLE_GETTERS = new Set(["passwordless", "passkey"]);
+const EC_UNAVAILABLE_GETTERS = new Set(["passwordless", "passkey", "mfa"]);
+
+/**
+ * Subset of {@link EC_UNAVAILABLE_MEMBERS} that are synchronous methods.
+ *
+ * These must throw rather than return a rejected promise: their declared return
+ * type is not a `Promise`, so rejecting would both contradict the signature and
+ * escape a plain `try`/`catch` as an unhandled rejection.
+ */
+const EC_UNAVAILABLE_SYNC_METHODS = new Set(["buildSessionTransferRedirect"]);
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -867,7 +893,9 @@ export class Auth0Client {
             "authorizationParameters. Without an organization on the /authorize request, " +
             "Auth0 shows a hosted organization-selection screen, and that prompt rejects " +
             "the 'connection' parameter with invalid_request. Pass 'organization' per " +
-            "login (via /auth/login query params) or set a default here."
+            "login via /auth/login query params (looked up from your database by email " +
+            "domain) — do not set a static default here unless this client serves exactly " +
+            "one organization."
         );
       }
     }
@@ -1782,20 +1810,27 @@ export class Auth0Client {
    * Connect clients.
    *
    * Called once from the constructor. Each entry is defined as an own property on
-   * the instance, shadowing the prototype implementation, so the real method is
-   * never reachable. Members absent from {@link EC_UNAVAILABLE_MEMBERS} are
-   * untouched — notably `middleware`, which mounts the routes the whole flow
-   * depends on.
+   * the instance, which shadows the prototype implementation for ordinary property
+   * access. Members absent from {@link EC_UNAVAILABLE_MEMBERS} are untouched —
+   * notably `middleware`, which mounts the routes the whole flow depends on.
    *
-   * This is done here rather than by wrapping the instance in a `Proxy`: methods
-   * read the `#options` private field, which throws a `TypeError` when invoked
-   * with a `Proxy` as `this`.
+   * Shadowing is deliberate, in preference to returning a `Proxy` from the
+   * constructor. A Proxy would additionally close the two remaining escapes below,
+   * but it costs an indirection on every property access and depends on three
+   * easily-broken invariants (`Reflect.get` must receive `target` rather than the
+   * proxy, function values must be bound to `target`, and reads must be memoised
+   * to keep method identity stable). Both escapes require deliberate effort, so
+   * the trade is not worth it:
+   *
+   * - `Object.getPrototypeOf(client).getSession.call(client)`
+   * - `delete client.getSession`, since the property is `configurable`
    */
   private disableSessionMembersForEnterpriseConnect(): void {
     for (const [member, guidance] of Object.entries(EC_UNAVAILABLE_MEMBERS)) {
-      // Getters (`passwordless`, `passkey`) must throw on access, not on call:
-      // there is no sub-client to hand back.
+      // Getters (`passwordless`, `passkey`, `mfa`) must throw on access, not on
+      // call: there is no sub-client to hand back.
       const isGetter = EC_UNAVAILABLE_GETTERS.has(member);
+      const isSyncMethod = EC_UNAVAILABLE_SYNC_METHODS.has(member);
       const label = isGetter ? member : `${member}()`;
 
       const error = () =>
@@ -1812,13 +1847,22 @@ export class Auth0Client {
                 throw error();
               }
             }
-          : {
-              // Reject rather than throw synchronously: every replaced method is
-              // async, so callers reasonably expect `.catch()` and `try` around
-              // `await` to handle this.
-              value: () => Promise.reject(error()),
-              writable: true
-            })
+          : isSyncMethod
+            ? {
+                // Throw synchronously: the real method does not return a Promise,
+                // so rejecting would contradict its signature and surface as an
+                // unhandled rejection instead of being caught by `try`/`catch`.
+                value: () => {
+                  throw error();
+                },
+                writable: true
+              }
+            : {
+                // Reject rather than throw: these members are async, so callers
+                // reasonably expect `.catch()` and `try` around `await` to work.
+                value: () => Promise.reject(error()),
+                writable: true
+              })
       });
     }
   }

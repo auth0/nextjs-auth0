@@ -14,6 +14,10 @@ interface CacheEntry {
 
 const _cache = new Map<string, CacheEntry>();
 
+// Prevent unbounded memory growth in multi-tenant deployments where many
+// distinct domains are checked. FIFO eviction — oldest entry removed first.
+const CACHE_MAX_SIZE = 1_000;
+
 /**
  * TTL for a positive result. Matches the server's `Cache-Control` for
  * managed domains. A removed domain can appear federated for up to this
@@ -29,6 +33,13 @@ const TTL_TRUE_MS = 60_000;
 const TTL_FALSE_MS = 15_000;
 
 const OIDC_REL = "http://openid.net/specs/connect/1.0/issuer";
+
+function setCacheEntry(key: string, result: boolean, ttlMs: number): void {
+  if (_cache.size >= CACHE_MAX_SIZE) {
+    _cache.delete(_cache.keys().next().value!);
+  }
+  _cache.set(key, { result, expiresAt: Date.now() + ttlMs });
+}
 
 /**
  * Checks whether an email domain is managed for enterprise SSO on an Auth0 tenant.
@@ -88,7 +99,7 @@ export async function isFederatedDomain(
         body.links.some((link: { rel?: string }) => link?.rel === OIDC_REL);
 
       if (managed) {
-        _cache.set(key, { result: true, expiresAt: Date.now() + TTL_TRUE_MS });
+        setCacheEntry(key, true, TTL_TRUE_MS);
         return true;
       }
 
@@ -98,7 +109,7 @@ export async function isFederatedDomain(
     }
 
     if (res.status === 404) {
-      _cache.set(key, { result: false, expiresAt: Date.now() + TTL_FALSE_MS });
+      setCacheEntry(key, false, TTL_FALSE_MS);
       return false;
     }
 

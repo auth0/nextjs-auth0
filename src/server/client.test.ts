@@ -1877,8 +1877,63 @@ describe("Auth0Client", () => {
         }
       );
 
-      it("leaves mfa available, since it holds no session state", () => {
-        expect(() => ecClient().mfa).not.toThrow();
+      it("throws on mfa access, since MFA requires Auth0 session state EC does not create", () => {
+        expect(() => ecClient().mfa).toThrow(InvalidConfigurationError);
+        expect(() => ecClient().mfa).toThrow(
+          /mfa is not available when appType/
+        );
+      });
+    });
+
+    describe("synchronous members throw rather than reject", () => {
+      // buildSessionTransferRedirect returns NextResponse, not a Promise.
+      // Rejecting would contradict its signature and escape try/catch as an
+      // unhandled rejection.
+      it("throws synchronously from buildSessionTransferRedirect", () => {
+        const client = ecClient();
+
+        expect(() =>
+          client.buildSessionTransferRedirect(
+            "https://app.example.com/auth/login",
+            {
+              sessionTransferToken: "stt"
+            } as never
+          )
+        ).toThrow(InvalidConfigurationError);
+      });
+
+      it("is catchable with a plain try/catch, with no await", () => {
+        const client = ecClient();
+        let caught: unknown;
+
+        try {
+          client.buildSessionTransferRedirect(
+            "https://app.example.com/auth/login",
+            {
+              sessionTransferToken: "stt"
+            } as never
+          );
+        } catch (e) {
+          caught = e;
+        }
+
+        expect(caught).toBeInstanceOf(InvalidConfigurationError);
+        expect((caught as Error).message).toMatch(
+          /buildSessionTransferRedirect\(\) is not available when appType/
+        );
+      });
+
+      it("does not return a promise, so nothing is left unhandled", () => {
+        const client = ecClient();
+
+        expect(() =>
+          client.buildSessionTransferRedirect(
+            "https://app.example.com/auth/login",
+            {
+              sessionTransferToken: "stt"
+            } as never
+          )
+        ).toThrow();
       });
     });
 
@@ -1888,14 +1943,26 @@ describe("Auth0Client", () => {
         expect(typeof ecClient().middleware).toBe("function");
       });
 
-      it.each([
-        "startInteractiveLogin",
-        "customTokenExchange",
-        "getTokenByBackchannelAuth",
-        "buildSessionTransferRedirect"
-      ])("keeps %s callable", (member) => {
-        const client = ecClient() as unknown as Record<string, unknown>;
-        expect(typeof client[member]).toBe("function");
+      it.each(["startInteractiveLogin", "customTokenExchange"])(
+        "keeps %s callable",
+        (member) => {
+          const client = ecClient() as unknown as Record<string, unknown>;
+          expect(typeof client[member]).toBe("function");
+        }
+      );
+
+      it("blocks getTokenByBackchannelAuth, since CIBA needs cross-request state", async () => {
+        const client = ecClient() as unknown as Record<
+          string,
+          () => Promise<unknown>
+        >;
+
+        await expect(client.getTokenByBackchannelAuth()).rejects.toThrow(
+          InvalidConfigurationError
+        );
+        await expect(client.getTokenByBackchannelAuth()).rejects.toThrow(
+          /auth_req_id/
+        );
       });
     });
 

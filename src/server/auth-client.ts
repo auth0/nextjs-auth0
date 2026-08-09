@@ -1046,6 +1046,28 @@ export class AuthClient {
     const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 
+    // In EC mode there is no Auth0 session cookie, so no id_token_hint is
+    // available. We use the OIDC end_session_endpoint directly with
+    // federated=true (not federated="") so the enterprise IdP session is
+    // terminated via SAML SLO without needing a hint.
+    if (this.appType === "b2b_integration") {
+      const endSessionEndpoint =
+        authorizationServerMetadata.end_session_endpoint ||
+        new URL("/oidc/logout", this.issuer).toString();
+      const url = new URL(endSessionEndpoint);
+      url.searchParams.set("client_id", this.clientMetadata.client_id);
+      url.searchParams.set("post_logout_redirect_uri", returnTo);
+      if (federated) {
+        url.searchParams.set("federated", "true");
+      }
+      const ecLogoutResponse = NextResponse.redirect(url);
+      await this.transactionStore.deleteAll(
+        req.cookies,
+        ecLogoutResponse.cookies
+      );
+      return ecLogoutResponse;
+    }
+
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
@@ -1621,6 +1643,18 @@ export class AuthClient {
     // `appType` opts in for every callback; returning null/undefined opts in
     // per-callback for apps that cannot set it.
     if (this.appType === "b2b_integration" || !res) {
+      // In EC mode, returning void/null from onCallback means the SDK redirects
+      // to returnTo without setting any session cookie. Cookie-based sessions
+      // must return a NextResponse with the cookie attached.
+      if (this.appType === "b2b_integration" && !res) {
+        console.warn(
+          "[Auth0] EC mode: onCallback returned void/null. If you are using a " +
+            "cookie-based session, return a NextResponse with the cookie attached " +
+            "from onCallback — returning void causes the SDK to redirect without " +
+            "setting any session cookie."
+        );
+      }
+
       const passthroughRes =
         res ??
         NextResponse.redirect(
