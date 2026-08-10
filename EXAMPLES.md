@@ -3721,7 +3721,9 @@ export default async function Page() {
 
   return (
     <div>
-      {canInvite && <InviteMemberButton />}
+      {canInvite && (
+        <button type="button">Invite Member</button>
+      )}
     </div>
   );
 }
