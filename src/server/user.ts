@@ -13,7 +13,8 @@ export const DEFAULT_ID_TOKEN_CLAIMS = [
   "email",
   "email_verified",
   "org_id",
-  "act"
+  "act",
+  "urn:auth0:my_org_current_user_permissions"
 ];
 
 /**
