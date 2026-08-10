@@ -1056,7 +1056,13 @@ export class AuthClient {
         new URL("/oidc/logout", this.issuer).toString();
       const url = new URL(endSessionEndpoint);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
-      url.searchParams.set("post_logout_redirect_uri", returnTo);
+      url.searchParams.set(
+        "post_logout_redirect_uri",
+        createRouteUrl(returnTo, appBaseUrl).toString()
+      );
+      if (logoutState) {
+        url.searchParams.set("state", logoutState);
+      }
       if (federated) {
         url.searchParams.set("federated", "true");
       }
@@ -1643,12 +1649,12 @@ export class AuthClient {
     // `appType` opts in for every callback; returning null/undefined opts in
     // per-callback for apps that cannot set it.
     if (this.appType === "b2b_integration" || !res) {
-      // In EC mode, returning void/null from onCallback means the SDK redirects
-      // to returnTo without setting any session cookie. Cookie-based sessions
-      // must return a NextResponse with the cookie attached.
-      if (this.appType === "b2b_integration" && !res) {
+      // Returning void/null from onCallback means the SDK redirects to returnTo
+      // without setting any session cookie. Cookie-based sessions must return a
+      // NextResponse with the cookie attached.
+      if (!res) {
         console.warn(
-          "[Auth0] EC mode: onCallback returned void/null. If you are using a " +
+          "[Auth0] onCallback returned void/null. If you are using a " +
             "cookie-based session, return a NextResponse with the cookie attached " +
             "from onCallback — returning void causes the SDK to redirect without " +
             "setting any session cookie."

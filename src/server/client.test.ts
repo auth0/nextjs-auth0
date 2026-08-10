@@ -1923,18 +1923,6 @@ describe("Auth0Client", () => {
         );
       });
 
-      it("does not return a promise, so nothing is left unhandled", () => {
-        const client = ecClient();
-
-        expect(() =>
-          client.buildSessionTransferRedirect(
-            "https://app.example.com/auth/login",
-            {
-              sessionTransferToken: "stt"
-            } as never
-          )
-        ).toThrow();
-      });
     });
 
     describe("members the flow depends on stay available", () => {

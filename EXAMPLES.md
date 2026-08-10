@@ -6143,11 +6143,19 @@ export async function POST(req: NextRequest) {
   const { email } = await req.json();
   const emailDomain = email.split("@")[1];
   const isFederated = await isFederatedDomain(process.env.AUTH0_DOMAIN!, emailDomain);
-  return NextResponse.json({ isFederated });
+
+  if (!isFederated) {
+    return NextResponse.json({ isFederated, emailDomain });
+  }
+
+  // Look up the connection name and org_id for this domain from your database.
+  // Each enterprise customer has their own values configured when they onboard.
+  const { connection, orgId } = await getEnterpriseConfig(emailDomain);
+  return NextResponse.json({ isFederated, emailDomain, connection, orgId });
 }
 ```
 
-`isFederatedDomain` calls Auth0's WebFinger endpoint and caches results (60 s for managed domains, 15 s for unmanaged). Call it server-side only — never from the browser.
+`isFederatedDomain` calls Auth0's WebFinger endpoint and caches results (60 s for managed domains, 15 s for unmanaged). Call it server-side only — never from the browser. An unauthenticated client-side call would let anyone enumerate which email domains are enterprise customers on your tenant.
 
 ### Initialize the SDK
 
@@ -6165,11 +6173,16 @@ export const auth0 = new Auth0Client({
     if (error) throw error;
     if (!session?.user) return;
 
-    // Validate org_id before trusting the login
     const orgId = session.user["org_id"] as string;
 
+    // Always validate org_id against your own database before trusting the login.
+    // This is the sole security check — Auth0 does not enforce org membership for you.
+    const isKnownOrg = await db.organizations.exists(orgId);
+    if (!isKnownOrg) throw new Error(`Unknown org: ${orgId}`);
+
     // Write your own session. Auth0 does not manage it.
-    // For a cookie-based session you must return a NextResponse with the cookie.
+    // In production use a signed/encrypted cookie or a server-side session store —
+    // plain base64 JSON is forgeable and unsuitable for production.
     const encoded = Buffer.from(JSON.stringify({
       sub: session.user.sub,
       email: session.user.email,

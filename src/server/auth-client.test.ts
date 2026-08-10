@@ -4152,7 +4152,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         ).toBeTruthy();
       });
 
-      it("does not include id_token_hint even when a session exists", async () => {
+      it("does not include id_token_hint regardless of includeIdTokenHintInOIDCLogoutUrl setting", async () => {
         const secret = await generateSecret(32);
         const sessionStore = new StatelessSessionStore({ secret });
         const authClient = new AuthClient({
@@ -4244,8 +4244,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("clears transaction cookies on EC logout", async () => {
         const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
         const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
+          transactionStore,
           sessionStore: new StatelessSessionStore({ secret }),
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -4257,14 +4258,34 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appType: "b2b_integration"
         });
 
+        // Plant a transaction cookie so we can verify it gets cleared
+        const txnState = "txn-state";
+        const txnCookieValue = await encrypt(
+          {
+            nonce: "nonce",
+            maxAge: 3600,
+            codeVerifier: "verifier",
+            responseType: RESPONSE_TYPES.CODE,
+            state: txnState,
+            returnTo: "/dashboard"
+          } satisfies TransactionState,
+          secret,
+          Math.floor(Date.now() / 1000 + 3600)
+        );
+
+        const headers = new Headers();
+        headers.set("cookie", `__txn_${txnState}=${txnCookieValue}`);
+
         const request = new NextRequest(
           new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET" }
+          { method: "GET", headers }
         );
 
         const response = await authClient.handleLogout(request);
-        // Transaction cookies should be cleared (maxAge 0)
         expect(response.status).toEqual(307);
+        // Transaction cookie must be cleared (maxAge 0 or explicitly deleted)
+        const txnCookie = response.cookies.get(`__txn_${txnState}`);
+        expect(txnCookie?.value === "" || txnCookie?.maxAge === 0 || !txnCookie).toBe(true);
       });
     });
   });
@@ -6081,6 +6102,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("emits a console.warn when appType is b2b_integration and onCallback returns void", async () => {
         const state = "transaction-state";
         const secret = await generateSecret(32);
+        // afterEach will restore via vi.restoreAllMocks()
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const authClient = new AuthClient({
@@ -6122,9 +6144,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
 
         expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("EC mode: onCallback returned void/null")
+          expect.stringContaining("onCallback returned void/null")
         );
-        warnSpy.mockRestore();
       });
 
       it("does not emit a console.warn when appType is b2b_integration and onCallback returns a NextResponse", async () => {
@@ -6175,9 +6196,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
 
         expect(warnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining("EC mode:")
+          expect.stringContaining("onCallback returned void/null")
         );
-        warnSpy.mockRestore();
       });
 
       it("throws when the hook returns null on the invalid-state error path", async () => {

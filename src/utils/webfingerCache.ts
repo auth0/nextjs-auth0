@@ -69,7 +69,8 @@ function setCacheEntry(key: string, result: boolean, ttlMs: number): void {
  */
 export async function isFederatedDomain(
   auth0Domain: string,
-  emailDomain: string
+  emailDomain: string,
+  timeoutMs = 5000
 ): Promise<boolean> {
   // The server lowercases the domain before lookup, so normalize here too —
   // otherwise "Acme.com" and "acme.com" would occupy separate cache entries
@@ -89,7 +90,8 @@ export async function isFederatedDomain(
     const res = await fetch(
       `https://${auth0Domain}/.well-known/webfinger` +
         `?resource=urn:auth0:discovery:domain:${encodeURIComponent(normalizedDomain)}` +
-        `&rel=${OIDC_REL}`
+        `&rel=${OIDC_REL}`,
+      { signal: AbortSignal.timeout(timeoutMs) }
     );
 
     if (res.ok) {

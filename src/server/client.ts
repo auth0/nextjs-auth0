@@ -317,7 +317,9 @@ export interface Auth0ClientOptions {
    *   appType: "b2b_integration",
    *   authorizationParameters: {
    *     scope: "openid profile email",
-   *     organization: "org_abc123"
+   *     // Do NOT set a static organization here for multi-customer deployments.
+   *     // Pass organization per login via /auth/login query params, looked up
+   *     // from your database by the user's email domain.
    *   },
    *   async onCallback(error, ctx, session) {
    *     if (error) throw error;
