@@ -15,8 +15,6 @@ export async function POST(req: NextRequest) {
     emailDomain
   );
 
-  console.log(`[EC] isFederatedDomain(${emailDomain}) = ${isFederated}`);
-
   if (!isFederated) {
     return NextResponse.json({ isFederated, emailDomain });
   }
