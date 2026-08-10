@@ -1922,7 +1922,6 @@ describe("Auth0Client", () => {
           /buildSessionTransferRedirect\(\) is not available when appType/
         );
       });
-
     });
 
     describe("members the flow depends on stay available", () => {

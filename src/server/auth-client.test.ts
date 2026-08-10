@@ -4285,7 +4285,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(response.status).toEqual(307);
         // Transaction cookie must be cleared (maxAge 0 or explicitly deleted)
         const txnCookie = response.cookies.get(`__txn_${txnState}`);
-        expect(txnCookie?.value === "" || txnCookie?.maxAge === 0 || !txnCookie).toBe(true);
+        expect(
+          txnCookie?.value === "" || txnCookie?.maxAge === 0 || !txnCookie
+        ).toBe(true);
       });
     });
   });
