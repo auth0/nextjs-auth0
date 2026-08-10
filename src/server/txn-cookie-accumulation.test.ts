@@ -162,6 +162,23 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
     secret = await generateSecret(32);
   });
 
+  it("logs a console.warn when eviction fires", async () => {
+    const store = new TransactionStore({ secret });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const reqCookies = makeRequestCookies({
+      __txn_old: BIG_VALUE(1000),
+      __txn_newer: BIG_VALUE(9999)
+    });
+    const resCookies = makeResponseCookies();
+
+    await store.save(resCookies, makeTransactionState("newstate"), reqCookies);
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0][0]).toMatch(/\[auth0\] Evicted/);
+    warnSpy.mockRestore();
+  });
+
   it("does not evict when no reqCookies passed (no eviction without snapshot)", async () => {
     const store = new TransactionStore({ secret });
     const resCookies = makeResponseCookies();
@@ -236,35 +253,37 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
 
     // Older cookie evicted first — present as a deletion tombstone (maxAge 0).
     expect(resCookies.get(`__txn_${olderState}`)?.maxAge).toBe(0);
-    // Newer cookie untouched — eviction stopped after freeing enough. Since it
-    // was never deleted it must NOT appear as a tombstone on the response; it
-    // may be absent (untouched) but must never be present with maxAge 0.
-    const newerCookie = resCookies.get(`__txn_${newerState}`);
-    if (newerCookie !== undefined) {
-      expect(newerCookie.maxAge).not.toBe(0);
-    }
+    // Newer cookie untouched — eviction stopped after freeing enough. It must
+    // not appear on the response at all (not even as a deletion tombstone).
+    expect(resCookies.get(`__txn_${newerState}`)).toBeUndefined();
     // New cookie written
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
-  it("evicts oldest login cookies first (FIFO by timestamp)", async () => {
+  it("evicts the two oldest first when three cookies must be freed (FIFO order)", async () => {
     const store = new TransactionStore({ secret });
 
-    const olderState = "older";
-    const newerState = "newer";
-    // Older timestamp should be evicted first once the limit is crossed.
+    // Three cookies all sized so the total exceeds 3500 bytes and two must be
+    // evicted before the new one can be written within the cap.
+    const oldestState = "oldest";
+    const middleState = "middle";
+    const newestState = "newest";
     const reqCookies = makeRequestCookies({
-      [`__txn_${olderState}`]: BIG_VALUE(1000),
-      [`__txn_${newerState}`]: BIG_VALUE(9999)
+      [`__txn_${oldestState}`]: BIG_VALUE(1000), // ts=1000 — evicted first
+      [`__txn_${middleState}`]: BIG_VALUE(5000), // ts=5000 — evicted second
+      [`__txn_${newestState}`]: BIG_VALUE(9999) // ts=9999 — must survive
     });
     const resCookies = makeResponseCookies();
 
     const newState = "latest";
     await store.save(resCookies, makeTransactionState(newState), reqCookies);
 
-    // Older cookie evicted first
-    expect(resCookies.get(`__txn_${olderState}`)?.maxAge).toBe(0);
-    // New cookie written
+    // Oldest two evicted in timestamp order.
+    expect(resCookies.get(`__txn_${oldestState}`)?.maxAge).toBe(0);
+    expect(resCookies.get(`__txn_${middleState}`)?.maxAge).toBe(0);
+    // Newest existing cookie untouched — must not appear on the response.
+    expect(resCookies.get(`__txn_${newestState}`)).toBeUndefined();
+    // New cookie written.
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
@@ -659,13 +678,9 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
 
     // Completing cookie deleted
     expect(callbackRes.cookies.get(`__txn_${state}`)?.maxAge).toBe(0);
-    // Tab B real login cookie must NOT be deleted — it may be absent from the
-    // response (never touched) but must never appear as a deletion tombstone
-    // (present with maxAge 0 and an empty value).
-    const tabB = callbackRes.cookies.get("__txn_tabB");
-    if (tabB !== undefined) {
-      expect(tabB.maxAge).not.toBe(0);
-    }
+    // Tab B real login cookie must NOT be deleted — it must not appear on the
+    // response at all (not even as a deletion tombstone).
+    expect(callbackRes.cookies.get("__txn_tabB")).toBeUndefined();
     // Session written
     expect(callbackRes.cookies.get("__session")?.value).toBeTruthy();
   });
