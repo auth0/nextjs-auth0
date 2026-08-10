@@ -29,7 +29,6 @@ export default function LoginPage() {
           returnTo: "/dashboard"
         });
 
-        console.log(`[EC] Federated domain detected (${emailDomain}), redirecting to SSO`);
         window.location.href = `/auth/login?${params}`;
       } else {
         // Non-enterprise user — your existing login flow would go here
@@ -39,8 +38,7 @@ export default function LoginPage() {
         );
       }
     } catch (err) {
-      setError("Something went wrong. Check the console.");
-      console.error(err);
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
