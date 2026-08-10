@@ -109,6 +109,13 @@ export interface User {
    * ceiling on the local session; reads return no-session once it passes.
    */
   session_expiry?: number;
+  /**
+   * The effective `my_org:*` permissions for the authenticated user within their
+   * current organization. Derived from directly assigned and effective roles.
+   * Populated automatically from the ID token — no additional scope required.
+   * Applies to user tokens only (M2M flows do not produce an ID token).
+   */
+  "urn:auth0:my_org_current_user_permissions"?: string[];
 
   [key: string]: any;
 }
