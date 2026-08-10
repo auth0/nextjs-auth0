@@ -6141,7 +6141,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json();
-  const emailDomain = email.split("@")[1];
+
+  if (!email || !email.includes("@")) {
+    return NextResponse.json({ error: "invalid email" }, { status: 400 });
+  }
+
+  const emailDomain = email.split("@")[1].toLowerCase();
   const isFederated = await isFederatedDomain(process.env.AUTH0_DOMAIN!, emailDomain);
 
   if (!isFederated) {

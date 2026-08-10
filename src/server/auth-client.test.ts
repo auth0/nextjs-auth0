@@ -4169,9 +4169,33 @@ ca/T0LLtgmbMmxSv/MmzIg==
           includeIdTokenHintInOIDCLogoutUrl: true
         });
 
+        // Seed a real session with an idToken so the assertion proves the EC
+        // branch deliberately omits id_token_hint rather than passing trivially
+        // because there was nothing to read.
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            idToken: DEFAULT.idToken,
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const sessionCookie = await encrypt(
+          session,
+          secret,
+          Math.floor(Date.now() / 1000 + 3600)
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
         const request = new NextRequest(
           new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET" }
+          { method: "GET", headers }
         );
 
         const response = await authClient.handleLogout(request);
