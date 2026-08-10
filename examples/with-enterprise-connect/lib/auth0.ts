@@ -53,10 +53,7 @@ export const auth0 = new Auth0Client({
   },
 
   async onCallback(error, ctx, session) {
-    if (error) {
-      console.error("[EC] onCallback error:", error);
-      throw error;
-    }
+    if (error) throw error;
 
     if (!session?.user) return;
 
@@ -76,8 +73,6 @@ export const auth0 = new Auth0Client({
       orgId,
       name: user.name as string | undefined
     };
-
-    console.log("[EC] Session written for:", user.email, "org:", orgId);
 
     const encoded = Buffer.from(JSON.stringify(appSession)).toString("base64");
     const returnTo = ctx.returnTo ?? "/dashboard";
