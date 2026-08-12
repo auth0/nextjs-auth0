@@ -6949,6 +6949,8 @@ function isDPoPError(
     typeof e === "object" &&
     e !== null &&
     "code" in e &&
+    "message" in e &&
+    typeof (e as { message: unknown }).message === "string" &&
     Object.values(DPoPErrorCode).includes((e as { code: DPoPErrorCode }).code)
   );
 }

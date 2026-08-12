@@ -4,6 +4,8 @@ import { ResponseCookies } from "@edge-runtime/cookies";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AccessTokenError,
+  AccessTokenErrorCode,
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   DomainResolutionError,
@@ -835,6 +837,159 @@ describe("Auth0Client", () => {
 
       // A transient/other error must not nuke a potentially valid cached token.
       expect(saveToSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("mintMyAccountToken (private)", () => {
+    const baseSession = (): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        idToken: "id_token",
+        refreshToken: "refresh_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: { sid: "mock_sid", createdAt: Date.now() / 1000 }
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      client = new Auth0Client();
+    });
+
+    function mockAuthClient(
+      session: SessionData | null,
+      tokenSetResponse: { tokenSet: any; idTokenClaims?: any } | null,
+      error: Error | null = null
+    ) {
+      const mockClient = {
+        issuer: "https://test.auth0.com/",
+        getTokenSet: vi
+          .fn()
+          .mockResolvedValue(error ? [error, null] : [null, tokenSetResponse]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockClient
+      );
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      return mockClient;
+    }
+
+    it("throws MISSING_SESSION when there is no active session", async () => {
+      mockAuthClient(null, null);
+
+      await expect(
+        (client as any).mintMyAccountToken({
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        })
+      ).rejects.toMatchObject({
+        code: AccessTokenErrorCode.MISSING_SESSION
+      });
+    });
+
+    it("returns the token and the session from getTokenSet", async () => {
+      const session = baseSession();
+      const tokenSet = {
+        accessToken: "my_account_token",
+        expiresAt: 9999999999,
+        scope: "read:me:connected_accounts",
+        audience: "https://test.auth0.com/me/"
+      };
+      mockAuthClient(session, { tokenSet });
+      vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
+
+      const result = await (client as any).mintMyAccountToken({
+        audience: "https://test.auth0.com/me/",
+        scope: "read:me:connected_accounts"
+      });
+
+      expect(result.token).toBe("my_account_token");
+      expect(result.expiresAt).toBe(9999999999);
+      expect(result.audience).toBe("https://test.auth0.com/me/");
+    });
+
+    it("returns sessionChanged=true and persists when persist:true (default) and token set changed", async () => {
+      const session = baseSession();
+      // A refreshed tokenSet with a new accessToken triggers sessionChanges.
+      const tokenSet = {
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+        idToken: "new_id_token",
+        expiresAt: 9999999999,
+        scope: "openid profile email"
+      };
+      mockAuthClient(session, { tokenSet, idTokenClaims: { sub: "user123" } });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const result = await (client as any).mintMyAccountToken(
+        {
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        },
+        undefined,
+        undefined,
+        { persist: true }
+      );
+
+      expect(result.sessionChanged).toBe(true);
+      expect(saveToSession).toHaveBeenCalledOnce();
+    });
+
+    it("does not persist when persist:false even if the token set changed", async () => {
+      const session = baseSession();
+      const tokenSet = {
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+        idToken: "new_id_token",
+        expiresAt: 9999999999,
+        scope: "openid profile email"
+      };
+      mockAuthClient(session, { tokenSet, idTokenClaims: { sub: "user123" } });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const result = await (client as any).mintMyAccountToken(
+        {
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        },
+        undefined,
+        undefined,
+        { persist: false }
+      );
+
+      expect(result.sessionChanged).toBe(true);
+      // persist:false — caller is responsible for saving.
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("rethrows the error from getTokenSet", async () => {
+      const session = baseSession();
+      const tokenError = new AccessTokenError(
+        AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+        "No refresh token."
+      );
+      mockAuthClient(session, null, tokenError);
+
+      await expect(
+        (client as any).mintMyAccountToken({
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        })
+      ).rejects.toBe(tokenError);
     });
   });
 
