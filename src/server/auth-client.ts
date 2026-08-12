@@ -4929,16 +4929,17 @@ export class AuthClient {
     const newScope = normalizeScope(
       newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
     );
-    const existingIdx = session.accessTokens.findIndex(
+    // Remove ALL existing entries for this audience + scope (not just the first)
+    // so sessions that accumulated duplicates before this fix deployed are fully
+    // compacted on the next step-up, not left with N-1 stale entries.
+    session.accessTokens = session.accessTokens.filter(
       (t) =>
-        t.audience === newAccessTokenSet.audience &&
-        normalizeScope(t.requestedScope ?? t.scope) === newScope
+        !(
+          t.audience === newAccessTokenSet.audience &&
+          normalizeScope(t.requestedScope ?? t.scope) === newScope
+        )
     );
-    if (existingIdx >= 0) {
-      session.accessTokens[existingIdx] = newAccessTokenSet;
-    } else {
-      session.accessTokens.push(newAccessTokenSet);
-    }
+    session.accessTokens.push(newAccessTokenSet);
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);

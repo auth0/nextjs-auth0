@@ -577,6 +577,91 @@ describe("AuthClient MFA Methods", () => {
       expect(forAudience?.[0].accessToken).toBe("mfa-access-token-2");
     });
 
+    it("purges all pre-existing duplicates for the same audience+scope on step-up", async () => {
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+
+      // Seed the session with two duplicate entries for the same audience+scope
+      // (the state a session could be in after accumulating them before this fix).
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: "id-token",
+          accessToken: "old-access-token",
+          refreshToken: "refresh-token",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        accessTokens: [
+          {
+            accessToken: "stale-token-1",
+            scope: "read:data",
+            requestedScope: "read:data",
+            audience: "https://api.example.com",
+            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+            token_type: "Bearer"
+          },
+          {
+            accessToken: "stale-token-2",
+            scope: "read:data",
+            requestedScope: "read:data",
+            audience: "https://api.example.com",
+            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+            token_type: "Bearer"
+          }
+        ]
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const reqHeaders = new Headers();
+      reqHeaders.append("cookie", `__session=${sessionCookie}`);
+
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "read:data",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+          HttpResponse.json({
+            access_token: "fresh-token",
+            token_type: "Bearer",
+            expires_in: 3600,
+            scope: "read:data"
+          })
+        )
+      );
+
+      const reqCookies = new RequestCookies(reqHeaders);
+      const resCookies = new ResponseCookies(new Headers());
+
+      const res = await authClient.mfaVerify({
+        mfaToken: encryptedToken,
+        otp: "123456"
+      });
+      await authClient.cacheTokenFromMfaVerify(
+        res,
+        encryptedToken,
+        reqCookies,
+        resCookies
+      );
+
+      const updatedSession = await sessionStore.get(reqCookies);
+      const forAudience = updatedSession?.accessTokens?.filter(
+        (t) => t.audience === "https://api.example.com"
+      );
+      // Both stale duplicates must be gone; exactly one fresh entry remains.
+      expect(forAudience?.length).toBe(1);
+      expect(forAudience?.[0].accessToken).toBe("fresh-token");
+    });
+
     it("should keep separate entries for different audiences", async () => {
       const { RequestCookies, ResponseCookies } =
         await import("@edge-runtime/cookies");
