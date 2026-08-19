@@ -1,48 +1,29 @@
-"use client";
+/**
+ * Login page using a plain HTML form POST to /api/login (server-side pattern).
+ *
+ * The browser POSTs directly to /api/login and follows the route handler's
+ * redirect natively — no fetch, no CORS. The transaction cookie set by
+ * startInteractiveLogin rides on that redirect response to /auth/callback.
+ *
+ * For the client-only variant (browser-side startEnterpriseLogin),
+ * see /login/client.
+ */
+export default function LoginPage({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  return (
+    <LoginForm searchParams={searchParams} />
+  );
+}
 
-import { useState } from "react";
-
-export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/check-domain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
-      });
-
-      const { isFederated, emailDomain, connection, orgId } = await res.json();
-
-      if (isFederated) {
-        const params = new URLSearchParams({
-          connection,
-          organization: orgId,
-          login_hint: email,
-          returnTo: "/dashboard"
-        });
-
-        window.location.href = `/auth/login?${params}`;
-      } else {
-        // Non-enterprise user — your existing login flow would go here
-        setError(
-          `${emailDomain} is not a federated domain. ` +
-          `In a real app this would route to your existing login.`
-        );
-      }
-    } catch (err) {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+async function LoginForm({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
 
   return (
     <main style={{ maxWidth: 400, margin: "100px auto", fontFamily: "sans-serif" }}>
@@ -51,27 +32,38 @@ export default function LoginPage() {
         Enter your work email to sign in with enterprise SSO.
       </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <form
+        method="POST"
+        action="/api/login"
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      >
         <input
+          name="email"
           type="email"
           placeholder="you@yourcompany.com"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
           required
           style={{ padding: "10px 12px", fontSize: 16, border: "1px solid #ccc", borderRadius: 6 }}
         />
         <button
           type="submit"
-          disabled={loading}
           style={{ padding: "10px 12px", fontSize: 16, background: "#635DFF", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
         >
-          {loading ? "Checking..." : "Continue"}
+          Continue
         </button>
       </form>
 
-      {error && (
-        <p style={{ marginTop: 16, color: "#c00", fontSize: 14 }}>{error}</p>
+      {error === "not-federated" && (
+        <p style={{ marginTop: 16, color: "#b60", fontSize: 14 }}>
+          That domain is not an enterprise SSO domain. In a real app this would route to your existing login.
+        </p>
       )}
+
+      <p style={{ marginTop: 24, fontSize: 12, color: "#999" }}>
+        <a href="/login/client" style={{ color: "#635DFF" }}>
+          Client-only variant
+        </a>
+        {" "}(browser-side startEnterpriseLogin, no server round-trip)
+      </p>
     </main>
   );
 }
