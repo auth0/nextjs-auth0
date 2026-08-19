@@ -8,11 +8,16 @@ import {
   TokenRevocationErrorCode
 } from "../errors/index.js";
 import { SessionData } from "../types/index.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { Auth0Client } from "./client.js";
 
 vi.mock("next/headers.js", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
   cookies: vi.fn().mockResolvedValue({ getAll: () => [] })
+}));
+
+vi.mock("../utils/webfingerCache.js", () => ({
+  isFederatedDomain: vi.fn()
 }));
 
 // Define ENV_VARS at the top level for broader scope
@@ -1751,7 +1756,7 @@ describe("Auth0Client", () => {
     });
   });
 
-  describe("Enterprise Connect mode (appType: b2b_integration)", () => {
+  describe("Enterprise Connect mode (enterpriseConnect: true)", () => {
     let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -1770,10 +1775,11 @@ describe("Auth0Client", () => {
     /** Minimal EC client with no configuration warnings triggered. */
     function ecClient(overrides: Record<string, unknown> = {}) {
       return new Auth0Client({
-        appType: "b2b_integration",
+        enterpriseConnect: true,
         authorizationParameters: {
-          scope: "openid profile email",
-          organization: "org_abc123"
+          scope: "openid profile email"
+          // No static organization: it is resolved per login via HRD. Setting a
+          // static value here would trigger the multi-customer warning.
         },
         ...overrides
       });
@@ -1817,7 +1823,7 @@ describe("Auth0Client", () => {
 
           await expect(client[method](...args())).rejects.toThrow(
             new RegExp(
-              `${method}\\(\\) is not available when appType is 'b2b_integration'`
+              `${method}\\(\\) is not available when enterpriseConnect is true`
             )
           );
         }
@@ -1858,7 +1864,7 @@ describe("Auth0Client", () => {
         // never reached, so the developer sees the mode error rather than a
         // cookies/headers error.
         await expect(ecClient().getSession()).rejects.toThrow(
-          /not available when appType/
+          /not available when enterpriseConnect/
         );
       });
     });
@@ -1872,7 +1878,7 @@ describe("Auth0Client", () => {
           // Getters throw on access: there is no sub-client to hand back.
           expect(() => client[member]).toThrow(InvalidConfigurationError);
           expect(() => client[member]).toThrow(
-            new RegExp(`${member} is not available when appType`)
+            new RegExp(`${member} is not available when enterpriseConnect`)
           );
         }
       );
@@ -1880,7 +1886,7 @@ describe("Auth0Client", () => {
       it("throws on mfa access, since MFA requires Auth0 session state EC does not create", () => {
         expect(() => ecClient().mfa).toThrow(InvalidConfigurationError);
         expect(() => ecClient().mfa).toThrow(
-          /mfa is not available when appType/
+          /mfa is not available when enterpriseConnect/
         );
       });
     });
@@ -1919,7 +1925,7 @@ describe("Auth0Client", () => {
 
         expect(caught).toBeInstanceOf(InvalidConfigurationError);
         expect((caught as Error).message).toMatch(
-          /buildSessionTransferRedirect\(\) is not available when appType/
+          /buildSessionTransferRedirect\(\) is not available when enterpriseConnect/
         );
       });
     });
@@ -2014,26 +2020,29 @@ describe("Auth0Client", () => {
         );
       });
 
-      it("warns when no default organization is configured", () => {
+      it("warns when a static organization is configured", () => {
         ecClient({
-          authorizationParameters: { scope: "openid profile email" }
+          authorizationParameters: {
+            scope: "openid profile email",
+            organization: "org_abc123"
+          }
         });
 
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("no default 'organization' is set")
+          expect.stringContaining("a static 'organization' is set")
         );
       });
 
-      it("does not warn about organization when one is configured", () => {
+      it("does not warn about organization when none is configured", () => {
         ecClient();
 
         expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining("no default 'organization' is set")
+          expect.stringContaining("a static 'organization' is set")
         );
       });
     });
 
-    describe("without appType (no regression)", () => {
+    describe("without enterpriseConnect (no regression)", () => {
       it("leaves getSession returning null rather than throwing", async () => {
         const { cookies } = await import("next/headers.js");
         vi.mocked(cookies).mockResolvedValue({
@@ -2055,9 +2064,83 @@ describe("Auth0Client", () => {
           expect.stringContaining("'offline_access' is in scope")
         );
         expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining("no default 'organization' is set")
+          expect.stringContaining("a static 'organization' is set")
         );
       });
+    });
+  });
+
+  describe("startEnterpriseLogin", () => {
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+    });
+
+    function ecClient() {
+      return new Auth0Client({
+        enterpriseConnect: true,
+        authorizationParameters: { scope: "openid profile email" }
+      });
+    }
+
+    it("redirects with login_hint when the domain is federated", async () => {
+      vi.mocked(isFederatedDomain).mockResolvedValue(true);
+      const client = ecClient();
+      const redirect = NextResponse.redirect(
+        new URL("https://test.auth0.com/authorize?login_hint=jane%40acme.com")
+      );
+      const spy = vi
+        .spyOn(client, "startInteractiveLogin")
+        .mockResolvedValue(redirect);
+
+      const res = await client.startEnterpriseLogin({
+        email: "jane@acme.com",
+        returnTo: "/dashboard"
+      });
+
+      expect(isFederatedDomain).toHaveBeenCalledWith(
+        "test.auth0.com",
+        "acme.com"
+      );
+      expect(spy).toHaveBeenCalledWith({
+        authorizationParameters: { login_hint: "jane@acme.com" },
+        returnTo: "/dashboard"
+      });
+      expect(res).toBe(redirect);
+    });
+
+    it("returns null when the domain is not federated", async () => {
+      vi.mocked(isFederatedDomain).mockResolvedValue(false);
+      const client = ecClient();
+      const spy = vi.spyOn(client, "startInteractiveLogin");
+
+      const res = await client.startEnterpriseLogin({ email: "jane@acme.com" });
+
+      expect(res).toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("returns null when the email has no domain", async () => {
+      const client = ecClient();
+      const res = await client.startEnterpriseLogin({ email: "not-an-email" });
+
+      expect(res).toBeNull();
+      expect(isFederatedDomain).not.toHaveBeenCalled();
+    });
+
+    it("lowercases the email domain before discovery", async () => {
+      vi.mocked(isFederatedDomain).mockResolvedValue(false);
+      const client = ecClient();
+
+      await client.startEnterpriseLogin({ email: "Jane@ACME.com" });
+
+      expect(isFederatedDomain).toHaveBeenCalledWith(
+        "test.auth0.com",
+        "acme.com"
+      );
     });
   });
 });

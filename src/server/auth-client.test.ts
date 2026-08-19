@@ -4113,7 +4113,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
-    describe("Enterprise Connect (appType: b2b_integration)", async () => {
+    describe("Enterprise Connect (enterpriseConnect: true)", async () => {
       it("uses end_session_endpoint and sets federated=true when federated param is present", async () => {
         const secret = await generateSecret(32);
         const authClient = new AuthClient({
@@ -4126,7 +4126,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
-          appType: "b2b_integration"
+          enterpriseConnect: true
         });
 
         const request = new NextRequest(
@@ -4165,13 +4165,37 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
-          appType: "b2b_integration",
+          enterpriseConnect: true,
           includeIdTokenHintInOIDCLogoutUrl: true
         });
 
+        // Seed a real session with an idToken so the assertion proves the EC
+        // branch deliberately omits id_token_hint rather than passing trivially
+        // because there was nothing to read.
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            idToken: DEFAULT.idToken,
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const sessionCookie = await encrypt(
+          session,
+          secret,
+          Math.floor(Date.now() / 1000 + 3600)
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
         const request = new NextRequest(
           new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET" }
+          { method: "GET", headers }
         );
 
         const response = await authClient.handleLogout(request);
@@ -4191,7 +4215,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
-          appType: "b2b_integration"
+          enterpriseConnect: true
         });
 
         const request = new NextRequest(
@@ -4227,7 +4251,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
               { headers: { "Content-Type": "application/json" } }
             )
           }),
-          appType: "b2b_integration"
+          enterpriseConnect: true
         });
 
         const request = new NextRequest(
@@ -4255,7 +4279,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
-          appType: "b2b_integration"
+          enterpriseConnect: true
         });
 
         // Plant a transaction cookie so we can verify it gets cleared
@@ -5894,11 +5918,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
        */
       async function runCallback({
         onCallback,
-        appType,
+        enterpriseConnect,
         returnTo = "/dashboard"
       }: {
         onCallback: AuthClientOptions["onCallback"];
-        appType?: "b2b_integration";
+        enterpriseConnect?: true;
         returnTo?: string;
       }) {
         const state = "transaction-state";
@@ -5921,7 +5945,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           onCallback,
-          appType
+          enterpriseConnect
         });
 
         const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
@@ -5949,17 +5973,21 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       }
 
-      it("skips the session cookie when appType is b2b_integration", async () => {
-        const onCallback = vi.fn().mockResolvedValue(undefined);
+      it("uses the hook's NextResponse and writes no __session when enterpriseConnect is true", async () => {
+        const onCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
 
         const response = await runCallback({
           onCallback,
-          appType: "b2b_integration"
+          enterpriseConnect: true
         });
 
         // The hook still receives the session so it can persist identity itself.
         // Claims are unfiltered here: beforeSessionSaved and the default claim
-        // filter both belong to the session-write path, which passthrough skips.
+        // filter both belong to the session-write path, which EC skips.
         expect(onCallback).toHaveBeenCalledWith(
           null,
           expect.objectContaining({ returnTo: "/dashboard" }),
@@ -5971,40 +5999,24 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(response.cookies.get("__session")).toBeUndefined();
       });
 
-      it("redirects to returnTo when the hook returns nothing", async () => {
-        const response = await runCallback({
-          onCallback: vi.fn().mockResolvedValue(undefined),
-          appType: "b2b_integration",
-          returnTo: "/dashboard"
-        });
-
-        expect(response.status).toEqual(307);
-        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
-          "/dashboard"
-        );
+      it("throws when the hook returns nothing in EC mode", async () => {
+        await expect(
+          runCallback({
+            onCallback: vi.fn().mockResolvedValue(undefined),
+            enterpriseConnect: true,
+            returnTo: "/dashboard"
+          })
+        ).rejects.toThrow(InvalidConfigurationError);
       });
 
-      it("falls back to the app base URL when the transaction has no returnTo", async () => {
-        const response = await runCallback({
-          onCallback: vi.fn().mockResolvedValue(undefined),
-          appType: "b2b_integration",
-          returnTo: ""
-        });
-
-        expect(response.status).toEqual(307);
-        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
-          "/"
-        );
-      });
-
-      it("honours a response returned by the hook over the returnTo redirect", async () => {
+      it("honours a response returned by the hook", async () => {
         const response = await runCallback({
           onCallback: vi
             .fn()
             .mockResolvedValue(
               NextResponse.redirect(new URL("/welcome", DEFAULT.appBaseUrl))
             ),
-          appType: "b2b_integration",
+          enterpriseConnect: true,
           returnTo: "/dashboard"
         });
 
@@ -6014,10 +6026,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(response.cookies.get("__session")).toBeUndefined();
       });
 
-      it("clears the transaction cookie on the passthrough path", async () => {
+      it("clears the transaction cookie on the EC path", async () => {
         const response = await runCallback({
-          onCallback: vi.fn().mockResolvedValue(undefined),
-          appType: "b2b_integration"
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            ),
+          enterpriseConnect: true
         });
 
         const txnCookie = response.cookies.get("__txn_transaction-state");
@@ -6025,7 +6041,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(txnCookie?.maxAge).toEqual(0);
       });
 
-      it("skips the session cookie when the hook returns null without appType", async () => {
+      it("skips the session cookie when the hook returns null without enterpriseConnect", async () => {
         const response = await runCallback({
           onCallback: vi.fn().mockResolvedValue(null),
           returnTo: "/dashboard"
@@ -6037,7 +6053,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       });
 
-      it("still writes the session cookie when appType is not set", async () => {
+      it("still writes the session cookie when enterpriseConnect is not set", async () => {
         const response = await runCallback({
           onCallback: vi
             .fn()
@@ -6068,9 +6084,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
 
-          appType: "b2b_integration",
+          enterpriseConnect: true,
           beforeSessionSaved,
-          onCallback: vi.fn().mockResolvedValue(undefined)
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
         });
 
         const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
@@ -6101,11 +6121,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(beforeSessionSaved).not.toHaveBeenCalled();
       });
 
-      it("emits a console.warn when appType is b2b_integration and onCallback returns void", async () => {
+      it("throws InvalidConfigurationError when enterpriseConnect is true and onCallback returns void", async () => {
         const state = "transaction-state";
         const secret = await generateSecret(32);
-        // afterEach will restore via vi.restoreAllMocks()
-        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const authClient = new AuthClient({
           transactionStore: new TransactionStore({ secret }),
@@ -6117,7 +6135,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
-          appType: "b2b_integration",
+          enterpriseConnect: true,
           onCallback: vi.fn().mockResolvedValue(undefined)
         });
 
@@ -6141,19 +6159,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
           )}`
         );
 
-        await authClient.handleCallback(
-          new NextRequest(url, { method: "GET", headers })
-        );
-
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("onCallback returned void/null")
-        );
+        await expect(
+          authClient.handleCallback(
+            new NextRequest(url, { method: "GET", headers })
+          )
+        ).rejects.toThrow(InvalidConfigurationError);
       });
 
-      it("does not emit a console.warn when appType is b2b_integration and onCallback returns a NextResponse", async () => {
+      it("does not throw when enterpriseConnect is true and onCallback returns a NextResponse", async () => {
         const state = "transaction-state";
         const secret = await generateSecret(32);
-        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const authClient = new AuthClient({
           transactionStore: new TransactionStore({ secret }),
@@ -6165,7 +6180,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
-          appType: "b2b_integration",
+          enterpriseConnect: true,
           onCallback: vi
             .fn()
             .mockResolvedValue(
@@ -6193,12 +6208,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
           )}`
         );
 
-        await authClient.handleCallback(
+        const response = await authClient.handleCallback(
           new NextRequest(url, { method: "GET", headers })
         );
 
-        expect(warnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining("onCallback returned void/null")
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/dashboard"
         );
       });
 
@@ -6218,7 +6233,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer(),
 
-          appType: "b2b_integration",
+          enterpriseConnect: true,
           onCallback: vi.fn().mockResolvedValue(null)
         });
 

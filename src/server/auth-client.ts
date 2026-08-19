@@ -181,6 +181,7 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
@@ -239,9 +240,9 @@ export type OnCallbackHook = (
    * successful callback path; error paths and the connected-account flow still
    * require a `NextResponse`.
    *
-   * When `appType: "b2b_integration"` is set the cookie is suppressed regardless
-   * of the return value, so returning nothing is the idiomatic Enterprise Connect
-   * pattern. Return a `NextResponse` to control the redirect destination.
+   * When `enterpriseConnect: true` is set the Auth0 cookie is never written, and
+   * `onCallback` must return a `NextResponse` with your own session cookie
+   * attached. Returning void in Enterprise Connect mode throws.
    */
 ) => Promise<NextResponse | null | void>;
 
@@ -282,6 +283,7 @@ export interface Routes {
   callback: string;
   profile: string;
   accessToken: string;
+  federatedDomain: string;
   backChannelLogout: string;
   connectAccount: string;
   mfaAuthenticators: string;
@@ -334,7 +336,7 @@ export interface AuthClientOptions {
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
 
-  appType?: "b2b_integration";
+  enterpriseConnect?: true;
 
   routes: Routes;
 
@@ -414,7 +416,7 @@ export class AuthClient {
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
 
-  private appType?: "b2b_integration";
+  private enterpriseConnect?: true;
 
   private routes: Routes;
 
@@ -579,7 +581,7 @@ export class AuthClient {
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
-    this.appType = options.appType;
+    this.enterpriseConnect = options.enterpriseConnect;
 
     // routes
     this.routes = options.routes;
@@ -701,6 +703,11 @@ export class AuthClient {
       this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.federatedDomain
+    ) {
+      return this.handleFederatedDomain(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
@@ -1050,7 +1057,7 @@ export class AuthClient {
     // available. We use the OIDC end_session_endpoint directly with
     // federated=true (not federated="") so the enterprise IdP session is
     // terminated via SAML SLO without needing a hint.
-    if (this.appType === "b2b_integration") {
+    if (this.enterpriseConnect) {
       const endSessionEndpoint =
         authorizationServerMetadata.end_session_endpoint ||
         new URL("/oidc/logout", this.issuer).toString();
@@ -1642,30 +1649,33 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
-    // Stateless passthrough (Enterprise Connect). Auth0 acted as an SSO relay
-    // only — the hook has persisted identity itself, so no session cookie is
-    // written and beforeSessionSaved is not run.
-    //
-    // `appType` opts in for every callback; returning null/undefined opts in
-    // per-callback for apps that cannot set it.
-    if (this.appType === "b2b_integration" || !res) {
-      // Returning void/null from onCallback means the SDK redirects to returnTo
-      // without setting any session cookie. Cookie-based sessions must return a
-      // NextResponse with the cookie attached.
+    // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
+    // cookie is written and beforeSessionSaved is not run. The hook must return
+    // a NextResponse carrying its own session cookie — that response is the only
+    // way a cookie reaches the browser on the callback. Returning void sets no
+    // cookie, so the user could never be identified on later requests; treat it
+    // as a misconfiguration.
+    if (this.enterpriseConnect) {
       if (!res) {
-        console.warn(
-          "[Auth0] onCallback returned void/null. If you are using a " +
-            "cookie-based session, return a NextResponse with the cookie attached " +
-            "from onCallback — returning void causes the SDK to redirect without " +
-            "setting any session cookie."
+        throw new InvalidConfigurationError(
+          "Enterprise Connect: onCallback must return a NextResponse with your " +
+            "session cookie attached. Returning void sets no cookie, so the user " +
+            "cannot be identified on subsequent requests."
         );
       }
 
-      const passthroughRes =
-        res ??
-        NextResponse.redirect(
-          createRouteUrl(onCallbackCtx.returnTo || "/", appBaseUrl).toString()
-        );
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
+
+    // Non-EC per-callback passthrough: returning null/undefined opts out of
+    // writing an Auth0 session cookie for this callback. The SDK redirects to
+    // returnTo without setting any cookie.
+    if (!res) {
+      const passthroughRes = NextResponse.redirect(
+        createRouteUrl(onCallbackCtx.returnTo || "/", appBaseUrl).toString()
+      );
 
       await this.transactionStore.delete(passthroughRes.cookies, state);
 
@@ -1714,6 +1724,34 @@ export class AuthClient {
     const res = NextResponse.json(session?.user);
     addCacheControlHeadersForSession(res);
     return res;
+  }
+
+  /**
+   * Route: POST /auth/federated-domain
+   * Server-side Home Realm Discovery for Enterprise Connect. Reads `{ email }`
+   * from the request body and returns `{ isFederated }`. Backs the client-side
+   * `startEnterpriseLogin` helper so the browser never calls WebFinger directly
+   * (which would expose the tenant's customer domains to enumeration).
+   */
+  async handleFederatedDomain(req: NextRequest): Promise<NextResponse> {
+    let email: unknown;
+    try {
+      ({ email } = await req.json());
+    } catch {
+      return NextResponse.json(
+        { error: "invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.json({ error: "invalid email" }, { status: 400 });
+    }
+
+    const emailDomain = email.split("@")[1].toLowerCase();
+    const isFederated = await isFederatedDomain(this.domain, emailDomain);
+
+    return NextResponse.json({ isFederated });
   }
 
   /**

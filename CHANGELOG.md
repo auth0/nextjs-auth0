@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.27.0](https://github.com/auth0/nextjs-auth0/tree/v4.27.0) (2026-08-18)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.26.0...v4.27.0)
+
+**Added**
+- feat: expose My Organization user permissions claim in session for UI… [\#2798](https://github.com/auth0/nextjs-auth0/pull/2798) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.26.0](https://github.com/auth0/nextjs-auth0/tree/v4.26.0) (2026-07-28)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.25.0...v4.26.0)
 

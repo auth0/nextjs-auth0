@@ -42,6 +42,7 @@ export const TEST_DEFAULT_ROUTES: Routes = {
   callback: "/auth/callback",
   profile: "/auth/profile",
   accessToken: "/auth/access-token",
+  federatedDomain: "/auth/federated-domain",
   backChannelLogout: "/auth/backchannel-logout",
   connectAccount: "/auth/connect",
   mfaAuthenticators: "/auth/mfa/authenticators",

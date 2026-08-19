@@ -91,7 +91,8 @@ export function normalizeStatelessSession(
   // if the session cookie has an `iat` claim in the protected header, it's a legacy cookie
   // otherwise, it's the new session cookie format and no transformation is needed
   if (sessionCookie.protectedHeader.iat) {
-    const legacySession = sessionCookie as JWTDecryptResult<LegacySession>;
+    const legacySession =
+      sessionCookie as unknown as JWTDecryptResult<LegacySession>;
     return convertFromLegacy(
       legacySession.protectedHeader,
       legacySession.payload
