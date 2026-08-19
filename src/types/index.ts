@@ -313,3 +313,13 @@ export {
   PasskeyRequestOptionsJSON,
   PasskeyCredentialDescriptorJSON
 } from "./passkey.js";
+
+export type {
+  AnonymousSession,
+  AnonymousSessionMetadata,
+  AnonymousSessionConfig,
+  UseAnonymousSessionOptions,
+  AnonymousCookiePayload,
+  AnonymousTokenResponse
+} from "./anonymous-session.js";
+export { isRecoverableAnonymousError } from "./anonymous-session.js";

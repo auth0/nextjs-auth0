@@ -47,7 +47,13 @@ export function getDefaultRoutes(): Routes {
       "/auth/passkey/enrollment-challenge",
     passkeyEnrollmentVerify:
       process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
-      "/auth/passkey/enrollment-verify"
+      "/auth/passkey/enrollment-verify",
+    anonymousSession:
+      process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_ROUTE ||
+      "/auth/anonymous-session",
+    anonymousSessionLogout:
+      process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
+      "/auth/anonymous-session/logout"
   };
 }
 

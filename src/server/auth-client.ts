@@ -6,10 +6,15 @@ import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
 import {
+  getStatusForAnonymousError,
+  mapAnonymousErrorCode
+} from "../errors/anonymous-session-errors.js";
+import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
+  AnonymousSessionError,
   AuthorizationCodeGrantError,
   AuthorizationCodeGrantRequestError,
   AuthorizationError,
@@ -65,6 +70,10 @@ import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
   ActClaim,
+  AnonymousCookiePayload,
+  AnonymousSession,
+  AnonymousSessionConfig,
+  AnonymousTokenResponse,
   AuthenticatorApiResponse,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
@@ -80,6 +89,7 @@ import {
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   GRANT_TYPE_PASSKEY,
   GRANT_TYPE_PASSWORDLESS_OTP,
+  isRecoverableAnonymousError,
   LogoutStrategy,
   LogoutToken,
   PasskeyChallengeOptions,
@@ -112,6 +122,13 @@ import {
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
+import {
+  ANONYMOUS_SUBJECT_PREFIX,
+  DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME,
+  METADATA_SIZE_LIMIT_BYTES,
+  RESERVED_SESSION_TOKEN_PARAM,
+  transferCookies
+} from "../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import {
   mergeAuthorizationParamsIntoSearchParams,
@@ -184,6 +201,12 @@ import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
+  decrypt,
+  deleteChunkedCookie,
+  encrypt,
+  getChunkedCookie,
+  setChunkedCookie,
+  type CookieOptions,
   type ReadonlyRequestCookies
 } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
@@ -228,6 +251,11 @@ export type OnCallbackContext = {
    * Hook authors can use this to detect popup flows and adapt behavior.
    */
   challengeMode?: "redirect" | "popup";
+  /**
+   * True if an active anonymous session was linked at login time.
+   * When true, onCallback hook can trigger migration logic (e.g., move cart to authenticated user).
+   */
+  anonymousSessionLinked?: boolean;
 };
 export type OnCallbackHook = (
   error: SdkError | null,
@@ -243,7 +271,8 @@ const INTERNAL_AUTHORIZE_PARAMS = [
   "code_challenge",
   "code_challenge_method",
   "state",
-  "nonce"
+  "nonce",
+  RESERVED_SESSION_TOKEN_PARAM
 ];
 
 /**
@@ -287,6 +316,8 @@ export interface Routes {
   passkeyGetToken: string;
   passkeyEnrollmentChallenge: string;
   passkeyEnrollmentVerify: string;
+  anonymousSession?: string;
+  anonymousSessionLogout?: string;
 }
 export type RoutesOptions = Partial<Routes>;
 
@@ -375,6 +406,13 @@ export interface AuthClientOptions {
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
   // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
+
+  /**
+   * Configuration for anonymous sessions (EA feature).
+   * When enabled, allows pre-login identity with 1KB metadata.
+   * Defaults to disabled; when disabled, routes are not mounted and methods return null.
+   */
+  anonymousSession?: AnonymousSessionConfig;
 }
 
 /**
@@ -430,6 +468,16 @@ export class AuthClient {
   private readonly cspNonce?: string;
 
   private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
+
+  // Anonymous session properties
+  private readonly secret: string;
+  private readonly anonymousSessionEnabled: boolean;
+  private readonly anonymousCookieName: string;
+  private readonly anonymousSessionConfig: AnonymousSessionConfig;
+  private readonly anonymousCookieOptions: CookieOptions;
+  private readonly anonymousCookieMaxAge: number;
+  private readonly anonymousAudience?: string;
+  private readonly anonymousScope?: string;
 
   /**
    * Maximum allowed response body size (1 MB). Responses exceeding this limit
@@ -617,6 +665,23 @@ export class AuthClient {
 
     // Store keypair if provided, but validate lazily to avoid crypto bundling
     this.dpopKeyPair = options.dpopKeyPair;
+
+    // Anonymous session configuration
+    this.secret = options.secret;
+    const anonConfig = options.anonymousSession ?? { enabled: false };
+    this.anonymousSessionEnabled = anonConfig.enabled;
+    this.anonymousCookieName =
+      anonConfig.cookie?.name ?? DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME;
+    this.anonymousSessionConfig = anonConfig;
+    this.anonymousCookieMaxAge = anonConfig.cookie?.maxAge ?? 2592000; // 30 days default (CASCADE §C)
+    this.anonymousAudience = anonConfig.audience;
+    this.anonymousScope = anonConfig.scope;
+    this.anonymousCookieOptions = {
+      httpOnly: true,
+      secure: anonConfig.cookie?.secure ?? true,
+      sameSite: anonConfig.cookie?.sameSite ?? "lax",
+      path: "/"
+    };
   }
 
   /**
@@ -761,7 +826,24 @@ export class AuthClient {
       sanitizedPathname === this.routes.passkeyEnrollmentVerify
     ) {
       return this.handlePasskeyEnrollmentVerify(req);
-    } else if (sanitizedPathname.startsWith("/me/")) {
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.anonymousSession
+    ) {
+      // The three anonymous routes are matched on path and method regardless of
+      // whether the feature is enabled. Each handler owns the enabled check and
+      // answers 404 when the feature is off, which is the documented contract; a
+      // dispatcher-level gate would instead fall through to the default handler
+      // and answer 200.
+      return this.handleGetAnonymousSession(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.anonymousSessionLogout
+    ) {
+      return this.handleAnonymousLogout(req);
+    }
+
+    if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
       return this.handleMyOrg(req);
@@ -797,9 +879,17 @@ export class AuthClient {
     }
   }
 
+  /**
+   * @param options Login options.
+   * @param req The incoming request, when one is available.
+   * @param loginCookies Request cookies to read for this login when there is no
+   * request object, which is the case for the programmatic Server Action form.
+   * Ignored when `req` is supplied, since the request carries its own cookies.
+   */
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
-    req?: NextRequest
+    req?: NextRequest,
+    loginCookies?: RequestCookies
   ): Promise<NextResponse> {
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
@@ -861,6 +951,37 @@ export class AuthClient {
             "This is required for secure DPoP binding. Please check your key configuration.",
           error instanceof Error ? error : undefined
         );
+      }
+    }
+
+    // SEC-1 three-layer fixation mitigation: inject anonymous session token if present
+    // Layer 1 (reserved-param stripping) has already happened via mergeAuthorizationParamsIntoSearchParams()
+    // Layer 2 (own-cookie sourcing) and Layer 3 (transaction state binding) below
+    let anonymousSessionLinked = false;
+    let anonymousSessionRef: string | undefined;
+    const anonymousLoginCookies = req?.cookies ?? loginCookies;
+    if (this.anonymousSessionEnabled && anonymousLoginCookies) {
+      try {
+        const anonCookie = await this.readAnonymousCookie(
+          anonymousLoginCookies
+        );
+        if (anonCookie?.session_token) {
+          // Session token exists in own cookie → safe to inject (Layer 2)
+          authorizationParams.set(
+            RESERVED_SESSION_TOKEN_PARAM,
+            anonCookie.session_token
+          );
+          anonymousSessionLinked = true; // Flag for transaction state binding (Layer 3)
+          // Layer 3 records a digest of the injected token, never the token itself,
+          // so the callback can verify that the anonymous cookie it receives is the
+          // one this transaction was started with.
+          anonymousSessionRef = await digestAnonymousSessionToken(
+            anonCookie.session_token
+          );
+        }
+      } catch (err) {
+        // Log error but don't fail login over anon cookie issue
+        console.error("Error reading anonymous session cookie:", err);
       }
     }
 
@@ -929,7 +1050,11 @@ export class AuthClient {
       challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
       // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
-      originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
+      originIssuer: this.provider?.isResolverMode ? this.issuer : undefined,
+      // Store anonymous session linked flag for callback migration logic
+      anonymousSessionLinked: anonymousSessionLinked || undefined,
+      // Bind the flag to the anonymous session it was derived from (SEC-1 layer 3)
+      anonymousSessionRef
     };
 
     // Generate authorization URL with PAR handling
@@ -1163,7 +1288,11 @@ export class AuthClient {
       responseType: transactionState.responseType,
       returnTo: transactionState.returnTo,
       challengeMode: transactionState.challengeMode || "redirect",
-      appBaseUrl
+      appBaseUrl,
+      anonymousSessionLinked: await this.verifyAnonymousSessionLink(
+        transactionState,
+        req
+      )
     };
 
     // Callback domain delegation in resolver mode
@@ -2809,6 +2938,780 @@ export class AuthClient {
     }
 
     return response;
+  }
+
+  // ====== ANONYMOUS SESSION: CORE SERVER METHODS (a2) ======
+
+  /**
+   * Core renewal logic (ERROR-DRIVEN): evaluate cookie payload against current time.
+   * - Access token valid? → return session as-is
+   * - Access expired + writable context? → try renewAccessToken(); catch recoverable codes
+   *   (session_expired, invalid_session_token) → createAndPersist() (metadata lost, no error)
+   * - Access expired + read-only context? → return decrypted as-is (D7 deferral)
+   *
+   * NO session_expires_at check; renewal discovers session expiry by trying.
+   * Implements CASCADE §B + DESIGN §5.I2 + test matrix T1.
+   */
+  private async resolveAnonymousSession(
+    reqCookies: RequestCookies,
+    resCookies?: ResponseCookies
+  ): Promise<AnonymousSession | null> {
+    // Step 1: Read + decrypt auth0_anon cookie from request
+    const cookieValue = getChunkedCookie(this.anonymousCookieName, reqCookies);
+    if (!cookieValue) {
+      return null; // No cookie → T1.1
+    }
+
+    // Step 2: Decrypt payload; return null if malformed (T1.2)
+    const decrypted = await decrypt<AnonymousCookiePayload>(
+      cookieValue,
+      this.secret
+    );
+    if (!decrypted) {
+      return null; // Malformed or expired by encrypt expiration
+    }
+
+    const state = decrypted.payload;
+    const now = Math.floor(Date.now() / 1000);
+
+    // Step 3: Evaluate expiry against renewal state machine
+    if (state.expires_at > now) {
+      // Access token still valid → return session, no renewal needed (T1.3)
+      return this.readPublicSession(state);
+    }
+
+    // Access token is expired; can we write cookies?
+    if (resCookies) {
+      // Writable context → attempt renewal by trying renewAccessToken()
+      try {
+        return await this.renewAccessToken(state, reqCookies, resCookies);
+      } catch (err) {
+        // Recoverable codes (session_expired, invalid_session_token) → recreate session
+        if (isRecoverableAnonymousError(err)) {
+          return await this.createAndPersist(reqCookies, resCookies); // metadata lost, no error (T1.5, T3.6)
+        }
+        throw err; // Other errors surface as AnonymousSessionError (T1.7)
+      }
+    }
+
+    // Can't write cookie (Server Component read-only context) → defer renewal (D7, T1.6)
+    // Return the decrypted session as-is; renewal will happen on next route handler call
+    return this.readPublicSession(state);
+  }
+
+  /**
+   * Read-path conversion of a decrypted cookie payload into the public session.
+   *
+   * Reading an anonymous session never throws for a cookie the SDK cannot use
+   * (§3.C2): a missing cookie and a cookie that fails to decrypt already report
+   * no session, and an access token that cannot be decoded, or whose subject is
+   * not an anonymous subject, is unusable in exactly the same way. It is reported
+   * as no session so a Server Component render cannot be broken by a corrupt
+   * cookie. The write paths (create, renew, metadata update) keep throwing,
+   * because there the caller asked for an operation that either succeeds or fails.
+   */
+  private readPublicSession(
+    payload: AnonymousCookiePayload
+  ): AnonymousSession | null {
+    try {
+      return this.toPublicSession(payload);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Mint new access token from existing session token.
+   * Called when access token expired but session token still valid.
+   * Silent operation: no error surface.
+   */
+  private async renewAccessToken(
+    state: AnonymousCookiePayload,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<AnonymousSession | null> {
+    try {
+      const res = await this.anonymousTokenRequest({
+        session_token: state.session_token,
+        // The audience and scope are re-sent so the re-minted access token keeps
+        // the audience the session was created with.
+        ...this.anonymousTokenAudienceAndScope()
+        // No metadata in renewal request
+      });
+
+      // toCookiePayload owns the response-to-payload conversion for every mode, so
+      // a rotated session token and any metadata the authorization server merged
+      // are adopted here rather than discarded in favour of the prior values.
+      const renewedPayload = this.toCookiePayload(
+        res,
+        state.session_token,
+        state.metadata
+      );
+
+      await this.persistAnonymousCookie(renewedPayload, reqCookies, resCookies);
+      try {
+        return this.toPublicSession(renewedPayload);
+      } catch {
+        // Renewal toPublicSession threw (e.g. malformed access_token sub).
+        // Per getAnonymousSession's never-throws contract, treat as absent.
+        return null;
+      }
+    } catch (err) {
+      // If renewal fails with recoverable error (session_expired), silently create new session
+      if (isRecoverableAnonymousError(err)) {
+        return await this.createAndPersist(reqCookies, resCookies);
+      }
+      throw err; // Non-recoverable error → throw to caller
+    }
+  }
+
+  /**
+   * The configured audience and scope for anonymous access tokens, shaped for
+   * spreading into an /anonymous/token body. Either field is omitted when it is
+   * not configured, which lets the authorization server apply the tenant default.
+   *
+   * These come from the `anonymousSession` configuration block only. They are
+   * deliberately not defaulted from `authorizationParameters`, whose audience and
+   * scope belong to the interactive login flow and are not necessarily granted to
+   * anonymous subjects.
+   */
+  private anonymousTokenAudienceAndScope(): {
+    audience?: string;
+    scope?: string;
+  } {
+    return {
+      ...(this.anonymousAudience && { audience: this.anonymousAudience }),
+      ...(this.anonymousScope && { scope: this.anonymousScope })
+    };
+  }
+
+  /**
+   * Create fresh anonymous session with optional creation-time metadata.
+   * Called by: public createAnonymousSession() (developer-facing), silent recovery on session expiry.
+   *
+   * Per CASCADE-v2 M2: when called by recovery path (no options), metadata is omitted from request body.
+   * When called by public create (options.metadata present), metadata is sent in create-mode body.
+   * Validates metadata against 1KB cap BEFORE network call (FR-15 + M2).
+   * Validates that Auth0 response includes session_token before persisting.
+   */
+  private async createAndPersist(
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies,
+    options?: {
+      metadata?: Record<string, unknown>;
+      audience?: string;
+      scope?: string;
+    }
+  ): Promise<AnonymousSession> {
+    // Validate metadata type and size BEFORE network call (CASCADE-v2 M2 + FR-15)
+    if (options?.metadata !== undefined) {
+      // Type validation: metadata must be a plain object
+      if (
+        options.metadata === null ||
+        typeof options.metadata !== "object" ||
+        Array.isArray(options.metadata)
+      ) {
+        throw new AnonymousSessionError(
+          "invalid_request",
+          "Metadata must be a plain object"
+        );
+      }
+      // Size validation
+      const size = new TextEncoder().encode(
+        JSON.stringify(options.metadata)
+      ).byteLength;
+      if (size > METADATA_SIZE_LIMIT_BYTES) {
+        throw new AnonymousSessionError(
+          "metadata_too_large",
+          "Metadata exceeds 1KB limit",
+          `Metadata size: ${size} bytes (max: ${METADATA_SIZE_LIMIT_BYTES})`,
+          { size, limit: METADATA_SIZE_LIMIT_BYTES }
+        );
+      }
+    }
+
+    // Call /anonymous/token in create mode: send metadata when supplied
+    const res = await this.anonymousTokenRequest({
+      ...this.anonymousTokenAudienceAndScope(),
+      ...(options?.audience && { audience: options.audience }),
+      ...(options?.scope && { scope: options.scope }),
+      ...(options?.metadata && { metadata: options.metadata })
+    });
+
+    // Validate that session_token is always present on create response
+    if (!res.session_token) {
+      throw new AnonymousSessionError(
+        "invalid_response",
+        "Auth0 did not return session token in create response"
+      );
+    }
+
+    const payload: AnonymousCookiePayload = {
+      session_token: res.session_token,
+      access_token: res.access_token,
+      expires_at: this.epoch() + res.expires_in,
+      ...(options?.metadata && { metadata: options.metadata })
+    };
+
+    await this.persistAnonymousCookie(payload, reqCookies, resCookies);
+    return this.toPublicSession(payload);
+  }
+
+  /**
+   * Public reader for the current anonymous session (mirrors getSession).
+   * Returns the session or null; never throws for a missing/malformed/expired cookie.
+   * When resCookies is supplied (request/response context) an expired access token
+   * triggers silent renewal; without it (Server Component read path, D7) a valid
+   * decrypted session is returned as-is and renewal defers to the next route call.
+   * Short-circuits to null when the feature is disabled (§3.C2 / FR-1 / T8.5).
+   */
+  async getAnonymousSession(
+    reqCookies: RequestCookies,
+    resCookies?: ResponseCookies
+  ): Promise<AnonymousSession | null> {
+    if (!this.anonymousSessionEnabled) {
+      return null;
+    }
+    return this.resolveAnonymousSession(reqCookies, resCookies);
+  }
+
+  /**
+   * Public creator for a fresh anonymous session with optional creation-time metadata.
+   *
+   * Implements FR-2 + CASCADE-v2 M2: metadata is set once at session creation; cannot be changed after.
+   * Validates metadata against 1KB cap BEFORE network call (FR-15 + M2).
+   *
+   * Options:
+   *   - metadata: set-once metadata object (max 1KB serialized UTF-8); oversize → metadata_too_large
+   *   - audience: per-call audience override
+   *   - scope: per-call scope override
+   *
+   * Calls /anonymous/token in create mode, persists the cookie, returns the session.
+   * Throws AnonymousSessionError on any authorization-server error.
+   */
+  async createAnonymousSession(
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies,
+    options?: {
+      metadata?: Record<string, unknown>;
+      audience?: string;
+      scope?: string;
+    }
+  ): Promise<AnonymousSession> {
+    // Disabled feature short-circuits locally (T8.1) rather than making a
+    // network call that the authorization server would reject anyway. The
+    // non-nullable return contract (§3.C3) means we throw rather than return null.
+    if (!this.anonymousSessionEnabled) {
+      throw new AnonymousSessionError(
+        "unauthorized_client",
+        "Anonymous sessions are not enabled for this client."
+      );
+    }
+    return this.createAndPersist(reqCookies, resCookies, options);
+  }
+
+  /**
+   * Persist encrypted anonymous session cookie.
+   * Cookie TTL from configured maxAge (CASCADE §C). Handles chunked cookies for payloads >4KB.
+   */
+  private async persistAnonymousCookie(
+    payload: AnonymousCookiePayload,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    // JWT exp claim: cookie lifetime is maxAge from now (client-side cleanup).
+    // Encryption expiration set to epoch + maxAge (CASCADE: no session_expires_at field).
+    const expiration = this.epoch() + this.anonymousCookieMaxAge;
+    const encrypted = await encrypt(payload, this.secret, expiration);
+
+    // Use setChunkedCookie to handle large encrypted payloads (D2: re-wrap in app-domain cookie)
+    // Signature: setChunkedCookie(name, value, options, reqCookies, resCookies)
+    // anonymousCookieOptions does NOT include maxAge; we add it here per call.
+    await setChunkedCookie(
+      this.anonymousCookieName,
+      encrypted,
+      { ...this.anonymousCookieOptions, maxAge: this.anonymousCookieMaxAge },
+      reqCookies,
+      resCookies
+    );
+  }
+
+  /**
+   * Decrypt + validate cookie, return opaque payload (internal use only).
+   * Used during login to read session_token for injection (D1 fixation: own-cookie source).
+   *
+   * SECURITY NOTE (SEC-1 three-layer mitigation, layer 2: own-cookie sourcing):
+   * This method is the ONLY source of session_token for login injection. The token is
+   * sourced from the SDK's own encrypted app-domain cookie (this.anonymousCookieName).
+   * Decryption via this.secret guarantees the token came from this app, not attacker input.
+   * No caller-supplied data is mixed in.
+   */
+  private async readAnonymousCookie(
+    reqCookies: RequestCookies
+  ): Promise<AnonymousCookiePayload | null> {
+    const cookieValue = getChunkedCookie(this.anonymousCookieName, reqCookies);
+    if (!cookieValue) {
+      return null;
+    }
+
+    const decrypted = await decrypt<AnonymousCookiePayload>(
+      cookieValue,
+      this.secret
+    );
+    return decrypted?.payload ?? null;
+  }
+
+  /**
+   * Decide whether this callback may report an anonymous session as linked.
+   *
+   * SEC-1 layer 3 is enforcement, not notification. Login stored a digest of the
+   * anonymous session token it injected; the callback recomputes the digest from
+   * the anonymous cookie on this request and only reports a link when the two
+   * agree. A cookie that was swapped between the authorization request and the
+   * callback therefore reports no link, so application code never attributes an
+   * anonymous identity to a login it does not belong to.
+   *
+   * A transaction with no digest is treated as unbound and keeps whatever flag it
+   * carries: that covers transactions written before the digest existed and, when
+   * the feature is disabled, every transaction, so behaviour is unchanged there.
+   */
+  private async verifyAnonymousSessionLink(
+    transactionState: TransactionState,
+    req: NextRequest
+  ): Promise<boolean> {
+    const linked = transactionState.anonymousSessionLinked ?? false;
+
+    if (
+      !this.anonymousSessionEnabled ||
+      !transactionState.anonymousSessionRef
+    ) {
+      return linked;
+    }
+
+    try {
+      const anonCookie = await this.readAnonymousCookie(req.cookies);
+      if (!anonCookie?.session_token) {
+        return false;
+      }
+
+      const ref = await digestAnonymousSessionToken(anonCookie.session_token);
+      return ref === transactionState.anonymousSessionRef && linked;
+    } catch (err) {
+      // An unreadable anonymous cookie cannot be shown to match the bound digest,
+      // so the link is not reported. Login is not failed over it.
+      console.error(
+        "Error verifying the anonymous session binding at callback:",
+        err
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Convert encrypted cookie payload to public AnonymousSession object.
+   * Extracts identity (anon@{uuid}) from access token sub claim, validates format,
+   * surfaces access token + metadata. Session token intentionally omitted (stays server-side).
+   *
+   * Throws AnonymousSessionError if access token is malformed or sub is invalid.
+   */
+  private toPublicSession(payload: AnonymousCookiePayload): AnonymousSession {
+    try {
+      // Decode access token JWT using jose to extract 'sub' claim
+      const claims = jose.decodeJwt(payload.access_token);
+      const id = claims.sub;
+
+      // Validate that sub is a string and matches anonymous subject format
+      if (
+        !id ||
+        typeof id !== "string" ||
+        !id.startsWith(ANONYMOUS_SUBJECT_PREFIX)
+      ) {
+        throw new AnonymousSessionError(
+          "invalid_session_token",
+          "Access token sub claim is not a valid anonymous session ID"
+        );
+      }
+
+      return {
+        id,
+        accessToken: payload.access_token,
+        expiresAt: payload.expires_at,
+        ...(payload.metadata && { metadata: payload.metadata })
+      };
+    } catch (err) {
+      if (err instanceof AnonymousSessionError) {
+        throw err;
+      }
+      throw new AnonymousSessionError(
+        "invalid_session_token",
+        "Failed to decode access token"
+      );
+    }
+  }
+
+  /**
+   * Convert auth server token response to cookie payload.
+   * Handles both create (session_token present) and renew (session_token omitted) responses.
+   *
+   * NOTE: Per DESIGN §5.I4, Auth0 returns merged metadata in the response (authorization
+   * server performs the merge, not the SDK). This method extracts metadata from tokenRes
+   * if present. Caller must ensure metadata from Auth0 response is used, not raw input.
+   */
+  private toCookiePayload(
+    res: AnonymousTokenResponse,
+    priorSessionToken: string,
+    metadata?: Record<string, unknown>
+  ): AnonymousCookiePayload {
+    return {
+      // session_token is returned only on create; on renew/update the server omits
+      // it and the prior opaque handle MUST be retained so later renewals succeed (D6/§5.I2).
+      session_token: res.session_token ?? priorSessionToken,
+      access_token: res.access_token,
+      expires_at: this.epoch() + res.expires_in,
+      // Use metadata from Auth0 response if present (merged by server), else use provided metadata
+      ...(res.metadata
+        ? { metadata: res.metadata }
+        : metadata
+          ? { metadata }
+          : {})
+    };
+  }
+
+  /**
+   * Return current Unix seconds epoch.
+   */
+  private epoch(): number {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  /**
+   * Resolve the authorization server metadata that the client authentication
+   * callable is handed.
+   *
+   * Only assertion-based authentication reads it: `PrivateKeyJwt` signs an `aud`
+   * claim taken from `as.issuer`, so it needs the real metadata. The secret-based
+   * and mTLS methods ignore the argument entirely, so they must not pay for a
+   * discovery round trip. When discovery fails the configured issuer is used, which
+   * is the value discovery would have validated the document against anyway.
+   */
+  private async anonymousClientAuthServer(): Promise<oauth.AuthorizationServer> {
+    const signsClientAssertion =
+      !this.useMtls && !!this.clientAssertionSigningKey;
+
+    if (signsClientAssertion) {
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata();
+
+      if (!discoveryError) {
+        return authorizationServerMetadata;
+      }
+    }
+
+    return { issuer: this.issuer };
+  }
+
+  /**
+   * Build the fetch options for a request to one of the anonymous endpoints,
+   * applying the client's configured authentication method.
+   *
+   * The anonymous endpoints are not standard grant endpoints, so the oauth4webapi
+   * grant helpers cannot issue them, but client authentication still has to be the
+   * method the client is configured with. oauth4webapi models an authentication
+   * method as a callable that writes form parameters into a `URLSearchParams` and
+   * authentication headers into a `Headers`. This helper invokes that callable
+   * against scratch collections, folds the parameters into the JSON body these
+   * endpoints expect, and folds the headers onto the outgoing headers. Without the
+   * invocation the request would carry `client_id` alone and the authorization
+   * server would answer 401 `invalid_client`.
+   */
+  private async anonymousRequestInit(
+    body: Record<string, unknown>
+  ): Promise<RequestInit> {
+    const httpOpts = this.httpOptions();
+
+    const headers: Record<string, string> = {
+      "content-type": "application/json"
+    };
+    httpOpts.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+
+    const requestBody: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      ...body
+    };
+
+    const clientAuth = await this.getClientAuth();
+    const authParams = new URLSearchParams();
+    const authHeaders = new Headers();
+    await clientAuth(
+      await this.anonymousClientAuthServer(),
+      this.clientMetadata,
+      authParams,
+      authHeaders
+    );
+
+    authParams.forEach((value, key) => {
+      requestBody[key] = value;
+    });
+    authHeaders.forEach((value, key) => {
+      headers[key] = value;
+    });
+
+    return {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+      signal: httpOpts.signal
+    };
+  }
+
+  /**
+   * POST /anonymous/token with optional session_token and/or metadata.
+   * Three modes:
+   *   - Create: {} → new session
+   *   - Renew: { session_token } → mint new access token
+   *   - Update: { session_token, metadata } → update metadata
+   *
+   * Called by: createAndPersist(), renewAccessToken(), update route handler.
+   * Throws AnonymousSessionError on server-reported error (§4.W1 error table).
+   * Returns AnonymousTokenResponse on 200.
+   */
+  private async anonymousTokenRequest(body: {
+    session_token?: string;
+    metadata?: unknown;
+    audience?: string;
+    scope?: string;
+  }): Promise<AnonymousTokenResponse> {
+    const url = new URL(`/anonymous/token`, `https://${this.domain}`);
+
+    const res = await this.fetch(
+      url.toString(),
+      await this.anonymousRequestInit(body)
+    );
+
+    if (!res.ok) {
+      const errorData = (await res.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const code = String(errorData.error ?? `http_${res.status}`);
+      const description =
+        typeof errorData.error_description === "string"
+          ? errorData.error_description
+          : undefined;
+      throw this.mapAnonymousError(code, description, errorData);
+    }
+
+    return res.json() as Promise<AnonymousTokenResponse>;
+  }
+
+  /**
+   * POST /anonymous/logout — body contains client_id only, session_token NOT in body.
+   * Per CASCADE-v2 M3: session_token rides as auth0_anon cookie (credentials:'include'), NEVER in body.
+   * Body = {client_id} (from clientAuthParams) or {}.
+   * Idempotent: returns 200 even with no session.
+   * Called by: logout route handler.
+   *
+   * SAFETY (CASCADE-v2 M3 WARNING): Server-to-server call from Next.js backend cannot forward
+   * the browser's tenant-domain auth0_anon cookie, so this call clears nothing server-side.
+   * The only effective logout action is the SDK's local deleteChunkedCookie (route handler).
+   * Tokens issued before logout remain valid until natural expiry; no server revocation exists.
+   *
+   * Ending a session that no longer exists is not an error, so a 404 and a 200 are
+   * both treated as success. A rejected client authentication or a client that is
+   * not allowed to end anonymous sessions is a real failure and must surface, so
+   * 401 and 403 throw alongside the 5xx range.
+   */
+  private async anonymousLogoutRequest(): Promise<void> {
+    const url = new URL(`/anonymous/logout`, `https://${this.domain}`);
+
+    const body = this.clientMetadata.client_id
+      ? { client_id: this.clientMetadata.client_id }
+      : {};
+
+    const res = await this.fetch(
+      url.toString(),
+      await this.anonymousRequestInit(body)
+    );
+
+    const isAuthenticationFailure = res.status === 401 || res.status === 403;
+
+    if (isAuthenticationFailure || res.status >= 500) {
+      const errorData = (await res.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const code = String(
+        errorData.error ??
+          (isAuthenticationFailure ? "invalid_client" : "server_error")
+      );
+      const description =
+        typeof errorData.error_description === "string"
+          ? errorData.error_description
+          : undefined;
+      throw this.mapAnonymousError(code, description, errorData);
+    }
+  }
+
+  /**
+   * Map authorization server error response to AnonymousSessionError.
+   * Populates description and cause fields (CASCADE §D).
+   * Per DESIGN §3.C7 error table + RFC OAuth 2.0 error codes.
+   */
+  private mapAnonymousError(
+    code: string,
+    description?: string,
+    rawBody?: unknown
+  ): AnonymousSessionError {
+    return mapAnonymousErrorCode(code, description, rawBody);
+  }
+
+  // ====== ANONYMOUS SESSION: ROUTE HANDLERS (a3) ======
+
+  /**
+   * GET /auth/anonymous-session
+   *
+   * Read current session, applying renewal state machine.
+   * Returns 200 + JSON session object, or 204 No Content if no session (client hook maps to null).
+   *
+   * Test: T1 (read + renewal), T8.1 (disabled → 404)
+   */
+  private async handleGetAnonymousSession(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    try {
+      if (!this.anonymousSessionEnabled) {
+        return new NextResponse("Not found", { status: 404 });
+      }
+
+      // FIX C3 (rev3): The response returned to the client MUST be the object whose
+      // .cookies jar received the renewed cookies. resolveAnonymousSession writes renewed
+      // cookies via persistAnonymousCookie into whatever ResponseCookies jar it is given,
+      // but the body (session) is only known AFTER resolve returns. So: use a temp jar to
+      // collect renewed cookies during resolve, then transfer them onto the final response.
+      // transferCookies() = for (const c of from.cookies.getAll()) to.cookies.set(c);
+      // (helper defined in unit a1 constants/util module)
+
+      // Temp jar collects any cookies written during the renewal state machine.
+      const pending = new NextResponse();
+
+      const session = await this.resolveAnonymousSession(
+        req.cookies,
+        pending.cookies
+      );
+
+      if (!session) {
+        // No session → 204 No Content (client hook interprets as null).
+        // Renewal did not run (nothing to renew), but transfer defensively.
+        const empty = new NextResponse(null, { status: 204 });
+        transferCookies(pending, empty);
+        addCacheControlHeadersForSession(empty);
+        return empty;
+      }
+
+      // Session found → build JSON response, THEN move the renewed cookies onto it,
+      // THEN return that same object. This guarantees renewed cookies reach the client.
+      const jsonRes = NextResponse.json(session);
+      transferCookies(pending, jsonRes);
+      addCacheControlHeadersForSession(jsonRes);
+      return jsonRes;
+    } catch (err) {
+      const code =
+        err instanceof AnonymousSessionError ? err.code : "server_error";
+      return this.anonymousErrorResponse(
+        code,
+        getStatusForAnonymousError(code)
+      );
+    }
+  }
+
+  /**
+   * POST /auth/anonymous-session/logout
+   *
+   * Clear anonymous session.
+   * Reads session_token from cookie, calls /anonymous/logout, clears cookie.
+   * Idempotent: 200 even if no session.
+   *
+   * Test: T4.1 (logout), T4.2 (no session), T4.3 (idempotent)
+   */
+  private async handleAnonymousLogout(req: NextRequest): Promise<NextResponse> {
+    try {
+      if (!this.anonymousSessionEnabled) {
+        return new NextResponse("Not found", { status: 404 });
+      }
+
+      // Call Auth0 /anonymous/logout (body = {client_id}/{}, no session_token; CASCADE-v2 M3).
+      // The SDK does not read the session_token here; the server-to-server call cannot
+      // forward the browser's auth0_anon cookie, so it clears nothing server-side.
+      // Swallow network errors; the local cookie clear below is the only effective logout.
+      try {
+        await this.anonymousLogoutRequest();
+      } catch (err) {
+        console.error("Anonymous logout network error (ignored):", err);
+      }
+
+      // Clear the cookie, including any chunk fragments, so a chunked session
+      // (metadata >4KB) does not leave orphaned auth0_anon__N cookies behind.
+      const res = new NextResponse(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+
+      deleteChunkedCookie(
+        this.anonymousCookieName,
+        req.cookies,
+        res.cookies,
+        false,
+        {
+          path: this.anonymousCookieOptions.path,
+          domain: this.anonymousCookieOptions.domain,
+          secure: this.anonymousCookieOptions.secure,
+          sameSite: this.anonymousCookieOptions.sameSite,
+          httpOnly: this.anonymousCookieOptions.httpOnly
+        }
+      );
+
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (err) {
+      // Even on error, attempt to clear the cookie (and its chunks).
+      const res = new NextResponse(JSON.stringify({ ok: true }), {
+        status: 200
+      });
+      deleteChunkedCookie(
+        this.anonymousCookieName,
+        req.cookies,
+        res.cookies,
+        false,
+        {
+          path: this.anonymousCookieOptions.path,
+          domain: this.anonymousCookieOptions.domain,
+          secure: this.anonymousCookieOptions.secure,
+          sameSite: this.anonymousCookieOptions.sameSite,
+          httpOnly: this.anonymousCookieOptions.httpOnly
+        }
+      );
+      return res;
+    }
+  }
+
+  /**
+   * Build error response: JSON with error code + message, correct HTTP status.
+   */
+  private anonymousErrorResponse(
+    code: string,
+    status: number = 500
+  ): NextResponse {
+    const res = NextResponse.json(
+      {
+        error: code,
+        error_description: mapAnonymousErrorCode(code).message
+      },
+      { status }
+    );
+    addCacheControlHeadersForSession(res);
+    return res;
   }
 
   async verifyLogoutToken(
@@ -6640,6 +7543,26 @@ const encodeBase64 = (input: string) => {
   }
   return btoa(arr.join(""));
 };
+
+/**
+ * Hex-encoded SHA-256 digest of an anonymous session token.
+ *
+ * The digest is what the login transaction stores in place of the token, so the
+ * transaction cookie carries no material that could be replayed against the
+ * authorization server if it were ever decrypted. WebCrypto is used directly so
+ * the helper works on the Edge runtime as well as on Node.
+ */
+async function digestAnonymousSessionToken(
+  sessionToken: string
+): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(sessionToken)
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 type GetTokenSetResponse = {
   tokenSet: TokenSet;
