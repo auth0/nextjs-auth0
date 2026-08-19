@@ -19,6 +19,8 @@ import {
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
+  AnonymousSession,
+  AnonymousSessionConfig,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   ConnectAccountOptions,
@@ -510,6 +512,13 @@ export interface Auth0ClientOptions {
    * @see [MCD Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd)
    */
   discoveryCache?: DiscoveryCacheOptions;
+
+  /**
+   * Configuration for anonymous sessions (EA feature).
+   * When enabled, allows pre-login identity with 1KB metadata.
+   * Defaults to disabled; when disabled, routes are not mounted and methods return null.
+   */
+  anonymousSession?: AnonymousSessionConfig;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -704,6 +713,12 @@ export class Auth0Client {
       passkeyEnrollmentVerify:
         process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
         "/auth/passkey/enrollment-verify",
+      anonymousSession:
+        process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_ROUTE ||
+        "/auth/anonymous-session",
+      anonymousSessionLogout:
+        process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
+        "/auth/anonymous-session/logout",
       ...options.routes
     };
 
@@ -798,6 +813,7 @@ export class Auth0Client {
           fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
+          anonymousSession: options.anonymousSession,
 
           discoveryCache,
           provider: this.provider
@@ -866,6 +882,147 @@ export class Auth0Client {
       await authClient.getSessionWithDomainCheck(reqCookies);
     if (error) throw error;
     return session;
+  }
+
+  /**
+   * getAnonymousSession returns the current anonymous session, or null when there is
+   * none (or the feature is disabled). It never throws for a missing, malformed, or
+   * expired cookie. Mirrors {@link getSession}.
+   *
+   * Use in Server Components, Server Actions, and Route Handlers in the **App Router**.
+   */
+  async getAnonymousSession(): Promise<AnonymousSession | null>;
+
+  /**
+   * getAnonymousSession returns the current anonymous session, or null when there is none.
+   *
+   * Use in middleware and `getServerSideProps`, API routes in the **Pages Router**.
+   */
+  async getAnonymousSession(
+    req: PagesRouterRequest | NextRequest
+  ): Promise<AnonymousSession | null>;
+
+  async getAnonymousSession(
+    req?: Request | PagesRouterRequest | NextRequest
+  ): Promise<AnonymousSession | null> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    let reqCookies:
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
+    }
+
+    // Read-only surface: the method signature carries no response, so renewal
+    // is deferred (D7). Access-token renewal is persisted through the route
+    // handler (handleGetAnonymousSession), which owns a writable response.
+    return authClient.getAnonymousSession(reqCookies as RequestCookies);
+  }
+
+  /**
+   * createAnonymousSession creates a fresh anonymous session, persists the cookie, and
+   * returns the session. Throws `AnonymousSessionError` on any authorization-server error.
+   *
+   * Metadata is set once at creation and cannot be changed after (CASCADE-v2 M2).
+   * Validates metadata against 1KB cap before network call; oversize → metadata_too_large.
+   *
+   * Use in Server Actions in the **App Router** (zero-arg form).
+   */
+  async createAnonymousSession(options?: {
+    metadata?: Record<string, unknown>;
+    audience?: string;
+    scope?: string;
+  }): Promise<AnonymousSession>;
+
+  /**
+   * createAnonymousSession creates a fresh anonymous session with optional creation-time metadata
+   * and persists the cookie onto the passed response.
+   *
+   * Metadata is set once at creation and cannot be changed after (CASCADE-v2 M2).
+   * Validates metadata against 1KB cap before network call; oversize → metadata_too_large.
+   *
+   * Use in Route Handlers and the **Pages Router** (request/response form).
+   */
+  async createAnonymousSession(
+    req: PagesRouterRequest | NextRequest,
+    res: NextResponse,
+    options?: {
+      metadata?: Record<string, unknown>;
+      audience?: string;
+      scope?: string;
+    }
+  ): Promise<AnonymousSession>;
+
+  async createAnonymousSession(
+    req?:
+      | Request
+      | PagesRouterRequest
+      | NextRequest
+      | {
+          metadata?: Record<string, unknown>;
+          audience?: string;
+          scope?: string;
+        },
+    res?: NextResponse,
+    options?: {
+      metadata?: Record<string, unknown>;
+      audience?: string;
+      scope?: string;
+    }
+  ): Promise<AnonymousSession> {
+    // Resolve overload: zero-arg (options) vs req/res forms
+    let normalizedReq: NextRequest | PagesRouterRequest | undefined;
+    let opts:
+      | {
+          metadata?: Record<string, unknown>;
+          audience?: string;
+          scope?: string;
+        }
+      | undefined;
+
+    if (req && typeof req === "object" && !("url" in req)) {
+      // Zero-arg form: createAnonymousSession(options)
+      opts = req as {
+        metadata?: Record<string, unknown>;
+        audience?: string;
+        scope?: string;
+      };
+      normalizedReq = undefined;
+    } else {
+      // Req/res form: createAnonymousSession(req, res, options)
+      normalizedReq = req as NextRequest | PagesRouterRequest;
+      opts = options;
+    }
+
+    const { authClient, normalizedReq: resolvedReq } =
+      await this.resolveRequestContext(normalizedReq as any);
+
+    let reqCookies: RequestCookies;
+    let resCookies: ResponseCookies;
+    if (resolvedReq) {
+      if (!res) {
+        throw new TypeError(
+          "createAnonymousSession(req, res): The 'res' argument is missing. Both 'req' and 'res' must be provided together for Route Handler or Pages Router usage."
+        );
+      }
+      reqCookies =
+        resolvedReq instanceof NextRequest
+          ? resolvedReq.cookies
+          : (this.createRequestCookies(resolvedReq) as RequestCookies);
+      resCookies = res.cookies;
+    } else {
+      // Server Action (App Router): next/headers cookies() is writable here.
+      const cookieStore = await cookies();
+      reqCookies = cookieStore as unknown as RequestCookies;
+      resCookies = cookieStore as unknown as ResponseCookies;
+    }
+
+    return authClient.createAnonymousSession(reqCookies, resCookies, opts);
   }
 
   /**
@@ -1702,12 +1859,40 @@ export class Auth0Client {
     return { authClient };
   }
 
+  /**
+   * startInteractiveLogin redirects the user to the authorization server to log in.
+   *
+   * Pass the request when one is available (Route Handlers, middleware, the Pages
+   * Router). The request is what lets the SDK read this browser's cookies, which
+   * is how an active anonymous session is linked to the login transaction. In a
+   * Server Action, where there is no request object, cookies are read through
+   * `next/headers` instead.
+   */
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions = {}
+    options: StartInteractiveLoginOptions = {},
+    req?: Request | PagesRouterRequest | NextRequest
   ): Promise<NextResponse> {
-    const reqHeaders = await getHeaders();
-    const authClient = await this.provider.forRequest(reqHeaders, undefined);
-    return authClient.startInteractiveLogin(options);
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    if (normalizedReq instanceof NextRequest) {
+      return authClient.startInteractiveLogin(options, normalizedReq);
+    }
+
+    // Cookies are only needed to link an anonymous session, so they are read only
+    // when that feature is enabled. This keeps the call sequence unchanged for
+    // every application that does not use anonymous sessions.
+    if (!this.#options.anonymousSession?.enabled) {
+      return authClient.startInteractiveLogin(options);
+    }
+
+    // No NextRequest to hand down, so supply the request cookies separately:
+    // the Pages Router request carries them in its headers, and a Server Action
+    // reads them through next/headers the way the sibling methods do.
+    const reqCookies = normalizedReq
+      ? (this.createRequestCookies(normalizedReq) as RequestCookies)
+      : ((await cookies()) as unknown as RequestCookies);
+
+    return authClient.startInteractiveLogin(options, undefined, reqCookies);
   }
 
   /**

@@ -1752,6 +1752,34 @@ describe("Auth0Client", () => {
   });
 });
 
+describe("GUARDING TEST: C2/C3 - Public Auth0Client anonymous session wrappers", () => {
+  it("C2/C3: Auth0Client exports public methods for anonymous sessions", () => {
+    // Verify the Auth0Client class has the required public methods
+    expect(Auth0Client.prototype).toHaveProperty("createAnonymousSession");
+    expect(Auth0Client.prototype).toHaveProperty("getAnonymousSession");
+
+    // Verify they are functions
+    expect(typeof Auth0Client.prototype.createAnonymousSession).toBe(
+      "function"
+    );
+    expect(typeof Auth0Client.prototype.getAnonymousSession).toBe("function");
+  });
+
+  it("C2/C3: Auth0Client can be instantiated with anonymous session config", () => {
+    const testClient = new Auth0Client({
+      domain: "test.auth0.com",
+      clientId: "test-id",
+      clientSecret: "test-secret",
+      secret: "test-secret-32-bytes-minimum-1234567890ab"
+    });
+
+    // Client instantiated successfully
+    expect(testClient).toBeInstanceOf(Auth0Client);
+    // Verify method signatures
+    expect(typeof testClient.createAnonymousSession).toBe("function");
+  });
+});
+
 export type GetAccessTokenOptions = {
   refresh?: boolean;
 };

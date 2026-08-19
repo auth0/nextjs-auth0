@@ -5288,7 +5288,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           responseType: RESPONSE_TYPES.CODE,
           returnTo: transactionState.returnTo,
           challengeMode: "redirect",
-          appBaseUrl: DEFAULT.appBaseUrl
+          appBaseUrl: DEFAULT.appBaseUrl,
+          anonymousSessionLinked: false
         };
 
         expect(mockOnCallback).toHaveBeenCalledWith(
@@ -5520,7 +5521,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
             challengeMode: "redirect",
-            appBaseUrl: DEFAULT.appBaseUrl
+            appBaseUrl: DEFAULT.appBaseUrl,
+            anonymousSessionLinked: false
           },
           null
         );
@@ -5608,7 +5610,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
             challengeMode: "redirect",
-            appBaseUrl: DEFAULT.appBaseUrl
+            appBaseUrl: DEFAULT.appBaseUrl,
+            anonymousSessionLinked: false
           },
           null
         );
@@ -5695,7 +5698,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
             challengeMode: "redirect",
-            appBaseUrl: DEFAULT.appBaseUrl
+            appBaseUrl: DEFAULT.appBaseUrl,
+            anonymousSessionLinked: false
           },
           null
         );
@@ -6279,7 +6283,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
             challengeMode: "redirect",
-            appBaseUrl: DEFAULT.appBaseUrl
+            appBaseUrl: DEFAULT.appBaseUrl,
+            anonymousSessionLinked: false
           },
           null
         );
@@ -6396,7 +6401,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
             challengeMode: "redirect",
-            appBaseUrl: DEFAULT.appBaseUrl
+            appBaseUrl: DEFAULT.appBaseUrl,
+            anonymousSessionLinked: false
           },
           null
         );
@@ -6516,7 +6522,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
             challengeMode: "redirect",
-            appBaseUrl: DEFAULT.appBaseUrl
+            appBaseUrl: DEFAULT.appBaseUrl,
+            anonymousSessionLinked: false
           },
           null
         );
