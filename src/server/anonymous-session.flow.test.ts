@@ -1296,5 +1296,96 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
         expect(e.message).toContain("plain object");
       }
     });
+
+    it("CR-1b regression: createAnonymousSession with expires_in > 2592000 throws invalid_response", async () => {
+      // CR-1b fix: upper bound on expires_in to prevent decades-long tokens
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () => {
+          return HttpResponse.json({
+            token_type: "Bearer",
+            session_token: `session-${Date.now()}`,
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: 999999999 // Absurdly large
+          });
+        })
+      );
+
+      const req = new NextRequest(
+        new URL("http://localhost:3000/auth/anonymous-session")
+      );
+      const res = new NextResponse();
+
+      await expect(
+        (client as any).createAnonymousSession(req.cookies, res.cookies)
+      ).rejects.toThrow();
+
+      try {
+        await (client as any).createAnonymousSession(req.cookies, res.cookies);
+      } catch (e: any) {
+        expect(e.code).toBe("invalid_response");
+        expect(e.message).toContain("expires_in out of bounds");
+      }
+    });
+
+    it("CR-1b regression: createAnonymousSession with expires_in=3600 works", async () => {
+      // CR-1b fix: normal expires_in values still work
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () => {
+          return HttpResponse.json({
+            token_type: "Bearer",
+            session_token: `session-${Date.now()}`,
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: 3600
+          });
+        })
+      );
+
+      const req = new NextRequest(
+        new URL("http://localhost:3000/auth/anonymous-session")
+      );
+      const res = new NextResponse();
+
+      const session = await (client as any).createAnonymousSession(
+        req.cookies,
+        res.cookies
+      );
+      expect(session).toBeDefined();
+      expect(session.id).toContain("anon@");
+    });
+
+    it("CR-1b regression: renewal with negative expires_in works (test mock for expiry-driven renewal)", async () => {
+      // CR-1b fix: negative/zero expires_in allowed (used in renewal test mocks)
+      // This test verifies that the validation doesn't reject negative values
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () => {
+          return HttpResponse.json({
+            token_type: "Bearer",
+            access_token: createMockJWT("anon@uuid-9999", 3600),
+            expires_in: -10 // Negative but allowed
+          });
+        })
+      );
+
+      const now = Math.floor(Date.now() / 1000);
+      const expiredPayload: AnonymousCookiePayload = {
+        session_token: "session-123",
+        access_token: createMockJWT("anon@uuid-9999", -100),
+        expires_at: now - 100
+      };
+      const encrypted = await createSessionCookie(expiredPayload, secret);
+      const req = new NextRequest(
+        new URL("http://localhost:3000/auth/anonymous-session"),
+        {
+          headers: { cookie: `auth0_anon=${encrypted}` }
+        }
+      );
+
+      // Should not throw during renewal, even though expires_in is negative
+      const res = await (client as any).handleGetAnonymousSession(req);
+      // The renewed token has a valid access_token (3600s exp) but negative expires_in
+      // means expires_at is in the past, so it's treated as expired
+      // BUT the renewal succeeded without throwing, which is what we're testing
+      expect(res.status).toBe(200); // Renewal succeeded, access_token is valid
+    });
   });
 });

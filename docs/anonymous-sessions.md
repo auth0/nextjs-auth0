@@ -501,6 +501,34 @@ try {
 
 ## Security and Limitations
 
+### Security Considerations
+
+#### Logout does not revoke tokens
+
+Calling the logout route clears the local `auth0_anon` cookie but does NOT revoke the session token or any access tokens that have already been issued. Anonymous sessions are stateless on the Auth0 platform. There is no server-side revocation mechanism. Tokens issued before logout remain valid until their natural expiration.
+
+For security-sensitive use cases that require immediate token revocation, use standard authenticated sessions with refresh tokens. For anonymous sessions, keep token TTLs short and treat the session token as a sensitive credential.
+
+#### Silent session recreation loses metadata
+
+When the anonymous session's access token cannot be renewed because the underlying session expired or the session token became invalid (`session_expired` or `invalid_session_token`), the SDK silently creates a new anonymous session rather than throwing an error. This behavior upholds the read contract: a Server Component read of the anonymous session never breaks a render.
+
+This silent recreation has important consequences. First, the anonymous identity changes. A new `anon@{uuid}` subject is issued. Second, any metadata set on the previous session is not carried over and is lost.
+
+Do not store security-critical or authorization-relevant data in anonymous session metadata. Treat metadata as ephemeral. If your application depends on specific metadata values, re-set them after a recreation.
+
+#### Token trust model
+
+Anonymous access tokens are fetched server-to-server from Auth0 over TLS and are trusted on that basis. The SDK does not independently verify the access token signature. This is consistent with standard token handling practices. The SDK validates that the token response's `expires_in` value is within sane bounds.
+
+#### Session linking and fixation protection
+
+When a user logs in while an anonymous session cookie is present, the SDK attempts to link the anonymous session to the authenticated session. The SDK sets `ctx.anonymousSessionLinked` in the `onCallback` context to indicate whether the linkage succeeded.
+
+The flag is `true` only if the anonymous cookie present at callback matches the one that was bound at login initiation. This is a session-fixation protection. If the cookie changed between login and callback, the flag is `false`.
+
+Applications that perform linking SHOULD check this flag in `onCallback`. Do not treat the anonymous session as linked when the flag is `false`.
+
 ### The session token travels in the authorization request URL
 
 Read this before you enable the feature.

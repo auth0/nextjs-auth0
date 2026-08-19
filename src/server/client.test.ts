@@ -1189,6 +1189,41 @@ describe("Auth0Client", () => {
       );
       warnSpy.mockRestore();
     });
+
+    it("should throw when anonymousSession.cookie.secure is explicitly false in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      expect(
+        () =>
+          new Auth0Client({
+            anonymousSession: {
+              enabled: true,
+              cookie: {
+                secure: false
+              }
+            }
+          })
+      ).toThrowError(InvalidConfigurationError);
+    });
+
+    it("should not throw when anonymousSession.cookie.secure is explicitly false in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(
+        () =>
+          new Auth0Client({
+            anonymousSession: {
+              enabled: true,
+              cookie: {
+                secure: false
+              }
+            }
+          })
+      ).not.toThrow();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'appBaseUrl' is not configured")
+      );
+      warnSpy.mockRestore();
+    });
   });
 
   describe("cookie security when appBaseUrl is configured via options", () => {
@@ -1211,13 +1246,23 @@ describe("Auth0Client", () => {
 
     it("should force secure cookies when appBaseUrl is a single https string", () => {
       const client = new Auth0Client({
-        appBaseUrl: "https://app.example.com"
+        appBaseUrl: "https://app.example.com",
+        anonymousSession: {
+          enabled: true,
+          cookie: {
+            secure: false // Should be overridden
+          }
+        }
       });
       const sessionStore = client["sessionStore"] as any;
       const transactionStore = (client as any).transactionStore;
 
       expect(sessionStore.cookieConfig.secure).toBe(true);
       expect(transactionStore.cookieOptions.secure).toBe(true);
+      // Verify anon cookie secure was forced to true despite being set to false
+      const provider = (client as any).provider;
+      const authClient = provider.getAuthClientForStaticMode();
+      expect(authClient.anonymousCookieOptions.secure).toBe(true);
     });
 
     it("should not force secure cookies when appBaseUrl is a single http string", () => {

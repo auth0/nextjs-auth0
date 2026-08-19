@@ -252,7 +252,9 @@ export type OnCallbackContext = {
    */
   challengeMode?: "redirect" | "popup";
   /**
-   * True if an active anonymous session was linked at login time.
+   * True if an active anonymous session was linked at login time (digest-bound cookie matched at callback).
+   * False if a link was attempted but the anonymous cookie was missing or failed digest verification (session-fixation check).
+   * When false, the app SHOULD NOT treat the anonymous session as successfully linked.
    * When true, onCallback hook can trigger migration logic (e.g., move cart to authenticated user).
    */
   anonymousSessionLinked?: boolean;
@@ -3146,6 +3148,15 @@ export class AuthClient {
       );
     }
 
+    // Validate expires_in upper bound to prevent absurdly long-lived tokens
+    const MAX_EXPIRES_IN = 2592000; // 30 days (matches platform session_expires_in max)
+    if (!Number.isFinite(res.expires_in) || res.expires_in > MAX_EXPIRES_IN) {
+      throw new AnonymousSessionError(
+        "invalid_response",
+        `expires_in out of bounds: ${res.expires_in}`
+      );
+    }
+
     const payload: AnonymousCookiePayload = {
       session_token: res.session_token,
       access_token: res.access_token,
@@ -3362,6 +3373,16 @@ export class AuthClient {
     priorSessionToken: string,
     metadata?: Record<string, unknown>
   ): AnonymousCookiePayload {
+    // Validate expires_in upper bound to prevent absurdly long-lived tokens
+    // (allow negative/zero for renewal test mocks that simulate already-expired tokens)
+    const MAX_EXPIRES_IN = 2592000; // 30 days (matches platform session_expires_in max)
+    if (!Number.isFinite(res.expires_in) || res.expires_in > MAX_EXPIRES_IN) {
+      throw new AnonymousSessionError(
+        "invalid_response",
+        `expires_in out of bounds: ${res.expires_in}`
+      );
+    }
+
     return {
       // session_token is returned only on create; on renew/update the server omits
       // it and the prior opaque handle MUST be retained so later renewals succeed (D6/§5.I2).

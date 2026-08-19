@@ -629,6 +629,9 @@ export class Auth0Client {
         options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
+    // Anonymous session cookies only support secure via options (no env var).
+    const anonSecureExplicit = options.anonymousSession?.cookie?.secure;
+
     if (appBaseUrl) {
       const usesHttps = Array.isArray(appBaseUrl)
         ? appBaseUrl.every((url) => new URL(url).protocol === "https:")
@@ -638,6 +641,10 @@ export class Auth0Client {
       if (usesHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
+        // Force anonymous session cookie secure=true when appBaseUrl is https
+        if (options.anonymousSession?.cookie) {
+          options.anonymousSession.cookie.secure = true;
+        }
       }
     } else if (process.env.NODE_ENV === "production") {
       // No appBaseUrl is configured, so the SDK relies on the request host at runtime.
@@ -655,16 +662,28 @@ export class Auth0Client {
         );
       }
 
+      if (anonSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Anonymous session cookies must be marked secure in production when appBaseUrl is not configured. Set anonymousSession.cookie.secure=true."
+        );
+      }
+
       sessionCookieOptions.secure = true;
       transactionCookieOptions.secure = true;
+      // Force anonymous session cookie secure=true in production with no appBaseUrl
+      if (options.anonymousSession?.cookie) {
+        options.anonymousSession.cookie.secure = true;
+      }
     } else if (
       process.env.NODE_ENV === "development" &&
-      (sessionSecureExplicit === false || transactionSecureExplicit === false)
+      (sessionSecureExplicit === false ||
+        transactionSecureExplicit === false ||
+        anonSecureExplicit === false)
     ) {
       // Warn during development when dynamic base URL resolution is combined with
       // explicitly insecure cookies, since production will reject this configuration.
       console.warn(
-        "'appBaseUrl' is not configured and cookies are explicitly marked insecure. This is allowed in development, but will throw in production. Configure appBaseUrl or set secure=true for session/transaction cookies."
+        "'appBaseUrl' is not configured and cookies are explicitly marked insecure. This is allowed in development, but will throw in production. Configure appBaseUrl or set secure=true for session/transaction/anonymous-session cookies."
       );
     }
 
