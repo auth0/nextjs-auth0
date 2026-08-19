@@ -6177,46 +6177,16 @@ if (session) {
 
 Enterprise Connect lets a B2B SaaS application layer enterprise SSO on top of its own auth server without replacing it. Auth0 acts as a pure SSO relay — it federates to the customer's enterprise IdP (Okta, Azure AD, SAML, etc.) and returns an ID token. The SaaS app's own auth server remains the session authority.
 
-Set `appType: 'b2b_integration'` to put the SDK into this mode.
+Set `enterpriseConnect: true` to put the SDK into this mode.
 
 ### How it works
 
 1. The user enters their email on your login page.
-2. Your server calls `isFederatedDomain` to check whether Auth0 manages SSO for that email domain.
-3. If yes, your app redirects to `/auth/login` with `connection` and `organization` looked up from your database.
+2. Your app calls `startEnterpriseLogin({ email })`. It runs domain discovery internally.
+3. If the domain is federated, the SDK redirects to `/auth/login` with the email as `login_hint`. Auth0's Home Realm Discovery resolves the connection and organization from the domain — no database lookup needed.
 4. Auth0 federates to the enterprise IdP, validates the assertion, and redirects back to `/auth/callback`.
 5. `onCallback` fires with the ID token claims — your app writes its own session and returns a `NextResponse`.
 6. Auth0 never writes a session cookie. `getSession()` is unavailable in this mode.
-
-### Domain discovery
-
-```ts
-// app/api/check-domain/route.ts
-import { isFederatedDomain } from "@auth0/nextjs-auth0/server";
-import { NextRequest, NextResponse } from "next/server";
-
-export async function POST(req: NextRequest) {
-  const { email } = await req.json();
-
-  if (!email || !email.includes("@")) {
-    return NextResponse.json({ error: "invalid email" }, { status: 400 });
-  }
-
-  const emailDomain = email.split("@")[1].toLowerCase();
-  const isFederated = await isFederatedDomain(process.env.AUTH0_DOMAIN!, emailDomain);
-
-  if (!isFederated) {
-    return NextResponse.json({ isFederated, emailDomain });
-  }
-
-  // Look up the connection name and org_id for this domain from your database.
-  // Each enterprise customer has their own values configured when they onboard.
-  const { connection, orgId } = await getEnterpriseConfig(emailDomain);
-  return NextResponse.json({ isFederated, emailDomain, connection, orgId });
-}
-```
-
-`isFederatedDomain` calls Auth0's WebFinger endpoint and caches results (60 s for managed domains, 15 s for unmanaged). Call it server-side only — never from the browser. An unauthenticated client-side call would let anyone enumerate which email domains are enterprise customers on your tenant.
 
 ### Initialize the SDK
 
@@ -6226,9 +6196,10 @@ import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { NextResponse } from "next/server";
 
 export const auth0 = new Auth0Client({
-  appType: "b2b_integration",
+  enterpriseConnect: true,
   authorizationParameters: {
     scope: "openid profile email",  // no offline_access — EC has no refresh token
+    // Do not set a static organization — it is resolved per login via HRD
   },
   async onCallback(error, ctx, session) {
     if (error) throw error;
@@ -6267,31 +6238,31 @@ export const auth0 = new Auth0Client({
 
 ### Login form
 
+`startEnterpriseLogin` is the single login entry point. It runs domain discovery and, for a federated domain, redirects to Auth0 with the email as `login_hint`. For a non-federated domain it hands control back so you route to your own login.
+
+Server action (recommended):
+
+```ts
+// app/actions.ts
+"use server";
+import { auth0 } from "@/lib/auth0";
+import { redirect } from "next/navigation";
+
+export async function login(formData: FormData) {
+  const email = String(formData.get("email"));
+  const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
+  if (res) return res;            // federated — redirect to Auth0
+  redirect("/existing-login");    // not federated — your own login
+}
+```
+
 ```tsx
-"use client";
+// app/login/page.tsx
+import { login } from "../actions";
 
 export default function LoginPage() {
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;
-
-    const { isFederated, connection, orgId } = await fetch("/api/check-domain", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    }).then(r => r.json());
-
-    if (isFederated) {
-      // connection and orgId come from your database via the check-domain route
-      const params = new URLSearchParams({ connection, organization: orgId, login_hint: email });
-      window.location.href = `/auth/login?${params}`;
-    } else {
-      // route through your existing login
-    }
-  }
-
   return (
-    <form onSubmit={handleSubmit}>
+    <form action={login}>
       <input name="email" type="email" required />
       <button type="submit">Continue</button>
     </form>
@@ -6299,9 +6270,21 @@ export default function LoginPage() {
 }
 ```
 
-Always pass `organization` alongside `connection`. `b2b_integration` clients require `organization_usage: "require"` — omitting it shows the Auth0 org-selection prompt, which rejects the `connection` parameter.
+To trigger login from a client component, use the client flavour, which asks the SDK's mounted `/auth/federated-domain` route whether the domain is federated before navigating:
 
-Do not set a static `organization` in `authorizationParameters` — each enterprise customer has their own `org_id`. Look it up from your database by email domain on each login.
+```tsx
+"use client";
+import { startEnterpriseLogin } from "@auth0/nextjs-auth0";
+
+async function onSubmit(email: string) {
+  const redirected = await startEnterpriseLogin(email, { returnTo: "/dashboard" });
+  if (!redirected) await yourExistingLogin(email);  // not a federated domain
+}
+```
+
+Auth0 resolves the connection and organization from the email domain via Home Realm Discovery, so you do not pass `connection` or `organization`. Do not set a static `organization` in `authorizationParameters` — a static value routes every enterprise customer to the same organization. If a domain maps to multiple connections, enable **Display connection as button** on each so Auth0 can present a picker.
+
+`isFederatedDomain` (the underlying discovery primitive used by `startEnterpriseLogin`) remains exported from `@auth0/nextjs-auth0/server` for advanced server-side use. Call it server-side only — never from the browser, which would let anyone enumerate your enterprise customer domains.
 
 ### Protected pages
 

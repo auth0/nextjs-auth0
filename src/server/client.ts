@@ -30,6 +30,7 @@ import {
   SessionDataStore,
   SessionTransferTokenOptions,
   SessionTransferTokenResult,
+  StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -41,6 +42,7 @@ import {
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -85,7 +87,7 @@ import {
 
 /**
  * Members of {@link Auth0Client} that cannot work when
- * `appType: 'b2b_integration'` is set, mapped to the guidance shown when one is
+ * `enterpriseConnect: true` is set, mapped to the guidance shown when one is
  * used. Each depends on an Auth0-managed session or a refresh token, and
  * Enterprise Connect creates neither.
  *
@@ -111,14 +113,14 @@ const EC_UNAVAILABLE_MEMBERS: Record<string, string> = {
     "Auth0 does not hold a session in this mode. Read the user from the session " +
     "store you populated in onCallback.",
   getAccessToken:
-    "b2b_integration clients are not issued refresh tokens, so there is no token " +
+    "Enterprise Connect clients are not issued refresh tokens, so there is no token " +
     "to return or renew. Use the tokens passed to onCallback if you need to call " +
     "an API on the user's behalf.",
   getAccessTokenForConnection:
     "This reads the token set from an Auth0 session, which does not exist in this " +
     "mode. Store connection tokens yourself from the onCallback session if needed.",
   revokeRefreshToken:
-    "b2b_integration clients are not issued refresh tokens, so there is nothing " +
+    "Enterprise Connect clients are not issued refresh tokens, so there is nothing " +
     "to revoke.",
   requestSessionTransferToken:
     "Session transfer reads and refreshes an Auth0 session, which does not exist " +
@@ -288,47 +290,48 @@ export interface Auth0ClientOptions {
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
-   * **Enterprise Connect:** when `appType` is `'b2b_integration'`, the SDK skips
+   * **Enterprise Connect:** when `enterpriseConnect` is `true`, the SDK skips
    * writing the Auth0 session cookie after this hook returns. Persist identity to
-   * your own store inside the hook. Return a `NextResponse` to control the redirect
-   * destination, or return nothing to let the SDK redirect to `returnTo`.
+   * your own store inside the hook and return a `NextResponse` with your session
+   * cookie attached. Returning void in Enterprise Connect mode throws, because the
+   * callback response is the only way a cookie reaches the browser.
    *
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
 
   /**
-   * The Auth0 application type.
+   * Enable Enterprise Connect mode.
    *
-   * Set to `'b2b_integration'` for Enterprise Connect, where Auth0 acts as a pure
-   * SSO relay and your application remains the session authority. This changes
-   * three things:
+   * Set to `true` for Enterprise Connect, where Auth0 acts as a pure SSO relay and
+   * your application remains the session authority. This changes three things:
    *
    * - The Auth0 session cookie is never written. `onCallback` is responsible for
-   *   persisting identity to your own store.
+   *   persisting identity to your own store and must return a `NextResponse` with
+   *   your session cookie attached.
    * - {@link Auth0Client.getSession} and {@link Auth0Client.getAccessToken} throw,
    *   rather than returning `null`, because Auth0 holds no session to read.
    * - Configuration that cannot work in this mode (`offline_access` in scope, or a
-   *   missing default `organization`) is reported at initialization.
+   *   static default `organization`) is reported at initialization.
    *
    * @example
    * ```ts
    * export const auth0 = new Auth0Client({
-   *   appType: "b2b_integration",
+   *   enterpriseConnect: true,
    *   authorizationParameters: {
    *     scope: "openid profile email",
    *     // Do NOT set a static organization here for multi-customer deployments.
-   *     // Pass organization per login via /auth/login query params, looked up
-   *     // from your database by the user's email domain.
+   *     // The organization is resolved per login via Home Realm Discovery from
+   *     // the login_hint email domain.
    *   },
    *   async onCallback(error, ctx, session) {
    *     if (error) throw error;
-   *     if (session?.user) await mySessionStore.upsert(session.user);
+   *     // persist identity and return a NextResponse with your session cookie
    *   }
    * });
    * ```
    */
-  appType?: "b2b_integration";
+  enterpriseConnect?: true;
 
   // provide a session store to persist sessions in your own data store
   /**
@@ -786,6 +789,9 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      federatedDomain:
+        process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+        "/auth/federated-domain",
       connectAccount: "/auth/connect",
       mfaAuthenticators:
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
@@ -873,7 +879,7 @@ export class Auth0Client {
     // Enterprise Connect: disable everything that depends on an Auth0 session, and
     // surface configuration that cannot work in this mode at startup rather than as
     // a confusing failure on a later request.
-    if (options.appType === "b2b_integration") {
+    if (options.enterpriseConnect) {
       this.disableSessionMembersForEnterpriseConnect();
 
       const scope = options.authorizationParameters?.scope ?? DEFAULT_SCOPES;
@@ -883,21 +889,20 @@ export class Auth0Client {
         scope.split(/\s+/).includes("offline_access")
       ) {
         console.warn(
-          "WARNING: 'offline_access' is in scope but b2b_integration clients are not " +
+          "WARNING: 'offline_access' is in scope but Enterprise Connect clients are not " +
             "issued refresh tokens. Set authorizationParameters.scope to " +
             "'openid profile email' to drop it — the default scope includes offline_access."
         );
       }
 
-      if (!options.authorizationParameters?.organization) {
+      if (options.authorizationParameters?.organization) {
         console.warn(
-          "WARNING: appType is 'b2b_integration' but no default 'organization' is set in " +
-            "authorizationParameters. Without an organization on the /authorize request, " +
-            "Auth0 shows a hosted organization-selection screen, and that prompt rejects " +
-            "the 'connection' parameter with invalid_request. Pass 'organization' per " +
-            "login via /auth/login query params (looked up from your database by email " +
-            "domain) — do not set a static default here unless this client serves exactly " +
-            "one organization."
+          "WARNING: enterpriseConnect is true but a static 'organization' is set in " +
+            "authorizationParameters. In Enterprise Connect the organization is resolved " +
+            "per login by Home Realm Discovery from the login_hint email domain. A static " +
+            "value routes every enterprise customer to the same organization, breaking " +
+            "multi-customer deployments. Leave 'organization' unset unless this client " +
+            "serves exactly one organization."
         );
       }
     }
@@ -931,7 +936,7 @@ export class Auth0Client {
 
           beforeSessionSaved: options.beforeSessionSaved,
           onCallback: options.onCallback,
-          appType: options.appType,
+          enterpriseConnect: options.enterpriseConnect,
 
           routes: this.routes,
 
@@ -1837,7 +1842,7 @@ export class Auth0Client {
 
       const error = () =>
         new InvalidConfigurationError(
-          `${label} is not available when appType is 'b2b_integration'. ${guidance}`
+          `${label} is not available when enterpriseConnect is true. ${guidance}`
         );
 
       Object.defineProperty(this, member, {
@@ -1922,6 +1927,45 @@ export class Auth0Client {
     const reqHeaders = await getHeaders();
     const authClient = await this.provider.forRequest(reqHeaders, undefined);
     return authClient.startInteractiveLogin(options);
+  }
+
+  /**
+   * Enterprise Connect login initiation. Runs Home Realm Discovery for the email
+   * domain and, when the domain is federated, redirects to Auth0 with the email
+   * as `login_hint` (Auth0 resolves the connection and organization from the
+   * domain). When the domain is not federated, returns `null` so the caller can
+   * route to its own non-enterprise login.
+   *
+   * @returns a `NextResponse` redirect for a federated domain, or `null` when the
+   * domain is not federated.
+   */
+  async startEnterpriseLogin(
+    options: StartEnterpriseLoginOptions
+  ): Promise<NextResponse | null> {
+    const emailDomain = options.email.split("@")[1]?.toLowerCase();
+    if (!emailDomain) {
+      return null;
+    }
+
+    const auth0Domain =
+      (typeof this.#options.domain === "string"
+        ? this.#options.domain
+        : undefined) ?? process.env.AUTH0_DOMAIN;
+    if (!auth0Domain) {
+      throw new InvalidConfigurationError(
+        "Missing: domain: Set AUTH0_DOMAIN env var or pass domain in options."
+      );
+    }
+
+    const federated = await isFederatedDomain(auth0Domain, emailDomain);
+    if (!federated) {
+      return null;
+    }
+
+    return this.startInteractiveLogin({
+      authorizationParameters: { login_hint: options.email },
+      returnTo: options.returnTo
+    });
   }
 
   /**

@@ -15,6 +15,22 @@ export interface StartInteractiveLoginOptions {
   challengeMode?: "redirect" | "popup";
 }
 
+/**
+ * Options for {@link Auth0Client.startEnterpriseLogin}.
+ */
+export interface StartEnterpriseLoginOptions {
+  /**
+   * The user's email address. Its domain is used for Home Realm Discovery to
+   * decide whether to route through Auth0, and is passed as `login_hint` so Auth0
+   * can resolve the enterprise connection and organization.
+   */
+  email: string;
+  /**
+   * The URL to redirect to after a successful login.
+   */
+  returnTo?: string;
+}
+
 export interface AuthorizationParameters {
   /**
    * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.
