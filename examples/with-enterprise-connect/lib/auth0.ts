@@ -9,30 +9,6 @@ export interface AppSession {
   name?: string;
 }
 
-export interface EnterpriseConfig {
-  connection: string;
-  orgId: string;
-}
-
-// Replace this with a real database query.
-// The lookup is keyed by email domain — each enterprise customer has their own
-// Auth0 connection name and organization ID configured when they onboard.
-export async function getEnterpriseConfig(
-  emailDomain: string
-): Promise<EnterpriseConfig | null> {
-  // DEMO ONLY: config is read from environment variables for simplicity.
-  // In production this must be a database query keyed by email domain —
-  // each enterprise customer has their own connection name and org_id.
-  // e.g. return db.enterpriseCustomers.findByDomain(emailDomain);
-  if (emailDomain === "zillo.com") {
-    return {
-      connection: process.env.ZILLO_CONNECTION!,
-      orgId: process.env.ZILLO_ORG_ID!
-    };
-  }
-  return null;
-}
-
 // Session is stored as base64 JSON in a cookie — no server-side store needed for this demo.
 // In production use a signed/encrypted cookie or a database-backed session.
 export async function getAppSession(): Promise<AppSession | null> {
@@ -47,9 +23,10 @@ export async function getAppSession(): Promise<AppSession | null> {
 }
 
 export const auth0 = new Auth0Client({
-  appType: "b2b_integration",
+  enterpriseConnect: true,
   authorizationParameters: {
     scope: "openid profile email" // no offline_access — EC has no refresh token
+    // No static organization — it is resolved per login via HRD from login_hint
   },
 
   async onCallback(error, ctx, session) {
