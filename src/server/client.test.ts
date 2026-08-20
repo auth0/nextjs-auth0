@@ -2086,15 +2086,33 @@ describe("Auth0Client", () => {
       });
     }
 
+    // startEnterpriseLogin resolves the per-request AuthClient via
+    // provider.forRequest and runs discovery + login against THAT client's
+    // resolved domain. Mock forRequest to return an AuthClient stub exposing a
+    // `domain` and a spyable `startInteractiveLogin`.
+    function mockResolvedClient(
+      client: Auth0Client,
+      domain: string,
+      startInteractiveLogin = vi.fn()
+    ) {
+      const mockAuthClient = { domain, startInteractiveLogin };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+      return mockAuthClient;
+    }
+
     it("redirects with login_hint when the domain is federated", async () => {
       vi.mocked(isFederatedDomain).mockResolvedValue(true);
       const client = ecClient();
       const redirect = NextResponse.redirect(
         new URL("https://test.auth0.com/authorize?login_hint=jane%40acme.com")
       );
-      const spy = vi
-        .spyOn(client, "startInteractiveLogin")
-        .mockResolvedValue(redirect);
+      const resolved = mockResolvedClient(
+        client,
+        "test.auth0.com",
+        vi.fn().mockResolvedValue(redirect)
+      );
 
       const res = await client.startEnterpriseLogin({
         email: "jane@acme.com",
@@ -2105,7 +2123,7 @@ describe("Auth0Client", () => {
         "test.auth0.com",
         "acme.com"
       );
-      expect(spy).toHaveBeenCalledWith({
+      expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
         authorizationParameters: { login_hint: "jane@acme.com" },
         returnTo: "/dashboard"
       });
@@ -2115,12 +2133,12 @@ describe("Auth0Client", () => {
     it("returns null when the domain is not federated", async () => {
       vi.mocked(isFederatedDomain).mockResolvedValue(false);
       const client = ecClient();
-      const spy = vi.spyOn(client, "startInteractiveLogin");
+      const resolved = mockResolvedClient(client, "test.auth0.com");
 
       const res = await client.startEnterpriseLogin({ email: "jane@acme.com" });
 
       expect(res).toBeNull();
-      expect(spy).not.toHaveBeenCalled();
+      expect(resolved.startInteractiveLogin).not.toHaveBeenCalled();
     });
 
     it("returns null when the email has no domain", async () => {
@@ -2134,6 +2152,7 @@ describe("Auth0Client", () => {
     it("lowercases the email domain before discovery", async () => {
       vi.mocked(isFederatedDomain).mockResolvedValue(false);
       const client = ecClient();
+      mockResolvedClient(client, "test.auth0.com");
 
       await client.startEnterpriseLogin({ email: "Jane@ACME.com" });
 
@@ -2141,6 +2160,32 @@ describe("Auth0Client", () => {
         "test.auth0.com",
         "acme.com"
       );
+    });
+
+    it("runs discovery against the per-request resolved domain (MCD resolver mode)", async () => {
+      // In resolver mode the resolved custom domain differs from the static
+      // option. Discovery must use the resolved domain (the one the redirect
+      // targets), not the static/AUTH0_DOMAIN value.
+      vi.mocked(isFederatedDomain).mockResolvedValue(true);
+      const client = ecClient();
+      const redirect = NextResponse.redirect(
+        new URL("https://tenant-a.custom.example/authorize")
+      );
+      const resolved = mockResolvedClient(
+        client,
+        "tenant-a.custom.example",
+        vi.fn().mockResolvedValue(redirect)
+      );
+
+      const res = await client.startEnterpriseLogin({ email: "jane@acme.com" });
+
+      // Discovery used the resolved custom domain, NOT process.env AUTH0_DOMAIN.
+      expect(isFederatedDomain).toHaveBeenCalledWith(
+        "tenant-a.custom.example",
+        "acme.com"
+      );
+      expect(resolved.startInteractiveLogin).toHaveBeenCalled();
+      expect(res).toBe(redirect);
     });
   });
 });

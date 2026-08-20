@@ -1947,22 +1947,22 @@ export class Auth0Client {
       return null;
     }
 
-    const auth0Domain =
-      (typeof this.#options.domain === "string"
-        ? this.#options.domain
-        : undefined) ?? process.env.AUTH0_DOMAIN;
-    if (!auth0Domain) {
-      throw new InvalidConfigurationError(
-        "Missing: domain: Set AUTH0_DOMAIN env var or pass domain in options."
-      );
-    }
+    // Resolve the per-request AuthClient (static domain, or MCD resolver mode)
+    // and run WebFinger against the SAME domain the redirect will use. In
+    // resolver mode the resolved custom domain differs from the static option,
+    // so discovering against `this.#options.domain` would check the wrong tenant
+    // while the redirect fired against the resolved one. `authClient.domain` is
+    // always populated (the provider validates domain-or-resolver at
+    // construction), so no `AUTH0_DOMAIN` fallback is needed.
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
 
-    const federated = await isFederatedDomain(auth0Domain, emailDomain);
+    const federated = await isFederatedDomain(authClient.domain, emailDomain);
     if (!federated) {
       return null;
     }
 
-    return this.startInteractiveLogin({
+    return authClient.startInteractiveLogin({
       authorizationParameters: { login_hint: options.email },
       returnTo: options.returnTo
     });
