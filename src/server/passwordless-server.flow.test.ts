@@ -10,7 +10,7 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
 import type { SessionData } from "../types/index.js";
 import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
@@ -268,12 +268,7 @@ describe("AuthClient passwordless methods", () => {
       const state = authParams.state as string;
       const txnCookie = resCookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
-      // Strip the {ts}: prefix added by the transaction store before decrypting
-      const colonIdx = txnCookie!.value.indexOf(":");
-      const jweValue =
-        colonIdx !== -1
-          ? txnCookie!.value.slice(colonIdx + 1)
-          : txnCookie!.value;
+      const jweValue = stripTransactionValuePrefix(txnCookie!.value);
       const { payload } = (await decrypt(
         jweValue,
         secret

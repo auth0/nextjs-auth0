@@ -20,10 +20,18 @@ import {
 // Total encoded session-cookie size (across all `__session` chunks) above which
 // we warn. A large session is the main remaining cause of `431 Request Header
 // Fields Too Large`, since — unlike transaction cookies — the session is not
-// evicted. 4096 bytes mirrors the per-cookie limit browsers guarantee and is a
-// good "trim your claims or go stateful" signal well before typical 8 KB proxy
-// header limits are hit.
+// evicted. 4096 bytes is a conservative threshold: at this size the session
+// alone is large, and combined with transaction, connection-token, and
+// application cookies the total `Cookie` header can exceed typical 8 KB proxy
+// limits. Firing early gives developers a clear "trim your claims or go
+// stateful" signal before requests start failing.
 const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
+
+// Under rolling sessions, set() runs on ~every authenticated request, so a
+// legitimately large-but-working session would otherwise log the size warning
+// on every request. Emit it once per process to keep the diagnostic without
+// spamming logs.
+let sessionSizeWarningEmitted = false;
 
 interface StatelessSessionStoreOptions {
   secret: string;
@@ -138,7 +146,11 @@ export class StatelessSessionStore extends AbstractSessionStore {
       resCookies
     );
 
-    if (sessionCookieBytes >= SESSION_COOKIE_SIZE_WARN_BYTES) {
+    if (
+      sessionCookieBytes >= SESSION_COOKIE_SIZE_WARN_BYTES &&
+      !sessionSizeWarningEmitted
+    ) {
+      sessionSizeWarningEmitted = true;
       console.warn(
         `The ${this.sessionCookieName} cookie size is ${sessionCookieBytes} bytes, which may ` +
           "exceed request header size limits and cause 431 Request Header Fields Too Large errors " +

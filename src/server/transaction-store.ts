@@ -1,19 +1,25 @@
 import type * as jose from "jose";
 
+import { InvalidConfigurationError } from "../errors/index.js";
 import { RESPONSE_TYPES } from "../types/index.js";
 import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
-// Maximum total byte size of all transaction (`__txn_*`) cookies combined.
-// When the accumulated size meets or exceeds this limit, the oldest cookies are
-// evicted (FIFO by creation timestamp) before a new one is written. One JWE is
-// ~450–555 bytes, so this allows ~6 concurrent in-flight logins — enough for
-// multi-tab use while staying well under the request-header limits enforced by
-// browsers (~4 KB per cookie) and servers/proxies. Intentionally fixed and not
-// configurable: it caps transaction-cookie accumulation regardless of the
-// deployment's header limit, which the SDK cannot know.
+// Maximum total byte size of all transaction (`__txn_*`) cookies
+// combined. When the accumulated size meets or exceeds this limit, the oldest
+// cookies are evicted (FIFO by creation timestamp) before a new one is written.
+// One JWE is ~450–555 bytes, so this allows ~6 concurrent in-flight logins —
+// enough for multi-tab use while staying well under the request-header limits
+// enforced by browsers (~4 KB per cookie) and servers/proxies. Intentionally
+// fixed and not configurable: it caps transaction-cookie accumulation regardless
+// of the deployment's header limit, which the SDK cannot know.
 const MAX_TRANSACTION_COOKIE_BYTES = 3500;
+
+// Emit once per process — same reasoning as sessionSizeWarningEmitted in
+// stateless-session-store.ts: prefetch/bot traffic hits this path repeatedly,
+// so a per-eviction warn would spam logs.
+let txnEvictionWarningEmitted = false;
 
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
@@ -79,7 +85,7 @@ export interface TransactionCookieOptions {
    */
   path?: string;
   /**
-   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3|Domain Set-Cookie attribute}. By default, no
+   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3 | Domain Set-Cookie attribute}. By default, no
    * domain is set, and most clients will consider the cookie to apply to only
    * the current domain.
    */
@@ -161,7 +167,8 @@ export class TransactionStore {
    * @param transactionState - The transaction state to save
    * @param reqCookies - Optional request cookies. When provided, enables FIFO
    *                     eviction of accumulated transaction cookies (capped at
-   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the new cookie.
+   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the
+   *                     new cookie.
    * @throws {Error} When transaction state is missing required state parameter
    */
   async save(
@@ -183,10 +190,25 @@ export class TransactionStore {
     );
 
     // Encode creation timestamp in the value for O(1) FIFO ordering during eviction.
-    // "{ts}:{jwe}" — no cookie name change, backward compatible with legacy bare "{jwe}".
+    // Format: "{ts}:{jwe}" — cookie name is unchanged.
+    //
+    // Rolling-deploy and rollback safety: get() ships in a prior backfill release
+    // that strips the "{ts}:" prefix before decrypting, so all pods can read both
+    // the old bare "{jwe}" and the new "{ts}:{jwe}" format before this write-side
+    // change is deployed.
     const ts = Math.floor(Date.now() / 1000);
     const newCookieName = this.getTransactionCookieName(transactionState.state);
     const newCookieValue = `${ts}:${jwe}`;
+
+    const newCookieBytes = new TextEncoder().encode(
+      `${newCookieName}=${newCookieValue}`
+    ).length;
+    if (newCookieBytes >= MAX_TRANSACTION_COOKIE_BYTES) {
+      throw new InvalidConfigurationError(
+        `The transaction cookie is ${newCookieBytes} bytes, which exceeds the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. ` +
+          `This is usually caused by a very long returnTo URL. Shorten the returnTo value.`
+      );
+    }
 
     // Evict oldest transaction cookies FIFO before writing the new one, so the
     // accumulated `__txn_*` cookies stay under the fixed byte limit. Only
@@ -271,12 +293,15 @@ export class TransactionStore {
       if (freed >= target) break;
     }
 
-    console.warn(
-      `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
-        `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
-        `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
-        `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
-    );
+    if (!txnEvictionWarningEmitted) {
+      txnEvictionWarningEmitted = true;
+      console.warn(
+        `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
+          `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+          `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
+          `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
+      );
+    }
   }
 
   /**

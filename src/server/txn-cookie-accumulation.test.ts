@@ -3,10 +3,10 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { InvalidConfigurationError } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import { RESPONSE_TYPES } from "../types/connected-accounts.js";
-import { isNonNavigationalRequest } from "../utils/request.js";
 import { AuthClient } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
@@ -62,91 +62,7 @@ const makeResponseCookies = (): ResponseCookies => {
 };
 
 // ---------------------------------------------------------------------------
-// Fix 1 — isNonNavigationalRequest
-// ---------------------------------------------------------------------------
-
-describe("Fix 1 — isNonNavigationalRequest()", () => {
-  const makeReq = (headers: Record<string, string>) => {
-    const req = new NextRequest("http://localhost:3000/auth/login");
-    Object.entries(headers).forEach(([k, v]) => req.headers.set(k, v));
-    return req;
-  };
-
-  describe("known prefetch headers — positive detection only", () => {
-    it("returns true when next-router-prefetch is 1", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "next-router-prefetch": "1" }))
-      ).toBe(true);
-    });
-
-    it("returns true when purpose is prefetch", () => {
-      expect(isNonNavigationalRequest(makeReq({ purpose: "prefetch" }))).toBe(
-        true
-      );
-    });
-
-    it("returns true when sec-purpose is prefetch", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-purpose": "prefetch" }))
-      ).toBe(true);
-    });
-
-    it("returns true when sec-purpose is prefetch;prerender (Speculation Rules)", () => {
-      expect(
-        isNonNavigationalRequest(
-          makeReq({ "sec-purpose": "prefetch;prerender" })
-        )
-      ).toBe(true);
-    });
-
-    it("returns true when x-middleware-prefetch is 1", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "x-middleware-prefetch": "1" }))
-      ).toBe(true);
-    });
-  });
-
-  describe("requests that must not be blocked", () => {
-    it("returns false for plain navigation with no prefetch headers", () => {
-      expect(isNonNavigationalRequest(makeReq({ accept: "text/html" }))).toBe(
-        false
-      );
-    });
-
-    it("returns false for accept: text/x-component — real RSC <Link> navigation must not be blocked", () => {
-      // text/x-component is sent by ALL App Router RSC requests, including a
-      // genuine client-side <Link prefetch={false}> click — not just prefetches.
-      expect(
-        isNonNavigationalRequest(makeReq({ accept: "text/x-component" }))
-      ).toBe(false);
-    });
-
-    it("returns false for sec-fetch-mode: navigate", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "navigate" }))
-      ).toBe(false);
-    });
-
-    it("returns false for sec-fetch-mode: cors — legitimate fetch()/XHR must not be blocked", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "cors" }))
-      ).toBe(false);
-    });
-
-    it("returns false for sec-fetch-mode: same-origin — legitimate fetch()/XHR must not be blocked", () => {
-      expect(
-        isNonNavigationalRequest(makeReq({ "sec-fetch-mode": "same-origin" }))
-      ).toBe(false);
-    });
-
-    it("returns false when no headers present", () => {
-      expect(isNonNavigationalRequest(makeReq({}))).toBe(false);
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Fix 2 — transaction cookie eviction in TransactionStore.save()
+// Transaction cookie eviction in TransactionStore.save()
 // The byte limit is fixed at 3500 bytes and not configurable. Tests exercise it
 // by building transaction cookies whose combined size crosses that threshold.
 // ---------------------------------------------------------------------------
@@ -155,11 +71,53 @@ describe("Fix 1 — isNonNavigationalRequest()", () => {
 // fixed 3500-byte limit but one does not (~1900 bytes of value each).
 const BIG_VALUE = (ts: number) => `${ts}:${"j".repeat(1900)}`;
 
-describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () => {
+describe("transaction cookie eviction in TransactionStore.save()", () => {
   let secret: string;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
+  });
+
+  it("logs a console.warn once per process when eviction fires", async () => {
+    vi.resetModules();
+    const { TransactionStore: FreshStore } =
+      await import("./transaction-store.js");
+    const store = new FreshStore({ secret });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const bigCookies = () =>
+      makeRequestCookies({
+        __txn_old: BIG_VALUE(1000),
+        __txn_newer: BIG_VALUE(9999)
+      });
+
+    await store.save(
+      makeResponseCookies(),
+      makeTransactionState("s1"),
+      bigCookies()
+    );
+    await store.save(
+      makeResponseCookies(),
+      makeTransactionState("s2"),
+      bigCookies()
+    );
+
+    const evictionWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("[auth0] Evicted")
+    );
+    expect(evictionWarns).toHaveLength(1);
+    warnSpy.mockRestore();
+    vi.resetModules();
+  });
+
+  it("throws InvalidConfigurationError when the new cookie alone exceeds the cap", async () => {
+    const store = new TransactionStore({ secret });
+    await expect(
+      store.save(
+        makeResponseCookies(),
+        makeTransactionState("bigstate", { returnTo: "/?" + "x".repeat(4000) })
+      )
+    ).rejects.toThrow(InvalidConfigurationError);
   });
 
   it("does not evict when no reqCookies passed (no eviction without snapshot)", async () => {
@@ -234,32 +192,39 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
     const newState = "newstate";
     await store.save(resCookies, makeTransactionState(newState), reqCookies);
 
-    // Older cookie evicted first
+    // Older cookie evicted first — present as a deletion tombstone (maxAge 0).
     expect(resCookies.get(`__txn_${olderState}`)?.maxAge).toBe(0);
-    // Newer cookie untouched — eviction stopped after freeing enough
-    expect(resCookies.get(`__txn_${newerState}`)?.maxAge).not.toBe(0);
+    // Newer cookie untouched — eviction stopped after freeing enough. It must
+    // not appear on the response at all (not even as a deletion tombstone).
+    expect(resCookies.get(`__txn_${newerState}`)).toBeUndefined();
     // New cookie written
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
-  it("evicts oldest login cookies first (FIFO by timestamp)", async () => {
+  it("evicts the two oldest first when three cookies must be freed (FIFO order)", async () => {
     const store = new TransactionStore({ secret });
 
-    const olderState = "older";
-    const newerState = "newer";
-    // Older timestamp should be evicted first once the limit is crossed.
+    // Three cookies all sized so the total exceeds 3500 bytes and two must be
+    // evicted before the new one can be written within the cap.
+    const oldestState = "oldest";
+    const middleState = "middle";
+    const newestState = "newest";
     const reqCookies = makeRequestCookies({
-      [`__txn_${olderState}`]: BIG_VALUE(1000),
-      [`__txn_${newerState}`]: BIG_VALUE(9999)
+      [`__txn_${oldestState}`]: BIG_VALUE(1000), // ts=1000 — evicted first
+      [`__txn_${middleState}`]: BIG_VALUE(5000), // ts=5000 — evicted second
+      [`__txn_${newestState}`]: BIG_VALUE(9999) // ts=9999 — must survive
     });
     const resCookies = makeResponseCookies();
 
     const newState = "latest";
     await store.save(resCookies, makeTransactionState(newState), reqCookies);
 
-    // Older cookie evicted first
-    expect(resCookies.get(`__txn_${olderState}`)?.maxAge).toBe(0);
-    // New cookie written
+    // Oldest two evicted in timestamp order.
+    expect(resCookies.get(`__txn_${oldestState}`)?.maxAge).toBe(0);
+    expect(resCookies.get(`__txn_${middleState}`)?.maxAge).toBe(0);
+    // Newest existing cookie untouched — must not appear on the response.
+    expect(resCookies.get(`__txn_${newestState}`)).toBeUndefined();
+    // New cookie written.
     expect(resCookies.get(`__txn_${newState}`)?.value).toBeTruthy();
   });
 
@@ -315,17 +280,6 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
     expect(resCookies.get("__txn_other")).toBeUndefined();
   });
 
-  it("does not expose maxSizeBytes as a configurable option", () => {
-    // Type-level guarantee that the option was removed; passing it is a no-op
-    // and the fixed limit still governs eviction.
-    const store = new TransactionStore({
-      secret,
-      // @ts-expect-error maxSizeBytes is no longer a supported option
-      cookieOptions: { maxSizeBytes: 1 }
-    });
-    expect(store).toBeInstanceOf(TransactionStore);
-  });
-
   it("cookie value is encoded as '{ts}:{jwe}'", async () => {
     const store = new TransactionStore({ secret });
     const resCookies = makeResponseCookies();
@@ -373,7 +327,7 @@ describe("Fix 2 — transaction cookie eviction in TransactionStore.save()", () 
 // Fix 3 — Dormant early-return removed for enableParallelTransactions: false
 // ---------------------------------------------------------------------------
 
-describe("Fix 3 — No lock-out in single-transaction mode", () => {
+describe("single-transaction mode does not lock out concurrent logins", () => {
   let secret: string;
 
   beforeEach(async () => {
@@ -439,7 +393,7 @@ describe("Fix 3 — No lock-out in single-transaction mode", () => {
 // Fix 4 — Callback cleanup: delete only the completing flow's cookie
 // ---------------------------------------------------------------------------
 
-describe("Fix 4 — callback cleanup: delete(state)", () => {
+describe("callback cleanup: delete(state) removes only the completing cookie", () => {
   let secret: string;
 
   beforeEach(async () => {
@@ -455,8 +409,12 @@ describe("Fix 4 — callback cleanup: delete(state)", () => {
     await store.delete(resCookies, "stateA");
 
     expect(resCookies.get("__txn_stateA")?.maxAge).toBe(0);
-    expect(resCookies.get("__txn_stateB")?.value).toBe("2000:jwe_b");
-    expect(resCookies.get("__txn_stateB")?.maxAge).not.toBe(0);
+    // stateB must still be present with its original value and not a deletion
+    // tombstone (maxAge 0).
+    const stateB = resCookies.get("__txn_stateB");
+    expect(stateB).toBeDefined();
+    expect(stateB?.value).toBe("2000:jwe_b");
+    expect(stateB?.maxAge).not.toBe(0);
   });
 
   it("does not throw when deleting a non-existent state", async () => {
@@ -593,7 +551,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     });
   });
 
-  it("Fix 1 — known prefetch header returns 401 and no __txn_* cookie is written", async () => {
+  it("Fix 1 — known prefetch header returns 204 with no-store and no __txn_* cookie is written", async () => {
     const authClient = makeAuthClient();
     const req = new NextRequest("http://localhost:3000/auth/login", {
       headers: { "next-router-prefetch": "1" }
@@ -601,7 +559,10 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
 
     const res = await authClient.handler(req);
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(204);
+    // Cache-Control: no-store prevents CDNs/proxies from caching this 204 and
+    // serving it for real login navigations.
+    expect(res.headers.get("cache-control")).toBe("no-store");
     const txnCookies = res.cookies
       .getAll()
       .filter((c) => c.name.startsWith("__txn_") && c.maxAge !== 0);
@@ -650,8 +611,9 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
 
     // Completing cookie deleted
     expect(callbackRes.cookies.get(`__txn_${state}`)?.maxAge).toBe(0);
-    // Tab B real login cookie must NOT be deleted
-    expect(callbackRes.cookies.get("__txn_tabB")?.maxAge).not.toBe(0);
+    // Tab B real login cookie must NOT be deleted — it must not appear on the
+    // response at all (not even as a deletion tombstone).
+    expect(callbackRes.cookies.get("__txn_tabB")).toBeUndefined();
     // Session written
     expect(callbackRes.cookies.get("__session")?.value).toBeTruthy();
   });

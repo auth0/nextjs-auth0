@@ -242,7 +242,7 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 ```
 
 > [!NOTE]
-> Link to your login route with a plain `<a>` tag (as shown above) or `<Link prefetch={false}>` — never `<Link href="/auth/login">`. A prefetched `<Link>` starts a login flow that never completes, accumulating transaction cookies. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+> A default `<Link href="/auth/login">` is safe — the SDK returns `204 No Content` on AUTO prefetches without writing a transaction cookie. Avoid `<Link href="/auth/login" prefetch={true}>` (FULL prefetch), which is indistinguishable from a real navigation server-side. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ### Social Login
 
@@ -578,7 +578,7 @@ export async function middleware(request: NextRequest) {
 ## Protecting a Server-Side Rendered (SSR) Page
 
 > [!TIP]
-> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware. Its redirect happens inside the render and is not followed during a Next.js prefetch, so no transaction cookie is written for prefetched protected pages. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware for protected pages. When a prefetch follows the redirect to `/auth/login`, the SDK returns `204 No Content` (no transaction cookie written). A middleware redirect achieves the same result, but `withPageAuthRequired` keeps the auth logic co-located with the page. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 #### Page Router
 
@@ -623,7 +623,7 @@ export default auth0.withPageAuthRequired(
 To protect a Client-Side Rendered (CSR) page, you can use the `withPageAuthRequired` higher-order function. Requests to `/profile` without a valid session cookie will be redirected to the login page.
 
 > [!TIP]
-> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) also avoids transaction-cookie accumulation on prefetched pages. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) keeps auth logic co-located with the page. Prefetches that follow the redirect to `/auth/login` are handled by the SDK's `204` guard, so no transaction cookie is written. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ```tsx
 // app/profile/page.tsx
@@ -3711,6 +3711,61 @@ Common scopes for My Organization API:
 - `roles:read` - Read organization roles
 - `roles:manage` - Manage organization roles
 
+### Reading Organization Permissions
+
+Auth0 includes a `urn:auth0:my_org_current_user_permissions` claim in the ID token containing all `my_org:*` permissions the authenticated user holds in their current organization. The SDK passes this claim through to `session.user` automatically — no additional scope or `beforeSessionSaved` configuration is required.
+
+The permissions are cached in the encrypted session cookie and refreshed only when the ID token is re-issued, so there is no extra network call on each component mount.
+
+#### Server Component
+
+```tsx
+import { auth0 } from "@/lib/auth0";
+
+export default async function Page() {
+  const session = await auth0.getSession();
+  const permissions: string[] =
+    session?.user["urn:auth0:my_org_current_user_permissions"] ?? [];
+
+  const canInvite = permissions.includes("my_org:invite_members");
+
+  return (
+    <div>
+      {canInvite && (
+        <button type="button">Invite Member</button>
+      )}
+    </div>
+  );
+}
+```
+
+#### Client Component
+
+```tsx
+"use client";
+
+import { useUser } from "@auth0/nextjs-auth0";
+
+export function OrgActions() {
+  const { user } = useUser();
+  const permissions: string[] =
+    user?.["urn:auth0:my_org_current_user_permissions"] ?? [];
+
+  const canInvite = permissions.includes("my_org:invite_members");
+  const canManageRoles = permissions.includes("my_org:manage_member_roles");
+
+  return (
+    <div>
+      <button disabled={!canInvite}>Invite Member</button>
+      <button disabled={!canManageRoles}>Manage Roles</button>
+    </div>
+  );
+}
+```
+
+> [!NOTE]
+> This claim is for UI gating only. The My Organization API enforces authorization server-side on every request regardless of what the claim contains.
+
 ### Integration with UI Components
 
 When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
@@ -4106,44 +4161,48 @@ If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookie
 
 **This is fixed in the current SDK version.** The SDK now:
 
-1. Returns `401` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
+1. Returns `204 No Content` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
 2. Automatically evicts accumulated `__txn_*` cookies once their combined size reaches a fixed internal limit (3500 bytes, roughly six concurrent in-flight logins) — oldest-first (FIFO) by creation timestamp — before writing the new cookie. Only transaction cookies are measured and evicted; the session and other cookies are never touched. This limit is not configurable.
 
 #### Recommended practices to avoid transaction cookie accumulation
 
 Even with the automatic protections above, follow these two practices so login flows are only started by real user navigation:
 
-**1. Do not use `<Link href="/auth/login">`. Use a plain `<a>` tag or `<Link prefetch={false}>`.**
+**1. Avoid `<Link href="/auth/login" prefetch={true}>`.**
 
-Next.js prefetches `<Link>` targets on hover or when they scroll into view. A prefetch of `/auth/login` starts a login flow (writing a `__txn_*` cookie) that the user never completes, since the prefetched response is discarded. Prevent it by not prefetching the login route:
+A default `<Link href="/auth/login">` (AUTO prefetch) is safe — the SDK detects the prefetch header and returns `204 No Content` without writing a transaction cookie. However, `<Link prefetch={true}>` triggers a FULL prefetch which sends no detectable prefetch header, so the SDK cannot distinguish it from a real navigation and will start a login flow. Use a plain `<a>` tag or `<Link prefetch={false}>` if you need to be explicit:
 
 ```tsx
-// ✅ Do — a plain anchor never prefetches
+// ✅ Safe — default Link, AUTO prefetch is caught by the 204 guard
+<Link href="/auth/login">Sign In</Link>
+
+// ✅ Safe — plain anchor never prefetches
 <a href="/auth/login">Sign In</a>
 
-// ✅ Do — Link with prefetch disabled
+// ✅ Safe — prefetch explicitly disabled
 <Link href="/auth/login" prefetch={false}>
   Sign In
 </Link>
 
-// ❌ Don't — this prefetches /auth/login and writes a __txn_* cookie on hover/scroll
-<Link href="/auth/login">Sign In</Link>
+// ❌ Avoid — FULL prefetch is indistinguishable from a real navigation server-side
+<Link href="/auth/login" prefetch={true}>
+  Sign In
+</Link>
 ```
 
 **2. Prefer `withPageAuthRequired` over middleware redirects to protect pages.**
 
-`withPageAuthRequired` redirects to the login route from inside the React Server Component render. Next.js does **not** follow that redirect during a prefetch, so `handleLogin` is never called and no `__txn_*` cookie is written for prefetched protected pages. A middleware redirect to `/auth/login`, by contrast, is followed on prefetch of a protected page while the user is logged out — each prefetch then writes a transaction cookie.
+`withPageAuthRequired` redirects to the login route from inside the React Server Component render. When a prefetch follows that redirect to `/auth/login`, the SDK returns `204 No Content` — so `handleLogin` is never called and no `__txn_*` cookie is written. A middleware redirect to `/auth/login` behaves the same way: prefetches that follow it are also caught by the `204` guard. The preference for `withPageAuthRequired` is about keeping auth logic co-located with the page, not a difference in prefetch behaviour.
 
 ```tsx
-// ✅ Preferred — redirect happens in RSC render, not followed on prefetch
+// ✅ Preferred — auth logic co-located with the page; prefetches caught by the 204 guard
 export default auth0.withPageAuthRequired(async function Page() {
   return <div>Protected content</div>;
 }, { returnTo: "/protected" });
 ```
 
 ```ts
-// ⚠️ Middleware redirect — followed on prefetch of a protected page while
-// logged out, writing a __txn_* cookie for a flow that never completes.
+// ✅ Also safe — prefetches following this redirect are caught by the 204 guard
 export async function middleware(request: NextRequest) {
   const session = await auth0.getSession(request);
   if (!session) {
@@ -4435,6 +4494,7 @@ By default, the following properties claims from the ID token are added to the `
 - `email`
 - `email_verified`
 - `org_id`
+- `urn:auth0:my_org_current_user_permissions` — effective `my_org:*` permissions for the authenticated user in their current organization. Present when Auth0's My Organization API is enabled. Useful for permission-based UI gating (see [Reading Organization Permissions](#reading-organization-permissions)).
 
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](#beforesessionsaved))
 
