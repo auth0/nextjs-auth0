@@ -30,6 +30,7 @@ import {
   SessionDataStore,
   SessionTransferTokenOptions,
   SessionTransferTokenResult,
+  StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -41,6 +42,7 @@ import {
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -82,6 +84,87 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
+
+/**
+ * Members of {@link Auth0Client} that cannot work when
+ * `enterpriseConnect: true` is set, mapped to the guidance shown when one is
+ * used. Each depends on an Auth0-managed session or a refresh token, and
+ * Enterprise Connect creates neither.
+ *
+ * This is the single source of truth for the restriction: the constructor walks
+ * this object and replaces each member with one that throws. Adding a
+ * session-backed method to `Auth0Client` means adding a line here — and, if it is
+ * a getter or a synchronous method, to {@link EC_UNAVAILABLE_GETTERS} or
+ * {@link EC_UNAVAILABLE_SYNC_METHODS} as well.
+ *
+ * Deliberately excluded, because they hold no session state and the flow depends
+ * on them: `middleware` (mounts `/auth/login`, `/auth/callback`, `/auth/logout`),
+ * `startInteractiveLogin`, and `customTokenExchange`.
+ *
+ * Note for maintainers: because the replacements are own properties on the
+ * instance, they also shadow internal `this.<member>()` calls. Every current
+ * caller of `this.getSession()` inside this class is itself listed here, so the
+ * shadow is only ever hit on an already-blocked path. A future member that stays
+ * available must not read the session via `this.getSession()` — use the private
+ * `getSessionFromAuthClient` helper, which is never shadowed.
+ */
+const EC_UNAVAILABLE_MEMBERS: Record<string, string> = {
+  getSession:
+    "Auth0 does not hold a session in this mode. Read the user from the session " +
+    "store you populated in onCallback.",
+  getAccessToken:
+    "Enterprise Connect clients are not issued refresh tokens, so there is no token " +
+    "to return or renew. Use the tokens passed to onCallback if you need to call " +
+    "an API on the user's behalf.",
+  getAccessTokenForConnection:
+    "This reads the token set from an Auth0 session, which does not exist in this " +
+    "mode. Store connection tokens yourself from the onCallback session if needed.",
+  revokeRefreshToken:
+    "Enterprise Connect clients are not issued refresh tokens, so there is nothing " +
+    "to revoke.",
+  requestSessionTransferToken:
+    "Session transfer reads and refreshes an Auth0 session, which does not exist " +
+    "in this mode.",
+  updateSession:
+    "There is no Auth0 session cookie to update in this mode. Write to your own " +
+    "session store instead.",
+  connectAccount:
+    "Connecting an account requires an existing Auth0 session, which is not " +
+    "created in this mode.",
+  createFetcher:
+    "The fetcher attaches an access token read from an Auth0 session, which does " +
+    "not exist in this mode. Pass your own token to fetch directly.",
+  buildSessionTransferRedirect:
+    "Session transfer requires an existing Auth0 session to transfer, which is not " +
+    "created in this mode.",
+  getTokenByBackchannelAuth:
+    "CIBA requires the auth_req_id from /bc-authorize to be held between requests, " +
+    "and Enterprise Connect stores no transaction state across them.",
+  passwordless:
+    "Passwordless establishes an Auth0 session, which conflicts with this mode. " +
+    "Authentication must go through the enterprise IdP via /auth/login.",
+  passkey:
+    "Passkeys establish an Auth0 session, which conflicts with this mode. " +
+    "Authentication must go through the enterprise IdP via /auth/login.",
+  mfa:
+    "MFA requires Auth0 to manage authentication state across requests, which " +
+    "does not exist in this mode. MFA must be handled by the enterprise IdP."
+};
+
+/**
+ * Subset of {@link EC_UNAVAILABLE_MEMBERS} that are getters rather than methods,
+ * and so must throw on property access instead of on invocation.
+ */
+const EC_UNAVAILABLE_GETTERS = new Set(["passwordless", "passkey", "mfa"]);
+
+/**
+ * Subset of {@link EC_UNAVAILABLE_MEMBERS} that are synchronous methods.
+ *
+ * These must throw rather than return a rejected promise: their declared return
+ * type is not a `Promise`, so rejecting would both contradict the signature and
+ * escape a plain `try`/`catch` as an unhandled rejection.
+ */
+const EC_UNAVAILABLE_SYNC_METHODS = new Set(["buildSessionTransferRedirect"]);
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -207,9 +290,48 @@ export interface Auth0ClientOptions {
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
+   * **Enterprise Connect:** when `enterpriseConnect` is `true`, the SDK skips
+   * writing the Auth0 session cookie after this hook returns. Persist identity to
+   * your own store inside the hook and return a `NextResponse` with your session
+   * cookie attached. Returning void in Enterprise Connect mode throws, because the
+   * callback response is the only way a cookie reaches the browser.
+   *
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
+
+  /**
+   * Enable Enterprise Connect mode.
+   *
+   * Set to `true` for Enterprise Connect, where Auth0 acts as a pure SSO relay and
+   * your application remains the session authority. This changes three things:
+   *
+   * - The Auth0 session cookie is never written. `onCallback` is responsible for
+   *   persisting identity to your own store and must return a `NextResponse` with
+   *   your session cookie attached.
+   * - {@link Auth0Client.getSession} and {@link Auth0Client.getAccessToken} throw,
+   *   rather than returning `null`, because Auth0 holds no session to read.
+   * - Configuration that cannot work in this mode (`offline_access` in scope, or a
+   *   static default `organization`) is reported at initialization.
+   *
+   * @example
+   * ```ts
+   * export const auth0 = new Auth0Client({
+   *   enterpriseConnect: true,
+   *   authorizationParameters: {
+   *     scope: "openid profile email",
+   *     // Do NOT set a static organization here for multi-customer deployments.
+   *     // The organization is resolved per login via Home Realm Discovery from
+   *     // the login_hint email domain.
+   *   },
+   *   async onCallback(error, ctx, session) {
+   *     if (error) throw error;
+   *     // persist identity and return a NextResponse with your session cookie
+   *   }
+   * });
+   * ```
+   */
+  enterpriseConnect?: true;
 
   // provide a session store to persist sessions in your own data store
   /**
@@ -667,6 +789,9 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      federatedDomain:
+        process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+        "/auth/federated-domain",
       connectAccount: "/auth/connect",
       mfaAuthenticators:
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
@@ -751,6 +876,37 @@ export class Auth0Client {
         return runtimeDomain;
       });
 
+    // Enterprise Connect: disable everything that depends on an Auth0 session, and
+    // surface configuration that cannot work in this mode at startup rather than as
+    // a confusing failure on a later request.
+    if (options.enterpriseConnect) {
+      this.disableSessionMembersForEnterpriseConnect();
+
+      const scope = options.authorizationParameters?.scope ?? DEFAULT_SCOPES;
+
+      if (
+        typeof scope === "string" &&
+        scope.split(/\s+/).includes("offline_access")
+      ) {
+        console.warn(
+          "WARNING: 'offline_access' is in scope but Enterprise Connect clients are not " +
+            "issued refresh tokens. Set authorizationParameters.scope to " +
+            "'openid profile email' to drop it — the default scope includes offline_access."
+        );
+      }
+
+      if (options.authorizationParameters?.organization) {
+        console.warn(
+          "WARNING: enterpriseConnect is true but a static 'organization' is set in " +
+            "authorizationParameters. In Enterprise Connect the organization is resolved " +
+            "per login by Home Realm Discovery from the login_hint email domain. A static " +
+            "value routes every enterprise customer to the same organization, breaking " +
+            "multi-customer deployments. Leave 'organization' unset unless this client " +
+            "serves exactly one organization."
+        );
+      }
+    }
+
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
@@ -780,6 +936,7 @@ export class Auth0Client {
 
           beforeSessionSaved: options.beforeSessionSaved,
           onCallback: options.onCallback,
+          enterpriseConnect: options.enterpriseConnect,
 
           routes: this.routes,
 
@@ -1656,6 +1813,68 @@ export class Auth0Client {
   }
 
   /**
+   * Replaces every session-backed member with one that throws, for Enterprise
+   * Connect clients.
+   *
+   * Called once from the constructor. Each entry is defined as an own property on
+   * the instance, which shadows the prototype implementation for ordinary property
+   * access. Members absent from {@link EC_UNAVAILABLE_MEMBERS} are untouched —
+   * notably `middleware`, which mounts the routes the whole flow depends on.
+   *
+   * Shadowing is deliberate, in preference to returning a `Proxy` from the
+   * constructor. A Proxy would additionally close the two remaining escapes below,
+   * but it costs an indirection on every property access and depends on three
+   * easily-broken invariants (`Reflect.get` must receive `target` rather than the
+   * proxy, function values must be bound to `target`, and reads must be memoised
+   * to keep method identity stable). Both escapes require deliberate effort, so
+   * the trade is not worth it:
+   *
+   * - `Object.getPrototypeOf(client).getSession.call(client)`
+   * - `delete client.getSession`, since the property is `configurable`
+   */
+  private disableSessionMembersForEnterpriseConnect(): void {
+    for (const [member, guidance] of Object.entries(EC_UNAVAILABLE_MEMBERS)) {
+      // Getters (`passwordless`, `passkey`, `mfa`) must throw on access, not on
+      // call: there is no sub-client to hand back.
+      const isGetter = EC_UNAVAILABLE_GETTERS.has(member);
+      const isSyncMethod = EC_UNAVAILABLE_SYNC_METHODS.has(member);
+      const label = isGetter ? member : `${member}()`;
+
+      const error = () =>
+        new InvalidConfigurationError(
+          `${label} is not available when enterpriseConnect is true. ${guidance}`
+        );
+
+      Object.defineProperty(this, member, {
+        configurable: true,
+        enumerable: false,
+        ...(isGetter
+          ? {
+              get: () => {
+                throw error();
+              }
+            }
+          : isSyncMethod
+            ? {
+                // Throw synchronously: the real method does not return a Promise,
+                // so rejecting would contradict its signature and surface as an
+                // unhandled rejection instead of being caught by `try`/`catch`.
+                value: () => {
+                  throw error();
+                },
+                writable: true
+              }
+            : {
+                // Reject rather than throw: these members are async, so callers
+                // reasonably expect `.catch()` and `try` around `await` to work.
+                value: () => Promise.reject(error()),
+                writable: true
+              })
+      });
+    }
+  }
+
+  /**
    * Resolves request context from any Next.js server context into a uniform shape.
    *
    * Handles the 3-way branch:
@@ -1708,6 +1927,45 @@ export class Auth0Client {
     const reqHeaders = await getHeaders();
     const authClient = await this.provider.forRequest(reqHeaders, undefined);
     return authClient.startInteractiveLogin(options);
+  }
+
+  /**
+   * Enterprise Connect login initiation. Runs Home Realm Discovery for the email
+   * domain and, when the domain is federated, redirects to Auth0 with the email
+   * as `login_hint` (Auth0 resolves the connection and organization from the
+   * domain). When the domain is not federated, returns `null` so the caller can
+   * route to its own non-enterprise login.
+   *
+   * @returns a `NextResponse` redirect for a federated domain, or `null` when the
+   * domain is not federated.
+   */
+  async startEnterpriseLogin(
+    options: StartEnterpriseLoginOptions
+  ): Promise<NextResponse | null> {
+    const emailDomain = options.email.split("@")[1]?.toLowerCase();
+    if (!emailDomain) {
+      return null;
+    }
+
+    // Resolve the per-request AuthClient (static domain, or MCD resolver mode)
+    // and run WebFinger against the SAME domain the redirect will use. In
+    // resolver mode the resolved custom domain differs from the static option,
+    // so discovering against `this.#options.domain` would check the wrong tenant
+    // while the redirect fired against the resolved one. `authClient.domain` is
+    // always populated (the provider validates domain-or-resolver at
+    // construction), so no `AUTH0_DOMAIN` fallback is needed.
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const federated = await isFederatedDomain(authClient.domain, emailDomain);
+    if (!federated) {
+      return null;
+    }
+
+    return authClient.startInteractiveLogin({
+      authorizationParameters: { login_hint: options.email },
+      returnTo: options.returnTo
+    });
   }
 
   /**

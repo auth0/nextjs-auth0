@@ -181,6 +181,7 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
@@ -233,7 +234,17 @@ export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
   session: SessionData | null
-) => Promise<NextResponse>;
+  /**
+   * Returning `null` or nothing suppresses the Auth0 session cookie — the hook is
+   * expected to have persisted identity elsewhere. This is only valid on the
+   * successful callback path; error paths and the connected-account flow still
+   * require a `NextResponse`.
+   *
+   * When `enterpriseConnect: true` is set the Auth0 cookie is never written, and
+   * `onCallback` must return a `NextResponse` with your own session cookie
+   * attached. Returning void in Enterprise Connect mode throws.
+   */
+) => Promise<NextResponse | null | void>;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -272,6 +283,7 @@ export interface Routes {
   callback: string;
   profile: string;
   accessToken: string;
+  federatedDomain: string;
   backChannelLogout: string;
   connectAccount: string;
   mfaAuthenticators: string;
@@ -323,6 +335,8 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
+
+  enterpriseConnect?: true;
 
   routes: Routes;
 
@@ -401,6 +415,8 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
+
+  private enterpriseConnect?: true;
 
   private routes: Routes;
 
@@ -565,6 +581,8 @@ export class AuthClient {
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
+    this.enterpriseConnect = options.enterpriseConnect;
+
     // routes
     this.routes = options.routes;
 
@@ -685,6 +703,11 @@ export class AuthClient {
       this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.federatedDomain
+    ) {
+      return this.handleFederatedDomain(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
@@ -1030,6 +1053,34 @@ export class AuthClient {
     const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 
+    // In EC mode there is no Auth0 session cookie, so no id_token_hint is
+    // available. We use the OIDC end_session_endpoint directly with
+    // federated=true (not federated="") so the enterprise IdP session is
+    // terminated via SAML SLO without needing a hint.
+    if (this.enterpriseConnect) {
+      const endSessionEndpoint =
+        authorizationServerMetadata.end_session_endpoint ||
+        new URL("/oidc/logout", this.issuer).toString();
+      const url = new URL(endSessionEndpoint);
+      url.searchParams.set("client_id", this.clientMetadata.client_id);
+      url.searchParams.set(
+        "post_logout_redirect_uri",
+        createRouteUrl(returnTo, appBaseUrl).toString()
+      );
+      if (logoutState) {
+        url.searchParams.set("state", logoutState);
+      }
+      if (federated) {
+        url.searchParams.set("federated", "true");
+      }
+      const ecLogoutResponse = NextResponse.redirect(url);
+      await this.transactionStore.deleteAll(
+        req.cookies,
+        ecLogoutResponse.cookies
+      );
+      return ecLogoutResponse;
+    }
+
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
@@ -1154,7 +1205,17 @@ export class AuthClient {
       state
     );
     if (!transactionStateCookie) {
-      return this.onCallback(new InvalidStateError(), {}, null);
+      const errorRes = await this.onCallback(new InvalidStateError(), {}, null);
+
+      if (!errorRes) {
+        throw new InvalidConfigurationError(
+          "onCallback must return a NextResponse when handling an error. " +
+            "Stateless passthrough (returning null) is only supported on the " +
+            "successful callback path."
+        );
+      }
+
+      return errorRes;
     }
 
     const transactionState = transactionStateCookie.payload;
@@ -1255,6 +1316,14 @@ export class AuthClient {
         },
         session
       );
+
+      if (!res) {
+        throw new InvalidConfigurationError(
+          "onCallback must return a NextResponse when connecting an account. " +
+            "Stateless passthrough (returning null) is not supported for the " +
+            "connect-account flow, which requires an existing Auth0 session."
+        );
+      }
 
       await this.transactionStore.delete(res.cookies, state);
 
@@ -1580,6 +1649,39 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
+    // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
+    // cookie is written and beforeSessionSaved is not run. The hook must return
+    // a NextResponse carrying its own session cookie — that response is the only
+    // way a cookie reaches the browser on the callback. Returning void sets no
+    // cookie, so the user could never be identified on later requests; treat it
+    // as a misconfiguration.
+    if (this.enterpriseConnect) {
+      if (!res) {
+        throw new InvalidConfigurationError(
+          "Enterprise Connect: onCallback must return a NextResponse with your " +
+            "session cookie attached. Returning void sets no cookie, so the user " +
+            "cannot be identified on subsequent requests."
+        );
+      }
+
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
+
+    // Non-EC per-callback passthrough: returning null/undefined opts out of
+    // writing an Auth0 session cookie for this callback. The SDK redirects to
+    // returnTo without setting any cookie.
+    if (!res) {
+      const passthroughRes = NextResponse.redirect(
+        createRouteUrl(onCallbackCtx.returnTo || "/", appBaseUrl).toString()
+      );
+
+      await this.transactionStore.delete(passthroughRes.cookies, state);
+
+      return passthroughRes;
+    }
+
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
@@ -1622,6 +1724,34 @@ export class AuthClient {
     const res = NextResponse.json(session?.user);
     addCacheControlHeadersForSession(res);
     return res;
+  }
+
+  /**
+   * Route: POST /auth/federated-domain
+   * Server-side Home Realm Discovery for Enterprise Connect. Reads `{ email }`
+   * from the request body and returns `{ isFederated }`. Backs the client-side
+   * `startEnterpriseLogin` helper so the browser never calls WebFinger directly
+   * (which would expose the tenant's customer domains to enumeration).
+   */
+  async handleFederatedDomain(req: NextRequest): Promise<NextResponse> {
+    let email: unknown;
+    try {
+      ({ email } = await req.json());
+    } catch {
+      return NextResponse.json(
+        { error: "invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.json({ error: "invalid email" }, { status: 400 });
+    }
+
+    const emailDomain = email.split("@")[1].toLowerCase();
+    const isFederated = await isFederatedDomain(this.domain, emailDomain);
+
+    return NextResponse.json({ isFederated });
   }
 
   /**
@@ -2802,6 +2932,14 @@ export class AuthClient {
     }
 
     const response = await this.onCallback(error, ctx, null);
+
+    if (!response) {
+      throw new InvalidConfigurationError(
+        "onCallback must return a NextResponse when handling an error. " +
+          "Stateless passthrough (returning null) is only supported on the " +
+          "successful callback path."
+      );
+    }
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {
