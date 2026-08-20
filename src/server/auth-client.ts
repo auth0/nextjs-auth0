@@ -678,7 +678,13 @@ export class AuthClient {
         // non-navigational requests, avoiding polluting auth-failure telemetry
         // and access logs. Next.js discards prefetch responses regardless, so
         // behavior is unaffected.
-        return new NextResponse(null, { status: 204 });
+        // Cache-Control: no-store prevents CDNs and reverse proxies from caching
+        // this 204 — RFC 9111 makes 204 heuristically cacheable without an explicit
+        // directive, so a cached 204 would silently break real login navigations.
+        return new NextResponse(null, {
+          status: 204,
+          headers: { "Cache-Control": "no-store" }
+        });
       }
       return this.handleLogin(req);
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {

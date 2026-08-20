@@ -242,7 +242,7 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 ```
 
 > [!NOTE]
-> Link to your login route with a plain `<a>` tag (as shown above) or `<Link prefetch={false}>` — never `<Link href="/auth/login">`. A prefetched `<Link>` starts a login flow that never completes, accumulating transaction cookies. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+> A default `<Link href="/auth/login">` is safe — the SDK returns `204 No Content` on AUTO prefetches without writing a transaction cookie. Avoid `<Link href="/auth/login" prefetch={true}>` (FULL prefetch), which is indistinguishable from a real navigation server-side. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ### Social Login
 
@@ -578,7 +578,7 @@ export async function middleware(request: NextRequest) {
 ## Protecting a Server-Side Rendered (SSR) Page
 
 > [!TIP]
-> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware. Its redirect happens inside the render and is not followed during a Next.js prefetch, so no transaction cookie is written for prefetched protected pages. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware for protected pages. When a prefetch follows the redirect to `/auth/login`, the SDK returns `204 No Content` (no transaction cookie written). A middleware redirect achieves the same result, but `withPageAuthRequired` keeps the auth logic co-located with the page. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 #### Page Router
 
@@ -623,7 +623,7 @@ export default auth0.withPageAuthRequired(
 To protect a Client-Side Rendered (CSR) page, you can use the `withPageAuthRequired` higher-order function. Requests to `/profile` without a valid session cookie will be redirected to the login page.
 
 > [!TIP]
-> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) also avoids transaction-cookie accumulation on prefetched pages. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) keeps auth logic co-located with the page. Prefetches that follow the redirect to `/auth/login` are handled by the SDK's `204` guard, so no transaction cookie is written. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ```tsx
 // app/profile/page.tsx
@@ -4168,37 +4168,41 @@ If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookie
 
 Even with the automatic protections above, follow these two practices so login flows are only started by real user navigation:
 
-**1. Do not use `<Link href="/auth/login">`. Use a plain `<a>` tag or `<Link prefetch={false}>`.**
+**1. Avoid `<Link href="/auth/login" prefetch={true}>`.**
 
-Next.js prefetches `<Link>` targets on hover or when they scroll into view. A prefetch of `/auth/login` starts a login flow (writing a `__txn_*` cookie) that the user never completes, since the prefetched response is discarded. Prevent it by not prefetching the login route:
+A default `<Link href="/auth/login">` (AUTO prefetch) is safe — the SDK detects the prefetch header and returns `204 No Content` without writing a transaction cookie. However, `<Link prefetch={true}>` triggers a FULL prefetch which sends no detectable prefetch header, so the SDK cannot distinguish it from a real navigation and will start a login flow. Use a plain `<a>` tag or `<Link prefetch={false}>` if you need to be explicit:
 
 ```tsx
-// ✅ Do — a plain anchor never prefetches
+// ✅ Safe — default Link, AUTO prefetch is caught by the 204 guard
+<Link href="/auth/login">Sign In</Link>
+
+// ✅ Safe — plain anchor never prefetches
 <a href="/auth/login">Sign In</a>
 
-// ✅ Do — Link with prefetch disabled
+// ✅ Safe — prefetch explicitly disabled
 <Link href="/auth/login" prefetch={false}>
   Sign In
 </Link>
 
-// ❌ Don't — this prefetches /auth/login and writes a __txn_* cookie on hover/scroll
-<Link href="/auth/login">Sign In</Link>
+// ❌ Avoid — FULL prefetch is indistinguishable from a real navigation server-side
+<Link href="/auth/login" prefetch={true}>
+  Sign In
+</Link>
 ```
 
 **2. Prefer `withPageAuthRequired` over middleware redirects to protect pages.**
 
-`withPageAuthRequired` redirects to the login route from inside the React Server Component render. Next.js does **not** follow that redirect during a prefetch, so `handleLogin` is never called and no `__txn_*` cookie is written for prefetched protected pages. A middleware redirect to `/auth/login`, by contrast, is followed on prefetch of a protected page while the user is logged out — each prefetch then writes a transaction cookie.
+`withPageAuthRequired` redirects to the login route from inside the React Server Component render. When a prefetch follows that redirect to `/auth/login`, the SDK returns `204 No Content` — so `handleLogin` is never called and no `__txn_*` cookie is written. A middleware redirect to `/auth/login` behaves the same way: prefetches that follow it are also caught by the `204` guard. The preference for `withPageAuthRequired` is about keeping auth logic co-located with the page, not a difference in prefetch behaviour.
 
 ```tsx
-// ✅ Preferred — redirect happens in RSC render, not followed on prefetch
+// ✅ Preferred — auth logic co-located with the page; prefetches caught by the 204 guard
 export default auth0.withPageAuthRequired(async function Page() {
   return <div>Protected content</div>;
 }, { returnTo: "/protected" });
 ```
 
 ```ts
-// ⚠️ Middleware redirect — followed on prefetch of a protected page while
-// logged out, writing a __txn_* cookie for a flow that never completes.
+// ✅ Also safe — prefetches following this redirect are caught by the 204 guard
 export async function middleware(request: NextRequest) {
   const session = await auth0.getSession(request);
   if (!session) {
