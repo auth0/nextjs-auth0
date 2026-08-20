@@ -4940,8 +4940,11 @@ export class AuthClient {
       newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
     );
     // Remove ALL existing entries for this audience + scope (not just the first)
-    // so sessions that accumulated duplicates before this fix deployed are fully
-    // compacted on the next step-up, not left with N-1 stale entries.
+    // so sessions that accumulated duplicates before this fix deployed are
+    // compacted on the next step-up. Best-effort for legacy entries: those have
+    // no `requestedScope` and fall back to the granted `scope`, so if the server
+    // reduced scope, a legacy entry's fallback key may not match a new request's
+    // requestedScope key and it will be retained alongside the new entry.
     session.accessTokens = session.accessTokens.filter(
       (t) =>
         !(

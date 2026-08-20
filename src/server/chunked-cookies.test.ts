@@ -369,6 +369,33 @@ describe("Chunked Cookie Utils", () => {
       expect(reqCookies.delete).toHaveBeenCalledWith(name);
     });
 
+    it("clears high-index chunks (>= MAX_CHUNKS) when a session that grew past MAX_CHUNKS shrinks", () => {
+      // Regression: a session that once wrote __session__5 (or higher) and
+      // then shrinks would otherwise leave the high-index chunk orphaned,
+      // because the deterministic sweep only covers __0..__4. The snapshot
+      // must extend the sweep to cover indices seen in the request.
+      const name = "__session";
+      const options = { path: "/" } as CookieOptions;
+
+      // Seed a 6-chunk state (as if a prior write produced them).
+      for (let i = 0; i < 6; i++) {
+        cookieStore.set(`${name}__${i}`, `chunk${i}`);
+      }
+
+      // Shrink: write a value that fits in ~2 chunks.
+      const shrunkValue = "a".repeat(7000);
+      setChunkedCookie(name, shrunkValue, options, reqCookies, resCookies);
+
+      // The high-index chunk written before the shrink must be deleted,
+      // otherwise it stays in the browser and poisons subsequent reads.
+      expect(resCookies.set).toHaveBeenCalledWith(
+        `${name}__5`,
+        "",
+        expect.objectContaining({ maxAge: 0 })
+      );
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__5`);
+    });
+
     // New tests for domain and transient options
     it("should set the domain property for a single cookie", () => {
       const name = "domainCookie";
@@ -737,6 +764,22 @@ describe("Chunked Cookie Utils", () => {
         });
         // Should not delete unrelated cookies
         expect(resCookies.set).not.toHaveBeenCalledWith("otherCookie", "", {
+          maxAge: 0
+        });
+      });
+
+      it("deletes high-index chunks (>= MAX_CHUNKS) present in the request snapshot", () => {
+        // Regression: a session that once grew past MAX_CHUNKS would leave
+        // __session__5+ orphaned on logout, because the deterministic sweep
+        // only covers __0..__4. The snapshot must extend the sweep.
+        const name = "__session";
+        for (let i = 0; i < 6; i++) {
+          cookieStore.set(`${name}__${i}`, `chunk${i}`);
+        }
+
+        deleteChunkedCookie(name, reqCookies, resCookies);
+
+        expect(resCookies.set).toHaveBeenCalledWith(`${name}__5`, "", {
           maxAge: 0
         });
       });

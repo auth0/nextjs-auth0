@@ -192,6 +192,23 @@ const getChunkedCookieIndex = (
  * @param name - The base name of the cookies to retrieve.
  * @returns An array of cookies that have names starting with the specified prefix.
  */
+/**
+ * Returns the exclusive upper bound for chunk-cleanup loops: `max(MAX_CHUNKS,
+ * highestSeenIndex + 1)`. Guarantees the deterministic `__0..MAX_CHUNKS-1` sweep
+ * (needed for concurrency safety when a concurrent tab wrote a higher chunk not
+ * in this snapshot), while also clearing anything the current snapshot reveals
+ * above that range — so a session that once grew past `MAX_CHUNKS` and later
+ * shrinks does not leave orphaned high-index chunks in the browser.
+ */
+const getClearUpTo = (reqCookies: RequestCookies, name: string): number => {
+  let highestSeen = -1;
+  for (const cookie of getAllChunkedCookies(reqCookies, name)) {
+    const idx = getChunkedCookieIndex(cookie.name);
+    if (idx !== undefined && idx > highestSeen) highestSeen = idx;
+  }
+  return Math.max(MAX_CHUNKS, highestSeen + 1);
+};
+
 const getAllChunkedCookies = (
   reqCookies: RequestCookies,
   name: string,
@@ -249,12 +266,12 @@ export function setChunkedCookie(
     reqCookies.set(name, value);
 
     // When we are writing a non-chunked cookie, remove any previously stored
-    // chunks for this cookie name. Delete a deterministic index range rather
-    // than scanning `reqCookies` — a concurrent request/tab may have written a
-    // higher-index chunk that this request's cookie snapshot does not include,
-    // which a snapshot-based scan would leave orphaned. The browser ignores
-    // deletions for cookies that do not exist.
-    for (let i = 0; i < MAX_CHUNKS; i++) {
+    // chunks for this cookie name. Sweep at least `__0..MAX_CHUNKS-1` (covers
+    // concurrent-tab writes not in this snapshot) and also anything higher the
+    // snapshot reveals (covers sessions that once grew past MAX_CHUNKS). The
+    // browser ignores deletions for cookies that do not exist.
+    const clearUpTo = getClearUpTo(reqCookies, name);
+    for (let i = 0; i < clearUpTo; i++) {
       const chunkName = `${name}${CHUNK_PREFIX}${i}`;
       deleteCookie(resCookies, chunkName, {
         path: finalOptions.path,
@@ -286,12 +303,12 @@ export function setChunkedCookie(
     chunkIndex++;
   }
 
-  // Clear any now-unused higher-index chunks. Delete a deterministic range
-  // (`chunkIndex .. MAX_CHUNKS-1`) rather than scanning `reqCookies`: a
-  // concurrent request/tab may have written a higher-index chunk that this
-  // request's cookie snapshot does not include, which a snapshot-based scan
-  // would leave orphaned. The browser ignores deletions for absent cookies.
-  for (let i = chunkIndex; i < MAX_CHUNKS; i++) {
+  // Clear any now-unused higher-index chunks. Sweep at least up to
+  // `MAX_CHUNKS-1` (covers concurrent-tab writes not in this snapshot) and also
+  // anything higher the snapshot reveals (covers sessions that once grew past
+  // MAX_CHUNKS). The browser ignores deletions for absent cookies.
+  const clearUpTo = getClearUpTo(reqCookies, name);
+  for (let i = chunkIndex; i < clearUpTo; i++) {
     const chunkName = `${name}${CHUNK_PREFIX}${i}`;
     deleteCookie(resCookies, chunkName, {
       path: finalOptions.path,
@@ -396,10 +413,12 @@ export function deleteChunkedCookie(
     return;
   }
 
-  // Delete a deterministic index range instead of scanning `reqCookies`, so a
-  // chunk written by a concurrent request/tab (absent from this request's
-  // snapshot) is still removed. The browser ignores deletions for absent cookies.
-  for (let i = 0; i < MAX_CHUNKS; i++) {
+  // Sweep at least `__0..MAX_CHUNKS-1` (covers concurrent-tab writes not in
+  // this snapshot) and also anything higher the snapshot reveals (covers
+  // sessions that once grew past MAX_CHUNKS). The browser ignores deletions
+  // for absent cookies.
+  const clearUpTo = getClearUpTo(reqCookies, name);
+  for (let i = 0; i < clearUpTo; i++) {
     deleteCookie(resCookies, `${name}${CHUNK_PREFIX}${i}`, options);
   }
 }
