@@ -130,10 +130,33 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      // resCookies.set called 6 times: 1 set + 5 deletes for indices 0-4
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
       expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__0`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__1`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__2`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+        maxAge: 0,
+        path: "/"
+      });
       expect(reqCookies.set).toHaveBeenCalledTimes(1);
       expect(reqCookies.set).toHaveBeenCalledWith(name, value);
+      // reqCookies.delete called 5 times for indices 0-4
+      expect(reqCookies.delete).toHaveBeenCalledTimes(5);
     });
 
     it("should split cookie into chunks when value exceeds max size", () => {
@@ -145,11 +168,11 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
 
-      // Should create 3 chunks (8000 / 3500 ≈ 2.3, rounded up to 3)
-      // called 4 times:
-      // 3 calls to set the chunks
-      // 1 call to remove the non-chunked cookie
-      expect(resCookies.set).toHaveBeenCalledTimes(4);
+      // resCookies.set called 6 times:
+      // 3 calls to set the chunks (__0, __1, __2)
+      // 2 calls to delete higher indices (__3, __4)
+      // 1 call to delete the base cookie
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
       expect(reqCookies.set).toHaveBeenCalledTimes(3);
 
       // Check first chunk
@@ -173,11 +196,22 @@ describe("Chunked Cookie Utils", () => {
         options
       );
 
-      // Check removal of non-chunked cookie
+      // Check deletion of unused chunk indices and base cookie
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+        maxAge: 0,
+        path: "/"
+      });
       expect(resCookies.set).toHaveBeenCalledWith(name, "", {
         maxAge: 0,
         path: "/"
       });
+
+      // reqCookies.delete called 3 times: __3, __4, and base name
+      expect(reqCookies.delete).toHaveBeenCalledTimes(3);
     });
 
     it("should clear existing chunked cookies when setting a single cookie", () => {
@@ -195,27 +229,39 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-      // delete the 3 chunked cookies set above and then set the new cookie
-      expect(resCookies.set).toHaveBeenCalledTimes(4);
-      expect(resCookies.set).toHaveBeenNthCalledWith(1, name, value, options);
-      expect(resCookies.set).toHaveBeenNthCalledWith(2, `${name}__1`, "", {
+      // resCookies.set called 6 times:
+      // 1 set of main cookie, then 5 deletes of deterministic indices 0-4
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
+      expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__0`, "", {
         maxAge: 0,
         path: "/"
       });
-      expect(resCookies.set).toHaveBeenNthCalledWith(3, `${name}__0`, "", {
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__1`, "", {
         maxAge: 0,
         path: "/"
       });
-      expect(resCookies.set).toHaveBeenNthCalledWith(4, `${name}__2`, "", {
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__2`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
         maxAge: 0,
         path: "/"
       });
       expect(reqCookies.set).toHaveBeenCalledTimes(1);
       expect(reqCookies.set).toHaveBeenCalledWith(name, value);
-      expect(reqCookies.delete).toHaveBeenCalledTimes(3);
+      // reqCookies.delete called 5 times for deterministic indices 0-4
+      expect(reqCookies.delete).toHaveBeenCalledTimes(5);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__0`);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__1`);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__2`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__3`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__4`);
     });
 
     it("should clear existing single cookies when setting a chunked cookie", () => {
@@ -230,33 +276,69 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
 
-      expect(reqCookies.delete).toHaveBeenCalledTimes(1);
+      // reqCookies.delete called 3 times: once for base name, then __3, __4
+      expect(reqCookies.delete).toHaveBeenCalledTimes(3);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}`);
-      // set a chunked cookie with 3 chunks and delete the existing single cookie
-      expect(resCookies.set).toHaveBeenCalledTimes(4);
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        1,
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__3`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__4`);
+
+      // resCookies.set called 6 times:
+      // 3 calls to set the chunks (__0, __1, __2)
+      // 2 calls to delete higher indices (__3, __4)
+      // 1 call to delete the base cookie
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__0`,
         largeValue.slice(0, 3500),
         options
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        2,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__1`,
         largeValue.slice(3500, 7000),
         options
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        3,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__2`,
         largeValue.slice(7000),
         options
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+        maxAge: 0,
+        path: "/"
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(name, "", {
         maxAge: 0,
         path: "/"
       });
       expect(reqCookies.set).toHaveBeenCalledTimes(3);
+    });
+
+    it("deletes higher-index chunks even when absent from the request snapshot (cross-tab orphan)", () => {
+      // A concurrent tab wrote __session__2, but this request's reqCookies only
+      // shows __0/__1. The deterministic sweep must still issue a deletion for
+      // __2 (and the rest of the range) so no chunk is left orphaned.
+      const name = "__session";
+      const options = { path: "/" } as CookieOptions;
+
+      // reqCookies snapshot is missing the concurrently-written __2 chunk.
+      cookieStore.set(`${name}__0`, "old0");
+      cookieStore.set(`${name}__1`, "old1");
+
+      // New value is small → single-cookie path, which sweeps chunk indices 0..4.
+      setChunkedCookie(name, "small", options, reqCookies, resCookies);
+
+      // A deletion is issued for every index in the deterministic range,
+      // including __2 which was never in reqCookies.
+      for (let i = 0; i < 5; i++) {
+        expect(resCookies.set).toHaveBeenCalledWith(`${name}__${i}`, "", {
+          maxAge: 0,
+          path: "/"
+        });
+      }
     });
 
     it("should clean up unused chunks when cookie shrinks", () => {
@@ -287,6 +369,33 @@ describe("Chunked Cookie Utils", () => {
       expect(reqCookies.delete).toHaveBeenCalledWith(name);
     });
 
+    it("clears high-index chunks (>= MAX_CHUNKS) when a session that grew past MAX_CHUNKS shrinks", () => {
+      // Regression: a session that once wrote __session__5 (or higher) and
+      // then shrinks would otherwise leave the high-index chunk orphaned,
+      // because the deterministic sweep only covers __0..__4. The snapshot
+      // must extend the sweep to cover indices seen in the request.
+      const name = "__session";
+      const options = { path: "/" } as CookieOptions;
+
+      // Seed a 6-chunk state (as if a prior write produced them).
+      for (let i = 0; i < 6; i++) {
+        cookieStore.set(`${name}__${i}`, `chunk${i}`);
+      }
+
+      // Shrink: write a value that fits in ~2 chunks.
+      const shrunkValue = "a".repeat(7000);
+      setChunkedCookie(name, shrunkValue, options, reqCookies, resCookies);
+
+      // The high-index chunk written before the shrink must be deleted,
+      // otherwise it stays in the browser and poisons subsequent reads.
+      expect(resCookies.set).toHaveBeenCalledWith(
+        `${name}__5`,
+        "",
+        expect.objectContaining({ maxAge: 0 })
+      );
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__5`);
+    });
+
     // New tests for domain and transient options
     it("should set the domain property for a single cookie", () => {
       const name = "domainCookie";
@@ -301,7 +410,8 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      // resCookies.set called 6 times: 1 set + 5 deletes for indices 0-4
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
       expect(resCookies.set).toHaveBeenCalledWith(
         name,
         value,
@@ -322,29 +432,43 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
 
-      // called 4 times:
-      // 3 calls to set the chunks
-      // 1 call to remove the non-chunked cookie
-      expect(resCookies.set).toHaveBeenCalledTimes(4);
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        1,
+      // resCookies.set called 6 times:
+      // 3 calls to set the chunks (__0, __1, __2)
+      // 2 calls to delete higher indices (__3, __4)
+      // 1 call to delete the base cookie
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__0`,
         expect.any(String),
         expect.objectContaining({ domain: "example.com" })
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        2,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__1`,
         expect.any(String),
         expect.objectContaining({ domain: "example.com" })
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        3,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__2`,
         expect.any(String),
         expect.objectContaining({ domain: "example.com" })
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        domain: "example.com",
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: true
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+        domain: "example.com",
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: true
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(name, "", {
         domain: "example.com",
         httpOnly: true,
         maxAge: 0,
@@ -371,7 +495,8 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      // resCookies.set called 6 times: 1 set + 5 deletes for indices 0-4
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
       expect(resCookies.set).toHaveBeenCalledWith(name, value, expectedOptions);
       expect(resCookies.set).not.toHaveBeenCalledWith(
         name,
@@ -397,29 +522,41 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
 
-      // called 4 times:
-      // 3 calls to set the chunks
-      // 1 call to remove the non-chunked cookie
-      expect(resCookies.set).toHaveBeenCalledTimes(4);
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        1,
+      // resCookies.set called 6 times:
+      // 3 calls to set the chunks (__0, __1, __2)
+      // 2 calls to delete higher indices (__3, __4)
+      // 1 call to delete the base cookie
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__0`,
         expect.any(String),
         expectedOptions
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        2,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__1`,
         expect.any(String),
         expectedOptions
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        3,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__2`,
         expect.any(String),
         expectedOptions
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: true
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: true
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(name, "", {
         httpOnly: true,
         maxAge: 0,
         path: "/",
@@ -449,7 +586,8 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      // resCookies.set called 6 times: 1 set + 5 deletes for indices 0-4
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
       expect(resCookies.set).toHaveBeenCalledWith(name, value, expectedOptions);
       expect(resCookies.set).toHaveBeenCalledWith(
         name,
@@ -474,29 +612,41 @@ describe("Chunked Cookie Utils", () => {
 
       setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
 
-      // called 4 times:
-      // 3 calls to set the chunks
-      // 1 call to remove the non-chunked cookie
-      expect(resCookies.set).toHaveBeenCalledTimes(4);
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        1,
+      // resCookies.set called 6 times:
+      // 3 calls to set the chunks (__0, __1, __2)
+      // 2 calls to delete higher indices (__3, __4)
+      // 1 call to delete the base cookie
+      expect(resCookies.set).toHaveBeenCalledTimes(6);
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__0`,
         expect.any(String),
         expectedOptions
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        2,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__1`,
         expect.any(String),
         expectedOptions
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(
-        3,
+      expect(resCookies.set).toHaveBeenCalledWith(
         `${name}__2`,
         expect.any(String),
         expectedOptions
       );
-      expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: true
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: true
+      });
+      expect(resCookies.set).toHaveBeenCalledWith(name, "", {
         httpOnly: true,
         maxAge: 0,
         path: "/",
@@ -592,8 +742,8 @@ describe("Chunked Cookie Utils", () => {
 
         deleteChunkedCookie(name, reqCookies, resCookies);
 
-        // Should delete main cookie and 3 chunks
-        expect(resCookies.set).toHaveBeenCalledTimes(4);
+        // Should delete main cookie and deterministic range of chunks (0-4)
+        expect(resCookies.set).toHaveBeenCalledTimes(6);
         expect(resCookies.set).toHaveBeenCalledWith(name, "", {
           maxAge: 0
         });
@@ -606,8 +756,30 @@ describe("Chunked Cookie Utils", () => {
         expect(resCookies.set).toHaveBeenCalledWith(`${name}__2`, "", {
           maxAge: 0
         });
+        expect(resCookies.set).toHaveBeenCalledWith(`${name}__3`, "", {
+          maxAge: 0
+        });
+        expect(resCookies.set).toHaveBeenCalledWith(`${name}__4`, "", {
+          maxAge: 0
+        });
         // Should not delete unrelated cookies
         expect(resCookies.set).not.toHaveBeenCalledWith("otherCookie", "", {
+          maxAge: 0
+        });
+      });
+
+      it("deletes high-index chunks (>= MAX_CHUNKS) present in the request snapshot", () => {
+        // Regression: a session that once grew past MAX_CHUNKS would leave
+        // __session__5+ orphaned on logout, because the deterministic sweep
+        // only covers __0..__4. The snapshot must extend the sweep.
+        const name = "__session";
+        for (let i = 0; i < 6; i++) {
+          cookieStore.set(`${name}__${i}`, `chunk${i}`);
+        }
+
+        deleteChunkedCookie(name, reqCookies, resCookies);
+
+        expect(resCookies.set).toHaveBeenCalledWith(`${name}__5`, "", {
           maxAge: 0
         });
       });
@@ -621,7 +793,8 @@ describe("Chunked Cookie Utils", () => {
 
         setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-        expect(resCookies.set).toHaveBeenCalledTimes(1);
+        // resCookies.set called 6 times: 1 set + 5 deletes for indices 0-4
+        expect(resCookies.set).toHaveBeenCalledTimes(6);
         expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
       });
 
@@ -632,8 +805,9 @@ describe("Chunked Cookie Utils", () => {
 
         setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-        // Should still fit in one cookie
-        expect(resCookies.set).toHaveBeenCalledTimes(1);
+        // Should still fit in one cookie, but deterministic deletes still happen
+        // resCookies.set called 6 times: 1 set + 5 deletes for indices 0-4
+        expect(resCookies.set).toHaveBeenCalledTimes(6);
         expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
       });
 
@@ -688,10 +862,11 @@ describe("Chunked Cookie Utils", () => {
         // Get chunks count (10000 / 3500 ≈ 2.86, so we need 3 chunks)
         const expectedChunks = Math.ceil(10000 / 3500);
 
-        // called 4 times:
+        // resCookies.set called 6 times:
         // 3 calls to set the chunks
-        // 1 call to remove the non-chunked cookie
-        expect(resCookies.set).toHaveBeenCalledTimes(expectedChunks + 1);
+        // 2 calls to delete higher indices (__3, __4)
+        // 1 call to delete the base cookie
+        expect(resCookies.set).toHaveBeenCalledTimes(6);
 
         // Clear and set up cookies for retrieval test
         cookieStore.clear();
@@ -1012,5 +1187,150 @@ describe("Regression #2595: MCD backfill session chunking at boundary", () => {
     expect(cookieStore.has("__session")).toBe(true);
     expect(cookieStore.has("__session__0")).toBe(false);
     expect(cookieStore.has("__session__1")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// End-to-end jar tests. These use the real RequestCookies / ResponseCookies
+// implementations and apply Set-Cookie headers to a browser-like jar between
+// writes, then assert on read via getChunkedCookie. This exercises the whole
+// write → apply → read cycle, which is what a real user hits — as opposed to
+// the mock-based tests above which only assert on `resCookies.set` spy calls.
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal browser cookie jar: applies Set-Cookie writes from a `ResponseCookies`
+ * to an in-memory store (honouring `maxAge: 0` as deletion), and produces a
+ * fresh `RequestCookies` reflecting the current jar state for the next request.
+ */
+class BrowserJar {
+  private store = new Map<string, string>();
+
+  apply(res: ResponseCookies) {
+    for (const c of res.getAll()) {
+      if (c.maxAge === 0 || c.value === "") {
+        this.store.delete(c.name);
+      } else {
+        this.store.set(c.name, c.value);
+      }
+    }
+  }
+
+  req(): RequestCookies {
+    const headers = new Headers();
+    const cookieHeader = Array.from(this.store)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("; ");
+    if (cookieHeader) headers.append("cookie", cookieHeader);
+    return new RequestCookies(headers);
+  }
+
+  names(): string[] {
+    return Array.from(this.store.keys()).sort();
+  }
+}
+
+describe("Chunked Cookie — end-to-end jar", () => {
+  const OPTS: CookieOptions = {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax" as const,
+    maxAge: 3600
+  };
+
+  const write = (jar: BrowserJar, name: string, value: string) => {
+    const res = new ResponseCookies(new Headers());
+    setChunkedCookie(name, value, OPTS, jar.req(), res);
+    jar.apply(res);
+    return res;
+  };
+
+  it("shrinking a 6-chunk session leaves no high-index orphan and the value reads back", () => {
+    // Regression: before the getClearUpTo fix, a session that grew past
+    // MAX_CHUNKS (5) then shrank would leave __session__5 orphaned in the
+    // browser and getChunkedCookie would return undefined forever.
+    const jar = new BrowserJar();
+
+    // Write a value that requires 6 chunks (6 × 3500 = 21000 bytes).
+    const big = "a".repeat(21000);
+    write(jar, "__session", big);
+    expect(jar.names()).toEqual([
+      "__session__0",
+      "__session__1",
+      "__session__2",
+      "__session__3",
+      "__session__4",
+      "__session__5"
+    ]);
+
+    // Shrink to a value that fits in 2 chunks (~7000 bytes).
+    const small = "b".repeat(7000);
+    write(jar, "__session", small);
+
+    // No high-index orphan.
+    expect(jar.names()).toEqual(["__session__0", "__session__1"]);
+
+    // Read returns the full new value.
+    const read = getChunkedCookie("__session", jar.req());
+    expect(read).toBe(small);
+  });
+
+  it("logout of a 6-chunk session clears every chunk", () => {
+    const jar = new BrowserJar();
+    write(jar, "__session", "a".repeat(21000));
+    expect(jar.names().length).toBe(6);
+
+    const res = new ResponseCookies(new Headers());
+    deleteChunkedCookie("__session", jar.req(), res, false, {
+      path: "/",
+      domain: undefined
+    });
+    jar.apply(res);
+
+    expect(jar.names()).toEqual([]);
+    expect(getChunkedCookie("__session", jar.req())).toBeUndefined();
+  });
+
+  it("residual case: concurrent-tab write above MAX_CHUNKS not in snapshot self-heals on next write", () => {
+    // Tab A writes 6 chunks. Tab B starts from an older browser state showing
+    // only __0 and __1 (Tab A's __2..__5 haven't reached Tab B's request yet).
+    // Tab B writes a 2-chunk value. Because Tab B's snapshot doesn't reveal
+    // __session__5, the sweep stops at MAX_CHUNKS (5), and __5 survives.
+    // Read on THAT response is broken (getChunkedCookie sees indices [0,1,5],
+    // highestIndex=5, count mismatch → undefined). The next write on this
+    // connection sees __5 in its snapshot and cleans up. One bad response,
+    // self-healing — not the permanent login loop from before.
+
+    const browserJar = new BrowserJar();
+    // Simulate the eventual browser state after Tab A finished.
+    write(browserJar, "__session", "a".repeat(21000));
+
+    // Tab B's stale snapshot: only __0/__1 as seen when Tab B's request started.
+    const staleReqHeaders = new Headers();
+    staleReqHeaders.append(
+      "cookie",
+      `__session__0=${browserJar.req().get("__session__0")!.value};` +
+        `__session__1=${browserJar.req().get("__session__1")!.value}`
+    );
+    const staleReq = new RequestCookies(staleReqHeaders);
+
+    // Tab B writes 2 chunks using its stale snapshot.
+    const tabBRes = new ResponseCookies(new Headers());
+    setChunkedCookie("__session", "b".repeat(7000), OPTS, staleReq, tabBRes);
+    browserJar.apply(tabBRes);
+
+    // __session__5 survives — Tab B never saw it. Confirmed orphan.
+    expect(browserJar.names()).toContain("__session__5");
+    // The immediate read is broken.
+    expect(getChunkedCookie("__session", browserJar.req())).toBeUndefined();
+
+    // Next write on this connection SEES __5 in the snapshot and cleans up.
+    write(browserJar, "__session", "c".repeat(7000));
+
+    expect(browserJar.names()).toEqual(["__session__0", "__session__1"]);
+    expect(getChunkedCookie("__session", browserJar.req())).toBe(
+      "c".repeat(7000)
+    );
   });
 });
