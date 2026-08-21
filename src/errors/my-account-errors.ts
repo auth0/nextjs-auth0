@@ -103,9 +103,10 @@ export class ConnectAccountError extends SdkError {
 }
 
 /**
- * Enum representing error codes related to the disconnect account flow.
+ * Enum representing error codes for connected-accounts operations
+ * (listing and disconnecting).
  */
-export enum DisconnectAccountErrorCodes {
+export enum ConnectedAccountsErrorCodes {
   /**
    * The session is missing.
    */
@@ -123,11 +124,12 @@ export enum DisconnectAccountErrorCodes {
 }
 
 /**
- * Error class representing a disconnect account error.
+ * Error class representing a connected-accounts operation error (listing or
+ * disconnecting).
  */
-export class DisconnectAccountError extends SdkError {
+export class ConnectedAccountsError extends SdkError {
   /**
-   * The error code associated with the disconnect account error.
+   * The error code associated with the connected-accounts error.
    */
   public code: string;
   public cause?: MyAccountApiError;
@@ -142,7 +144,7 @@ export class DisconnectAccountError extends SdkError {
     cause?: MyAccountApiError;
   }) {
     super(message);
-    this.name = "DisconnectAccountError";
+    this.name = "ConnectedAccountsError";
     this.code = code;
     this.cause = cause;
   }

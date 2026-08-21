@@ -360,7 +360,7 @@ describe("Stateless Session Store", async () => {
       const headers = new Headers();
       headers.append(
         "cookie",
-        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue}`
+        `__session=${encryptedCookieValue};__FC_0=${encryptedGoogleConnectionCookieValue}`
       );
       const requestCookies = new RequestCookies(headers);
 
@@ -418,7 +418,7 @@ describe("Stateless Session Store", async () => {
       const headers = new Headers();
       headers.append(
         "cookie",
-        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue};__FC.1=${encryptedGithubConnectionCookieValue}`
+        `__session=${encryptedCookieValue};__FC_0=${encryptedGoogleConnectionCookieValue};__FC_1=${encryptedGithubConnectionCookieValue}`
       );
       const requestCookies = new RequestCookies(headers);
 

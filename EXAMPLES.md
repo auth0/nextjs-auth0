@@ -4358,7 +4358,7 @@ The `getConnectedAccounts` method lists the current user's connected accounts fr
 
 - `id`: the unique identifier of the connected account (e.g., `cac_...`).
 - `connection`: the name of the connection the account is linked through.
-- `accessType`: the access type (typically `offline`).
+- `accessType` (optional): the access type. Currently returned as `"offline"` by the My Account API when present.
 - `scopes`: the scopes granted for the connected account.
 - `createdAt`: ISO date string of when the account was connected.
 - `expiresAt`: (optional) ISO date string of when the connected account expires.
@@ -4381,7 +4381,7 @@ export async function GET() {
 ```
 
 > [!IMPORTANT]  
-> Server Components cannot set cookies. Reconciliation performed while calling `getConnectedAccounts()` in a Server Component will not be persisted. Call it from a Route Handler, Server Action, or middleware if you need the reconciled session to be saved.
+> Do not call `getConnectedAccounts()` from a React Server Component. Minting the My Account access token can rotate the refresh token, and Server Components cannot write cookies — the rotated token is silently dropped. On the next request the browser still sends the old refresh token, which the authorization server rejects as replay and logs the user out. Call from a Route Handler, Server Action, API route, or middleware.
 
 #### On the server (Pages Router) and middleware
 
@@ -4819,9 +4819,11 @@ export const GET = async (req: NextRequest) => {
 You can retrieve an access token for a connection using the `getAccessTokenForConnection()` method, which accepts an object with the following properties:
 
 - `connection`: The federated connection for which an access token should be retrieved.
-- `login_hint`: (optional) The login hint identifying which connected account to retrieve a token for. Provide it when a user has connected more than one account on the same connection so the correct one is selected; the token is then cached per `connection` + `login_hint`. When omitted, the token is matched and cached by `connection` alone (the default behavior).
+- `login_hint`: (optional) The login hint identifying which connected account to retrieve a token for. Provide it when a user has connected more than one account on the same connection so the correct one is selected; the token is then cached per `connection` + `login_hint`.
 
-Without a login hint (default, single account per connection):
+**Multi-account note.** The cache key is `connection` + `login_hint`. A call **with** a hint matches only entries stamped with the same hint. A call **without** a hint matches only entries that also have no hint — it does **not** match hinted entries. This isolation means an unhinted call cannot select and later overwrite a hinted entry, so cached per-account tokens for a connection are preserved across mixed hinted/unhinted usage. Existing sessions written before multi-account support have no hint stamped on any entry, so unhinted calls continue to match them as before (back-compat).
+
+Without a login hint (single account per connection, or explicitly unhinted flow):
 
 ```ts
 const token = await auth0.getAccessTokenForConnection({

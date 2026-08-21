@@ -18,10 +18,10 @@ import {
   BackchannelLogoutError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode,
-  DisconnectAccountError,
-  DisconnectAccountErrorCodes,
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
@@ -4345,7 +4345,7 @@ export class AuthClient {
    */
   async listConnectedAccounts(
     tokenSet: TokenSet
-  ): Promise<[null, ConnectedAccount[]] | [DisconnectAccountError, null]> {
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
     try {
       const fetcher = await this.fetcherFactory({
         useDPoP: this.useDPoP,
@@ -4375,8 +4375,8 @@ export class AuthClient {
           // tokens for omitted accounts, and disconnectAccount would leave
           // additional matching accounts linked). Fail loudly instead.
           return [
-            new DisconnectAccountError({
-              code: DisconnectAccountErrorCodes.FAILED_TO_LIST,
+            new ConnectedAccountsError({
+              code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
               message: "Connected-account pagination did not terminate safely."
             }),
             null
@@ -4398,9 +4398,9 @@ export class AuthClient {
         });
 
         if (!res.ok) {
-          return buildDisconnectAccountErrorResponse(
+          return buildConnectedAccountsErrorResponse(
             res,
-            DisconnectAccountErrorCodes.FAILED_TO_LIST
+            ConnectedAccountsErrorCodes.FAILED_TO_LIST
           );
         }
 
@@ -4427,8 +4427,8 @@ export class AuthClient {
         message = e.message;
       }
       return [
-        new DisconnectAccountError({
-          code: DisconnectAccountErrorCodes.FAILED_TO_LIST,
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
           message
         }),
         null
@@ -4439,28 +4439,23 @@ export class AuthClient {
   /**
    * Deletes a single connected account by its id via the My Account API.
    *
+   * Accepts a pre-built fetcher so callers (e.g. `disconnectAccount`) can reuse
+   * a single fetcher across multiple deletes. With DPoP enabled, a new fetcher
+   * starts without a nonce and pays a `use_dpop_nonce` rejection + retry on the
+   * first request; reusing the fetcher amortises that to one round-trip total
+   * instead of one per account.
+   *
    * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
    */
   private async deleteConnectedAccount(
-    tokenSet: TokenSet,
+    fetcher: Fetcher<Response>,
     id: string
-  ): Promise<[null, null] | [DisconnectAccountError, null]> {
+  ): Promise<[null, null] | [ConnectedAccountsError, null]> {
     try {
       const url = new URL(
         `/me/v1/connected-accounts/accounts/${encodeURIComponent(id)}`,
         this.issuer
       );
-
-      const fetcher = await this.fetcherFactory({
-        useDPoP: this.useDPoP,
-        getAccessToken: async () => ({
-          accessToken: tokenSet.accessToken,
-          expiresAt: tokenSet.expiresAt || 0,
-          scope: tokenSet.scope,
-          token_type: tokenSet.token_type
-        }),
-        fetch: this.fetch
-      });
 
       const res = await fetcher.fetchWithAuth(url.toString(), {
         method: "DELETE",
@@ -4470,9 +4465,9 @@ export class AuthClient {
       });
 
       if (!res.ok) {
-        return buildDisconnectAccountErrorResponse(
+        return buildConnectedAccountsErrorResponse(
           res,
-          DisconnectAccountErrorCodes.FAILED_TO_DELETE
+          ConnectedAccountsErrorCodes.FAILED_TO_DELETE
         );
       }
 
@@ -4484,8 +4479,8 @@ export class AuthClient {
         message = e.message;
       }
       return [
-        new DisconnectAccountError({
-          code: DisconnectAccountErrorCodes.FAILED_TO_DELETE,
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_DELETE,
           message
         }),
         null
@@ -4505,7 +4500,7 @@ export class AuthClient {
   async disconnectAccount(
     tokenSet: TokenSet,
     connection: string
-  ): Promise<[null, ConnectedAccount[]] | [DisconnectAccountError, null]> {
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
     const [listError, accounts] = await this.listConnectedAccounts(tokenSet);
     if (listError) {
       return [listError, null];
@@ -4515,10 +4510,29 @@ export class AuthClient {
       (account) => account.connection === connection
     );
 
+    if (matching.length === 0) {
+      return [null, []];
+    }
+
+    // Build the fetcher once and reuse it across every DELETE. With DPoP
+    // enabled, per-account fetchers would each start with an empty nonce cache
+    // and pay a `use_dpop_nonce` rejection + retry — turning N deletes into 2N
+    // requests. `listConnectedAccounts` already does this for pagination.
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      getAccessToken: async () => ({
+        accessToken: tokenSet.accessToken,
+        expiresAt: tokenSet.expiresAt || 0,
+        scope: tokenSet.scope,
+        token_type: tokenSet.token_type
+      }),
+      fetch: this.fetch
+    });
+
     const removed: ConnectedAccount[] = [];
     for (const account of matching) {
       const [deleteError] = await this.deleteConnectedAccount(
-        tokenSet,
+        fetcher,
         account.id
       );
       if (deleteError) {
@@ -6899,19 +6913,19 @@ export async function buildConnectAccountErrorResponse(
   }
 }
 
-export async function buildDisconnectAccountErrorResponse(
+export async function buildConnectedAccountsErrorResponse(
   res: Response,
-  errorCode: DisconnectAccountErrorCodes
-): Promise<[DisconnectAccountError, null]> {
+  errorCode: ConnectedAccountsErrorCodes
+): Promise<[ConnectedAccountsError, null]> {
   const actionVerb =
-    errorCode === DisconnectAccountErrorCodes.FAILED_TO_LIST
+    errorCode === ConnectedAccountsErrorCodes.FAILED_TO_LIST
       ? "list the connected accounts"
       : "delete the connected account";
 
   try {
     const errorBody = await res.json();
     return [
-      new DisconnectAccountError({
+      new ConnectedAccountsError({
         code: errorCode,
         message: `The request to ${actionVerb} failed with status ${res.status}.`,
         cause: new MyAccountApiError({
@@ -6926,7 +6940,7 @@ export async function buildDisconnectAccountErrorResponse(
     ];
   } catch (e) {
     return [
-      new DisconnectAccountError({
+      new ConnectedAccountsError({
         code: errorCode,
         message: `The request to ${actionVerb} failed with status ${res.status}.`
       }),

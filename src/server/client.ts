@@ -11,8 +11,8 @@ import {
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
   ConnectAccountErrorCodes,
-  DisconnectAccountError,
-  DisconnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
   InvalidConfigurationError,
   MfaRequiredError,
   TokenRevocationError,
@@ -1147,14 +1147,19 @@ export class Auth0Client {
       );
     }
 
-    // Find the connection token set in the session. When a login hint is
-    // provided, match on it too so multiple accounts can be connected for the
-    // same connection. Without a login hint, match on connection alone
-    // (preserving existing behaviour).
+    // Find the connection token set in the session. Treat "no hint" as its own
+    // key rather than a wildcard: a call without `login_hint` matches only
+    // entries that also have no `loginHint`. This preserves multi-account
+    // isolation — an unhinted call cannot select a hinted entry and later
+    // overwrite it with an unhinted token, which would erase the hint from the
+    // session. Sessions written before the multi-account feature have no
+    // `loginHint` on any entry, so unhinted calls still match them (back-compat).
     const existingTokenSet = session.connectionTokenSets?.find(
       (tokenSet) =>
         tokenSet.connection === options.connection &&
-        (!options.login_hint || tokenSet.loginHint === options.login_hint)
+        (options.login_hint
+          ? tokenSet.loginHint === options.login_hint
+          : !tokenSet.loginHint)
     );
 
     const [error, retrievedTokenSet] = await authClient.getConnectionTokenSet(
@@ -1993,7 +1998,7 @@ export class Auth0Client {
    * the corresponding cached connection tokens from the session so they are not
    * re-assembled on subsequent reads.
    *
-   * If the user does not have an active session, a `DisconnectAccountError` is thrown.
+   * If the user does not have an active session, a `ConnectedAccountsError` is thrown.
    *
    * In the Pages Router (or middleware), pass the `req` and `res` objects so the
    * pruned session can be persisted to the response cookies. In App Router Server
@@ -2018,8 +2023,8 @@ export class Auth0Client {
     );
 
     if (!session) {
-      throw new DisconnectAccountError({
-        code: DisconnectAccountErrorCodes.MISSING_SESSION,
+      throw new ConnectedAccountsError({
+        code: ConnectedAccountsErrorCodes.MISSING_SESSION,
         message: "The user does not have an active session."
       });
     }
@@ -2052,13 +2057,15 @@ export class Auth0Client {
       options.connection
     );
 
-    if (error) {
-      throw error;
-    }
-
-    // Remove the cached connection tokens for this connection so they are not
-    // re-assembled into the session on the next read. When no entries remain,
-    // omit the property entirely (mirroring how the store persists it).
+    // Prune cached connection tokens for this connection regardless of whether
+    // the loop over accounts fully succeeded. When multiple accounts share a
+    // connection and only some are unlinked before an error (e.g. rate limit
+    // on the second DELETE), the server-side state is partially disconnected
+    // while our cached tokens for the connection are now stale. Pruning is
+    // connection-scoped, so it's safe to prune all local state for the
+    // connection: a subsequent getAccessTokenForConnection would fail-exchange
+    // and prune anyway. Rethrow the error after pruning so the caller sees the
+    // partial failure.
     //
     // Prune from the session the mint produced, not a fresh cookie re-read. In
     // the Pages Router, request cookies are rebuilt from the original request
@@ -2081,6 +2088,10 @@ export class Auth0Client {
         );
         pruned = true;
       }
+    }
+
+    if (error) {
+      throw error;
     }
 
     // Nothing was pruned, but the mint may have rotated the token set. Persist
@@ -2113,15 +2124,19 @@ export class Auth0Client {
    * The My Account API is the source of truth, so this also reconciles the
    * session: any locally cached connection tokens (`connectionTokenSets`) whose
    * connection is no longer present server-side are pruned, so they are not
-   * re-assembled into the session on subsequent reads. Because this reconciles
-   * (and may write cookies), call it from a context that can set cookies.
+   * re-assembled into the session on subsequent reads.
    *
-   * In the Pages Router (or middleware), pass the `req` and `res` objects so the
-   * reconciled session can be persisted to the response cookies. In App Router
-   * Route Handlers and Server Actions, omit them (a Server Component cannot set
-   * cookies, so reconciliation there will not be persisted).
+   * **Do not call this from a React Server Component.** Minting the My Account
+   * access token can rotate the refresh token, and Server Components cannot
+   * write cookies — the write is silently dropped (only warned in
+   * `NODE_ENV=development`). On the next request the browser still sends the
+   * old refresh token, which the authorization server rejects as replay and
+   * logs the user out. Call from a Route Handler, Server Action, API route,
+   * or middleware. In the Pages Router (or middleware), pass the `req` and
+   * `res` objects so the reconciled session can be persisted to the response
+   * cookies.
    *
-   * If the user does not have an active session, a `DisconnectAccountError` is thrown.
+   * If the user does not have an active session, a `ConnectedAccountsError` is thrown.
    *
    * Note: reconciliation is connection-scoped. If a user has multiple accounts
    * on the same connection and only some are disconnected server-side, the
@@ -2140,8 +2155,8 @@ export class Auth0Client {
     );
 
     if (!session) {
-      throw new DisconnectAccountError({
-        code: DisconnectAccountErrorCodes.MISSING_SESSION,
+      throw new ConnectedAccountsError({
+        code: ConnectedAccountsErrorCodes.MISSING_SESSION,
         message: "The user does not have an active session."
       });
     }

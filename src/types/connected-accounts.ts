@@ -124,9 +124,9 @@ export interface CompleteConnectAccountResponse {
    */
   connection: string;
   /**
-   * The access type, always 'offline'.
+   * The access type, always `"offline"` for the Connect Account response.
    */
-  accessType: string;
+  accessType: "offline";
   /**
    * Array of scopes granted.
    */
@@ -171,9 +171,11 @@ export interface ConnectedAccount {
    */
   connection: string;
   /**
-   * The access type, always 'offline'.
+   * The access type. Currently always returned as `"offline"` by the My
+   * Account API, but typed as optional since the field is not guaranteed on
+   * the response.
    */
-  accessType?: string;
+  accessType?: "offline";
   /**
    * Array of scopes granted for this connected account.
    */

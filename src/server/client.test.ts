@@ -715,6 +715,56 @@ describe("Auth0Client", () => {
       expect(result.token).toBe("fc_bob");
     });
 
+    it("no-hint call does not match hinted entries (multi-account isolation)", async () => {
+      // Regression: an unhinted call must not select a hinted entry and then
+      // overwrite it with an unhinted token, which would erase the hint. If no
+      // hinted-less entry exists, treat as a cache miss (undefined) → fresh exchange.
+      const fresh = Math.floor(Date.now() / 1000) + 3600;
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_alice",
+          expiresAt: fresh,
+          loginHint: "alice@example.com"
+        },
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_bob",
+          expiresAt: fresh,
+          loginHint: "bob@example.com"
+        }
+      ]);
+      const getConnectionTokenSet = vi.fn(async () => [
+        null,
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_new",
+          expiresAt: fresh
+        }
+      ]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await client.getAccessTokenForConnection({ connection: "google-oauth2" });
+
+      // No hinted-less entry existed, so getConnectionTokenSet must have been
+      // called with `undefined` (cache miss) rather than one of the hinted entries.
+      expect(getConnectionTokenSet).toHaveBeenCalledWith(
+        session.tokenSet,
+        undefined,
+        expect.objectContaining({ connection: "google-oauth2" })
+      );
+      // The new unhinted token is appended; Alice and Bob are preserved intact.
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ loginHint: "alice@example.com" }),
+        expect.objectContaining({ loginHint: "bob@example.com" }),
+        expect.objectContaining({ accessToken: "fc_new" })
+      ]);
+    });
+
     it("matches on connection alone when no login hint is provided (back-compat)", async () => {
       const fresh = Math.floor(Date.now() / 1000) + 3600;
       const session = baseSession([
@@ -1234,7 +1284,7 @@ describe("Auth0Client", () => {
       return mockAuthClient;
     }
 
-    it("throws DisconnectAccountError when there is no session", async () => {
+    it("throws ConnectedAccountsError when there is no session", async () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         null
       );
@@ -1348,9 +1398,14 @@ describe("Auth0Client", () => {
       expect(saveToSession).not.toHaveBeenCalled();
     });
 
-    it("propagates the error from the auth client and does not save", async () => {
+    it("prunes cached connection tokens then rethrows when the disconnect partially fails", async () => {
+      // When multiple accounts share a connection and only some unlink before
+      // an error, the server-side state is partially disconnected while cached
+      // tokens are now stale. Prune connection-scoped local state so we don't
+      // leak orphaned __FC cookies, then rethrow so the caller sees the error.
       const session = sessionWith([
-        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 }
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
       ]);
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         session
@@ -1370,7 +1425,13 @@ describe("Auth0Client", () => {
       await expect(
         client.disconnectAccount({ connection: "google-oauth2" })
       ).rejects.toThrow("delete failed");
-      expect(saveToSession).not.toHaveBeenCalled();
+
+      // Session was pruned: google-oauth2 entry gone, github survives.
+      expect(saveToSession).toHaveBeenCalledOnce();
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ connection: "github" })
+      ]);
     });
 
     it("Pages Router: threads req/res through session read, token mint, and save", async () => {
@@ -1568,7 +1629,7 @@ describe("Auth0Client", () => {
       return mockAuthClient;
     }
 
-    it("throws DisconnectAccountError when there is no session", async () => {
+    it("throws ConnectedAccountsError when there is no session", async () => {
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
         null
       );

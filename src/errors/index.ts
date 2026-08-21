@@ -30,8 +30,8 @@ export {
   MyAccountApiError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
-  DisconnectAccountError,
-  DisconnectAccountErrorCodes
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes
 } from "./my-account-errors.js";
 
 export {

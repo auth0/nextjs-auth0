@@ -146,6 +146,13 @@ export class StatelessSessionStore extends AbstractSessionStore {
     // disconnected), the trailing higher-index cookies would otherwise linger as
     // orphans and be re-assembled into the session on the next read. Delete any
     // `__FC_i` present in the request whose index is beyond the current length.
+    //
+    // Deliberately snapshot-scan here rather than deleting a deterministic
+    // `__FC_0..MAX-1` range (as `__session__*` does): `__FC` has no hard cap on
+    // the number of connected accounts a user can have, and the count we're
+    // shrinking to is authoritative from the server-side delete/list rather
+    // than a local decision. Deleting an arbitrary "safety" range would either
+    // cap accounts or emit meaningless tombstones on every write.
     for (const cookie of this.getConnectionTokenSetsCookies(reqCookies)) {
       const index = this.parseConnectionTokenSetCookieIndex(cookie.name);
       // Only reconcile cookies this store wrote (`__FC_<index>`). Any other
@@ -273,10 +280,16 @@ export class StatelessSessionStore extends AbstractSessionStore {
   private getConnectionTokenSetsCookies(
     cookies: cookies.RequestCookies | cookies.ResponseCookies
   ) {
+    // Match the exact `<prefix>_<digits>` shape this store writes, not a loose
+    // `startsWith(prefix)`. Keeps `get()`, `delete()`, and the orphan sweep in
+    // agreement on what counts as one of ours — otherwise a stray `__FCcustom`
+    // cookie set by other code could be read into `connectionTokenSets`,
+    // rewritten into an indexed slot, but never cleaned.
     return cookies
       .getAll()
-      .filter((cookie) =>
-        cookie.name.startsWith(this.connectionTokenSetsCookieName)
+      .filter(
+        (cookie) =>
+          this.parseConnectionTokenSetCookieIndex(cookie.name) !== null
       );
   }
 

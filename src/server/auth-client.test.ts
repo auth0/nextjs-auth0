@@ -18,7 +18,7 @@ import {
   BackchannelAuthenticationError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
-  DisconnectAccountError,
+  ConnectedAccountsError,
   DPoPError,
   DPoPErrorCode,
   InvalidConfigurationError,
@@ -10239,7 +10239,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         await authClient.listConnectedAccounts(tokenSet);
 
       expect(accounts).toBeNull();
-      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
       expect(error?.code).toBe("failed_to_list");
       expect(error?.cause?.status).toBe(403);
     });
@@ -10275,7 +10275,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         await authClient.listConnectedAccounts(tokenSet);
 
       expect(accounts).toBeNull();
-      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
       expect(error?.code).toBe("failed_to_list");
       expect(error?.message).toBe(
         "Connected-account pagination did not terminate safely."
@@ -10297,7 +10297,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         await authClient.listConnectedAccounts(tokenSet);
 
       expect(accounts).toBeNull();
-      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
       expect(error?.code).toBe("failed_to_list");
       expect(error?.message).toBe(
         "An unexpected error occurred while trying to list the connected accounts."
@@ -10449,7 +10449,57 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
 
       expect(removed).toBeNull();
-      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.cause?.status).toBe(429);
+    });
+
+    it("returns a FAILED_TO_DELETE error even when the first delete succeeded (partial failure)", async () => {
+      // Two accounts for the same connection: cac_1 unlinks successfully, cac_2
+      // fails with 429. The error surfaces so the caller knows the disconnect
+      // did not fully complete. The caller-side (client.ts) prunes connection
+      // -scoped cached tokens regardless, so orphaned __FC cookies are cleaned up.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                { id: "cac_1", connection: "google-oauth2" },
+                { id: "cac_2", connection: "google-oauth2" }
+              ]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts/cac_1" &&
+          init?.method === "DELETE"
+        ) {
+          return new Response(null, { status: 204 });
+        }
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts/cac_2" &&
+          init?.method === "DELETE"
+        ) {
+          return Response.json(
+            { title: "Too many", detail: "rate limited" },
+            { status: 429 }
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
       expect(error?.code).toBe("failed_to_delete");
       expect(error?.cause?.status).toBe(429);
     });
@@ -10483,7 +10533,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
 
       expect(removed).toBeNull();
-      expect(error).toBeInstanceOf(DisconnectAccountError);
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
       expect(error?.code).toBe("failed_to_delete");
       expect(error?.message).toBe(
         "An unexpected error occurred while trying to delete the connected account."
