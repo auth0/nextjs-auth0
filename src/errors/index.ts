@@ -81,3 +81,9 @@ export {
   PasskeyEnrollmentVerifyError,
   type PasskeyApiErrorResponse
 } from "./passkey-errors.js";
+
+export {
+  AnonymousSessionError,
+  getStatusForAnonymousError,
+  mapAnonymousErrorCode
+} from "./anonymous-session-errors.js";

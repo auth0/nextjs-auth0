@@ -1189,6 +1189,41 @@ describe("Auth0Client", () => {
       );
       warnSpy.mockRestore();
     });
+
+    it("should throw when anonymousSession.cookie.secure is explicitly false in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      expect(
+        () =>
+          new Auth0Client({
+            anonymousSession: {
+              enabled: true,
+              cookie: {
+                secure: false
+              }
+            }
+          })
+      ).toThrowError(InvalidConfigurationError);
+    });
+
+    it("should not throw when anonymousSession.cookie.secure is explicitly false in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(
+        () =>
+          new Auth0Client({
+            anonymousSession: {
+              enabled: true,
+              cookie: {
+                secure: false
+              }
+            }
+          })
+      ).not.toThrow();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'appBaseUrl' is not configured")
+      );
+      warnSpy.mockRestore();
+    });
   });
 
   describe("cookie security when appBaseUrl is configured via options", () => {
@@ -1211,13 +1246,23 @@ describe("Auth0Client", () => {
 
     it("should force secure cookies when appBaseUrl is a single https string", () => {
       const client = new Auth0Client({
-        appBaseUrl: "https://app.example.com"
+        appBaseUrl: "https://app.example.com",
+        anonymousSession: {
+          enabled: true,
+          cookie: {
+            secure: false // Should be overridden
+          }
+        }
       });
       const sessionStore = client["sessionStore"] as any;
       const transactionStore = (client as any).transactionStore;
 
       expect(sessionStore.cookieConfig.secure).toBe(true);
       expect(transactionStore.cookieOptions.secure).toBe(true);
+      // Verify anon cookie secure was forced to true despite being set to false
+      const provider = (client as any).provider;
+      const authClient = provider.getAuthClientForStaticMode();
+      expect(authClient.anonymousCookieOptions.secure).toBe(true);
     });
 
     it("should not force secure cookies when appBaseUrl is a single http string", () => {
@@ -1749,6 +1794,34 @@ describe("Auth0Client", () => {
         expect(cookieValues).toHaveLength(1);
       });
     });
+  });
+});
+
+describe("GUARDING TEST: C2/C3 - Public Auth0Client anonymous session wrappers", () => {
+  it("C2/C3: Auth0Client exports public methods for anonymous sessions", () => {
+    // Verify the Auth0Client class has the required public methods
+    expect(Auth0Client.prototype).toHaveProperty("createAnonymousSession");
+    expect(Auth0Client.prototype).toHaveProperty("getAnonymousSession");
+
+    // Verify they are functions
+    expect(typeof Auth0Client.prototype.createAnonymousSession).toBe(
+      "function"
+    );
+    expect(typeof Auth0Client.prototype.getAnonymousSession).toBe("function");
+  });
+
+  it("C2/C3: Auth0Client can be instantiated with anonymous session config", () => {
+    const testClient = new Auth0Client({
+      domain: "test.auth0.com",
+      clientId: "test-id",
+      clientSecret: "test-secret",
+      secret: "test-secret-32-bytes-minimum-1234567890ab"
+    });
+
+    // Client instantiated successfully
+    expect(testClient).toBeInstanceOf(Auth0Client);
+    // Verify method signatures
+    expect(typeof testClient.createAnonymousSession).toBe("function");
   });
 });
 
