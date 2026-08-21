@@ -17,6 +17,22 @@ import {
   normalizeStatelessSession
 } from "./normalize-session.js";
 
+// Total encoded session-cookie size (across all `__session` chunks) above which
+// we warn. A large session is the main remaining cause of `431 Request Header
+// Fields Too Large`, since — unlike transaction cookies — the session is not
+// evicted. 4096 bytes is a conservative threshold: at this size the session
+// alone is large, and combined with transaction, connection-token, and
+// application cookies the total `Cookie` header can exceed typical 8 KB proxy
+// limits. Firing early gives developers a clear "trim your claims or go
+// stateful" signal before requests start failing.
+const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
+
+// Under rolling sessions, set() runs on ~every authenticated request, so a
+// legitimately large-but-working session would otherwise log the size warning
+// on every request. Emit it once per process to keep the diagnostic without
+// spamming logs.
+let sessionSizeWarningEmitted = false;
+
 interface StatelessSessionStoreOptions {
   secret: string;
 
@@ -117,13 +133,32 @@ export class StatelessSessionStore extends AbstractSessionStore {
       maxAge
     };
 
-    cookies.setChunkedCookie(
+    // Warn when the session cookie is large. This is the main remaining cause of
+    // 431 errors: the session (unlike transaction cookies) is never evicted, so
+    // an oversized session can overflow the request-header limit on its own.
+    // setChunkedCookie returns the total bytes of the chunk(s) it wrote, so no
+    // separate re-scan of resCookies is needed.
+    const sessionCookieBytes = cookies.setChunkedCookie(
       this.sessionCookieName,
       cookieValue,
       options,
       reqCookies,
       resCookies
     );
+
+    if (
+      sessionCookieBytes >= SESSION_COOKIE_SIZE_WARN_BYTES &&
+      !sessionSizeWarningEmitted
+    ) {
+      sessionSizeWarningEmitted = true;
+      console.warn(
+        `The ${this.sessionCookieName} cookie size is ${sessionCookieBytes} bytes, which may ` +
+          "exceed request header size limits and cause 431 Request Header Fields Too Large errors " +
+          "on some servers, proxies, or CDNs. Consider removing unnecessary custom claims from the " +
+          "access token or the user profile, or use a stateful session implementation to store the " +
+          "session data in a data store."
+      );
+    }
 
     // Store connection access tokens, each in its own cookie
     if (connectionTokenSets?.length) {
@@ -228,20 +263,15 @@ export class StatelessSessionStore extends AbstractSessionStore {
       maxAge
     });
 
+    // storeInCookie only ever writes connection-token (`__FC_*`) cookies — the
+    // session cookie is written (and size-checked) separately in set(). Warn if
+    // an individual connection-token cookie is large enough to risk browser or
+    // header limits.
     if (new TextEncoder().encode(cookieJarSizeTest.toString()).length >= 4096) {
-      // if the cookie is the session cookie, log a warning with additional information about the claims and user profile.
-      if (cookieName === this.sessionCookieName) {
-        console.warn(
-          `The ${cookieName} cookie size exceeds 4096 bytes, which may cause issues in some browsers. ` +
-            "Consider removing any unnecessary custom claims from the access token or the user profile. " +
-            "Alternatively, you can use a stateful session implementation to store the session data in a data store."
-        );
-      } else {
-        console.warn(
-          `The ${cookieName} cookie size exceeds 4096 bytes, which may cause issues in some browsers. ` +
-            "You can use a stateful session implementation to store the session data in a data store."
-        );
-      }
+      console.warn(
+        `The ${cookieName} cookie size exceeds 4096 bytes, which may cause issues in some browsers. ` +
+          "You can use a stateful session implementation to store the session data in a data store."
+      );
     }
   }
 

@@ -153,6 +153,7 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "../utils/proxy.js";
+import { isNonNavigationalRequest } from "../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -672,6 +673,19 @@ export class AuthClient {
     const method = req.method;
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
+      if (isNonNavigationalRequest(req)) {
+        // 204 No Content signals "intentionally did nothing" for prefetch/
+        // non-navigational requests, avoiding polluting auth-failure telemetry
+        // and access logs. Next.js discards prefetch responses regardless, so
+        // behavior is unaffected.
+        // Cache-Control: no-store prevents CDNs and reverse proxies from caching
+        // this 204 — RFC 9111 makes 204 heuristically cacheable without an explicit
+        // directive, so a cached 204 would silently break real login navigations.
+        return new NextResponse(null, {
+          status: 204,
+          headers: { "Cache-Control": "no-store" }
+        });
+      }
       return this.handleLogin(req);
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
       return this.handleLogout(req);
@@ -799,7 +813,8 @@ export class AuthClient {
 
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
-    req?: NextRequest
+    req?: NextRequest,
+    reqCookies?: RequestCookies | ReadonlyRequestCookies
   ): Promise<NextResponse> {
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
@@ -947,8 +962,11 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    // Save transaction state
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies ?? reqCookies
+    );
 
     return res;
   }
@@ -1598,7 +1616,6 @@ export class AuthClient {
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
-    // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
@@ -4177,7 +4194,11 @@ export class AuthClient {
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
 
     return [null, res];
   }
@@ -4885,22 +4906,53 @@ export class AuthClient {
       );
     }
 
-    // Decrypt token to extract audience
-    const { audience } = await decryptMfaToken(
+    // Decrypt token to extract audience and the requested scope
+    const { audience, scope: requestedScope } = await decryptMfaToken(
       encryptedMfaToken,
       this.sessionStore.secret
     );
 
     session.accessTokens = session.accessTokens || [];
-    session.accessTokens.push({
+
+    const newAccessTokenSet = {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
+      requestedScope,
       // oauth4webapi TokenEndpointResponse does NOT include audience field
       audience: audience || "",
       expiresAt:
         Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
       token_type: tokenResponse.token_type
-    });
+    };
+
+    // Replace an existing token for the same audience AND scope, or append a
+    // new one. Without this, each MFA step-up appends another full token set —
+    // growing the session cookie unbounded (and eventually a 431). The key is
+    // audience + scope (not audience alone) to match findAccessTokenSet, which
+    // deliberately holds multiple same-audience token sets distinguished by
+    // scope; keying on audience alone would evict a differently-scoped token.
+    // Key on the requested scope (always present, with a fallback to the
+    // granted scope for legacy entries): the granted `scope` may be reduced or
+    // omitted by the server, which would otherwise collide distinct requests.
+    const normalizeScope = (scope?: string) =>
+      (scope ?? "").trim().split(/\s+/).filter(Boolean).sort().join(" ");
+    const newScope = normalizeScope(
+      newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
+    );
+    // Remove ALL existing entries for this audience + scope (not just the first)
+    // so sessions that accumulated duplicates before this fix deployed are
+    // compacted on the next step-up. Best-effort for legacy entries: those have
+    // no `requestedScope` and fall back to the granted `scope`, so if the server
+    // reduced scope, a legacy entry's fallback key may not match a new request's
+    // requestedScope key and it will be retained alongside the new entry.
+    session.accessTokens = session.accessTokens.filter(
+      (t) =>
+        !(
+          t.audience === newAccessTokenSet.audience &&
+          normalizeScope(t.requestedScope ?? t.scope) === newScope
+        )
+    );
+    session.accessTokens.push(newAccessTokenSet);
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
@@ -5819,7 +5871,11 @@ export class AuthClient {
             "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
         );
       }
-      await this.transactionStore.save(resCookies, magicLinkTransactionState);
+      await this.transactionStore.save(
+        resCookies,
+        magicLinkTransactionState,
+        req?.cookies
+      );
     }
   }
 
