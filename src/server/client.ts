@@ -1897,6 +1897,14 @@ export class Auth0Client {
    * response), a Pages Router `ServerResponse` is not accepted here; forward the
    * returned response's `Location` and `Set-Cookie` headers onto your response.
    *
+   * Minting the My Account access token can rotate the refresh token. On success
+   * that rotation is written onto the returned redirect response's cookies, so
+   * forwarding its `Set-Cookie` headers (as above) persists it. On the error path
+   * there is no response to attach to, so the rotation is persisted best-effort
+   * via ambient cookies, which a React Server Component cannot write; prefer a
+   * Route Handler, Server Action, API route, or middleware so a failed connect
+   * does not drop the rotated token and log the user out on the next refresh.
+   *
    * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
   async connectAccount(
@@ -1950,6 +1958,15 @@ export class Auth0Client {
     );
 
     if (error) {
+      // The mint may have rotated the refresh token before connectAccount
+      // failed. There is no redirect response to attach cookies to on the error
+      // path, so persist the rotated session best-effort (App Router ambient
+      // cookies; a no-op in middleware/Pages, where there is no response to
+      // write to here). This avoids dropping the rotation, which would trigger
+      // reuse-detection and log the user out on the next refresh.
+      if (accessToken.sessionChanged) {
+        await this.saveToSession(accessToken.session, undefined, undefined);
+      }
       throw error;
     }
 
@@ -1998,7 +2015,24 @@ export class Auth0Client {
    * the corresponding cached connection tokens from the session so they are not
    * re-assembled on subsequent reads.
    *
-   * If the user does not have an active session, a `ConnectedAccountsError` is thrown.
+   * If the user does not have an active session, a `ConnectedAccountsError` is
+   * thrown with code `MISSING_SESSION`. If the server-side revoke fails, a
+   * `ConnectedAccountsError` with code `FAILED_TO_DELETE` is thrown.
+   *
+   * **Do not call this from a React Server Component.** Minting the My Account
+   * access token can rotate the refresh token, and Server Components cannot
+   * write cookies, so the write is silently dropped (only warned in
+   * `NODE_ENV=development`). On the next request the browser still sends the old
+   * refresh token, which the authorization server rejects as replay and logs the
+   * user out. Call from a Route Handler, Server Action, API route, or middleware.
+   *
+   * Partial-failure contract: the local cached connection tokens
+   * (`connectionTokenSets`) for the connection are pruned from the session
+   * regardless of whether the server-side revoke succeeded, and any rotated
+   * refresh token is persisted, before the error (if any) is rethrown. So on a
+   * `FAILED_TO_DELETE` the server-side state may be partially disconnected while
+   * the local state is fully cleaned; a subsequent `getAccessTokenForConnection`
+   * would fail-exchange and prune anyway.
    *
    * In the Pages Router (or middleware), pass the `req` and `res` objects so the
    * pruned session can be persisted to the response cookies. In App Router Server
@@ -2090,14 +2124,19 @@ export class Auth0Client {
       }
     }
 
-    if (error) {
-      throw error;
-    }
-
-    // Nothing was pruned, but the mint may have rotated the token set. Persist
-    // it here since mintMyAccountToken was told not to (persist: false).
+    // If nothing was pruned, the mint may still have rotated the token set.
+    // Persist it here since mintMyAccountToken was told not to (persist: false).
+    // This runs before the rethrow below so a rotated refresh token is never
+    // dropped on the error path (which would trigger reuse-detection and log the
+    // user out on the next refresh). The prune write above already carries the
+    // rotation, so at most one write happens.
     if (!pruned && accessToken.sessionChanged) {
       await this.saveToSession(latestSession, normalizedReq, res);
+    }
+
+    // Rethrow after persisting so the caller sees the partial failure.
+    if (error) {
+      throw error;
     }
   }
 
@@ -2186,6 +2225,14 @@ export class Auth0Client {
     });
 
     if (error) {
+      // The mint may have rotated the refresh token before the list failed
+      // (the first call in a session always refreshes, since the My Account
+      // audience is not cached yet). Persist the rotation before rethrowing so
+      // it is not dropped, which would trigger reuse-detection and log the user
+      // out on the next refresh.
+      if (accessToken.sessionChanged) {
+        await this.saveToSession(accessToken.session, normalizedReq, res);
+      }
       throw error;
     }
 

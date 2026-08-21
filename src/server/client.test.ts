@@ -1181,6 +1181,48 @@ describe("Auth0Client", () => {
       ).rejects.toThrow("connect failed");
     });
 
+    it("persists a rotated token set before rethrowing when connect fails", async () => {
+      // There is no redirect response on the error path, so the rotated session
+      // is written best-effort via saveToSession (App Router ambient cookies).
+      // Without this the rotation is dropped and the next refresh logs the user
+      // out.
+      const session = sessionWith();
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      mockAuthClientWith(
+        vi.fn().mockResolvedValue([new Error("connect failed"), null])
+      );
+
+      await expect(
+        client.connectAccount({ connection: "google-oauth2" })
+      ).rejects.toThrow("connect failed");
+
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
+    });
+
     it("persists a rotated refresh token onto the redirect response", async () => {
       const session = sessionWith();
       vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
@@ -1432,6 +1474,49 @@ describe("Auth0Client", () => {
       expect(saved.connectionTokenSets).toEqual([
         expect.objectContaining({ connection: "github" })
       ]);
+    });
+
+    it("persists a rotated token set before rethrowing when there is nothing to prune", async () => {
+      // No cached tokens for the connection, so pruning writes nothing. The mint
+      // still rotated the refresh token, and the disconnect then failed. The
+      // rotation must be persisted before the rethrow, otherwise the next
+      // refresh replays the old token and the user is logged out.
+      const session = sessionWith(undefined);
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      mockAuthClientWith(
+        vi.fn().mockResolvedValue([new Error("delete failed"), null])
+      );
+
+      await expect(
+        client.disconnectAccount({ connection: "google-oauth2" })
+      ).rejects.toThrow("delete failed");
+
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
     });
 
     it("Pages Router: threads req/res through session read, token mint, and save", async () => {
@@ -1763,6 +1848,64 @@ describe("Auth0Client", () => {
       await expect(client.getConnectedAccounts()).rejects.toThrow(
         "list failed"
       );
+    });
+
+    it("persists a rotated token set before rethrowing when the list fails", async () => {
+      // The first list call in a session always rotates the refresh token (the
+      // My Account audience is not cached yet). If the list then fails, the
+      // rotation must still be persisted, otherwise the next refresh replays the
+      // old token and the user is logged out.
+      const session = sessionWith(undefined);
+      const rotatedSession = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotatedSession,
+        sessionChanged: true
+      });
+      const listError = new Error("list failed");
+      mockAuthClientWith(vi.fn().mockResolvedValue([listError, null]));
+
+      await expect(client.getConnectedAccounts()).rejects.toThrow(
+        "list failed"
+      );
+      expect(saveToSession).toHaveBeenCalledWith(
+        rotatedSession,
+        undefined,
+        undefined
+      );
+    });
+
+    it("does not persist on a failed list when the token was not rotated", async () => {
+      const session = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session,
+        sessionChanged: false
+      });
+      mockAuthClientWith(
+        vi.fn().mockResolvedValue([new Error("list failed"), null])
+      );
+
+      await expect(client.getConnectedAccounts()).rejects.toThrow(
+        "list failed"
+      );
+      expect(saveToSession).not.toHaveBeenCalled();
     });
 
     it("Pages Router: threads req/res through session read, token mint, and reconcile save", async () => {
