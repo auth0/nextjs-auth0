@@ -157,12 +157,18 @@ const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
 const CHUNK_PREFIX = "__";
 const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
 const LEGACY_CHUNK_INDEX_REGEX = /\.(\d+)$/;
-// Upper bound on chunk indices to clear when a chunked cookie shrinks (or is
-// replaced by a single cookie). 5 × 3500 = 17,500 bytes — far beyond any real
-// session, so no valid chunk is ever missed. Deleting a deterministic index
-// range instead of scanning `reqCookies` avoids leaving orphaned chunks when a
-// concurrent request/tab wrote a higher-index chunk not present in this
-// request's (stale) cookie snapshot.
+// Minimum deterministic sweep range for chunk cleanup. Cleanup uses
+// `getClearUpTo`, which sweeps at least `__0..MAX_CHUNKS-1` (this constant) and
+// also anything higher the current request's snapshot reveals. The deterministic
+// minimum covers the concurrent-write case within this range: a tab that wrote a
+// chunk absent from this request's stale snapshot is still cleaned. The snapshot
+// extension covers the shrink case: a session that once grew past this range
+// and later shrinks has its high-index chunks removed instead of orphaned.
+// Values above `MAX_CHUNKS` written by a concurrent tab and absent from this
+// snapshot are the residual case — the next write on this connection sees them
+// and cleans up (self-healing after one bad response). 5 × 3500 = 17,500 bytes
+// covers the typical session envelope; sessions larger than that surface the
+// oversized-session warning in `stateless-session-store.ts`.
 const MAX_CHUNKS = 5;
 
 /**
@@ -186,19 +192,62 @@ const getChunkedCookieIndex = (
 };
 
 /**
- * Retrieves all cookies from the request that have names starting with a specific prefix.
+ * Retrieves all cookies from the request that have names matching the exact
+ * `{name}{CHUNK_PREFIX}{digits}` shape (or `{name}.{digits}` for the legacy
+ * format). The regex is built once per shape at module load rather than per
+ * call — `setChunkedCookie` runs on every authenticated request under rolling
+ * sessions, so avoiding a fresh RegExp per call matters.
  *
  * @param reqCookies - The cookies from the request.
  * @param name - The base name of the cookies to retrieve.
- * @returns An array of cookies that have names starting with the specified prefix.
+ * @returns An array of cookies matching the chunked-cookie shape.
  */
+const getAllChunkedCookies = (
+  reqCookies: RequestCookies,
+  name: string,
+  isLegacyCookie?: boolean
+): RequestCookie[] => {
+  const regex = isLegacyCookie
+    ? getLegacyChunkedCookieRegex(name)
+    : getChunkedCookieRegex(name);
+  return reqCookies.getAll().filter((cookie) => regex.test(cookie.name));
+};
+
+// Per-name regex caches, populated on first use. Prevents rebuilding the same
+// RegExp on every hot-path call. Names are bounded (session, legacy session,
+// __FC cookies), so unbounded growth is not a concern.
+const chunkedCookieRegexCache = new Map<string, RegExp>();
+const legacyChunkedCookieRegexCache = new Map<string, RegExp>();
+
+const getChunkedCookieRegex = (name: string): RegExp => {
+  const cached = chunkedCookieRegexCache.get(name);
+  if (cached) return cached;
+  const regex = new RegExp(`^${name}${CHUNK_PREFIX}\\d+$`);
+  chunkedCookieRegexCache.set(name, regex);
+  return regex;
+};
+
+const getLegacyChunkedCookieRegex = (name: string): RegExp => {
+  const cached = legacyChunkedCookieRegexCache.get(name);
+  if (cached) return cached;
+  const regex = new RegExp(`^${name}${LEGACY_CHUNK_INDEX_REGEX.source}$`);
+  legacyChunkedCookieRegexCache.set(name, regex);
+  return regex;
+};
+
 /**
  * Returns the exclusive upper bound for chunk-cleanup loops: `max(MAX_CHUNKS,
- * highestSeenIndex + 1)`. Guarantees the deterministic `__0..MAX_CHUNKS-1` sweep
- * (needed for concurrency safety when a concurrent tab wrote a higher chunk not
- * in this snapshot), while also clearing anything the current snapshot reveals
- * above that range — so a session that once grew past `MAX_CHUNKS` and later
- * shrinks does not leave orphaned high-index chunks in the browser.
+ * highestSeenIndex + 1)`. Guarantees the deterministic `__0..MAX_CHUNKS-1`
+ * sweep (which covers concurrent-tab writes below `MAX_CHUNKS` that this
+ * request's snapshot missed), while also clearing anything the current
+ * snapshot reveals above that range — so a session that once grew past
+ * `MAX_CHUNKS` and later shrinks does not leave orphaned high-index chunks.
+ *
+ * Residual case: a concurrent tab that wrote `__session__N` with `N >=
+ * MAX_CHUNKS`, absent from THIS request's snapshot, is not cleared here.
+ * That single request's read returns `undefined` for the session. The next
+ * write on this connection sees `__N` in its snapshot and cleans it up
+ * (self-healing). Bounded to at most one bad response per orphan.
  */
 const getClearUpTo = (reqCookies: RequestCookies, name: string): number => {
   let highestSeen = -1;
@@ -207,21 +256,6 @@ const getClearUpTo = (reqCookies: RequestCookies, name: string): number => {
     if (idx !== undefined && idx > highestSeen) highestSeen = idx;
   }
   return Math.max(MAX_CHUNKS, highestSeen + 1);
-};
-
-const getAllChunkedCookies = (
-  reqCookies: RequestCookies,
-  name: string,
-  isLegacyCookie?: boolean
-): RequestCookie[] => {
-  const chunkedCookieRegex = new RegExp(
-    isLegacyCookie
-      ? `^${name}${LEGACY_CHUNK_INDEX_REGEX.source}$`
-      : `^${name}${CHUNK_PREFIX}\\d+$`
-  );
-  return reqCookies
-    .getAll()
-    .filter((cookie) => chunkedCookieRegex.test(cookie.name));
 };
 
 /**
@@ -259,6 +293,17 @@ export function setChunkedCookie(
 
   const valueBytes = encoder.encode(value).length;
 
+  // Hoist the delete-options object out of the loops. `setChunkedCookie` runs
+  // on every authenticated request under rolling sessions, so allocating one
+  // object per iteration adds up.
+  const deleteOptions = {
+    path: finalOptions.path,
+    domain: finalOptions.domain,
+    secure: finalOptions.secure,
+    sameSite: finalOptions.sameSite,
+    httpOnly: finalOptions.httpOnly
+  };
+
   // If value fits in a single cookie, set it directly
   if (valueBytes <= MAX_CHUNK_SIZE) {
     resCookies.set(name, value, finalOptions);
@@ -267,19 +312,13 @@ export function setChunkedCookie(
 
     // When we are writing a non-chunked cookie, remove any previously stored
     // chunks for this cookie name. Sweep at least `__0..MAX_CHUNKS-1` (covers
-    // concurrent-tab writes not in this snapshot) and also anything higher the
-    // snapshot reveals (covers sessions that once grew past MAX_CHUNKS). The
-    // browser ignores deletions for cookies that do not exist.
+    // concurrent-tab writes below MAX_CHUNKS not in this snapshot) and also
+    // anything higher the snapshot reveals (covers sessions that once grew past
+    // MAX_CHUNKS). The browser ignores deletions for cookies that do not exist.
     const clearUpTo = getClearUpTo(reqCookies, name);
     for (let i = 0; i < clearUpTo; i++) {
       const chunkName = `${name}${CHUNK_PREFIX}${i}`;
-      deleteCookie(resCookies, chunkName, {
-        path: finalOptions.path,
-        domain: finalOptions.domain,
-        secure: finalOptions.secure,
-        sameSite: finalOptions.sameSite,
-        httpOnly: finalOptions.httpOnly
-      });
+      deleteCookie(resCookies, chunkName, deleteOptions);
       reqCookies.delete(chunkName);
     }
 
@@ -304,30 +343,19 @@ export function setChunkedCookie(
   }
 
   // Clear any now-unused higher-index chunks. Sweep at least up to
-  // `MAX_CHUNKS-1` (covers concurrent-tab writes not in this snapshot) and also
-  // anything higher the snapshot reveals (covers sessions that once grew past
-  // MAX_CHUNKS). The browser ignores deletions for absent cookies.
+  // `MAX_CHUNKS-1` (covers concurrent-tab writes below MAX_CHUNKS not in this
+  // snapshot) and also anything higher the snapshot reveals (covers sessions
+  // that once grew past MAX_CHUNKS). The browser ignores deletions for absent
+  // cookies.
   const clearUpTo = getClearUpTo(reqCookies, name);
   for (let i = chunkIndex; i < clearUpTo; i++) {
     const chunkName = `${name}${CHUNK_PREFIX}${i}`;
-    deleteCookie(resCookies, chunkName, {
-      path: finalOptions.path,
-      domain: finalOptions.domain,
-      secure: finalOptions.secure,
-      sameSite: finalOptions.sameSite,
-      httpOnly: finalOptions.httpOnly
-    });
+    deleteCookie(resCookies, chunkName, deleteOptions);
     reqCookies.delete(chunkName);
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
-  deleteCookie(resCookies, name, {
-    path: finalOptions.path,
-    domain: finalOptions.domain,
-    secure: finalOptions.secure,
-    sameSite: finalOptions.sameSite,
-    httpOnly: finalOptions.httpOnly
-  });
+  deleteCookie(resCookies, name, deleteOptions);
   reqCookies.delete(name);
 
   return totalBytes;
