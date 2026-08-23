@@ -360,7 +360,7 @@ describe("Stateless Session Store", async () => {
       const headers = new Headers();
       headers.append(
         "cookie",
-        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue}`
+        `__session=${encryptedCookieValue};__FC_0=${encryptedGoogleConnectionCookieValue}`
       );
       const requestCookies = new RequestCookies(headers);
 
@@ -418,7 +418,7 @@ describe("Stateless Session Store", async () => {
       const headers = new Headers();
       headers.append(
         "cookie",
-        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue};__FC.1=${encryptedGithubConnectionCookieValue}`
+        `__session=${encryptedCookieValue};__FC_0=${encryptedGoogleConnectionCookieValue};__FC_1=${encryptedGithubConnectionCookieValue}`
       );
       const requestCookies = new RequestCookies(headers);
 
@@ -948,6 +948,181 @@ describe("Stateless Session Store", async () => {
           secure: false
         }
       );
+    });
+
+    describe("__FC connection-token orphan cleanup", async () => {
+      const baseSession = (
+        connectionTokenSets: SessionData["connectionTokenSets"]
+      ): SessionData => ({
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        connectionTokenSets
+      });
+
+      // Seeds `count` __FC_i cookies on the request, as a prior write would have.
+      async function seedConnectionCookies(
+        store: StatelessSessionStore,
+        requestCookies: RequestCookies,
+        responseCookies: ResponseCookies,
+        connections: string[]
+      ) {
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession(
+            connections.map((connection) => ({
+              connection,
+              accessToken: `at_${connection}`,
+              expiresAt: 999999
+            }))
+          )
+        );
+      }
+
+      // A `__FC` cookie is "deleted" via `resCookies.set(name, "", {maxAge:0})`,
+      // so a deletion is a `set` call with an empty value and `maxAge` 0.
+      function deletedCookieNames(setSpy: {
+        mock: { calls: unknown[][] };
+      }): string[] {
+        return setSpy.mock.calls
+          .filter(
+            (call) =>
+              call[1] === "" &&
+              typeof call[2] === "object" &&
+              call[2] !== null &&
+              (call[2] as { maxAge?: number }).maxAge === 0
+          )
+          .map((call) => call[0] as string);
+      }
+
+      it("deletes trailing __FC cookies when the array shrinks", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        // Start with three connections -> __FC_0, __FC_1, __FC_2
+        await seedConnectionCookies(store, requestCookies, responseCookies, [
+          "google-oauth2",
+          "github",
+          "slack"
+        ]);
+        expect(requestCookies.get("__FC_0")).toBeDefined();
+        expect(requestCookies.get("__FC_1")).toBeDefined();
+        expect(requestCookies.get("__FC_2")).toBeDefined();
+
+        // Now write a session with a single connection.
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession([
+            {
+              connection: "google-oauth2",
+              accessToken: "at_google-oauth2",
+              expiresAt: 999999
+            }
+          ])
+        );
+
+        // __FC_1 and __FC_2 must be deleted; __FC_0 stays (overwritten).
+        const deletedNames = deletedCookieNames(setSpy);
+        expect(deletedNames).toContain("__FC_1");
+        expect(deletedNames).toContain("__FC_2");
+        expect(deletedNames).not.toContain("__FC_0");
+      });
+
+      it("does not delete any __FC cookies when the array grows", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        await seedConnectionCookies(store, requestCookies, responseCookies, [
+          "google-oauth2"
+        ]);
+
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession([
+            {
+              connection: "google-oauth2",
+              accessToken: "at_google-oauth2",
+              expiresAt: 999999
+            },
+            {
+              connection: "github",
+              accessToken: "at_github",
+              expiresAt: 999999
+            }
+          ])
+        );
+
+        const deletedFcNames = deletedCookieNames(setSpy).filter((name) =>
+          name.startsWith("__FC")
+        );
+        expect(deletedFcNames).toEqual([]);
+      });
+
+      it("deletes all __FC cookies when the array becomes empty", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        await seedConnectionCookies(store, requestCookies, responseCookies, [
+          "google-oauth2",
+          "github"
+        ]);
+
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession(undefined)
+        );
+
+        const deletedNames = deletedCookieNames(setSpy);
+        expect(deletedNames).toContain("__FC_0");
+        expect(deletedNames).toContain("__FC_1");
+      });
+
+      it("leaves non-indexed __FC-prefixed cookies untouched", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+
+        // A legacy/foreign cookie that does not match the `__FC_<index>` shape.
+        const headers = new Headers();
+        headers.append("cookie", "__FCcustom=preserve-me");
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession([
+            {
+              connection: "google-oauth2",
+              accessToken: "at_google-oauth2",
+              expiresAt: 999999
+            }
+          ])
+        );
+
+        const deletedNames = deletedCookieNames(setSpy);
+        expect(deletedNames).not.toContain("__FCcustom");
+      });
     });
   });
 

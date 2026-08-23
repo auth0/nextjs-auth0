@@ -243,7 +243,12 @@ export {
   SUBJECT_TOKEN_TYPES,
   TOKEN_TYPES
 } from "./token-vault.js";
-export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
+export {
+  ConnectAccountOptions,
+  ConnectedAccount,
+  DisconnectAccountOptions,
+  RESPONSE_TYPES
+} from "./connected-accounts.js";
 export type { ChallengeWithPopupOptions } from "../client/mfa/index.js";
 export type { AccessTokenResponse } from "../client/helpers/get-access-token.js";
 export type { AuthCompleteMessage } from "../utils/popup-helpers.js";
