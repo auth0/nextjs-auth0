@@ -9,7 +9,7 @@
  * can show loading/error state in the browser without a full page reload.
  *
  * Use this pattern when you need interactive UI feedback during the discovery
- * step. For a simpler server action approach see app/login/page.tsx.
+ * step. For the form POST variant see app/login/page.tsx.
  */
 import { startEnterpriseLogin } from "@auth0/nextjs-auth0";
 import { useState } from "react";
@@ -25,7 +25,8 @@ export default function ClientLoginPage() {
     setError("");
 
     try {
-      const redirected = await startEnterpriseLogin(email, {
+      const redirected = await startEnterpriseLogin({
+        email,
         returnTo: "/dashboard"
       });
 
@@ -74,7 +75,7 @@ export default function ClientLoginPage() {
 
       <p style={{ marginTop: 24, fontSize: 12, color: "#999" }}>
         <a href="/login" style={{ color: "#635DFF" }}>
-          Back to the server action variant
+          Back to the form POST variant
         </a>
       </p>
     </main>

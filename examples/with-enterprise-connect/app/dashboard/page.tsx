@@ -38,15 +38,15 @@ export default async function Dashboard() {
           href="/api/logout"
           style={{ color: "#635DFF", textDecoration: "none", fontSize: 14 }}
         >
-          Sign out (clears Auth0 + Zillo session)
+          Sign out (clears the app session and the enterprise IdP session)
         </a>
       </div>
 
       <details style={{ marginTop: 32, fontSize: 13, color: "#666" }}>
         <summary style={{ cursor: "pointer" }}>What to verify</summary>
         <ul style={{ marginTop: 8, lineHeight: 2 }}>
-          <li>No <code>__session</code> cookie in browser DevTools → Application → Cookies</li>
-          <li>org_id above matches the Zillo org in the enterprise directory (`lib/auth0.ts`)</li>
+          <li>No <code>__session</code> cookie in browser DevTools, Application, Cookies (Auth0 writes none in EC mode); only <code>app_session</code> is set</li>
+          <li>org_id above matches the organization Auth0 resolved for this email domain</li>
           <li>After logout, revisiting /dashboard redirects to /login</li>
         </ul>
       </details>

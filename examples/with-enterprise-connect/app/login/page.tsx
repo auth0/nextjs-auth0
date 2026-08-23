@@ -2,8 +2,8 @@
  * Login page using a plain HTML form POST to /api/login (server-side pattern).
  *
  * The browser POSTs directly to /api/login and follows the route handler's
- * redirect natively — no fetch, no CORS. The transaction cookie set by
- * startInteractiveLogin rides on that redirect response to /auth/callback.
+ * redirect natively: no fetch, no CORS. The transaction cookie set by
+ * startEnterpriseLogin rides on that redirect response to /auth/callback.
  *
  * For the client-only variant (browser-side startEnterpriseLogin),
  * see /login/client.
@@ -55,6 +55,12 @@ async function LoginForm({
       {error === "not-federated" && (
         <p style={{ marginTop: 16, color: "#b60", fontSize: 14 }}>
           That domain is not an enterprise SSO domain. In a real app this would route to your existing login.
+        </p>
+      )}
+
+      {error === "no-session" && (
+        <p style={{ marginTop: 16, color: "#c00", fontSize: 14 }}>
+          We could not complete sign-in. Please try again.
         </p>
       )}
 

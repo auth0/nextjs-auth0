@@ -32,7 +32,14 @@ export const auth0 = new Auth0Client({
   async onCallback(error, ctx, session) {
     if (error) throw error;
 
-    if (!session?.user) return;
+    // No authenticated user on the callback: surface it on the login page
+    // instead of silently re-prompting (which would look like a redirect loop).
+    // onCallback must return a NextResponse on every path.
+    if (!session?.user) {
+      const loginUrl = new URL("/login", process.env.APP_BASE_URL);
+      loginUrl.searchParams.set("error", "no-session");
+      return NextResponse.redirect(loginUrl);
+    }
 
     const user = session.user;
     const orgId = user["org_id"] as string;

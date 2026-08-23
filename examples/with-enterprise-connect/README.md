@@ -1,14 +1,13 @@
 # with-enterprise-connect
 
-A Next.js App Router example demonstrating Enterprise Connect (B2B Integration) using [`@auth0/nextjs-auth0`](https://github.com/auth0/nextjs-auth0). Shows the app-embedded integration pattern — the SaaS app owns its own login UI and session, Auth0 handles only the enterprise SSO federation.
+A Next.js App Router example demonstrating Enterprise Connect (B2B Integration) using [`@auth0/nextjs-auth0`](https://github.com/auth0/nextjs-auth0). Shows the app-embedded integration pattern: the SaaS app owns its own login UI and session, while Auth0 handles only the enterprise SSO federation.
 
 ## What this example covers
 
-- Domain discovery via `isFederatedDomain` — detect whether a user's email domain is federated for enterprise SSO
-- Stateless passthrough — Auth0 completes the SSO handshake but writes no session cookie
-- Cookie-based own-session pattern — app writes its own `app_session` cookie in `onCallback`
-- EC-aware logout — federated logout terminates the enterprise IdP session via SAML SLO
-- Per-domain enterprise config lookup pattern (`getEnterpriseConfig`)
+- Home Realm Discovery via `startEnterpriseLogin`: detect whether a user's email domain is federated and, if so, redirect to Auth0 with the email as `login_hint`. Auth0 resolves the connection and organization from the domain.
+- Stateless passthrough: Auth0 completes the SSO handshake but writes no session cookie.
+- Cookie-based own-session pattern: the app writes its own `app_session` cookie in `onCallback`.
+- EC-aware logout: federated logout terminates the enterprise IdP session.
 
 ## Prerequisites
 
@@ -51,7 +50,7 @@ Create `.env.local` in this directory:
 
 ```bash
 AUTH0_DOMAIN=your-tenant.auth0.com
-AUTH0_CLIENT_ID=          # from the B2B Integration client — not a regular app
+AUTH0_CLIENT_ID=          # from the B2B Integration client, not a regular app
 AUTH0_CLIENT_SECRET=      # from the B2B Integration client
 AUTH0_SECRET=             # openssl rand -hex 32
 APP_BASE_URL=http://localhost:3000
@@ -64,42 +63,44 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Enter a federated email (e.g. `user@zillo.com`) to trigger enterprise SSO, or a non-federated email to see the non-enterprise path.
+Open [http://localhost:3000](http://localhost:3000). Enter a federated email to trigger enterprise SSO, or a non-federated email to see the non-enterprise path.
 
 ## How It Works
 
-### Domain discovery
-
-`POST /api/check-domain` calls `isFederatedDomain` server-side and also calls `getEnterpriseConfig` to look up the `connection` name and `org_id` for the email domain. In production `getEnterpriseConfig` queries your database — in this example it throws with instructions to implement it.
-
 ### Login
 
-The login form (`app/login/page.tsx`) POSTs the email to `/api/check-domain`. If federated, it redirects to `/auth/login?connection=...&organization=...`. Both `connection` and `organization` are required — omitting `organization` triggers the Auth0 org-selection prompt which rejects `connection`.
+The app offers two variants of the same flow:
+
+- **Form POST (`app/login/page.tsx` → `app/api/login/route.ts`)**: the browser POSTs the email to a Route Handler, which calls `auth0.startEnterpriseLogin({ email, returnTo })`. This must be a Route Handler, not a Server Action: `startEnterpriseLogin` returns a `NextResponse` carrying the transaction (`__txn_*`) cookie that has to reach `/auth/callback`, and only a Route Handler returns that response to the browser. The handler re-emits the SDK's `307` redirect as `303` so the browser switches the POST to a GET for Auth0's `/authorize` endpoint.
+- **Client component (`app/login/client/page.tsx`)**: uses the browser-side `startEnterpriseLogin` helper, which calls the SDK's mounted `/auth/federated-domain` and `/auth/login` routes over HTTP. Use this when you want loading/error state without a full page reload.
+
+Either way, `startEnterpriseLogin` runs domain discovery and, for a federated domain, redirects to Auth0 with the email as `login_hint`. For a non-federated domain it hands control back so you can route to your own login.
 
 ### Callback
 
-`onCallback` in `lib/auth0.ts` receives the ID token claims in `session.user`. It validates `org_id`, writes an `app_session` cookie, and returns a `NextResponse` redirect to `/dashboard`. Auth0 writes no session cookie — `auth0.getSession()` is unavailable in this mode.
+`onCallback` in `lib/auth0.ts` receives the ID token claims in `session.user`. It reads `org_id`, writes an `app_session` cookie, and returns a `NextResponse` redirect to `/dashboard`. Auth0 writes no session cookie, so `auth0.getSession()` is unavailable in this mode.
 
 ### Session
 
-`getAppSession()` in `lib/auth0.ts` reads the `app_session` cookie directly. Dashboard and other protected pages use this rather than `auth0.getSession()`.
+`getAppSession()` in `lib/auth0.ts` reads the `app_session` cookie directly. The dashboard and other protected pages use this rather than `auth0.getSession()`.
 
 ### Logout
 
-`GET /api/logout` clears the `app_session` cookie and delegates to `/auth/logout?federated=true`. The SDK constructs the correct `/oidc/logout` URL with `federated=true`, terminating the enterprise IdP session via SAML SLO.
+`GET /api/logout` clears the `app_session` cookie and delegates to `/auth/logout?federated=true`. The SDK builds the `/oidc/logout` URL and forwards `federated`, terminating the enterprise IdP session. `returnTo` becomes the OIDC `post_logout_redirect_uri`, which Auth0 requires to be an absolute URL registered as an Allowed Logout URL.
 
 ## Project Structure
 
 ```text
 ├── app/
 │   ├── api/
-│   │   ├── check-domain/route.ts   ← isFederatedDomain + getEnterpriseConfig
-│   │   ├── logout/route.ts         ← clear own session, delegate to SDK logout
-│   │   
+│   │   ├── login/route.ts          ← form POST entry point, calls startEnterpriseLogin
+│   │   └── logout/route.ts         ← clear own session, delegate to SDK logout
 │   ├── dashboard/page.tsx          ← protected page, reads app_session
-│   ├── login/page.tsx              ← login form with domain check
+│   ├── login/
+│   │   ├── page.tsx                ← form POST login variant
+│   │   └── client/page.tsx         ← client-side startEnterpriseLogin variant
 │   └── page.tsx                    ← redirects to /dashboard or /login
 ├── lib/
-│   └── auth0.ts                    ← Auth0Client + getAppSession + getEnterpriseConfig
+│   └── auth0.ts                    ← Auth0Client + onCallback + getAppSession
 └── proxy.ts                        ← Next.js middleware (Next.js 16)
 ```
