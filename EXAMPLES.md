@@ -6203,14 +6203,14 @@ export const auth0 = new Auth0Client({
   },
   async onCallback(error, ctx, session) {
     if (error) throw error;
-    if (!session?.user) return;
+    if (!session?.user) throw new Error("No session on Enterprise Connect callback");
 
     const orgId = session.user["org_id"] as string;
 
-    // Always validate org_id against your own database before trusting the login.
-    // This is the sole security check — Auth0 does not enforce org membership for you.
-    const isKnownOrg = await db.organizations.exists(orgId);
-    if (!isKnownOrg) throw new Error(`Unknown org: ${orgId}`);
+    // Optional: you can validate your session's org_id against your own records here.
+    // For example:
+    //   const isKnownOrg = await db.organizations.exists(orgId);
+    //   if (!isKnownOrg) throw new Error(`Unknown org: ${orgId}`);
 
     // Write your own session. Auth0 does not manage it.
     // In production use a signed/encrypted cookie or a server-side session store —
@@ -6240,29 +6240,44 @@ export const auth0 = new Auth0Client({
 
 `startEnterpriseLogin` is the single login entry point. It runs domain discovery and, for a federated domain, redirects to Auth0 with the email as `login_hint`. For a non-federated domain it hands control back so you route to your own login.
 
-Server action (recommended):
+Call `startEnterpriseLogin` from a **Route Handler**, not a Server Action. The redirect it returns carries the transaction (`__txn_*`) cookie that must survive to `/auth/callback`, and only a Route Handler returns that `NextResponse` to the browser. A Server Action does not, so the transaction cookie would be lost.
 
 ```ts
-// app/actions.ts
-"use server";
+// app/api/login/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { redirect } from "next/navigation";
 
-export async function login(formData: FormData) {
-  const email = String(formData.get("email"));
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const email = String(formData.get("email") ?? "");
+
   const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
-  if (res) return res;            // federated — redirect to Auth0
-  redirect("/existing-login");    // not federated — your own login
+
+  if (res) {
+    // startEnterpriseLogin returns a 307, which preserves the POST method, so
+    // the browser would POST to Auth0's /authorize endpoint (GET only) and fail.
+    // Re-emit as 303 See Other to force GET, carrying over the __txn_* cookie so
+    // it survives to /auth/callback.
+    const location = res.headers.get("location");
+    if (!location) return res;
+
+    const redirect = NextResponse.redirect(location, 303);
+    for (const cookie of res.cookies.getAll()) {
+      redirect.cookies.set(cookie);
+    }
+    return redirect;
+  }
+
+  // Not federated: route to your own login.
+  return NextResponse.redirect(new URL("/existing-login", req.url));
 }
 ```
 
 ```tsx
 // app/login/page.tsx
-import { login } from "../actions";
-
 export default function LoginPage() {
   return (
-    <form action={login}>
+    <form method="POST" action="/api/login">
       <input name="email" type="email" required />
       <button type="submit">Continue</button>
     </form>
@@ -6277,10 +6292,12 @@ To trigger login from a client component, use the client flavour, which asks the
 import { startEnterpriseLogin } from "@auth0/nextjs-auth0";
 
 async function onSubmit(email: string) {
-  const redirected = await startEnterpriseLogin(email, { returnTo: "/dashboard" });
+  const redirected = await startEnterpriseLogin({ email, returnTo: "/dashboard" });
   if (!redirected) await yourExistingLogin(email);  // not a federated domain
 }
 ```
+
+In the **Pages Router**, use this client-side `startEnterpriseLogin` helper. It calls the SDK's mounted `/auth/federated-domain` and `/auth/login` routes over HTTP, so it is router-agnostic. The server `auth0.startEnterpriseLogin` relies on `next/headers`, which is App Router only.
 
 Auth0 resolves the connection and organization from the email domain via Home Realm Discovery, so you do not pass `connection` or `organization`. Do not set a static `organization` in `authorizationParameters` — a static value routes every enterprise customer to the same organization. If a domain maps to multiple connections, enable **Display connection as button** on each so Auth0 can present a picker.
 
@@ -6307,15 +6324,19 @@ export default async function Dashboard() {
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const res = NextResponse.redirect(
-    new URL("/auth/logout?federated=true", process.env.APP_BASE_URL)
-  );
+  // The /auth/logout route forwards returnTo to Auth0 as-is (this is not
+  // EC-specific), so it must be an absolute URL registered as an Allowed
+  // Logout URL. A relative path would be rejected by Auth0.
+  const logoutUrl = new URL("/auth/logout?federated", process.env.APP_BASE_URL);
+  logoutUrl.searchParams.set("returnTo", new URL("/login", process.env.APP_BASE_URL).toString());
+
+  const res = NextResponse.redirect(logoutUrl);
   res.cookies.set("app_session", "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
   return res;
 }
 ```
 
-The SDK's logout route handles EC mode automatically — it uses the OIDC `end_session_endpoint` directly and sets `federated=true` to terminate the enterprise IdP session via SAML SLO.
+Clear your own session cookie, then redirect to the SDK's shared `/auth/logout` route. It logs the user out of Auth0 through the OIDC `end_session_endpoint`, and the `federated` flag terminates the enterprise IdP session (via SAML SLO for SAML connections). There is no EC-specific logout path: EC simply has no Auth0 session cookie for the shared route to clear.
 
 For SAML IdPs, ensure the IdP application has `logout.callback` configured in the SAML addon settings, otherwise the IdP session persists after logout and the next login reuses the previous user's session.
 

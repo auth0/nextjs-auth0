@@ -23,18 +23,31 @@ export interface StartEnterpriseLoginClientOptions extends StartEnterpriseLoginO
 }
 
 /**
- * Client-side Enterprise Connect login initiation, for use from client
- * components. It asks the server whether the email domain is federated (via the
- * SDK's mounted `/auth/federated-domain` route) and, when it is, navigates the
- * browser to `/auth/login` with the email as `login_hint`. Home Realm Discovery
- * resolves the connection and organization from the domain.
+ * Client component counterpart to the server `startEnterpriseLogin`.
  *
- * Domain discovery runs on the server so the browser never calls WebFinger
- * directly, which would expose the tenant's customer domains to enumeration.
+ * Asks the SDK's mounted `/auth/federated-domain` route whether the email domain
+ * is federated and, when it is, navigates the browser to `/auth/login` with the
+ * email as `login_hint`. Discovery runs on the server so the browser never calls
+ * WebFinger directly, which would let anyone enumerate the tenant's customer
+ * domains.
  *
+ * @param options - Login options. `email` is required and drives discovery.
  * @returns `true` when the domain is federated and the browser was navigated to
- * Auth0; `false` when the domain is not federated, so the caller can route to
- * its own non-enterprise login.
+ * Auth0; `false` when it is not, so the caller can fall back to its own
+ * non-enterprise login.
+ *
+ * @example
+ * ```tsx
+ * "use client";
+ * import { startEnterpriseLogin } from "@auth0/nextjs-auth0";
+ *
+ * async function onSubmit(email: string) {
+ *   const redirected = await startEnterpriseLogin({ email, returnTo: "/dashboard" });
+ *   if (!redirected) await yourExistingLogin(email); // not a federated domain
+ * }
+ * ```
+ *
+ * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
  */
 export async function startEnterpriseLogin(
   options: StartEnterpriseLoginClientOptions

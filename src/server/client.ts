@@ -290,11 +290,10 @@ export interface Auth0ClientOptions {
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
-   * **Enterprise Connect:** when `enterpriseConnect` is `true`, the SDK skips
-   * writing the Auth0 session cookie after this hook returns. Persist identity to
-   * your own store inside the hook and return a `NextResponse` with your session
-   * cookie attached. Returning void in Enterprise Connect mode throws, because the
-   * callback response is the only way a cookie reaches the browser.
+   * In {@link Auth0Client.enterpriseConnect} mode the SDK writes no Auth0 session
+   * cookie, so the `NextResponse` this hook returns is the only way a cookie
+   * reaches the browser: persist identity to your own store here and attach your
+   * session cookie to the returned response.
    *
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
@@ -330,6 +329,8 @@ export interface Auth0ClientOptions {
    *   }
    * });
    * ```
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for additional details
    */
   enterpriseConnect?: true;
 
@@ -1930,14 +1931,47 @@ export class Auth0Client {
   }
 
   /**
-   * Enterprise Connect login initiation. Runs Home Realm Discovery for the email
-   * domain and, when the domain is federated, redirects to Auth0 with the email
-   * as `login_hint` (Auth0 resolves the connection and organization from the
-   * domain). When the domain is not federated, returns `null` so the caller can
-   * route to its own non-enterprise login.
+   * Login entry point for {@link Auth0Client.enterpriseConnect} mode.
    *
-   * @returns a `NextResponse` redirect for a federated domain, or `null` when the
-   * domain is not federated.
+   * Runs Home Realm Discovery on the email domain and, when it is federated,
+   * redirects to Auth0 with the email as `login_hint` so Auth0 can resolve the
+   * connection and organization from the domain. When the domain is not
+   * federated it returns `null`, so the caller can fall back to its own
+   * non-enterprise login.
+   *
+   * `authorizationParameters`, `returnTo`, and `challengeMode` are forwarded to
+   * the underlying interactive login. `login_hint` is always set from `email`,
+   * overriding any `login_hint` in `authorizationParameters`.
+   *
+   * @param options - Login options. `email` is required and drives discovery.
+   * @returns A `NextResponse` redirect for a federated domain, or `null` when
+   * the domain is not federated.
+   *
+   * Call this from a Route Handler, not a Server Action: the returned redirect
+   * carries the transaction (`__txn_*`) cookie that must reach `/auth/callback`,
+   * and only a Route Handler returns that `NextResponse` to the browser.
+   *
+   * @example
+   * ```ts
+   * // app/api/login/route.ts
+   * import { NextRequest, NextResponse } from "next/server";
+   *
+   * export async function POST(req: NextRequest) {
+   *   const email = String((await req.formData()).get("email") ?? "");
+   *   const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
+   *
+   *   if (res) {
+   *     // Re-emit the 307 as 303 so the browser switches POST -> GET for
+   *     // Auth0's /authorize endpoint, carrying over the __txn_* cookie.
+   *     const redirect = NextResponse.redirect(res.headers.get("location")!, 303);
+   *     for (const c of res.cookies.getAll()) redirect.cookies.set(c);
+   *     return redirect;
+   *   }
+   *   return NextResponse.redirect(new URL("/existing-login", req.url)); // not federated
+   * }
+   * ```
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
    */
   async startEnterpriseLogin(
     options: StartEnterpriseLoginOptions
