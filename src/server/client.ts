@@ -1962,9 +1962,16 @@ export class Auth0Client {
       return null;
     }
 
+    // Forward all interactive-login passthrough (returnTo, challengeMode, and any
+    // caller-supplied authorizationParameters such as organization/connection).
+    // `login_hint` is set from `email` last, so it wins over a caller-passed one.
+    const { email, authorizationParameters, ...rest } = options;
     return authClient.startInteractiveLogin({
-      authorizationParameters: { login_hint: options.email },
-      returnTo: options.returnTo
+      ...rest,
+      authorizationParameters: {
+        ...authorizationParameters,
+        login_hint: email
+      }
     });
   }
 

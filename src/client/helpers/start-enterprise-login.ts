@@ -1,13 +1,15 @@
+import type { StartEnterpriseLoginOptions } from "../../types/authorize.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 /**
  * Options for the client-side {@link startEnterpriseLogin} helper.
+ *
+ * Extends the server {@link StartEnterpriseLoginOptions} (so `email`,
+ * `authorizationParameters`, and `returnTo` behave identically to the server
+ * flavour) and adds the two client-only route overrides the browser needs to
+ * reach the SDK's mounted routes.
  */
-export type StartEnterpriseLoginOptions = {
-  /**
-   * The URL to redirect to after a successful login. Defaults to the current path.
-   */
-  returnTo?: string;
+export interface StartEnterpriseLoginClientOptions extends StartEnterpriseLoginOptions {
   /**
    * Override the domain-discovery route. Defaults to the
    * `NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE` env var or `/auth/federated-domain`.
@@ -18,7 +20,7 @@ export type StartEnterpriseLoginOptions = {
    * or `/auth/login`.
    */
   loginRoute?: string;
-};
+}
 
 /**
  * Client-side Enterprise Connect login initiation, for use from client
@@ -35,9 +37,10 @@ export type StartEnterpriseLoginOptions = {
  * its own non-enterprise login.
  */
 export async function startEnterpriseLogin(
-  email: string,
-  options: StartEnterpriseLoginOptions = {}
+  options: StartEnterpriseLoginClientOptions
 ): Promise<boolean> {
+  const { email, authorizationParameters } = options;
+
   const federatedDomainRoute = normalizeWithBasePath(
     options.federatedDomainRoute ||
       process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
@@ -65,7 +68,16 @@ export async function startEnterpriseLogin(
     options.loginRoute || process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login"
   );
 
-  const params = new URLSearchParams({ login_hint: email });
+  // Forward any caller-supplied authorization parameters onto the /auth/login
+  // query string (the same transport the login route already reads them from),
+  // then set login_hint from email last so it wins.
+  const merged = { ...authorizationParameters, login_hint: email };
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(merged)) {
+    if (value != null) {
+      params.set(key, String(value));
+    }
+  }
   if (options.returnTo) {
     params.set("returnTo", options.returnTo);
   }

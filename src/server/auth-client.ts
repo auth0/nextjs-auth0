@@ -234,17 +234,7 @@ export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
   session: SessionData | null
-  /**
-   * Returning `null` or nothing suppresses the Auth0 session cookie — the hook is
-   * expected to have persisted identity elsewhere. This is only valid on the
-   * successful callback path; error paths and the connected-account flow still
-   * require a `NextResponse`.
-   *
-   * When `enterpriseConnect: true` is set the Auth0 cookie is never written, and
-   * `onCallback` must return a `NextResponse` with your own session cookie
-   * attached. Returning void in Enterprise Connect mode throws.
-   */
-) => Promise<NextResponse | null | void>;
+) => Promise<NextResponse>;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -1053,34 +1043,6 @@ export class AuthClient {
     const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 
-    // In EC mode there is no Auth0 session cookie, so no id_token_hint is
-    // available. We use the OIDC end_session_endpoint directly with
-    // federated=true (not federated="") so the enterprise IdP session is
-    // terminated via SAML SLO without needing a hint.
-    if (this.enterpriseConnect) {
-      const endSessionEndpoint =
-        authorizationServerMetadata.end_session_endpoint ||
-        new URL("/oidc/logout", this.issuer).toString();
-      const url = new URL(endSessionEndpoint);
-      url.searchParams.set("client_id", this.clientMetadata.client_id);
-      url.searchParams.set(
-        "post_logout_redirect_uri",
-        createRouteUrl(returnTo, appBaseUrl).toString()
-      );
-      if (logoutState) {
-        url.searchParams.set("state", logoutState);
-      }
-      if (federated) {
-        url.searchParams.set("federated", "true");
-      }
-      const ecLogoutResponse = NextResponse.redirect(url);
-      await this.transactionStore.deleteAll(
-        req.cookies,
-        ecLogoutResponse.cookies
-      );
-      return ecLogoutResponse;
-    }
-
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
@@ -1205,17 +1167,7 @@ export class AuthClient {
       state
     );
     if (!transactionStateCookie) {
-      const errorRes = await this.onCallback(new InvalidStateError(), {}, null);
-
-      if (!errorRes) {
-        throw new InvalidConfigurationError(
-          "onCallback must return a NextResponse when handling an error. " +
-            "Stateless passthrough (returning null) is only supported on the " +
-            "successful callback path."
-        );
-      }
-
-      return errorRes;
+      return this.onCallback(new InvalidStateError(), {}, null);
     }
 
     const transactionState = transactionStateCookie.payload;
@@ -1316,14 +1268,6 @@ export class AuthClient {
         },
         session
       );
-
-      if (!res) {
-        throw new InvalidConfigurationError(
-          "onCallback must return a NextResponse when connecting an account. " +
-            "Stateless passthrough (returning null) is not supported for the " +
-            "connect-account flow, which requires an existing Auth0 session."
-        );
-      }
 
       await this.transactionStore.delete(res.cookies, state);
 
@@ -1650,36 +1594,13 @@ export class AuthClient {
     const res = await this.onCallback(null, onCallbackCtx, session);
 
     // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
-    // cookie is written and beforeSessionSaved is not run. The hook must return
-    // a NextResponse carrying its own session cookie — that response is the only
-    // way a cookie reaches the browser on the callback. Returning void sets no
-    // cookie, so the user could never be identified on later requests; treat it
-    // as a misconfiguration.
+    // cookie is written and beforeSessionSaved is not run. The hook's response is
+    // the only way a cookie reaches the browser on the callback, so the app is
+    // expected to attach its own session cookie to it.
     if (this.enterpriseConnect) {
-      if (!res) {
-        throw new InvalidConfigurationError(
-          "Enterprise Connect: onCallback must return a NextResponse with your " +
-            "session cookie attached. Returning void sets no cookie, so the user " +
-            "cannot be identified on subsequent requests."
-        );
-      }
-
       await this.transactionStore.delete(res.cookies, state);
 
       return res;
-    }
-
-    // Non-EC per-callback passthrough: returning null/undefined opts out of
-    // writing an Auth0 session cookie for this callback. The SDK redirects to
-    // returnTo without setting any cookie.
-    if (!res) {
-      const passthroughRes = NextResponse.redirect(
-        createRouteUrl(onCallbackCtx.returnTo || "/", appBaseUrl).toString()
-      );
-
-      await this.transactionStore.delete(passthroughRes.cookies, state);
-
-      return passthroughRes;
     }
 
     // call beforeSessionSaved callback if present
@@ -2932,14 +2853,6 @@ export class AuthClient {
     }
 
     const response = await this.onCallback(error, ctx, null);
-
-    if (!response) {
-      throw new InvalidConfigurationError(
-        "onCallback must return a NextResponse when handling an error. " +
-          "Stateless passthrough (returning null) is only supported on the " +
-          "successful callback path."
-      );
-    }
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {

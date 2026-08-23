@@ -2130,6 +2130,61 @@ describe("Auth0Client", () => {
       expect(res).toBe(redirect);
     });
 
+    it("forwards authorizationParameters and challengeMode passthrough", async () => {
+      vi.mocked(isFederatedDomain).mockResolvedValue(true);
+      const client = ecClient();
+      const redirect = NextResponse.redirect(
+        new URL("https://test.auth0.com/authorize")
+      );
+      const resolved = mockResolvedClient(
+        client,
+        "test.auth0.com",
+        vi.fn().mockResolvedValue(redirect)
+      );
+
+      await client.startEnterpriseLogin({
+        email: "jane@acme.com",
+        authorizationParameters: {
+          organization: "org_123",
+          connection: "acme-saml"
+        },
+        challengeMode: "popup",
+        returnTo: "/dashboard"
+      });
+
+      expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
+        authorizationParameters: {
+          organization: "org_123",
+          connection: "acme-saml",
+          login_hint: "jane@acme.com"
+        },
+        challengeMode: "popup",
+        returnTo: "/dashboard"
+      });
+    });
+
+    it("sets login_hint from email over a caller-supplied login_hint", async () => {
+      vi.mocked(isFederatedDomain).mockResolvedValue(true);
+      const client = ecClient();
+      const redirect = NextResponse.redirect(
+        new URL("https://test.auth0.com/authorize")
+      );
+      const resolved = mockResolvedClient(
+        client,
+        "test.auth0.com",
+        vi.fn().mockResolvedValue(redirect)
+      );
+
+      await client.startEnterpriseLogin({
+        email: "jane@acme.com",
+        authorizationParameters: { login_hint: "someone-else@acme.com" }
+      });
+
+      expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
+        authorizationParameters: { login_hint: "jane@acme.com" }
+      });
+    });
+
     it("returns null when the domain is not federated", async () => {
       vi.mocked(isFederatedDomain).mockResolvedValue(false);
       const client = ecClient();

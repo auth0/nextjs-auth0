@@ -4112,208 +4112,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         warnSpy.mockRestore();
       });
     });
-
-    describe("Enterprise Connect (enterpriseConnect: true)", async () => {
-      it("uses end_session_endpoint and sets federated=true when federated param is present", async () => {
-        const secret = await generateSecret(32);
-        const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer(),
-          enterpriseConnect: true
-        });
-
-        const request = new NextRequest(
-          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET" }
-        );
-
-        const response = await authClient.handleLogout(request);
-        expect(response.status).toEqual(307);
-
-        const location = new URL(response.headers.get("Location")!);
-        // uses the OIDC end_session_endpoint, not /v2/logout
-        expect(location.pathname).toMatch(
-          /\/oidc\/logout|\/connect\/endsession/
-        );
-        // federated is set to the string "true", not empty string
-        expect(location.searchParams.get("federated")).toEqual("true");
-        expect(location.searchParams.get("client_id")).toEqual(
-          DEFAULT.clientId
-        );
-        expect(
-          location.searchParams.get("post_logout_redirect_uri")
-        ).toBeTruthy();
-      });
-
-      it("does not include id_token_hint regardless of includeIdTokenHintInOIDCLogoutUrl setting", async () => {
-        const secret = await generateSecret(32);
-        const sessionStore = new StatelessSessionStore({ secret });
-        const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore,
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer(),
-          enterpriseConnect: true,
-          includeIdTokenHintInOIDCLogoutUrl: true
-        });
-
-        // Seed a real session with an idToken so the assertion proves the EC
-        // branch deliberately omits id_token_hint rather than passing trivially
-        // because there was nothing to read.
-        const session: SessionData = {
-          user: { sub: DEFAULT.sub },
-          tokenSet: {
-            idToken: DEFAULT.idToken,
-            accessToken: DEFAULT.accessToken,
-            refreshToken: DEFAULT.refreshToken,
-            expiresAt: 123456
-          },
-          internal: {
-            sid: DEFAULT.sid,
-            createdAt: Math.floor(Date.now() / 1000)
-          }
-        };
-        const sessionCookie = await encrypt(
-          session,
-          secret,
-          Math.floor(Date.now() / 1000 + 3600)
-        );
-        const headers = new Headers();
-        headers.append("cookie", `__session=${sessionCookie}`);
-
-        const request = new NextRequest(
-          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET", headers }
-        );
-
-        const response = await authClient.handleLogout(request);
-        const location = new URL(response.headers.get("Location")!);
-        expect(location.searchParams.get("id_token_hint")).toBeNull();
-      });
-
-      it("omits federated param when not requested", async () => {
-        const secret = await generateSecret(32);
-        const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer(),
-          enterpriseConnect: true
-        });
-
-        const request = new NextRequest(
-          new URL("/auth/logout", DEFAULT.appBaseUrl),
-          { method: "GET" }
-        );
-
-        const response = await authClient.handleLogout(request);
-        const location = new URL(response.headers.get("Location")!);
-        expect(location.searchParams.has("federated")).toBe(false);
-      });
-
-      it("falls back to /oidc/logout when end_session_endpoint is absent", async () => {
-        const secret = await generateSecret(32);
-        const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer({
-            discoveryResponse: new Response(
-              JSON.stringify({
-                issuer: `https://${DEFAULT.domain}/`,
-                authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
-                token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
-                jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`
-                // end_session_endpoint intentionally absent
-              }),
-              { headers: { "Content-Type": "application/json" } }
-            )
-          }),
-          enterpriseConnect: true
-        });
-
-        const request = new NextRequest(
-          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET" }
-        );
-
-        const response = await authClient.handleLogout(request);
-        expect(response.status).toEqual(307);
-        const location = new URL(response.headers.get("Location")!);
-        expect(location.pathname).toEqual("/oidc/logout");
-        expect(location.searchParams.get("federated")).toEqual("true");
-      });
-
-      it("clears transaction cookies on EC logout", async () => {
-        const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const authClient = new AuthClient({
-          transactionStore,
-          sessionStore: new StatelessSessionStore({ secret }),
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer(),
-          enterpriseConnect: true
-        });
-
-        // Plant a transaction cookie so we can verify it gets cleared
-        const txnState = "txn-state";
-        const txnCookieValue = await encrypt(
-          {
-            nonce: "nonce",
-            maxAge: 3600,
-            codeVerifier: "verifier",
-            responseType: RESPONSE_TYPES.CODE,
-            state: txnState,
-            returnTo: "/dashboard"
-          } satisfies TransactionState,
-          secret,
-          Math.floor(Date.now() / 1000 + 3600)
-        );
-
-        const headers = new Headers();
-        headers.set("cookie", `__txn_${txnState}=${txnCookieValue}`);
-
-        const request = new NextRequest(
-          new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
-          { method: "GET", headers }
-        );
-
-        const response = await authClient.handleLogout(request);
-        expect(response.status).toEqual(307);
-        // Transaction cookie must be cleared (maxAge 0 or explicitly deleted)
-        const txnCookie = response.cookies.get(`__txn_${txnState}`);
-        expect(
-          txnCookie?.value === "" || txnCookie?.maxAge === 0 || !txnCookie
-        ).toBe(true);
-      });
-    });
   });
 
   describe("handleProfile", async () => {
@@ -5999,16 +5797,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(response.cookies.get("__session")).toBeUndefined();
       });
 
-      it("throws when the hook returns nothing in EC mode", async () => {
-        await expect(
-          runCallback({
-            onCallback: vi.fn().mockResolvedValue(undefined),
-            enterpriseConnect: true,
-            returnTo: "/dashboard"
-          })
-        ).rejects.toThrow(InvalidConfigurationError);
-      });
-
       it("honours a response returned by the hook", async () => {
         const response = await runCallback({
           onCallback: vi
@@ -6039,18 +5827,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const txnCookie = response.cookies.get("__txn_transaction-state");
         expect(txnCookie?.value).toEqual("");
         expect(txnCookie?.maxAge).toEqual(0);
-      });
-
-      it("skips the session cookie when the hook returns null without enterpriseConnect", async () => {
-        const response = await runCallback({
-          onCallback: vi.fn().mockResolvedValue(null),
-          returnTo: "/dashboard"
-        });
-
-        expect(response.cookies.get("__session")).toBeUndefined();
-        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
-          "/dashboard"
-        );
       });
 
       it("still writes the session cookie when enterpriseConnect is not set", async () => {
@@ -6121,51 +5897,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(beforeSessionSaved).not.toHaveBeenCalled();
       });
 
-      it("throws InvalidConfigurationError when enterpriseConnect is true and onCallback returns void", async () => {
-        const state = "transaction-state";
-        const secret = await generateSecret(32);
-
-        const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer(),
-          enterpriseConnect: true,
-          onCallback: vi.fn().mockResolvedValue(undefined)
-        });
-
-        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
-        url.searchParams.set("code", "auth-code");
-        url.searchParams.set("state", state);
-        const headers = new Headers();
-        headers.set(
-          "cookie",
-          `__txn_${state}=${await encrypt(
-            {
-              nonce: "nonce-value",
-              maxAge: 3600,
-              codeVerifier: "code-verifier",
-              responseType: RESPONSE_TYPES.CODE,
-              state,
-              returnTo: "/dashboard"
-            } satisfies TransactionState,
-            secret,
-            Math.floor(Date.now() / 1000 + 60 * 60)
-          )}`
-        );
-
-        await expect(
-          authClient.handleCallback(
-            new NextRequest(url, { method: "GET", headers })
-          )
-        ).rejects.toThrow(InvalidConfigurationError);
-      });
-
       it("does not throw when enterpriseConnect is true and onCallback returns a NextResponse", async () => {
         const state = "transaction-state";
         const secret = await generateSecret(32);
@@ -6215,36 +5946,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(new URL(response.headers.get("Location")!).pathname).toEqual(
           "/dashboard"
         );
-      });
-
-      it("throws when the hook returns null on the invalid-state error path", async () => {
-        const secret = await generateSecret(32);
-        const authClient = new AuthClient({
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-
-          routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer(),
-
-          enterpriseConnect: true,
-          onCallback: vi.fn().mockResolvedValue(null)
-        });
-
-        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
-        url.searchParams.set("code", "auth-code");
-        url.searchParams.set("state", "transaction-state");
-
-        // No matching __txn_ cookie, so the invalid-state path runs.
-        await expect(
-          authClient.handleCallback(new NextRequest(url, { method: "GET" }))
-        ).rejects.toThrow(/must return a NextResponse when handling an error/);
       });
     });
 

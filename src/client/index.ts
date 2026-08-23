@@ -5,7 +5,7 @@ export {
 } from "./helpers/get-access-token.js";
 export {
   startEnterpriseLogin,
-  type StartEnterpriseLoginOptions as StartEnterpriseLoginClientOptions
+  type StartEnterpriseLoginClientOptions
 } from "./helpers/start-enterprise-login.js";
 export {
   withPageAuthRequired,
