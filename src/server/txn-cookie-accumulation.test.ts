@@ -3,14 +3,18 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import { RESPONSE_TYPES } from "../types/connected-accounts.js";
 import { AuthClient } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import {
+  clampReturnTo,
+  MAX_RETURN_TO_BYTES,
+  TransactionState,
+  TransactionStore
+} from "./transaction-store.js";
 
 vi.mock("oauth4webapi", async () => {
   const actual = await vi.importActual<typeof oauth>("oauth4webapi");
@@ -110,14 +114,36 @@ describe("transaction cookie eviction in TransactionStore.save()", () => {
     vi.resetModules();
   });
 
-  it("throws InvalidConfigurationError when the new cookie alone exceeds the cap", async () => {
-    const store = new TransactionStore({ secret });
-    await expect(
-      store.save(
-        makeResponseCookies(),
-        makeTransactionState("bigstate", { returnTo: "/?" + "x".repeat(4000) })
-      )
-    ).rejects.toThrow(InvalidConfigurationError);
+  it("clampReturnTo returns the input unchanged when it fits under the ceiling", () => {
+    expect(clampReturnTo("/dash", "/")).toBe("/dash");
+    expect(clampReturnTo("/a?q=" + "x".repeat(1000), "/")).toBe(
+      "/a?q=" + "x".repeat(1000)
+    );
+  });
+
+  it("clampReturnTo returns the fallback and warns once when input exceeds the ceiling", async () => {
+    vi.resetModules();
+    const { clampReturnTo: freshClamp, MAX_RETURN_TO_BYTES: fresh } =
+      await import("./transaction-store.js");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const oversize = "/?" + "x".repeat(fresh + 10);
+    expect(freshClamp(oversize, "/dashboard")).toBe("/dashboard");
+    // Second call also clamps but does not re-warn (once-per-process guard).
+    expect(freshClamp(oversize, "/dashboard")).toBe("/dashboard");
+
+    const clampWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("returnTo value exceeds")
+    );
+    expect(clampWarns).toHaveLength(1);
+    warnSpy.mockRestore();
+    vi.resetModules();
+  });
+
+  it("clampReturnTo boundary: exactly MAX_RETURN_TO_BYTES is accepted", () => {
+    // Encoded length equals MAX_RETURN_TO_BYTES → still <= ceiling, accepted.
+    const atLimit = "x".repeat(MAX_RETURN_TO_BYTES);
+    expect(clampReturnTo(atLimit, "/")).toBe(atLimit);
   });
 
   it("does not evict when no reqCookies passed (no eviction without snapshot)", async () => {
@@ -324,7 +350,7 @@ describe("transaction cookie eviction in TransactionStore.save()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fix 3 — Dormant early-return removed for enableParallelTransactions: false
+// Single-transaction mode: overwrite the fixed __txn_ cookie on repeated login
 // ---------------------------------------------------------------------------
 
 describe("single-transaction mode does not lock out concurrent logins", () => {
@@ -346,7 +372,8 @@ describe("single-transaction mode does not lock out concurrent logins", () => {
 
     const newState = "new-login-state";
 
-    // Before Fix 3 this would return early and skip writing — now it must overwrite
+    // Previously the single-transaction path returned early and skipped writing.
+    // A stale in-request cookie must not block a fresh login — save() must overwrite.
     await store.save(resCookies, makeTransactionState(newState), reqCookies);
 
     const written = resCookies.get("__txn_");
@@ -390,7 +417,7 @@ describe("single-transaction mode does not lock out concurrent logins", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fix 4 — Callback cleanup: delete only the completing flow's cookie
+// Callback cleanup: delete only the completing flow's cookie
 // ---------------------------------------------------------------------------
 
 describe("callback cleanup: delete(state) removes only the completing cookie", () => {
@@ -551,7 +578,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     });
   });
 
-  it("Fix 1 — known prefetch header returns 204 with no-store and no __txn_* cookie is written", async () => {
+  it("known prefetch header returns 204 with no-store and no __txn_* cookie is written", async () => {
     const authClient = makeAuthClient();
     const req = new NextRequest("http://localhost:3000/auth/login", {
       headers: { "next-router-prefetch": "1" }
@@ -569,7 +596,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     expect(txnCookies).toHaveLength(0);
   });
 
-  it("Fix 1 — real navigation is allowed through and __txn_* cookie is written", async () => {
+  it("real navigation is allowed through and __txn_* cookie is written", async () => {
     const authClient = makeAuthClient();
     const req = new NextRequest("http://localhost:3000/auth/login", {
       headers: { "sec-fetch-mode": "navigate" }
@@ -585,7 +612,36 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     expect(txnCookies.length).toBeGreaterThan(0);
   });
 
-  it("Fix 4 — handleCallback deletes only the completing cookie, leaves Tab B cookie untouched", async () => {
+  it("oversized returnTo does not 500 the handler — request completes and cookie is bounded", async () => {
+    // Regression: a very long user-supplied returnTo used to throw
+    // InvalidConfigurationError out of save(), which surfaced as an unhandled
+    // 500 from the /auth/login route. Now clamped back to signInReturnToPath
+    // at the input boundary, so the login flow proceeds normally.
+    const authClient = makeAuthClient();
+    const bigReturnTo = "/dashboard?data=" + "x".repeat(4000);
+    const req = new NextRequest(
+      `http://localhost:3000/auth/login?returnTo=${encodeURIComponent(bigReturnTo)}`,
+      { headers: { "sec-fetch-mode": "navigate" } }
+    );
+
+    const res = await authClient.handler(req);
+
+    // Login proceeds as a normal redirect, not a 500.
+    expect(res.status).toBeGreaterThanOrEqual(300);
+    expect(res.status).toBeLessThan(400);
+
+    // The written __txn_* cookie stays under the byte cap.
+    const written = res.cookies
+      .getAll()
+      .find((c) => c.name.startsWith("__txn_") && (c.maxAge ?? 0) > 0);
+    expect(written).toBeDefined();
+    const cookieBytes = new TextEncoder().encode(
+      `${written!.name}=${written!.value}`
+    ).length;
+    expect(cookieBytes).toBeLessThan(3500);
+  });
+
+  it("handleCallback deletes only the completing cookie, leaves Tab B cookie untouched", async () => {
     const authClient = makeAuthClient();
 
     const loginRes = await authClient.handleLogin(

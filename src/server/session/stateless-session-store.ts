@@ -27,6 +27,14 @@ import {
 // stateful" signal before requests start failing.
 const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
 
+// Per-cookie size above which we warn for a single `__FC_*` connection-token
+// cookie. Numerically the same as the session-total threshold above, but the
+// meaning is different: 4096 bytes here is the per-cookie limit browsers are
+// documented to guarantee. A single `__FC_*` cookie exceeding this may be
+// rejected outright by some browsers, so the warning is per-cookie rather than
+// per-request.
+const FC_COOKIE_SIZE_WARN_BYTES = 4096;
+
 // Under rolling sessions, set() runs on ~every authenticated request, so a
 // legitimately large-but-working session would otherwise log the size warning
 // on every request. Emit it once per process to keep the diagnostic without
@@ -288,7 +296,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     // to enable read-after-write in the same request for middleware
     reqCookies.set(cookieName, cookieValue);
 
-    // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
+    // Measure the encoded `Set-Cookie` string for the per-cookie size check.
     const cookieJarSizeTest = new cookies.ResponseCookies(new Headers());
     cookieJarSizeTest.set(cookieName, cookieValue, {
       ...this.cookieConfig,
@@ -297,11 +305,14 @@ export class StatelessSessionStore extends AbstractSessionStore {
 
     // storeInCookie only ever writes connection-token (`__FC_*`) cookies — the
     // session cookie is written (and size-checked) separately in set(). Warn if
-    // an individual connection-token cookie is large enough to risk browser or
-    // header limits.
-    if (new TextEncoder().encode(cookieJarSizeTest.toString()).length >= 4096) {
+    // an individual connection-token cookie exceeds the per-cookie limit
+    // browsers are documented to guarantee.
+    if (
+      new TextEncoder().encode(cookieJarSizeTest.toString()).length >=
+      FC_COOKIE_SIZE_WARN_BYTES
+    ) {
       console.warn(
-        `The ${cookieName} cookie size exceeds 4096 bytes, which may cause issues in some browsers. ` +
+        `The ${cookieName} cookie size exceeds ${FC_COOKIE_SIZE_WARN_BYTES} bytes, which may cause issues in some browsers. ` +
           "You can use a stateful session implementation to store the session data in a data store."
       );
     }

@@ -88,6 +88,26 @@ describe("isNonNavigationalRequest", () => {
     it("returns false when no headers present", () => {
       expect(isNonNavigationalRequest(makeReq({}))).toBe(false);
     });
+
+    it("returns false when next-router-prefetch has a falsy value — proxies or clients setting it explicitly must not disable login", () => {
+      // Guard against a proxy or misconfigured client sending an explicit
+      // falsy value. Only genuine truthy prefetch values should trigger 204.
+      expect(
+        isNonNavigationalRequest(makeReq({ "next-router-prefetch": "" }))
+      ).toBe(false);
+      expect(
+        isNonNavigationalRequest(makeReq({ "next-router-prefetch": "0" }))
+      ).toBe(false);
+      expect(
+        isNonNavigationalRequest(makeReq({ "next-router-prefetch": "false" }))
+      ).toBe(false);
+      expect(
+        isNonNavigationalRequest(makeReq({ "next-router-prefetch": "FALSE" }))
+      ).toBe(false);
+      expect(
+        isNonNavigationalRequest(makeReq({ "next-router-prefetch": "  " }))
+      ).toBe(false);
+    });
   });
 });
 

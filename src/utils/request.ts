@@ -44,12 +44,21 @@ export const isRequest = (req: Req): req is Request | NextRequest => {
  */
 export const isNonNavigationalRequest = (req: NextRequest): boolean => {
   const secPurpose = req.headers.get("sec-purpose") ?? "";
+  const routerPrefetch = req.headers.get("next-router-prefetch");
   return (
     // next-router-prefetch: "1" = AUTO prefetch (Next 15); "2" = runtime
-    // prefetch (Next 16+). has() covers both values.
-    req.headers.has("next-router-prefetch") ||
+    // prefetch (Next 16+). Accept any truthy non-"0"/non-"false" value to
+    // cover future Next versions, but reject falsy values a proxy or client
+    // might set explicitly — matching those would silently 204 real logins.
+    isTruthyHeaderValue(routerPrefetch) ||
     req.headers.get("purpose") === "prefetch" ||
     (secPurpose.includes("prefetch") && !secPurpose.includes("prerender")) ||
     req.headers.get("x-middleware-prefetch") === "1"
   );
+};
+
+const isTruthyHeaderValue = (value: string | null): boolean => {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized !== "" && normalized !== "0" && normalized !== "false";
 };

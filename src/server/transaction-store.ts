@@ -1,6 +1,5 @@
 import type * as jose from "jose";
 
-import { InvalidConfigurationError } from "../errors/index.js";
 import { RESPONSE_TYPES } from "../types/index.js";
 import * as cookies from "./cookies.js";
 
@@ -16,10 +15,46 @@ const TRANSACTION_COOKIE_PREFIX = "__txn_";
 // of the deployment's header limit, which the SDK cannot know.
 const MAX_TRANSACTION_COOKIE_BYTES = 3500;
 
+// Ceiling on `returnTo` length, in bytes of the encoded URL. `returnTo` is the
+// only user-influenced field in `TransactionState` that can grow arbitrarily
+// long, and a very long value can push the resulting transaction cookie past
+// `MAX_TRANSACTION_COOKIE_BYTES` on its own — which the FIFO eviction below
+// cannot fix (there's nothing to evict that would make room). Anything longer
+// than this is clamped back to `signInReturnToPath` by `clampReturnTo` and
+// warned once. 2 KB is well above any realistic post-login path and well under
+// the ~3 KB budget available for `returnTo` inside the JWE + cookie envelope.
+export const MAX_RETURN_TO_BYTES = 2048;
+
 // Emit once per process — same reasoning as sessionSizeWarningEmitted in
 // stateless-session-store.ts: prefetch/bot traffic hits this path repeatedly,
 // so a per-eviction warn would spam logs.
 let txnEvictionWarningEmitted = false;
+
+// Also once-per-process for the same reason.
+let returnToClampWarningEmitted = false;
+
+/**
+ * If `returnTo` would push the transaction cookie past
+ * `MAX_TRANSACTION_COOKIE_BYTES`, clamp it back to `fallback` and warn once.
+ * Returning `fallback` instead of throwing preserves the login flow — the user
+ * lands on the default post-login path instead of hitting a 500. This is safe
+ * because `toSafeRedirect` has already validated `returnTo` is same-origin;
+ * silently clamping cannot leak the user to an attacker-controlled URL.
+ */
+export function clampReturnTo(returnTo: string, fallback: string): string {
+  if (new TextEncoder().encode(returnTo).length <= MAX_RETURN_TO_BYTES) {
+    return returnTo;
+  }
+  if (!returnToClampWarningEmitted) {
+    returnToClampWarningEmitted = true;
+    console.warn(
+      `[auth0] returnTo value exceeds ${MAX_RETURN_TO_BYTES} bytes; clamping to ` +
+        `${fallback} to keep the transaction cookie under the header size limit. ` +
+        `Shorten the returnTo URL in your application.`
+    );
+  }
+  return fallback;
+}
 
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
@@ -192,23 +227,27 @@ export class TransactionStore {
     // Encode creation timestamp in the value for O(1) FIFO ordering during eviction.
     // Format: "{ts}:{jwe}" — cookie name is unchanged.
     //
-    // Rolling-deploy and rollback safety: get() ships in a prior backfill release
-    // that strips the "{ts}:" prefix before decrypting, so all pods can read both
-    // the old bare "{jwe}" and the new "{ts}:{jwe}" format before this write-side
-    // change is deployed.
+    // Compatibility notes:
+    // - Forward (new code reads old cookie): get() strips a "{ts}:" prefix
+    //   before decrypting, so legacy bare "{jwe}" values still read correctly.
+    //   See `get()` below.
+    // - Backward (old code reads new cookie): a version of get() that predates
+    //   this change passes the full "{ts}:{jwe}" string to decrypt(), which
+    //   returns null (ERR_JWE_INVALID is swallowed). Any in-flight login
+    //   started against a pod with this write-side change but completed against
+    //   a pod without the read-side prefix stripping will fail once — the user
+    //   sees "state parameter is invalid" and must re-initiate login. This
+    //   affects rolling deploys where old and new pods coexist, and rollbacks.
+    //   Transaction cookies are short-lived (default maxAge 1h), so the window
+    //   is bounded to one hour after the deploy/rollback boundary.
+    //
+    //   To eliminate the window, ship the get() prefix-stripping in a prior
+    //   backfill release; then every pod can read the new format before the
+    //   first pod writes it. If that is not feasible, call out the one-time
+    //   in-flight login failure in the release notes.
     const ts = Math.floor(Date.now() / 1000);
     const newCookieName = this.getTransactionCookieName(transactionState.state);
     const newCookieValue = `${ts}:${jwe}`;
-
-    const newCookieBytes = new TextEncoder().encode(
-      `${newCookieName}=${newCookieValue}`
-    ).length;
-    if (newCookieBytes >= MAX_TRANSACTION_COOKIE_BYTES) {
-      throw new InvalidConfigurationError(
-        `The transaction cookie is ${newCookieBytes} bytes, which exceeds the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. ` +
-          `This is usually caused by a very long returnTo URL. Shorten the returnTo value.`
-      );
-    }
 
     // Evict oldest transaction cookies FIFO before writing the new one, so the
     // accumulated `__txn_*` cookies stay under the fixed byte limit. Only

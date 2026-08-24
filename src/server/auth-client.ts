@@ -199,7 +199,11 @@ import {
   FetcherMinimalConfig
 } from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import {
+  clampReturnTo,
+  TransactionState,
+  TransactionStore
+} from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
 
 export type BeforeSessionSavedHook = (
@@ -836,10 +840,12 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo =
+        returnTo = clampReturnTo(
           sanitizedReturnTo.pathname +
-          sanitizedReturnTo.search +
-          sanitizedReturnTo.hash;
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
       }
     }
 
@@ -4157,10 +4163,12 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo =
+        returnTo = clampReturnTo(
           sanitizedReturnTo.pathname +
-          sanitizedReturnTo.search +
-          sanitizedReturnTo.hash;
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
       }
     }
 
