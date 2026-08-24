@@ -18,6 +18,8 @@ import {
   BackchannelLogoutError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode,
   DiscoveryError,
@@ -58,7 +60,8 @@ import {
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
   ConnectAccountRequest,
-  ConnectAccountResponse
+  ConnectAccountResponse,
+  ConnectedAccount
 } from "../types/connected-accounts.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -3469,7 +3472,8 @@ export class AuthClient {
             Math.floor(Date.now() / 1000) +
             Number(tokenEndpointResponse.expires_in),
           scope: tokenEndpointResponse.scope,
-          connection: options.connection
+          connection: options.connection,
+          ...(options.login_hint ? { loginHint: options.login_hint } : {})
         }
       ];
     }
@@ -4267,7 +4271,7 @@ export class AuthClient {
     } catch (e: any) {
       let message =
         "An unexpected error occurred while trying to initiate the connect account flow.";
-      if (e instanceof DPoPError) {
+      if (isDPoPError(e)) {
         message = e.message;
       }
       return [
@@ -4350,6 +4354,215 @@ export class AuthClient {
         null
       ];
     }
+  }
+
+  /**
+   * Lists the connected accounts for the current user via the My Account API.
+   *
+   * Handles pagination transparently (the endpoint returns at most 20 accounts
+   * per page and an optional `next` token) so the full set is always returned.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+   */
+  async listConnectedAccounts(
+    tokenSet: TokenSet
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    try {
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt || 0,
+          scope: tokenSet.scope,
+          token_type: tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const accounts: ConnectedAccount[] = [];
+      let next: string | undefined;
+      // `next` is server-controlled. Guard against a server that echoes the same
+      // token or cycles, which would otherwise loop and grow `accounts` without
+      // bound on the request thread.
+      const seenNext = new Set<string>();
+      const MAX_PAGES = 100;
+      let pages = 0;
+
+      do {
+        if (++pages > MAX_PAGES || (next && seenNext.has(next))) {
+          // The server returned a non-terminating cursor (page cap exceeded or
+          // a repeated `next` token). Returning the partial list as success is
+          // unsafe: callers reconcile against it destructively (pruning cached
+          // tokens for omitted accounts, and disconnectAccount would leave
+          // additional matching accounts linked). Fail loudly instead.
+          return [
+            new ConnectedAccountsError({
+              code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+              message: "Connected-account pagination did not terminate safely."
+            }),
+            null
+          ];
+        }
+        if (next) {
+          seenNext.add(next);
+        }
+        const url = new URL("/me/v1/connected-accounts/accounts", this.issuer);
+        if (next) {
+          url.searchParams.set("next", next);
+        }
+
+        const res = await fetcher.fetchWithAuth(url.toString(), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          return buildConnectedAccountsErrorResponse(
+            res,
+            ConnectedAccountsErrorCodes.FAILED_TO_LIST
+          );
+        }
+
+        const body = await res.json();
+        for (const account of body.accounts ?? []) {
+          accounts.push({
+            id: account.id,
+            connection: account.connection,
+            accessType: account.access_type,
+            scopes: account.scopes,
+            createdAt: account.created_at,
+            expiresAt: account.expires_at,
+            orgId: account.org_id
+          });
+        }
+        next = body.next;
+      } while (next);
+
+      return [null, accounts];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to list the connected accounts.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Deletes a single connected account by its id via the My Account API.
+   *
+   * Accepts a pre-built fetcher so callers (e.g. `disconnectAccount`) can reuse
+   * a single fetcher across multiple deletes. With DPoP enabled, a new fetcher
+   * starts without a nonce and pays a `use_dpop_nonce` rejection + retry on the
+   * first request; reusing the fetcher amortises that to one round-trip total
+   * instead of one per account.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+   */
+  private async deleteConnectedAccount(
+    fetcher: Fetcher<Response>,
+    id: string
+  ): Promise<[null, null] | [ConnectedAccountsError, null]> {
+    try {
+      const url = new URL(
+        `/me/v1/connected-accounts/accounts/${encodeURIComponent(id)}`,
+        this.issuer
+      );
+
+      const res = await fetcher.fetchWithAuth(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!res.ok) {
+        return buildConnectedAccountsErrorResponse(
+          res,
+          ConnectedAccountsErrorCodes.FAILED_TO_DELETE
+        );
+      }
+
+      return [null, null];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to delete the connected account.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_DELETE,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Disconnects all connected accounts for the given connection.
+   *
+   * Resolves the connection name to the connected-account id(s) via the list
+   * endpoint (the delete endpoint is keyed by id), then deletes each. The
+   * operation is idempotent: if the server reports no accounts for the
+   * connection, it returns the empty list without error so callers can still
+   * reconcile local state.
+   */
+  async disconnectAccount(
+    tokenSet: TokenSet,
+    connection: string
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    const [listError, accounts] = await this.listConnectedAccounts(tokenSet);
+    if (listError) {
+      return [listError, null];
+    }
+
+    const matching = accounts.filter(
+      (account) => account.connection === connection
+    );
+
+    if (matching.length === 0) {
+      return [null, []];
+    }
+
+    // Build the fetcher once and reuse it across every DELETE. With DPoP
+    // enabled, per-account fetchers would each start with an empty nonce cache
+    // and pay a `use_dpop_nonce` rejection + retry — turning N deletes into 2N
+    // requests. `listConnectedAccounts` already does this for pagination.
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      getAccessToken: async () => ({
+        accessToken: tokenSet.accessToken,
+        expiresAt: tokenSet.expiresAt || 0,
+        scope: tokenSet.scope,
+        token_type: tokenSet.token_type
+      }),
+      fetch: this.fetch
+    });
+
+    const removed: ConnectedAccount[] = [];
+    for (const account of matching) {
+      const [deleteError] = await this.deleteConnectedAccount(
+        fetcher,
+        account.id
+      );
+      if (deleteError) {
+        return [deleteError, null];
+      }
+      removed.push(account);
+    }
+
+    return [null, removed];
   }
 
   private async getOpenIdClientConfig(): Promise<
@@ -6754,6 +6967,62 @@ export async function buildConnectAccountErrorResponse(
       null
     ];
   }
+}
+
+export async function buildConnectedAccountsErrorResponse(
+  res: Response,
+  errorCode: ConnectedAccountsErrorCodes
+): Promise<[ConnectedAccountsError, null]> {
+  const actionVerb =
+    errorCode === ConnectedAccountsErrorCodes.FAILED_TO_LIST
+      ? "list the connected accounts"
+      : "delete the connected account";
+
+  try {
+    const errorBody = await res.json();
+    return [
+      new ConnectedAccountsError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`,
+        cause: new MyAccountApiError({
+          type: errorBody.type,
+          title: errorBody.title,
+          detail: errorBody.detail,
+          status: res.status,
+          validationErrors: errorBody.validation_errors
+        })
+      }),
+      null
+    ];
+  } catch (e) {
+    return [
+      new ConnectedAccountsError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`
+      }),
+      null
+    ];
+  }
+}
+
+/**
+ * Identifies a DPoP failure by its `code` rather than an `instanceof` check.
+ * `instanceof` is unreliable across module/realm boundaries (duplicate copies
+ * of the error class), so we match on the well-known DPoP error codes instead.
+ *
+ * @internal
+ */
+function isDPoPError(
+  e: unknown
+): e is { code: DPoPErrorCode; message: string } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    "message" in e &&
+    typeof (e as { message: unknown }).message === "string" &&
+    Object.values(DPoPErrorCode).includes((e as { code: DPoPErrorCode }).code)
+  );
 }
 
 /**
