@@ -3448,7 +3448,7 @@ describe("Auth0Client", () => {
     }
 
     describe("unavailable session-backed methods", () => {
-      // Every async member listed in EC_UNAVAILABLE_MEMBERS, with the argument
+      // Every async member NOT in EC_ALLOWED_METHODS, with the argument
       // shape each one needs to be callable at all.
       const METHODS: Array<[string, () => unknown[]]> = [
         ["getSession", () => []],
@@ -3598,13 +3598,14 @@ describe("Auth0Client", () => {
         expect(typeof ecClient().middleware).toBe("function");
       });
 
-      it.each(["startInteractiveLogin", "customTokenExchange"])(
-        "keeps %s callable",
-        (member) => {
-          const client = ecClient() as unknown as Record<string, unknown>;
-          expect(typeof client[member]).toBe("function");
-        }
-      );
+      it.each([
+        "startInteractiveLogin",
+        "startEnterpriseLogin",
+        "customTokenExchange"
+      ])("keeps %s callable", (member) => {
+        const client = ecClient() as unknown as Record<string, unknown>;
+        expect(typeof client[member]).toBe("function");
+      });
 
       it("blocks getTokenByBackchannelAuth, since CIBA needs cross-request state", async () => {
         const client = ecClient() as unknown as Record<
