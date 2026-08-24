@@ -3598,13 +3598,14 @@ describe("Auth0Client", () => {
         expect(typeof ecClient().middleware).toBe("function");
       });
 
-      it.each(["startInteractiveLogin", "startEnterpriseLogin", "customTokenExchange"])(
-        "keeps %s callable",
-        (member) => {
-          const client = ecClient() as unknown as Record<string, unknown>;
-          expect(typeof client[member]).toBe("function");
-        }
-      );
+      it.each([
+        "startInteractiveLogin",
+        "startEnterpriseLogin",
+        "customTokenExchange"
+      ])("keeps %s callable", (member) => {
+        const client = ecClient() as unknown as Record<string, unknown>;
+        expect(typeof client[member]).toBe("function");
+      });
 
       it("blocks getTokenByBackchannelAuth, since CIBA needs cross-request state", async () => {
         const client = ecClient() as unknown as Record<

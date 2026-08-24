@@ -57,6 +57,7 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
+import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
@@ -88,8 +89,6 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
-
-import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration

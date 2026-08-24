@@ -10,7 +10,7 @@ export const EC_ALLOWED_METHODS = new Set([
   "middleware",
   "startInteractiveLogin",
   "startEnterpriseLogin",
-  "customTokenExchange",
+  "customTokenExchange"
 ]);
 
 /**
@@ -116,7 +116,9 @@ export function applyEnterpriseConnectRestrictions(instance: object): void {
           writable: true,
           // Sync methods throw; async methods reject so await/catch works.
           value: EC_SYNC_METHODS.has(name)
-            ? () => { throw error(); }
+            ? () => {
+                throw error();
+              }
             : () => Promise.reject(error())
         });
       }
