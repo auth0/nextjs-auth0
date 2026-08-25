@@ -12423,7 +12423,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
 
-      const { generateDpopKeyPair } = await import("../../utils/dpopRetry.js");
+      const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const authClient = new AuthClient({
@@ -12504,7 +12504,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
 
-      const { generateDpopKeyPair } = await import("../../utils/dpopRetry.js");
+      const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const authClient = new AuthClient({
@@ -12789,7 +12789,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const { generateDpopKeyPair } = await import("../../utils/dpopRetry.js");
+      const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
 
