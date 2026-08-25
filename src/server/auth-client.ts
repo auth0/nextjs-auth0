@@ -150,11 +150,6 @@ import {
 import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
 import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
 import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
-import {
-  buildForwardedRequestHeaders,
-  buildForwardedResponseHeaders,
-  transformTargetUrl
-} from "../utils/proxy.js";
 import { isNonNavigationalRequest } from "../utils/request.js";
 import {
   ensureDefaultScope,
@@ -198,6 +193,11 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
+import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders,
+  transformTargetUrl
+} from "./fetcher/proxy.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import {
   clampReturnTo,
