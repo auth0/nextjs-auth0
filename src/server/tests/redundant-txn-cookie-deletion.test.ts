@@ -14,22 +14,22 @@ import {
   vi
 } from "vitest";
 
-import { InvalidStateError, MissingStateError } from "../errors/index.js";
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import { SessionData } from "../types/index.js";
-import { AuthClient, AuthClientOptions } from "./auth-client.js";
+import { InvalidStateError, MissingStateError } from "../../errors/index.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { SessionData } from "../../types/index.js";
+import { AuthClient, AuthClientOptions } from "../auth-client.js";
 import {
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
-} from "./cookies.js";
+} from "../cookies.js";
 import {
   AbstractSessionStore,
   SessionStoreOptions
-} from "./session/abstract-session-store.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+} from "../session/abstract-session-store.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 // Only mock specific oauth4webapi functions that need predictable values
 vi.mock("oauth4webapi", async () => {

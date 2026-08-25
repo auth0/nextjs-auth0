@@ -2,15 +2,15 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret, stripTransactionValuePrefix } from "../test-fixtures/utils.js";
-import { RESPONSE_TYPES } from "../types/connected-accounts.js";
+import { generateSecret, stripTransactionValuePrefix } from "../../test-fixtures/utils.js";
+import { RESPONSE_TYPES } from "../../types/connected-accounts.js";
 import {
   decrypt,
   encrypt,
   RequestCookies,
   ResponseCookies
-} from "./cookies.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+} from "../cookies.js";
+import { TransactionState, TransactionStore } from "../transaction-store.js";
 
 describe("Transaction Store", async () => {
   describe("get", async () => {

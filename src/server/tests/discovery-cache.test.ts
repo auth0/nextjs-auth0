@@ -5,7 +5,7 @@
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DiscoveryCache } from "./discovery-cache.js";
+import { DiscoveryCache } from "../discovery-cache.js";
 
 describe("DiscoveryCache", () => {
   let cache: DiscoveryCache;

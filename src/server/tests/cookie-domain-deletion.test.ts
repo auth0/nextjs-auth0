@@ -1,7 +1,7 @@
 import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import { describe, expect, it } from "vitest";
 
-import { deleteChunkedCookie, deleteCookie } from "./cookies.js";
+import { deleteChunkedCookie, deleteCookie } from "../cookies.js";
 
 describe("Cookie deletion with domain", () => {
   it("should delete cookies without domain by default", () => {

@@ -14,9 +14,9 @@ import {
   MfaRequiredError,
   TokenRevocationError,
   TokenRevocationErrorCode
-} from "../errors/index.js";
-import { SessionData } from "../types/index.js";
-import { Auth0Client } from "./client.js";
+} from "../../errors/index.js";
+import { SessionData } from "../../types/index.js";
+import { Auth0Client } from "../client.js";
 
 vi.mock("next/headers.js", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
@@ -2392,7 +2392,7 @@ describe("Auth0Client", () => {
 
     it("should throw when authClient.requestSessionTransferToken returns an error", async () => {
       const { CustomTokenExchangeError, CustomTokenExchangeErrorCode } =
-        await import("../errors/index.js");
+        await import("../../errors/index.js");
       const sttError = new CustomTokenExchangeError(
         CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
         "No actor available."

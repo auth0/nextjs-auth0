@@ -23,14 +23,14 @@ import {
   DomainValidationError,
   IssuerValidationError,
   SessionDomainMismatchError
-} from "../errors/mcd.js";
+} from "../../errors/mcd.js";
 import {
   createMCDMetadata,
   createSessionData,
   createTransactionState
-} from "../test-fixtures/mcd-test-fixtures.js";
-import { SessionData } from "../types/index.js";
-import { normalizeDomain } from "../utils/normalize.js";
+} from "../../test-fixtures/mcd-test-fixtures.js";
+import { SessionData } from "../../types/index.js";
+import { normalizeDomain } from "../../utils/normalize.js";
 
 // =============================================================================
 // Part 1: Callback Domain Delegation (Unit 9)

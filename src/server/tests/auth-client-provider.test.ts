@@ -4,10 +4,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
-import { DomainResolutionError } from "../errors/mcd.js";
-import { AuthClientProvider } from "./auth-client-provider.js";
-import type { AuthClient } from "./auth-client.js";
+import { InvalidConfigurationError } from "../../errors/index.js";
+import { DomainResolutionError } from "../../errors/mcd.js";
+import { AuthClientProvider } from "../auth-client-provider.js";
+import type { AuthClient } from "../auth-client.js";
 
 describe("AuthClientProvider", () => {
   let mockAuthClient: AuthClient;

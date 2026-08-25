@@ -13,20 +13,20 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
+import { InvalidConfigurationError } from "../../errors/index.js";
 import {
   DomainValidationError,
   SessionDomainMismatchError
-} from "../errors/mcd.js";
+} from "../../errors/mcd.js";
 import {
   createMCDMetadata,
   createSessionData
-} from "../test-fixtures/mcd-test-fixtures.js";
-import { SessionData } from "../types/index.js";
-import type { DomainResolver } from "../types/mcd.js";
-import { normalizeDomain } from "../utils/normalize.js";
-import { AuthClientProvider } from "./auth-client-provider.js";
-import { DiscoveryCache } from "./discovery-cache.js";
+} from "../../test-fixtures/mcd-test-fixtures.js";
+import { SessionData } from "../../types/index.js";
+import type { DomainResolver } from "../../types/mcd.js";
+import { normalizeDomain } from "../../utils/normalize.js";
+import { AuthClientProvider } from "../auth-client-provider.js";
+import { DiscoveryCache } from "../discovery-cache.js";
 
 describe("MCD Integration Tests (Units 6-12)", () => {
   beforeEach(() => {

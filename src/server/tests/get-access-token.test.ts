@@ -13,10 +13,10 @@ import {
   vi
 } from "vitest";
 
-import { AccessTokenError, AccessTokenErrorCode } from "../errors/index.js";
-import { createNextHeadersMock } from "../test-fixtures/mocks.js";
-import { SessionData } from "../types/index.js";
-import { Auth0Client } from "./client.js";
+import { AccessTokenError, AccessTokenErrorCode } from "../../errors/index.js";
+import { createNextHeadersMock } from "../../test-fixtures/mocks.js";
+import { SessionData } from "../../types/index.js";
+import { Auth0Client } from "../client.js";
 
 vi.mock("next/headers.js", () => createNextHeadersMock());
 

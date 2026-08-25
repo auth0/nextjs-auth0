@@ -2,16 +2,16 @@ import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { describe, expect, it, vi } from "vitest";
 
-import { BackchannelLogoutError } from "../errors/index.js";
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
-import { AuthClientProvider } from "./auth-client-provider.js";
-import { AuthClient } from "./auth-client.js";
-import { DiscoveryCache } from "./discovery-cache.js";
-import { StatefulSessionStore } from "./session/stateful-session-store.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { BackchannelLogoutError } from "../../errors/index.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
+import { AuthClientProvider } from "../auth-client-provider.js";
+import { AuthClient } from "../auth-client.js";
+import { DiscoveryCache } from "../discovery-cache.js";
+import { StatefulSessionStore } from "../session/stateful-session-store.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 describe("BCLO Resolver-Based Trust", () => {
   const DEFAULT = {

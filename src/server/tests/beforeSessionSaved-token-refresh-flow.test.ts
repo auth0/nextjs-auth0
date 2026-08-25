@@ -5,13 +5,13 @@ import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { decrypt, encrypt } from "./cookies.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { SessionData } from "../../types/index.js";
+import { AuthClient } from "../auth-client.js";
+import { decrypt, encrypt } from "../cookies.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 /**
  * Test suite for the beforeSessionSaved hook.

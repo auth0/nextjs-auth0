@@ -21,16 +21,16 @@ import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MtlsError, MtlsErrorCode } from "../errors/mtls-errors.js";
+import { MtlsError, MtlsErrorCode } from "../../errors/mtls-errors.js";
 import {
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import type { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+} from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import type { SessionData } from "../../types/index.js";
+import { AuthClient } from "../auth-client.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 // ---------------------------------------------------------------------------
 // Test constants

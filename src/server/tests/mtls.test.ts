@@ -2,14 +2,14 @@ import { NextRequest } from "next/server.js";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MtlsError, MtlsErrorCode } from "../errors/index.js";
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import type { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { encrypt } from "./cookies.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { MtlsError, MtlsErrorCode } from "../../errors/index.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import type { SessionData } from "../../types/index.js";
+import { AuthClient } from "../auth-client.js";
+import { encrypt } from "../cookies.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 vi.mock("oauth4webapi", async () => {
   const actual = await vi.importActual<typeof oauth>("oauth4webapi");

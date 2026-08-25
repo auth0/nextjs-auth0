@@ -11,13 +11,13 @@ import {
   it
 } from "vitest";
 
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import type { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { encrypt } from "./cookies.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import type { SessionData } from "../../types/index.js";
+import { AuthClient } from "../auth-client.js";
+import { encrypt } from "../cookies.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 // Test constants
 const DEFAULT = {

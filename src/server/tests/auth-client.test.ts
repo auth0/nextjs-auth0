@@ -26,22 +26,25 @@ import {
   MyAccountApiError,
   TokenRevocationError,
   TokenRevocationErrorCode
-} from "../errors/index.js";
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret, stripTransactionValuePrefix } from "../test-fixtures/utils.js";
+} from "../../errors/index.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret, stripTransactionValuePrefix } from "../../test-fixtures/utils.js";
 import {
   AccessTokenSet,
   RESPONSE_TYPES,
   SessionData,
   SUBJECT_TOKEN_TYPES
-} from "../types/index.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient, buildConnectAccountErrorResponse } from "./auth-client.js";
-import { decrypt, encrypt } from "./cookies.js";
-import { DiscoveryCache } from "./discovery-cache.js";
-import { StatefulSessionStore } from "./session/stateful-session-store.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+} from "../../types/index.js";
+import { DEFAULT_SCOPES } from "../../utils/constants.js";
+import {
+  AuthClient,
+  buildConnectAccountErrorResponse
+} from "../auth-client.js";
+import { decrypt, encrypt } from "../cookies.js";
+import { DiscoveryCache } from "../discovery-cache.js";
+import { StatefulSessionStore } from "../session/stateful-session-store.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionState, TransactionStore } from "../transaction-store.js";
 
 function createSessionData(sessionData: Partial<SessionData>): SessionData {
   return {
@@ -12420,7 +12423,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
 
-      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const { generateDpopKeyPair } = await import("../../utils/dpopRetry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const authClient = new AuthClient({
@@ -12501,7 +12504,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
 
-      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const { generateDpopKeyPair } = await import("../../utils/dpopRetry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const authClient = new AuthClient({
@@ -12786,7 +12789,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const { generateDpopKeyPair } = await import("../../utils/dpopRetry.js");
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
 
