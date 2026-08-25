@@ -12,19 +12,19 @@ import {
   vi
 } from "vitest";
 
-import { MfaRequiredError, OAuth2Error } from "../errors/index.js";
+import { MfaRequiredError, OAuth2Error } from "../../errors/index.js";
 import {
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test-fixtures/defaults.js";
-import { createNextHeadersMock } from "../test-fixtures/mocks.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import { MfaContext, SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { Auth0Client } from "./client.js";
-import { decrypt } from "./cookies.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+} from "../../test-fixtures/defaults.js";
+import { createNextHeadersMock } from "../../test-fixtures/mocks.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { MfaContext, SessionData } from "../../types/index.js";
+import { AuthClient } from "../auth-client.js";
+import { Auth0Client } from "../client.js";
+import { decrypt } from "../cookies.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 vi.mock("next/headers.js", () => createNextHeadersMock({ cookies: false }));
 

@@ -8,18 +8,18 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test-fixtures/defaults.js";
+} from "../../test-fixtures/defaults.js";
 import {
   createDPoPNonceRetryHandler,
   createInitialSessionData,
   createSessionCookie,
   extractDPoPInfo
-} from "../test-fixtures/proxy-handler-test-helpers.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import { generateDpopKeyPair } from "../utils/dpopRetry.js";
-import { AuthClient } from "./auth-client.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+} from "../../test-fixtures/proxy-handler-test-helpers.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { generateDpopKeyPair } from "../../utils/dpopRetry.js";
+import { AuthClient } from "../auth-client.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 /**
  * Comprehensive Test Suite: AuthClient Custom Proxy Handler

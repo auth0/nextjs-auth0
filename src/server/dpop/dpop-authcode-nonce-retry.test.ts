@@ -5,14 +5,14 @@ import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import { RESPONSE_TYPES, TransactionState } from "../types/index.js";
-import { generateDpopKeyPair } from "../utils/dpopRetry.js";
-import { AuthClient } from "./auth-client.js";
-import { decrypt, encrypt } from "./cookies.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { RESPONSE_TYPES, TransactionState } from "../../types/index.js";
+import { generateDpopKeyPair } from "../../utils/dpopRetry.js";
+import { AuthClient } from "../auth-client.js";
+import { decrypt, encrypt } from "../cookies.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 /**
  * Real SDK Integration Test for DPoP Nonce Retry on Auth Code Callback
