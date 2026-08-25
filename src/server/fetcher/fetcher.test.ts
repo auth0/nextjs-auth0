@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client.js";
-import { Fetcher } from "../fetcher.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
+import { Fetcher } from "./fetcher.js";
 
 // Mock oauth4webapi
 vi.mock("oauth4webapi", async () => {
