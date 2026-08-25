@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { AuthClient } from "./auth-client.js";
-import { Auth0Client } from "./client.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { AuthClient } from "../auth-client.js";
+import { Auth0Client } from "../client.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 const domain = "guabu.us.auth0.com";
 const clientId = "my-client-id";

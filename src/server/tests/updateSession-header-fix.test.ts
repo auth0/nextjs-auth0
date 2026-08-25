@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Auth0Client } from "./client.js";
+import { Auth0Client } from "../client.js";
 
 describe("UpdateSession Header Copying Fix", () => {
   let client: Auth0Client;

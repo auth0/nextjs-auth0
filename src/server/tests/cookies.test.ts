@@ -2,12 +2,12 @@ import { NextResponse } from "next/server.js";
 import * as jose from "jose";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test-fixtures/utils.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import {
   addCacheControlHeadersForSession,
   decrypt,
   encrypt
-} from "./cookies.js";
+} from "../cookies.js";
 
 describe("encrypt/decrypt", async () => {
   const secret = await generateSecret(32);

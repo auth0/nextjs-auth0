@@ -1,8 +1,8 @@
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../test-fixtures/utils.js";
-import { SessionData } from "../types/index.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import { SessionData } from "../../types/index.js";
 import {
   CookieOptions,
   decrypt,
@@ -12,7 +12,7 @@ import {
   RequestCookies,
   ResponseCookies,
   setChunkedCookie
-} from "./cookies.js";
+} from "../cookies.js";
 
 // Create mock implementation for RequestCookies and ResponseCookies
 const createMocks = () => {

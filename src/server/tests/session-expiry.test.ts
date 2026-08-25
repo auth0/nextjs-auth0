@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { AccessTokenErrorCode } from "../errors/oauth-errors.js";
-import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import { AccessTokenErrorCode } from "../../errors/oauth-errors.js";
+import { getSessionChangesAfterGetAccessToken } from "../../utils/session-changes-helpers.js";
 import {
   buildSessionFromCallback,
   isSessionCeilingInPast,
   isSessionCeilingReached
-} from "../utils/session-helpers.js";
+} from "../../utils/session-helpers.js";
 
 // ---------------------------------------------------------------------------
 // isSessionCeilingReached

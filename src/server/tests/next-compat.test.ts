@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
-import { toNextRequest, toNextResponse } from "./next-compat.js";
+import { toNextRequest, toNextResponse } from "../next-compat.js";
 
 describe("next-compat", () => {
   describe("toNextRequest", () => {
