@@ -1,14 +1,14 @@
 import type { KeyObject } from "crypto";
 
-import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
+import { DpopKeyPair, DpopOptions } from "../../types/dpop.js";
 import {
   DEFAULT_DPOP_CLOCK_SKEW,
   DEFAULT_DPOP_CLOCK_TOLERANCE,
   DEFAULT_RETRY_DELAY,
   DEFAULT_RETRY_JITTER,
   MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE
-} from "./constants.js";
-import { isEdgeRuntime } from "./dpopRetry.js";
+} from "../../utils/constants.js";
+import { isEdgeRuntime } from "./retry.js";
 
 /**
  * Validates that a private and public key form a compatible key pair
