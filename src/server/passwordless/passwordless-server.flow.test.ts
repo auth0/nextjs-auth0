@@ -9,16 +9,16 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test-fixtures/defaults.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import type { SessionData } from "../types/index.js";
-import { generateDpopKeyPair } from "../utils/dpopRetry.js";
-import { AuthClientProvider } from "./auth-client-provider.js";
-import { AuthClient } from "./auth-client.js";
-import { decrypt, encrypt } from "./cookies.js";
-import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+} from "../../test-fixtures/defaults.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import type { SessionData } from "../../types/index.js";
+import { generateDpopKeyPair } from "../../utils/dpopRetry.js";
+import { AuthClientProvider } from "../auth-client-provider.js";
+import { AuthClient } from "../auth-client.js";
+import { decrypt, encrypt } from "../cookies.js";
+import { ServerPasswordlessClient } from "../passwordless/server-passwordless-client.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 const DEFAULT = {
   domain: "auth0.local",

@@ -12,10 +12,10 @@ import {
   vi
 } from "vitest";
 
-import { createNextHeadersMock } from "../test-fixtures/mocks.js";
-import { SessionData } from "../types/index.js";
-import { Auth0Client } from "./client.js";
-import { Fetcher } from "./fetcher.js";
+import { createNextHeadersMock } from "../../test-fixtures/mocks.js";
+import { SessionData } from "../../types/index.js";
+import { Auth0Client } from "../client.js";
+import { Fetcher } from "../fetcher.js";
 
 vi.mock("next/headers.js", () => createNextHeadersMock());
 

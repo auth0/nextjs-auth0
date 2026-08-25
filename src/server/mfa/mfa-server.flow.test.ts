@@ -7,21 +7,21 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test-fixtures/defaults.js";
+} from "../../test-fixtures/defaults.js";
 import {
   challengeScenarios,
   enrollScenarios,
   getAuthenticatorsScenarios,
   verifyScenarios
-} from "../test-fixtures/mfa-scenarios-shared.js";
-import { generateSecret } from "../test-fixtures/utils.js";
-import type { SessionData } from "../types/index.js";
-import type { EnrollOobOptions } from "../types/mfa.js";
-import { encryptMfaToken } from "../utils/mfa-utils.js";
-import { AuthClient } from "./auth-client.js";
-import { encrypt } from "./cookies.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+} from "../../test-fixtures/mfa-scenarios-shared.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
+import type { SessionData } from "../../types/index.js";
+import type { EnrollOobOptions } from "../../types/mfa.js";
+import { encryptMfaToken } from "../../utils/mfa-utils.js";
+import { AuthClient } from "../auth-client.js";
+import { encrypt } from "../cookies.js";
+import { StatelessSessionStore } from "../session/stateless-session-store.js";
+import { TransactionStore } from "../transaction-store.js";
 
 // Test constants
 const DEFAULT = {
@@ -175,7 +175,7 @@ describe("AuthClient MFA Methods", () => {
     });
 
     it("should throw MfaTokenInvalidError for malformed token", async () => {
-      const { MfaTokenInvalidError } = await import("../errors/index.js");
+      const { MfaTokenInvalidError } = await import("../../errors/index.js");
 
       try {
         await authClient.mfaGetAuthenticators("malformed-token");
@@ -186,7 +186,7 @@ describe("AuthClient MFA Methods", () => {
     });
 
     it("should throw MfaTokenExpiredError for expired token", async () => {
-      const { MfaTokenExpiredError } = await import("../errors/index.js");
+      const { MfaTokenExpiredError } = await import("../../errors/index.js");
 
       // Create expired token (negative TTL)
       const expiredToken = await encryptMfaToken(
@@ -586,7 +586,7 @@ describe("AuthClient MFA Methods", () => {
         })
       );
 
-      const { MfaRequiredError } = await import("../errors/index.js");
+      const { MfaRequiredError } = await import("../../errors/index.js");
 
       try {
         await authClient.mfaVerify({ mfaToken: encryptedToken, otp: "000000" });
@@ -596,7 +596,7 @@ describe("AuthClient MFA Methods", () => {
         const mfaError = error as any;
 
         // Decrypt new token to verify context preserved
-        const { decryptMfaToken } = await import("../utils/mfa-utils.js");
+        const { decryptMfaToken } = await import("../../utils/mfa-utils.js");
         const newContext = await decryptMfaToken(mfaError.mfa_token, secret);
         expect(newContext.audience).toBe("https://api.example.com");
         expect(newContext.scope).toBe("read:data write:data");
@@ -714,7 +714,7 @@ describe("AuthClient MFA Methods", () => {
 
     // Token validation (2 tests)
     it("should throw MfaTokenInvalidError for malformed token", async () => {
-      const { MfaTokenInvalidError } = await import("../errors/index.js");
+      const { MfaTokenInvalidError } = await import("../../errors/index.js");
 
       try {
         await authClient.mfaAssociate("malformed-token", {
@@ -727,7 +727,7 @@ describe("AuthClient MFA Methods", () => {
     });
 
     it("should throw MfaTokenExpiredError for expired token", async () => {
-      const { MfaTokenExpiredError } = await import("../errors/index.js");
+      const { MfaTokenExpiredError } = await import("../../errors/index.js");
       const expiredToken = await encryptMfaToken(
         DEFAULT.mfaToken,
         "",

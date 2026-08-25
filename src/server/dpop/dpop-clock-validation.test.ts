@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Auth0Client } from "./client.js";
+import { Auth0Client } from "../client.js";
 
 describe("DPoP Clock Validation Configuration", () => {
   let originalEnv: NodeJS.ProcessEnv;
