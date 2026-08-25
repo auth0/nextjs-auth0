@@ -191,7 +191,7 @@ import {
   FetcherConfig,
   FetcherHooks,
   FetcherMinimalConfig
-} from "./fetcher.js";
+} from "./fetcher/fetcher.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,

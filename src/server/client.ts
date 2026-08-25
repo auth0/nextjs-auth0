@@ -55,7 +55,11 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
-import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
+import {
+  AccessTokenFactory,
+  CustomFetchImpl,
+  Fetcher
+} from "./fetcher/fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,

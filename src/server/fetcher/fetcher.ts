@@ -7,8 +7,8 @@ import {
   protectedResourceRequest
 } from "oauth4webapi";
 
-import { RetryConfig } from "../types/dpop.js";
-import { GetAccessTokenOptions, TokenSet } from "../types/index.js";
+import { RetryConfig } from "../../types/dpop.js";
+import { GetAccessTokenOptions, TokenSet } from "../../types/index.js";
 
 export type ResponseHeaders =
   | Record<string, string | null | undefined>
