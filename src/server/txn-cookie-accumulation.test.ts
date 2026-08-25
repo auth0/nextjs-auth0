@@ -11,7 +11,9 @@ import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import {
   clampReturnTo,
+  clampTransactionField,
   MAX_RETURN_TO_BYTES,
+  MAX_TRANSACTION_FIELD_BYTES,
   TransactionState,
   TransactionStore
 } from "./transaction-store.js";
@@ -111,6 +113,46 @@ describe("transaction cookie eviction in TransactionStore.save()", () => {
     );
     expect(evictionWarns).toHaveLength(1);
     warnSpy.mockRestore();
+  });
+
+  it("does NOT log the 'Evicted' warning when nothing was freed (freed === 0)", async () => {
+    // Regression: previously the "Evicted the oldest transaction cookie(s)"
+    // warn fired whenever projectedBytes >= cap, even when `freed === 0`
+    // (nothing was evicted — e.g. only the same-name cookie exists in the
+    // snapshot, so it is exempt from eviction, but the new cookie itself is
+    // large enough to exceed the cap). That sent operators debugging a 431
+    // hunting for phantom abandoned logins.
+    //
+    // The eviction warn is now gated on `freed > 0`, and a distinct warn
+    // ("Transaction cookie exceeds the … byte limit on its own") covers the
+    // case where nothing evictable exists.
+    vi.resetModules();
+    const { TransactionStore: FreshStore } =
+      await import("./transaction-store.js");
+    const store = new FreshStore({ secret });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // A TransactionState with a returnTo large enough that the resulting JWE
+    // pushes the new cookie past 3500 bytes on its own. The snapshot is empty,
+    // so `existingBytes = 0`, `projectedBytes = new cookie size >= cap`, and
+    // no cookies are available to evict (`freed === 0`).
+    const bigState = makeTransactionState("only", {
+      returnTo: "/" + "x".repeat(3200)
+    });
+
+    await store.save(makeResponseCookies(), bigState, makeRequestCookies({}));
+
+    const evictionWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("[auth0] Evicted the oldest")
+    );
+    expect(evictionWarns).toHaveLength(0);
+
+    const oversizeWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("Transaction cookie exceeds")
+    );
+    expect(oversizeWarns).toHaveLength(1);
+
+    warnSpy.mockRestore();
     vi.resetModules();
   });
 
@@ -144,6 +186,56 @@ describe("transaction cookie eviction in TransactionStore.save()", () => {
     // Encoded length equals MAX_RETURN_TO_BYTES → still <= ceiling, accepted.
     const atLimit = "x".repeat(MAX_RETURN_TO_BYTES);
     expect(clampReturnTo(atLimit, "/")).toBe(atLimit);
+  });
+
+  it("MAX_RETURN_TO_BYTES stays aliased to MAX_TRANSACTION_FIELD_BYTES for back-compat", () => {
+    expect(MAX_RETURN_TO_BYTES).toBe(MAX_TRANSACTION_FIELD_BYTES);
+  });
+
+  it("clampTransactionField clamps scope and audience independently", async () => {
+    vi.resetModules();
+    const {
+      clampTransactionField: freshClamp,
+      MAX_TRANSACTION_FIELD_BYTES: fresh
+    } = await import("./transaction-store.js");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const oversizeScope = "read:" + "x".repeat(fresh);
+    const oversizeAudience = "urn:" + "x".repeat(fresh);
+    expect(freshClamp("scope", oversizeScope, undefined)).toBeUndefined();
+    expect(freshClamp("audience", oversizeAudience, undefined)).toBeUndefined();
+
+    // Each field warns once — a scope clamp does not silence a later audience clamp.
+    const scopeWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("scope value exceeds")
+    );
+    const audienceWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("audience value exceeds")
+    );
+    expect(scopeWarns).toHaveLength(1);
+    expect(audienceWarns).toHaveLength(1);
+
+    // Second call for the same field does not re-warn.
+    freshClamp("scope", oversizeScope, undefined);
+    const scopeWarnsAfter = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("scope value exceeds")
+    );
+    expect(scopeWarnsAfter).toHaveLength(1);
+
+    warnSpy.mockRestore();
+    vi.resetModules();
+  });
+
+  it("clampTransactionField passes through undefined and short values", () => {
+    expect(
+      clampTransactionField("scope", undefined, undefined)
+    ).toBeUndefined();
+    expect(clampTransactionField("scope", "openid profile", undefined)).toBe(
+      "openid profile"
+    );
+    expect(clampTransactionField("audience", "urn:api", undefined)).toBe(
+      "urn:api"
+    );
   });
 
   it("does not evict when no reqCookies passed (no eviction without snapshot)", async () => {

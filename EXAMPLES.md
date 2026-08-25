@@ -333,6 +333,9 @@ For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/
 > [!NOTE]  
 > The URL specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
 
+> [!IMPORTANT]  
+> `returnTo`, `scope`, and `audience` query parameters on `/auth/login` are stored inside the encrypted transaction cookie. Any single field longer than 2 KB is silently clamped back to its default value and a one-time warning is logged, to keep the transaction cookie under the browser and proxy header limits (~4 KB per cookie). Keep these values short. For `returnTo` specifically, the fallback is `signInReturnToPath` (the SDK-configured default post-login path).
+
 ### Redirecting the user after logging out
 
 The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.

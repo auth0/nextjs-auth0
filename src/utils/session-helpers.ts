@@ -98,7 +98,14 @@ export function mergePopupTokenIntoSession(
     token_type: oidcRes.token_type
   };
 
-  // Replace existing token for same audience, or append new one
+  // Replace existing token for same audience, or append new one.
+  //
+  // NOTE: This dedup keys on audience alone — differently-scoped tokens for
+  // the same audience are evicted here. The MFA step-up dedup in
+  // `cacheTokenFromMfaVerify` (auth-client.ts) uses a stricter audience+scope
+  // key that preserves distinct-scope entries. Both rules are pre-existing on
+  // main and ship side by side. Unifying them into one shared helper is a
+  // separate refactor.
   const existingIdx = session.accessTokens.findIndex(
     (t) => t.audience === transactionState.audience
   );

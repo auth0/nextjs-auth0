@@ -201,6 +201,7 @@ import {
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import {
   clampReturnTo,
+  clampTransactionField,
   TransactionState,
   TransactionStore
 } from "./transaction-store.js";
@@ -941,6 +942,11 @@ export class AuthClient {
       }
       resolvedMaxAge = parsed;
     }
+    // scope and audience come from user-controllable query params on
+    // /auth/login, so clamp each independently to keep the resulting cookie
+    // under the byte cap. A ridiculous value gets replaced with `undefined`
+    // (equivalent to not passing the field), and the authorization server
+    // will reject any invalid value at /authorize.
     const transactionState: TransactionState = {
       nonce,
       maxAge: resolvedMaxAge,
@@ -948,8 +954,16 @@ export class AuthClient {
       responseType: RESPONSE_TYPES.CODE,
       state,
       returnTo,
-      scope: authorizationParams.get("scope") || undefined,
-      audience: authorizationParams.get("audience") || undefined,
+      scope: clampTransactionField(
+        "scope",
+        authorizationParams.get("scope") || undefined,
+        undefined
+      ),
+      audience: clampTransactionField(
+        "audience",
+        authorizationParams.get("audience") || undefined,
+        undefined
+      ),
       challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
       // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
@@ -5149,9 +5163,24 @@ export class AuthClient {
     // Replace an existing token for the same audience AND scope, or append a
     // new one. Without this, each MFA step-up appends another full token set —
     // growing the session cookie unbounded (and eventually a 431). The key is
-    // audience + scope (not audience alone) to match findAccessTokenSet, which
-    // deliberately holds multiple same-audience token sets distinguished by
-    // scope; keying on audience alone would evict a differently-scoped token.
+    // audience + normalized scope (not audience alone), so a differently-scoped
+    // step-up for the same audience does not evict a still-useful entry.
+    //
+    // The match is exact normalized-set equality on requestedScope (with a
+    // fallback to granted `scope` for legacy entries). `findAccessTokenSet`
+    // does a looser superset match via `compareScopes`; the two rules do NOT
+    // agree. Consequences of the divergence:
+    // - `findAccessTokenSet` may return a wider entry to satisfy a narrower
+    //   request (superset match on read), while this dedup keeps them as
+    //   separate entries (exact match on write).
+    // - Per audience, the session can accumulate up to one entry per distinct
+    //   normalized-scope set. Bounded per session, but looser than
+    //   `findAccessTokenSet` would suggest.
+    // Aligning to `compareScopes` here would be a behaviour change (wide
+    // entries would evict narrower ones), which is out of scope for this fix.
+    // See also `mergePopupTokenIntoSession` (session-helpers.ts) which uses a
+    // third rule — keyed on audience alone — pre-existing on main.
+    //
     // Key on the requested scope (always present, with a fallback to the
     // granted scope for legacy entries): the granted `scope` may be reduced or
     // omitted by the server, which would otherwise collide distinct requests.

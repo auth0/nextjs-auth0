@@ -15,45 +15,78 @@ const TRANSACTION_COOKIE_PREFIX = "__txn_";
 // of the deployment's header limit, which the SDK cannot know.
 const MAX_TRANSACTION_COOKIE_BYTES = 3500;
 
-// Ceiling on `returnTo` length, in bytes of the encoded URL. `returnTo` is the
-// only user-influenced field in `TransactionState` that can grow arbitrarily
-// long, and a very long value can push the resulting transaction cookie past
-// `MAX_TRANSACTION_COOKIE_BYTES` on its own — which the FIFO eviction below
-// cannot fix (there's nothing to evict that would make room). Anything longer
-// than this is clamped back to `signInReturnToPath` by `clampReturnTo` and
-// warned once. 2 KB is well above any realistic post-login path and well under
-// the ~3 KB budget available for `returnTo` inside the JWE + cookie envelope.
-export const MAX_RETURN_TO_BYTES = 2048;
+// Ceiling on any single user-influenced string field in `TransactionState`
+// (returnTo, scope, audience). A very long value in any of these can push the
+// transaction cookie past `MAX_TRANSACTION_COOKIE_BYTES` on its own, which the
+// FIFO eviction below cannot fix (there is nothing to evict that would make
+// room). Anything longer is clamped back to a safe fallback by
+// `clampTransactionField` and warned once. 2 KB is well above any realistic
+// value for these fields and well under the ~3 KB budget available inside the
+// JWE + cookie envelope.
+export const MAX_TRANSACTION_FIELD_BYTES = 2048;
+
+// Backward-compatible alias — the export name callers migrated to first.
+export const MAX_RETURN_TO_BYTES = MAX_TRANSACTION_FIELD_BYTES;
 
 // Emit once per process — same reasoning as sessionSizeWarningEmitted in
 // stateless-session-store.ts: prefetch/bot traffic hits this path repeatedly,
 // so a per-eviction warn would spam logs.
 let txnEvictionWarningEmitted = false;
+// Separate flag for the "single cookie exceeds cap on its own" case. Distinct
+// from `txnEvictionWarningEmitted` so an operator sees the right diagnostic
+// even if the other warn has already fired earlier in the process.
+let txnOversizeWarningEmitted = false;
 
-// Also once-per-process for the same reason.
-let returnToClampWarningEmitted = false;
+// One flag per field so a scope clamp does not silence a later returnTo clamp
+// (each field surfaces independently to the developer).
+const clampWarnEmittedByField = new Set<string>();
 
 /**
- * If `returnTo` would push the transaction cookie past
- * `MAX_TRANSACTION_COOKIE_BYTES`, clamp it back to `fallback` and warn once.
- * Returning `fallback` instead of throwing preserves the login flow — the user
- * lands on the default post-login path instead of hitting a 500. This is safe
- * because `toSafeRedirect` has already validated `returnTo` is same-origin;
- * silently clamping cannot leak the user to an attacker-controlled URL.
+ * If a user-influenced transaction field would push the transaction cookie past
+ * `MAX_TRANSACTION_COOKIE_BYTES`, clamp it back to `fallback` and warn once per
+ * field. Returning `fallback` instead of throwing preserves the login flow so
+ * the user lands on the default post-login path (or an unspecified value if
+ * `fallback` is `undefined`) instead of hitting a 500. For `returnTo`, this is
+ * safe because `toSafeRedirect` has already validated same-origin; for `scope`
+ * and `audience`, the authorization server will reject any invalid value at
+ * `/authorize`, so silently clamping cannot escalate to something worse than a
+ * failed authorize call.
+ *
+ * @param fieldName - Which field is being clamped ("returnTo" | "scope" | "audience").
+ *                    Used in the warning text and to guard the once-per-field emit.
+ * @param value     - Current value of the field.
+ * @param fallback  - Value to substitute when `value` exceeds the ceiling.
  */
-export function clampReturnTo(returnTo: string, fallback: string): string {
-  if (new TextEncoder().encode(returnTo).length <= MAX_RETURN_TO_BYTES) {
-    return returnTo;
+export function clampTransactionField<T extends string | undefined>(
+  fieldName: string,
+  value: T,
+  fallback: T
+): T {
+  if (
+    value === undefined ||
+    new TextEncoder().encode(value).length <= MAX_TRANSACTION_FIELD_BYTES
+  ) {
+    return value;
   }
-  if (!returnToClampWarningEmitted) {
-    returnToClampWarningEmitted = true;
+  if (!clampWarnEmittedByField.has(fieldName)) {
+    clampWarnEmittedByField.add(fieldName);
     console.warn(
-      `[auth0] returnTo value exceeds ${MAX_RETURN_TO_BYTES} bytes; clamping to ` +
-        `${fallback} to keep the transaction cookie under the header size limit. ` +
-        `Shorten the returnTo URL in your application.`
+      `[auth0] ${fieldName} value exceeds ${MAX_TRANSACTION_FIELD_BYTES} bytes; ` +
+        `clamping to ${fallback ?? "undefined"} to keep the transaction cookie ` +
+        `under the header size limit. Shorten the ${fieldName} value in your ` +
+        `application.`
     );
   }
   return fallback;
+}
+
+/**
+ * Backward-compatible wrapper: same behaviour as
+ * `clampTransactionField("returnTo", returnTo, fallback)` but with the
+ * original name callers already imported.
+ */
+export function clampReturnTo(returnTo: string, fallback: string): string {
+  return clampTransactionField("returnTo", returnTo, fallback);
 }
 
 export interface TransactionState extends jose.JWTPayload {
@@ -332,14 +365,34 @@ export class TransactionStore {
       if (freed >= target) break;
     }
 
-    if (!txnEvictionWarningEmitted) {
-      txnEvictionWarningEmitted = true;
-      console.warn(
-        `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
-          `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
-          `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
-          `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
-      );
+    if (freed > 0) {
+      // Something was actually evicted — the accumulation-of-abandoned-logins
+      // diagnostic is the right one to surface. Guarded by `freed > 0` so we
+      // do not send an operator hunting for phantom abandoned logins when the
+      // real issue is a single oversized cookie (see the else branch below).
+      if (!txnEvictionWarningEmitted) {
+        txnEvictionWarningEmitted = true;
+        console.warn(
+          `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
+            `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+            `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
+            `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
+        );
+      }
+    } else {
+      // Nothing was evicted but the cap is still exceeded — the new cookie
+      // itself is bigger than the cap on its own. Usually means a very long
+      // `returnTo`, `scope`, or `audience` slipped past the field clamps.
+      // Different message so the operator does not go looking for accumulation.
+      if (!txnOversizeWarningEmitted) {
+        txnOversizeWarningEmitted = true;
+        console.warn(
+          `[auth0] Transaction cookie exceeds the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit ` +
+            `on its own (projected size ${projectedBytes} bytes). This is usually caused by a very ` +
+            `long returnTo, scope, or audience value on /auth/login. Check the field clamps in ` +
+            `handleLogin; the cookie was still written but may be rejected by the browser or a proxy.`
+        );
+      }
     }
   }
 
