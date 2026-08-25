@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
-import { ProxyOptions } from "../types/index.js";
+import { ProxyOptions } from "../../types/index.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,

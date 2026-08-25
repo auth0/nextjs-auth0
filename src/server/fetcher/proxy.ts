@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server.js";
 
-import { ProxyOptions } from "../types/index.js";
+import { ProxyOptions } from "../../types/index.js";
 
 /**
  * A default allow-list of headers to forward.
