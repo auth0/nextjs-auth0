@@ -7,14 +7,14 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test/defaults.js";
+} from "../test-fixtures/defaults.js";
 import {
   challengeScenarios,
   enrollScenarios,
   getAuthenticatorsScenarios,
   verifyScenarios
-} from "../test/mfa-scenarios-shared.js";
-import { generateSecret } from "../test/utils.js";
+} from "../test-fixtures/mfa-scenarios-shared.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import type { SessionData } from "../types/index.js";
 import type { EnrollOobOptions } from "../types/mfa.js";
 import { encryptMfaToken } from "../utils/mfa-utils.js";

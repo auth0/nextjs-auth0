@@ -3,8 +3,8 @@ import * as jose from "jose";
 import { describe, expect, it, vi } from "vitest";
 
 import { BackchannelLogoutError } from "../errors/index.js";
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import { AuthClient } from "./auth-client.js";

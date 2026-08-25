@@ -5,8 +5,8 @@ import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { RESPONSE_TYPES, TransactionState } from "../types/index.js";
 import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";

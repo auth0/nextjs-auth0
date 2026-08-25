@@ -2,7 +2,7 @@ import { NextResponse } from "next/server.js";
 import * as jose from "jose";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import {
   addCacheControlHeadersForSession,
   decrypt,

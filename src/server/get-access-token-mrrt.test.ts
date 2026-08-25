@@ -13,7 +13,7 @@ import {
   vi
 } from "vitest";
 
-import { createNextHeadersMock } from "../test/mocks.js";
+import { createNextHeadersMock } from "../test-fixtures/mocks.js";
 import { SessionData } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { Auth0Client } from "./client.js";

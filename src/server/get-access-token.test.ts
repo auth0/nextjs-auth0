@@ -14,7 +14,7 @@ import {
 } from "vitest";
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors/index.js";
-import { createNextHeadersMock } from "../test/mocks.js";
+import { createNextHeadersMock } from "../test-fixtures/mocks.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 

@@ -5,7 +5,7 @@ import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
 import { Auth0Client } from "../client.js";
 import { encrypt, ReadonlyRequestCookies, RequestCookies } from "../cookies.js";

@@ -17,7 +17,7 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../../test/defaults.js";
+} from "../../test-fixtures/defaults.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
