@@ -30,8 +30,8 @@ import {
   PasswordlessStartError,
   PasswordlessVerifyError
 } from "../errors/index.js";
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import {
   buildVerifyParams,
   getVerifyGrantType,

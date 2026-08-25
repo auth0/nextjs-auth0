@@ -16,8 +16,8 @@ import {
   enrollScenarios,
   getAuthenticatorsScenarios,
   verifyScenarios
-} from "../../test/mfa-scenarios-shared.js";
-import { generateSecret } from "../../test/utils.js";
+} from "../../test-fixtures/mfa-scenarios-shared.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import type { MfaClient } from "../../types/index.js";
 import { encryptMfaToken } from "../../utils/mfa-utils.js";
 

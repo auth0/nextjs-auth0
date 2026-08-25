@@ -28,7 +28,7 @@ import {
   createMCDMetadata,
   createSessionData,
   createTransactionState
-} from "../test/mcd-test-fixtures.js";
+} from "../test-fixtures/mcd-test-fixtures.js";
 import { SessionData } from "../types/index.js";
 import { normalizeDomain } from "../utils/normalize.js";
 

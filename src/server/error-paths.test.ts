@@ -25,8 +25,8 @@ import {
   PasskeyEnrollmentVerifyError,
   PasskeyRegisterError
 } from "../errors/index.js";
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../types/index.js";
 import { encryptMfaToken } from "../utils/mfa-utils.js";
 import { AuthClient } from "./auth-client.js";

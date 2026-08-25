@@ -2,7 +2,7 @@ import * as jose from "jose";
 import { describe, expect, it } from "vitest";
 
 import { decrypt } from "../server/cookies.js";
-import { generateSecret } from "../test/utils.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { SessionData } from "../types/index.js";
 import {
   generateSessionCookie,

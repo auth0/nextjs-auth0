@@ -21,7 +21,7 @@ import {
 import {
   createMCDMetadata,
   createSessionData
-} from "../test/mcd-test-fixtures.js";
+} from "../test-fixtures/mcd-test-fixtures.js";
 import { SessionData } from "../types/index.js";
 import type { DomainResolver } from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";

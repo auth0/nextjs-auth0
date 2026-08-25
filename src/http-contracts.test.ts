@@ -7,8 +7,8 @@ import { decrypt, encrypt } from "./server/cookies.js";
 import { StatefulSessionStore } from "./server/session/stateful-session-store.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
 import { TransactionStore } from "./server/transaction-store.js";
-import { getDefaultRoutes } from "./test/defaults.js";
-import { generateSecret } from "./test/utils.js";
+import { getDefaultRoutes } from "./test-fixtures/defaults.js";
+import { generateSecret } from "./test-fixtures/utils.js";
 import { encryptMfaToken } from "./utils/mfa-utils.js";
 
 const DOMAIN = "test.auth0.com";

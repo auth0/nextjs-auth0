@@ -13,8 +13,8 @@ import {
   vi
 } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { SessionData } from "../types/index.js";
 import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";

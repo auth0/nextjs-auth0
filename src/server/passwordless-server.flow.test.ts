@@ -9,8 +9,8 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../test/defaults.js";
-import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
+} from "../test-fixtures/defaults.js";
+import { generateSecret, stripTransactionValuePrefix } from "../test-fixtures/utils.js";
 import type { SessionData } from "../types/index.js";
 import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClientProvider } from "./auth-client-provider.js";

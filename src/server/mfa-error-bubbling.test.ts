@@ -13,9 +13,12 @@ import {
 } from "vitest";
 
 import { MfaRequiredError, OAuth2Error } from "../errors/index.js";
-import { getDefaultRoutes, setupMswLifecycle } from "../test/defaults.js";
-import { createNextHeadersMock } from "../test/mocks.js";
-import { generateSecret } from "../test/utils.js";
+import {
+  getDefaultRoutes,
+  setupMswLifecycle
+} from "../test-fixtures/defaults.js";
+import { createNextHeadersMock } from "../test-fixtures/mocks.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { MfaContext, SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
 import { Auth0Client } from "./client.js";

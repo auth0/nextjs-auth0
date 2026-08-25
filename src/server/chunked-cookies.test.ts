@@ -1,7 +1,7 @@
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { SessionData } from "../types/index.js";
 import {
   CookieOptions,

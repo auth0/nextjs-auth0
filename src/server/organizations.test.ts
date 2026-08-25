@@ -1,10 +1,10 @@
-import { NextRequest } from "next/server";
+import { NextRequest } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AuthClient } from "../src/server/auth-client.js";
-import { StatelessSessionStore } from "../src/server/session/stateless-session-store.js";
-import { TransactionStore } from "../src/server/transaction-store.js";
-import { getDefaultRoutes } from "../src/test/defaults.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { AuthClient } from "./auth-client.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TransactionStore } from "./transaction-store.js";
 
 const DEFAULT = {
   domain: "test.auth0.com",
@@ -19,60 +19,55 @@ function getMockAuthorizationServer(options: { supportPAR?: boolean } = {}) {
 
   return vi
     .fn()
-    .mockImplementation(
-      async (
-        input: RequestInfo | URL,
-        init?: RequestInit
-      ): Promise<Response> => {
-        let url: URL;
-        if (input instanceof Request) {
-          url = new URL(input.url);
-        } else {
-          url = new URL(input);
-        }
-
-        // Discovery endpoint
-        if (url.pathname === "/.well-known/openid-configuration") {
-          const metadata = {
-            issuer: `https://${DEFAULT.domain}`,
-            authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
-            token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
-            userinfo_endpoint: `https://${DEFAULT.domain}/userinfo`,
-            end_session_endpoint: `https://${DEFAULT.domain}/v2/logout`,
-            jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
-            response_types_supported: ["code"],
-            code_challenge_methods_supported: ["S256"],
-            scopes_supported: ["openid", "profile", "email"]
-          };
-
-          if (supportPAR) {
-            (metadata as any).pushed_authorization_request_endpoint =
-              `https://${DEFAULT.domain}/oauth/par`;
-          }
-
-          return new Response(JSON.stringify(metadata), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-
-        // PAR endpoint
-        if (url.pathname === "/oauth/par" && supportPAR) {
-          return new Response(
-            JSON.stringify({
-              request_uri: "urn:ietf:params:oauth:request_uri:test",
-              expires_in: 30
-            }),
-            {
-              status: 201,
-              headers: { "Content-Type": "application/json" }
-            }
-          );
-        }
-
-        return new Response(null, { status: 404 });
+    .mockImplementation(async (input: RequestInfo | URL): Promise<Response> => {
+      let url: URL;
+      if (input instanceof Request) {
+        url = new URL(input.url);
+      } else {
+        url = new URL(input);
       }
-    );
+
+      // Discovery endpoint
+      if (url.pathname === "/.well-known/openid-configuration") {
+        const metadata = {
+          issuer: `https://${DEFAULT.domain}`,
+          authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
+          token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
+          userinfo_endpoint: `https://${DEFAULT.domain}/userinfo`,
+          end_session_endpoint: `https://${DEFAULT.domain}/v2/logout`,
+          jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
+          response_types_supported: ["code"],
+          code_challenge_methods_supported: ["S256"],
+          scopes_supported: ["openid", "profile", "email"]
+        };
+
+        if (supportPAR) {
+          (metadata as any).pushed_authorization_request_endpoint =
+            `https://${DEFAULT.domain}/oauth/par`;
+        }
+
+        return new Response(JSON.stringify(metadata), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+
+      // PAR endpoint
+      if (url.pathname === "/oauth/par" && supportPAR) {
+        return new Response(
+          JSON.stringify({
+            request_uri: "urn:ietf:params:oauth:request_uri:test",
+            expires_in: 30
+          }),
+          {
+            status: 201,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+
+      return new Response(null, { status: 404 });
+    });
 }
 
 describe("Organizations Feature", () => {

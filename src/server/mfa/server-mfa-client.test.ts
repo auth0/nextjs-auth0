@@ -9,7 +9,7 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../../test/defaults.js";
+} from "../../test-fixtures/defaults.js";
 import type { SessionData } from "../../types/index.js";
 import { encryptMfaToken } from "../../utils/mfa-utils.js";
 import { AuthClientProvider } from "../auth-client-provider.js";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MfaTokenExpiredError, MfaTokenInvalidError } from "../errors/index.js";
-import { generateSecret } from "../test/utils.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import {
   decryptMfaToken,
   encryptMfaToken,

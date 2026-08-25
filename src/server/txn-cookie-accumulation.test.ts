@@ -3,8 +3,8 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { RESPONSE_TYPES } from "../types/connected-accounts.js";
 import { AuthClient } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
