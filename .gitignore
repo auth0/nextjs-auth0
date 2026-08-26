@@ -137,6 +137,7 @@ dist
 # local development files
 .memory/
 .dev-files/
+examples/migration-validation/
 *.env.*
 !**/.env.example
 *.tmp
