@@ -2,16 +2,16 @@
 
 Examples for adding Multi-Factor Authentication to your Next.js application with the Auth0 Next.js SDK. This covers step-up authentication, the MFA management API (enrollment, challenge, and verification), and reactive MFA step-up via a browser popup.
 
-- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
-  - [Step-up Authentication](#step-up-authentication)
+[← Back to EXAMPLES.md](../EXAMPLES.md)
+
+- [Step-up Authentication](#step-up-authentication)
   - [Handling `MfaRequiredError`](#handling-mfarequirederror)
   - [MFA Tenant Configuration](#mfa-tenant-configuration)
   - [MFA Error Types](#mfa-error-types)
   - [Configuration](#configuration)
   - [Session Context](#session-context)
-- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa-1)
+- [MFA Management API](#mfa-management-api)
   - [Setup & Configuration](#setup--configuration)
-  - [Configuration](#configuration-1)
   - [Handling MfaRequiredError](#handling-mfarequirederror-1)
   - [Accessing the MFA API](#accessing-the-mfa-api)
   - [Getting Authenticators](#getting-authenticators)
@@ -19,7 +19,6 @@ Examples for adding Multi-Factor Authentication to your Next.js application with
   - [Challenge](#challenge)
   - [Verify](#verify)
   - [Complete Flow Examples](#complete-flow-examples)
-  - [MFA Tenant Configuration](#mfa-tenant-configuration-1)
   - [MFA Error Handling](#mfa-error-handling)
 - [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup)
   - [Overview](#overview)
@@ -29,9 +28,7 @@ Examples for adding Multi-Factor Authentication to your Next.js application with
   - [CSP Nonce Support](#csp-nonce-support)
   - [Error Handling](#error-handling)
 
-## Multi-Factor Authentication (MFA)
-
-### Step-up Authentication
+## Step-up Authentication
 
 Step-up authentication is a pattern where an application allows access to some resources with potential sensitive data, but requires the user to authenticate with a stronger mechanism (like MFA) to access others.
 
@@ -44,10 +41,12 @@ When you request an Access Token for a resource that requires MFA, Auth0 will re
 You should catch this error in your API routes or Server Actions and forward the `mfa_token` to your client.
 
 **Server Side (API Route):**
+
 ```javascript
 import { NextResponse } from "next/server";
-import { auth0 } from "@/lib/auth0";
 import { MfaRequiredError } from "@auth0/nextjs-auth0/server";
+
+import { auth0 } from "@/lib/auth0";
 
 export async function GET() {
   try {
@@ -70,14 +69,18 @@ export async function GET() {
 When the client receives the 403 with `mfa_required`, you can either redirect the user to a dedicated MFA page or use the popup-based approach to complete MFA without a full-page redirect.
 
 **Option 1: Full-page redirect**
+
+> [!WARNING]
+> Never place the `mfa_token` in a URL or query string. Tokens in URLs leak into browser history, server access logs, and the `Referer` header. Transfer it via a request body or keep it in your server-side session, or prefer the popup flow (Option 2), which never exposes the token to the URL.
+
 ```javascript
 const response = await fetch("/api/protected");
 if (response.status === 403) {
   const data = await response.json();
   if (data.error === "mfa_required") {
-    // Redirect to your MFA page or show MFA prompt
-    // Pass the mfa_token to the challenge flow
-    window.location.href = `/mfa-challenge?token=${data.mfa_token}`;
+    // Navigate to your MFA page without exposing the token in the URL.
+    // Carry `data.mfa_token` out-of-band (e.g. a POST body or your server session).
+    window.location.href = "/mfa-challenge";
   }
 }
 ```
@@ -93,51 +96,61 @@ The SDK relies on background token refreshes to maintain user sessions. For thes
 Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block these background requests, as they cannot satisfy an interactive MFA challenge.
 
 **Recommended Configuration:**
+
 1. Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
 2. Use **Auth0 Actions** to enforce MFA conditionally (only when specific resources are requested).
 
 **Example Action Code:**
+
+> [!NOTE]
+> `challengeWithAny`/`enrollWithAny` require the **"Customize MFA Factors using Actions"** tenant setting (Security > Multi-factor Auth > Additional Settings). The `recovery-code` factor additionally requires **Recovery Codes** to be enabled at the tenant level; drop it from the arrays below if you do not use it.
+
 ```javascript
 exports.onExecutePostLogin = async (event, api) => {
   const grantType = event.request?.body?.grant_type;
-  if (grantType === 'refresh_token') {
-    // Check if user has enrolled factors
+  const audience = event.request?.body?.audience;
+
+  // Only step up when a refresh_token exchange targets the protected API.
+  // Challenging on *every* refresh_token grant would turn routine background
+  // token refreshes into repeated mfa_required failures.
+  const PROTECTED_AUDIENCE = "https://my-high-security-api";
+  if (grantType === "refresh_token" && audience === PROTECTED_AUDIENCE) {
+    // `multifactor` is undefined until the user enrolls, so default to [].
     const enrolledFactors = event.user.multifactor || [];
-    
+
     if (enrolledFactors.length > 0) {
       // Challenge with all available factor types
       // This returns mfa_required error during token endpoint
       api.authentication.challengeWithAny([
-        { type: 'otp' },
-        { type: 'phone' },
-        { type: 'email' },
-        { type: 'push-notification' },
-        { type: 'recovery-code' }
+        { type: "otp" },
+        { type: "phone" },
+        { type: "email" },
+        { type: "push-notification" },
+        { type: "recovery-code" }
       ]);
     } else {
       // Prompt enrollment (also returns mfa_required error)
       api.authentication.enrollWithAny([
-        { type: 'otp' },
-        { type: 'phone' },
-        { type: 'email' },
-        { type: 'push-notification' }
+        { type: "otp" },
+        { type: "phone" },
+        { type: "email" },
+        { type: "push-notification" }
       ]);
     }
-  } else {
-    console.log('[MFA Action] Skipping: not refresh_token grant or audience not protected');
   }
 };
 ```
+
 For more information on how to customize MFA flows using post-login Actions, take a look at this [auth0 docs page](https://auth0.com/docs/secure/multi-factor-authentication/customize-mfa/customize-mfa-enrollments-universal-login).
 
 ### MFA Error Types
 
-| Error Class | Code | When Thrown |
-|-------------|------|-------------|
-| `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up |
-| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for provided token |
-| `MfaTokenExpiredError` | `mfa_token_expired` | Encrypted MFA token TTL exceeded |
-| `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret |
+| Error Class             | Code                  | When Thrown                        |
+| ----------------------- | --------------------- | ---------------------------------- |
+| `MfaRequiredError`      | `mfa_required`        | Token refresh requires MFA step-up |
+| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for provided token  |
+| `MfaTokenExpiredError`  | `mfa_token_expired`   | Encrypted MFA token TTL exceeded   |
+| `MfaTokenInvalidError`  | `mfa_token_invalid`   | Token tampered or wrong secret     |
 
 ### Configuration
 
@@ -164,7 +177,7 @@ When MFA is required, the SDK automatically stores MFA context in the session ke
 > [!NOTE]
 > The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaContextTtl`) are removed to prevent session bloat.
 
-## Multi-Factor Authentication (MFA)
+## MFA Management API
 
 > [!NOTE]
 > Multi Factor Authentication support via SDKs is currently in Early Access.
@@ -176,35 +189,20 @@ The SDK provides comprehensive MFA client APIs to manage multi-factor authentica
 Before using MFA APIs, configure your Auth0 tenant:
 
 1. **Enable MFA** in [Auth0 Dashboard > Security > Multi-factor Auth](https://manage.auth0.com/#/security/multi-factor-authentication)
-2. **Configure Factors**: Enable OTP, SMS, Email, or Push Notification
-3. **Set Tenant Policy** to "Adaptive" or "Never" (see [MFA Tenant Configuration](#mfa-tenant-configuration))
-4. **Configure MFA Actions** to conditionally enforce MFA for specific resources
+2. **Configure Factors**: Enable OTP, SMS, Email, or Push Notification. Also enable **Recovery Codes** if you include `{ type: 'recovery-code' }` in a `challengeWithAny` call.
+3. **Enable "Customize MFA Factors using Actions"** (Security > Multi-factor Auth > Additional Settings) — required for `challengeWithAny` and `enrollWithAny`.
+4. **Set Tenant Policy** to "Adaptive" or "Never" (see [MFA Tenant Configuration](#mfa-tenant-configuration))
+5. **Configure MFA Actions** to conditionally enforce MFA for specific resources
 
-### Configuration
-
-Configure MFA token TTL via options or environment variable:
-
-```typescript
-// lib/auth0.ts
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client({
-  mfaContextTtl: 600 // 10 minutes in seconds
-});
-```
-
-```bash
-# .env.local
-AUTH0_MFA_CONTEXT_TTL=600
-```
-
-Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
+> [!NOTE]
+> To tune the MFA token context TTL (`mfaContextTtl` / `AUTH0_MFA_CONTEXT_TTL`), see [Configuration](#configuration) under Step-up Authentication.
 
 ### Handling MfaRequiredError
 
 When you request an Access Token for a resource that requires MFA, Auth0 will return a `403 Forbidden`. The SDK automatically catches this and throws an `MfaRequiredError` containing the `mfaToken` needed to resolve the challenge.
 
 **`mfa_required` Response:**
+
 ```json
 {
   "error": "mfa_required",
@@ -214,15 +212,18 @@ When you request an Access Token for a resource that requires MFA, Auth0 will re
 ```
 
 Add a catch handler for `MfaRequiredError` around `getAccessToken` call:
+
 ```js
 try {
-  const { token } = await getAccessToken({ audience: "https://api.example.com" });
+  const { token } = await getAccessToken({
+    audience: "https://api.example.com"
+  });
 } catch (error) {
   if (error instanceof MfaRequiredError) {
-    // MFA logic here
-    // You can pass the `error.mfa_token` to SDK MFA methods
-    // Example, redirect to MFA challenge page that contains MFA handling logic
-    redirect(`/mfa?token=${error.mfa_token}`);
+    // Pass `error.mfa_token` to the SDK MFA methods (getAuthenticators,
+    // challenge, verify). Do not place it in the URL or query string — keep it
+    // in your server-side session or pass it via a request body.
+    redirect("/mfa");
   }
   throw error;
 }
@@ -364,58 +365,21 @@ For complete implementation guides and best practices, refer to the official Aut
 - [Explore multi-factor authentication](https://auth0.com/docs/secure/multi-factor-authentication)
 - [Customize Multi-Factor Authentication Pages](https://auth0.com/docs/brand-and-customize/universal-login-pages/customize-mfa-pages)
 
-### MFA Tenant Configuration
-
-The SDK relies on background token refreshes to maintain user sessions. For these non-interactive requests to succeed, configure your MFA policies to allow `refresh_token` exchanges without immediate user challenge.
-
-> [!NOTE]
-> Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block background token refreshes, as they cannot satisfy an interactive MFA challenge.
-
-**Recommended Configuration:**
-Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
-
-**Example Action Code:**
-```javascript
-exports.onExecutePostLogin = async (event, api) => {
-  // Only trigger on refresh_token grant (step-up)
-  if (event.request?.body?.grant_type == "refresh_token") {
-    
-    if (event.user.enrolledFactors.length) {
-      // User has factors enrolled - challenge
-      api.authentication.challengeWithAny([
-        { type: 'otp' }, 
-        { type: 'phone' }, 
-        { type: 'push-notification' }, 
-        { type: 'email' },
-        { type: 'recovery-code' }
-      ]);
-    } else {
-      // No factors enrolled - prompt enrollment
-      api.authentication.enrollWithAny([
-        { type: 'otp'}, 
-        { type: 'phone'},
-        { type: 'push-notification' }
-      ]);
-    }
-  }
-};
-```
-
 ### MFA Error Handling
 
 The SDK provides typed error classes for all MFA operations:
 
-| Error Class | Code | When Thrown | Example |
-|-------------|------|-------------|---------|
-| `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up | Accessing protected API |
-| `MfaGetAuthenticatorsError` | Various | Failed to list authenticators | Invalid/expired token |
-| `MfaEnrollmentError` | Various | Enrollment failed | Unsupported factor type |
-| `MfaDeleteAuthenticatorError` | Various | Delete failed | Authenticator not found |
-| `MfaChallengeError` | Various | Challenge failed | Invalid authenticator ID |
-| `MfaVerifyError` | `invalid_grant` | Verification failed | Invalid OTP code |
-| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for token | Token not in session |
-| `MfaTokenExpiredError` | `mfa_token_expired` | Token TTL exceeded | Context expired |
-| `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret | Decryption failed |
+| Error Class                   | Code                  | When Thrown                        | Example                  |
+| ----------------------------- | --------------------- | ---------------------------------- | ------------------------ |
+| `MfaRequiredError`            | `mfa_required`        | Token refresh requires MFA step-up | Accessing protected API  |
+| `MfaGetAuthenticatorsError`   | Various               | Failed to list authenticators      | Invalid/expired token    |
+| `MfaEnrollmentError`          | Various               | Enrollment failed                  | Unsupported factor type  |
+| `MfaDeleteAuthenticatorError` | Various               | Delete failed                      | Authenticator not found  |
+| `MfaChallengeError`           | Various               | Challenge failed                   | Invalid authenticator ID |
+| `MfaVerifyError`              | `invalid_grant`       | Verification failed                | Invalid OTP code         |
+| `MfaTokenNotFoundError`       | `mfa_token_not_found` | No MFA context for token           | Token not in session     |
+| `MfaTokenExpiredError`        | `mfa_token_expired`   | Token TTL exceeded                 | Context expired          |
+| `MfaTokenInvalidError`        | `mfa_token_invalid`   | Token tampered or wrong secret     | Decryption failed        |
 
 ## Reactive MFA Step-Up (Popup)
 
@@ -426,6 +390,7 @@ The SDK supports **reactive MFA step-up** via a browser popup using Auth0 Univer
 This is useful for applications that need to protect specific actions (e.g., transferring funds, changing settings) with MFA without disrupting the user's current page state.
 
 **Flow summary:**
+
 1. App calls an API that requires MFA → receives `MfaRequiredError`
 2. App calls `mfa.challengeWithPopup({ audience })` → popup opens
 3. User completes MFA in the popup via Auth0 Universal Login
@@ -436,77 +401,97 @@ This is useful for applications that need to protect specific actions (e.g., tra
 ### Basic Usage
 
 ```tsx
-'use client';
+"use client";
 
-import { mfa, getAccessToken } from '@auth0/nextjs-auth0/client';
-import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
-import { useState } from 'react';
+import { useState } from "react";
+import { getAccessToken, mfa } from "@auth0/nextjs-auth0/client";
+import { MfaRequiredError } from "@auth0/nextjs-auth0/errors";
 
 export function ProtectedAction() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [mfaRequired, setMfaRequired] = useState(false);
+
+  // Calls the protected API with the supplied access token.
+  async function callApi(token) {
+    const res = await fetch("https://api.example.com/sensitive", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setResult(await res.json());
+  }
 
   async function handleAction() {
+    setError(null);
     try {
       // 1. Try to get an access token for the protected API
       const token = await getAccessToken({
-        audience: 'https://api.example.com',
-        scope: 'read:sensitive'
+        audience: "https://api.example.com",
+        scope: "read:sensitive"
       });
 
       // 2. Use the token to call your API
-      const res = await fetch('https://api.example.com/sensitive', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setResult(await res.json());
+      await callApi(token);
     } catch (err) {
       if (err instanceof MfaRequiredError) {
-        try {
-          // 3. MFA required — trigger popup step-up
-          const { token } = await mfa.challengeWithPopup({
-            audience: 'https://api.example.com',
-            scope: 'read:sensitive'
-          });
-
-          // 4. Retry with the step-up token
-          const res = await fetch('https://api.example.com/sensitive', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setResult(await res.json());
-        } catch (popupErr) {
-          setError(popupErr.message);
-        }
+        // Reveal a dedicated step-up button instead of opening the popup here.
+        // challengeWithPopup() calls window.open(), which browsers block unless
+        // it runs during a fresh user gesture — the activation from the click
+        // that started handleAction() has already expired by this point.
+        setMfaRequired(true);
       } else {
         setError(err.message);
       }
     }
   }
 
+  // Invoked directly from the "Verify with MFA" button click (a fresh gesture).
+  async function handleStepUp() {
+    setError(null);
+    try {
+      const { token } = await mfa.challengeWithPopup({
+        audience: "https://api.example.com",
+        scope: "read:sensitive"
+      });
+      setMfaRequired(false);
+      await callApi(token); // retry with the step-up token
+    } catch (popupErr) {
+      setError(popupErr.message);
+    }
+  }
+
   return (
     <div>
       <button onClick={handleAction}>Perform Sensitive Action</button>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {mfaRequired && (
+        <button onClick={handleStepUp}>Verify with MFA to continue</button>
+      )}
+      {error && <p style={{ color: "red" }}>{error}</p>}
       {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
     </div>
   );
 }
 ```
 
+> [!IMPORTANT]
+> `challengeWithPopup()` opens a popup via `window.open()`, which browsers only allow during active user activation. Call it directly from a click handler (as `handleStepUp` does above) rather than from the async `catch` block that handled the original request, otherwise the popup may be blocked with a `PopupBlockedError`.
+
 ### Handling MfaRequiredError from Client Components
 
 The client-side `getAccessToken()` helper automatically detects 403 responses with `error: "mfa_required"` and throws `MfaRequiredError`. This allows you to use `instanceof` checks to trigger the popup flow:
 
 ```tsx
-import { getAccessToken } from '@auth0/nextjs-auth0/client';
-import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
+import { getAccessToken, mfa } from "@auth0/nextjs-auth0/client";
+import { MfaRequiredError } from "@auth0/nextjs-auth0/errors";
 
 try {
-  const token = await getAccessToken({ audience: 'https://api.example.com' });
+  const token = await getAccessToken({ audience: "https://api.example.com" });
 } catch (err) {
   if (err instanceof MfaRequiredError) {
-    // Trigger popup MFA step-up
+    // mfa_required detected. In a real UI, trigger challengeWithPopup() from a
+    // fresh user gesture (see the Basic Usage example) so the popup is not
+    // blocked — window.open() requires active user activation.
     const { token } = await mfa.challengeWithPopup({
-      audience: 'https://api.example.com'
+      audience: "https://api.example.com"
     });
   }
 }
@@ -519,23 +504,24 @@ try {
 
 `challengeWithPopup()` accepts the following options:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `audience` | `string` | *(required)* | Target API audience identifier |
-| `scope` | `string` | `'openid profile email'` | Space-separated scopes for the token |
-| `acr_values` | `string` | `'http://schemas.openid.net/pape/policies/2007/06/multi-factor'` | ACR values sent to Auth0 for step-up policy |
-| `returnTo` | `string` | `'/'` | Return URL (used internally by the OAuth flow) |
-| `timeout` | `number` | `60000` | Popup timeout in milliseconds |
-| `popupWidth` | `number` | `400` | Popup window width in pixels |
-| `popupHeight` | `number` | `600` | Popup window height in pixels |
+| Option        | Type     | Default                                                          | Description                                                                                                                                        |
+| ------------- | -------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audience`    | `string` | _(required)_                                                     | Target API audience identifier                                                                                                                     |
+| `scope`       | `string` | _(omitted — inherits the global scope config)_                   | Space-separated scopes for the token. Only sent to Auth0 when explicitly provided                                                                  |
+| `acr_values`  | `string` | `'http://schemas.openid.net/pape/policies/2007/06/multi-factor'` | ACR values sent to Auth0 for step-up policy                                                                                                        |
+| `prompt`      | `string` | _(not sent)_                                                     | OIDC `prompt` parameter. Omit to reuse the existing session and go straight to the MFA challenge; set to `'login'` to force full re-authentication |
+| `returnTo`    | `string` | `'/'`                                                            | Return URL (used internally by the OAuth flow)                                                                                                     |
+| `timeout`     | `number` | `60000`                                                          | Popup timeout in milliseconds                                                                                                                      |
+| `popupWidth`  | `number` | `400`                                                            | Popup window width in pixels                                                                                                                       |
+| `popupHeight` | `number` | `600`                                                            | Popup window height in pixels                                                                                                                      |
 
 **Example with custom options:**
 
 ```tsx
 const { token } = await mfa.challengeWithPopup({
-  audience: 'https://api.example.com',
-  scope: 'openid profile email transfer:funds',
-  timeout: 120000,    // 2 minutes
+  audience: "https://api.example.com",
+  scope: "openid profile email transfer:funds",
+  timeout: 120000, // 2 minutes
   popupWidth: 500,
   popupHeight: 700
 });
@@ -550,10 +536,10 @@ If your application uses a strict Content Security Policy that blocks inline scr
 
 ```typescript
 // lib/auth0.ts
-import { Auth0Client } from '@auth0/nextjs-auth0/server';
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
 export const auth0 = new Auth0Client({
-  cspNonce: 'your-generated-nonce'
+  cspNonce: "your-generated-nonce"
 });
 ```
 
@@ -572,38 +558,40 @@ If you do **not** configure a `cspNonce` and your CSP blocks inline scripts, the
 `challengeWithPopup()` can throw several typed errors. Handle them to provide appropriate user feedback:
 
 ```tsx
-import { mfa } from '@auth0/nextjs-auth0/client';
+import { mfa } from "@auth0/nextjs-auth0/client";
 import {
+  ExecutionContextError,
   PopupBlockedError,
   PopupCancelledError,
-  PopupTimeoutError,
   PopupInProgressError,
-  ExecutionContextError
-} from '@auth0/nextjs-auth0/errors';
+  PopupTimeoutError
+} from "@auth0/nextjs-auth0/errors";
 
 try {
   const { token } = await mfa.challengeWithPopup({
-    audience: 'https://api.example.com'
+    audience: "https://api.example.com"
   });
 } catch (err) {
   if (err instanceof PopupBlockedError) {
     // Browser blocked the popup — prompt user to allow popups
-    alert('Please allow popups for this site and try again.');
+    alert("Please allow popups for this site and try again.");
   } else if (err instanceof PopupCancelledError) {
     // User closed the popup before completing MFA
-    console.log('MFA cancelled by user.');
+    console.log("MFA cancelled by user.");
   } else if (err instanceof PopupTimeoutError) {
     // Popup did not complete within the timeout
-    console.log('MFA timed out. Please try again.');
+    console.log("MFA timed out. Please try again.");
   } else if (err instanceof PopupInProgressError) {
     // Another popup is already open
-    console.log('Please complete the current MFA prompt first.');
+    console.log("Please complete the current MFA prompt first.");
   } else if (err instanceof ExecutionContextError) {
     // Called from server-side code (SSR, middleware)
-    console.error('challengeWithPopup() can only be called in browser context.');
+    console.error(
+      "challengeWithPopup() can only be called in browser context."
+    );
   } else {
     // AccessTokenError or other errors
-    console.error('MFA failed:', err.message);
+    console.error("MFA failed:", err.message);
   }
 }
 ```
