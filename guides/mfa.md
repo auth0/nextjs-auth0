@@ -78,8 +78,14 @@ const response = await fetch("/api/protected");
 if (response.status === 403) {
   const data = await response.json();
   if (data.error === "mfa_required") {
-    // Navigate to your MFA page without exposing the token in the URL.
-    // Carry `data.mfa_token` out-of-band (e.g. a POST body or your server session).
+    // Hand the token to the server out-of-band (POST body, never the URL) so the
+    // MFA page can read it from your session/cookie instead of a query string.
+    // The server route stores `mfaToken` (e.g. in an httpOnly cookie or session).
+    await fetch("/api/mfa/store-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mfaToken: data.mfa_token })
+    });
     window.location.href = "/mfa-challenge";
   }
 }
@@ -115,8 +121,11 @@ exports.onExecutePostLogin = async (event, api) => {
   // token refreshes into repeated mfa_required failures.
   const PROTECTED_AUDIENCE = "https://my-high-security-api";
   if (grantType === "refresh_token" && audience === PROTECTED_AUDIENCE) {
-    // `multifactor` is undefined until the user enrolls, so default to [].
-    const enrolledFactors = event.user.multifactor || [];
+    // `enrolledFactors` is optional (undefined unless "Customize MFA Factors
+    // using Actions" is enabled and the user has enrolled a factor), so it must
+    // be defaulted to [] before reading `.length`. It lists the user's actual
+    // enrolled factor types, unlike `multifactor` which only lists providers.
+    const enrolledFactors = event.user.enrolledFactors ?? [];
 
     if (enrolledFactors.length > 0) {
       // Challenge with all available factor types
@@ -129,11 +138,12 @@ exports.onExecutePostLogin = async (event, api) => {
         { type: "recovery-code" }
       ]);
     } else {
-      // Prompt enrollment (also returns mfa_required error)
+      // Prompt enrollment (also returns mfa_required error).
+      // Note: `email` is not a supported *enrollment* factor, so it is omitted
+      // here (it can still be used to *challenge* an already-enrolled user).
       api.authentication.enrollWithAny([
         { type: "otp" },
         { type: "phone" },
-        { type: "email" },
         { type: "push-notification" }
       ]);
     }
@@ -159,13 +169,13 @@ Configure MFA token TTL via options or environment variable:
 ```typescript
 // Option 1: Via constructor
 const auth0 = new Auth0Client({
-  mfaContextTtl: 600 // 10 minutes in seconds
+  mfaTokenTtl: 600 // 10 minutes in seconds
 });
 ```
 
 ```bash
 # Option 2: Via environment variable
-AUTH0_MFA_CONTEXT_TTL=600
+AUTH0_MFA_TOKEN_TTL=600
 ```
 
 Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
@@ -175,7 +185,7 @@ Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
 When MFA is required, the SDK automatically stores MFA context in the session keyed by a hash of the raw token.
 
 > [!NOTE]
-> The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaContextTtl`) are removed to prevent session bloat.
+> The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaTokenTtl`) are removed to prevent session bloat.
 
 ## MFA Management API
 
@@ -195,11 +205,11 @@ Before using MFA APIs, configure your Auth0 tenant:
 5. **Configure MFA Actions** to conditionally enforce MFA for specific resources
 
 > [!NOTE]
-> To tune the MFA token context TTL (`mfaContextTtl` / `AUTH0_MFA_CONTEXT_TTL`), see [Configuration](#configuration) under Step-up Authentication.
+> To tune the MFA token TTL (`mfaTokenTtl` / `AUTH0_MFA_TOKEN_TTL`), see [Configuration](#configuration) under Step-up Authentication.
 
 ### Handling MfaRequiredError
 
-When you request an Access Token for a resource that requires MFA, Auth0 will return a `403 Forbidden`. The SDK automatically catches this and throws an `MfaRequiredError` containing the `mfaToken` needed to resolve the challenge.
+Unlike the API-route example above (which forwards the 403 to the client), this pattern handles the error in a Server Action and redirects the user to a dedicated MFA page. When you request an Access Token for a resource that requires MFA, Auth0 returns a `403 Forbidden`. The SDK automatically catches this and throws an `MfaRequiredError` containing the `mfa_token` needed to resolve the challenge.
 
 **`mfa_required` Response:**
 
@@ -214,20 +224,57 @@ When you request an Access Token for a resource that requires MFA, Auth0 will re
 Add a catch handler for `MfaRequiredError` around `getAccessToken` call:
 
 ```js
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { MfaRequiredError } from "@auth0/nextjs-auth0/server";
+
+import { auth0 } from "@/lib/auth0";
+
 try {
-  const { token } = await getAccessToken({
+  // Server-side: `auth0.getAccessToken()` returns `{ token }`.
+  const { token } = await auth0.getAccessToken({
     audience: "https://api.example.com"
   });
 } catch (error) {
   if (error instanceof MfaRequiredError) {
-    // Pass `error.mfa_token` to the SDK MFA methods (getAuthenticators,
-    // challenge, verify). Do not place it in the URL or query string — keep it
-    // in your server-side session or pass it via a request body.
+    // Hand `error.mfa_token` to the /mfa page out-of-band. Never put it in the
+    // URL or query string (it leaks into browser history, server logs, and the
+    // Referer header). A short-lived, httpOnly cookie keeps it server-side; the
+    // /mfa page reads it back and passes it to the SDK MFA methods
+    // (getAuthenticators, challenge, verify).
+    const cookieStore = await cookies();
+    cookieStore.set("mfa_token", error.mfa_token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 300 // keep in step with your mfaTokenTtl
+    });
     redirect("/mfa");
   }
   throw error;
 }
 ```
+
+On the `/mfa` page, read the token back from the cookie (never from the URL) and pass it to the MFA methods documented below:
+
+```ts
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+import { auth0 } from "@/lib/auth0";
+
+export default async function MfaPage() {
+  const mfaToken = (await cookies()).get("mfa_token")?.value;
+  if (!mfaToken) redirect("/"); // no pending challenge
+
+  // Use it to list authenticators, challenge, and verify (see below).
+  const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
+  // ...render your MFA UI
+}
+```
+
+> [!NOTE]
+> The client-side [popup flow](#reactive-mfa-step-up-popup) avoids this handoff entirely: the SDK keeps the `mfa_token` in the server-side session, so the token never travels through your own routes.
 
 ### Accessing the MFA API
 
@@ -408,12 +455,12 @@ import { getAccessToken, mfa } from "@auth0/nextjs-auth0/client";
 import { MfaRequiredError } from "@auth0/nextjs-auth0/errors";
 
 export function ProtectedAction() {
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [result, setResult] = useState<unknown>(null);
+  const [error, setError] = useState<string | null>(null);
   const [mfaRequired, setMfaRequired] = useState(false);
 
   // Calls the protected API with the supplied access token.
-  async function callApi(token) {
+  async function callApi(token: string) {
     const res = await fetch("https://api.example.com/sensitive", {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -439,7 +486,7 @@ export function ProtectedAction() {
         // that started handleAction() has already expired by this point.
         setMfaRequired(true);
       } else {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : String(err));
       }
     }
   }
@@ -455,7 +502,7 @@ export function ProtectedAction() {
       setMfaRequired(false);
       await callApi(token); // retry with the step-up token
     } catch (popupErr) {
-      setError(popupErr.message);
+      setError(popupErr instanceof Error ? popupErr.message : String(popupErr));
     }
   }
 
@@ -591,7 +638,7 @@ try {
     );
   } else {
     // AccessTokenError or other errors
-    console.error("MFA failed:", err.message);
+    console.error("MFA failed:", err instanceof Error ? err.message : err);
   }
 }
 ```
