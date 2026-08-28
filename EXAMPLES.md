@@ -45,7 +45,7 @@
     - [Usage Example](#usage-example)
     - [Token Management Best Practices](#token-management-best-practices)
   - [Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations)
-- [Multi-Factor Authentication (MFA)](examples/mfa.md)
+- [Multi-Factor Authentication (MFA)](guides/mfa.md)
 - [Passwordless Authentication](#passwordless-authentication)
   - [Auth0 Setup](#auth0-setup)
   - [Route Handler Setup](#route-handler-setup)
@@ -1613,7 +1613,7 @@ If there is no active session or the session has no refresh token, a `TokenRevoc
 
 MFA examples — step-up authentication, the MFA management API (enrollment, challenge, and verification), and reactive MFA step-up via a browser popup — now live in a dedicated guide:
 
-➡️ **[Multi-Factor Authentication examples](examples/mfa.md)**
+➡️ **[Multi-Factor Authentication examples](guides/mfa.md)**
 
 ## Passwordless Authentication
 
