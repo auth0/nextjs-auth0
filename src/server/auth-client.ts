@@ -184,6 +184,7 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
@@ -275,6 +276,7 @@ export interface Routes {
   callback: string;
   profile: string;
   accessToken: string;
+  federatedDomain: string;
   backChannelLogout: string;
   connectAccount: string;
   mfaAuthenticators: string;
@@ -326,6 +328,8 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
+
+  enterpriseConnect?: true;
 
   routes: Routes;
 
@@ -404,6 +408,8 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
+
+  private enterpriseConnect?: true;
 
   private routes: Routes;
 
@@ -568,6 +574,8 @@ export class AuthClient {
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
+    this.enterpriseConnect = options.enterpriseConnect;
+
     // routes
     this.routes = options.routes;
 
@@ -688,6 +696,11 @@ export class AuthClient {
       this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.federatedDomain
+    ) {
+      return this.handleFederatedDomain(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
@@ -1583,6 +1596,16 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
+    // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
+    // cookie is written and beforeSessionSaved is not run. The hook's response is
+    // the only way a cookie reaches the browser on the callback, so the app is
+    // expected to attach its own session cookie to it.
+    if (this.enterpriseConnect) {
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
+
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
@@ -1625,6 +1648,34 @@ export class AuthClient {
     const res = NextResponse.json(session?.user);
     addCacheControlHeadersForSession(res);
     return res;
+  }
+
+  /**
+   * Route: POST /auth/federated-domain
+   * Server-side Home Realm Discovery for Enterprise Connect. Reads `{ email }`
+   * from the request body and returns `{ isFederated }`. Backs the client-side
+   * `startEnterpriseLogin` helper so the browser never calls WebFinger directly
+   * (which would expose the tenant's customer domains to enumeration).
+   */
+  async handleFederatedDomain(req: NextRequest): Promise<NextResponse> {
+    let email: unknown;
+    try {
+      ({ email } = await req.json());
+    } catch {
+      return NextResponse.json(
+        { error: "invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.json({ error: "invalid email" }, { status: 400 });
+    }
+
+    const emailDomain = email.split("@")[1].toLowerCase();
+    const isFederated = await isFederatedDomain(this.domain, emailDomain);
+
+    return NextResponse.json({ isFederated });
   }
 
   /**

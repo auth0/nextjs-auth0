@@ -15,6 +15,24 @@ export interface StartInteractiveLoginOptions {
   challengeMode?: "redirect" | "popup";
 }
 
+/**
+ * Options for {@link Auth0Client.startEnterpriseLogin}.
+ *
+ * Mirrors {@link StartInteractiveLoginOptions} (so `authorizationParameters`,
+ * `returnTo`, and `challengeMode` are all supported as passthrough) and adds the
+ * required `email`. Callers may optionally forward `organization`, `connection`,
+ * or any other authorization parameter exactly as on a normal interactive login.
+ */
+export interface StartEnterpriseLoginOptions extends StartInteractiveLoginOptions {
+  /**
+   * The user's email address. Its domain is used for Home Realm Discovery to
+   * decide whether to route through Auth0, and is passed as `login_hint` so Auth0
+   * can resolve the enterprise connection and organization. This always wins over
+   * any `login_hint` set in `authorizationParameters`.
+   */
+  email: string;
+}
+
 export interface AuthorizationParameters {
   /**
    * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.

@@ -34,6 +34,7 @@ import {
   SessionDataStore,
   SessionTransferTokenOptions,
   SessionTransferTokenResult,
+  StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -45,6 +46,7 @@ import {
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -55,6 +57,7 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
+import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
@@ -211,9 +214,49 @@ export interface Auth0ClientOptions {
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
+   * In {@link Auth0Client.enterpriseConnect} mode the SDK writes no Auth0 session
+   * cookie, so the `NextResponse` this hook returns is the only way a cookie
+   * reaches the browser: persist identity to your own store here and attach your
+   * session cookie to the returned response.
+   *
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
+
+  /**
+   * Enable Enterprise Connect mode.
+   *
+   * Set to `true` for Enterprise Connect, where Auth0 acts as a pure SSO relay and
+   * your application remains the session authority. This changes three things:
+   *
+   * - The Auth0 session cookie is never written. `onCallback` is responsible for
+   *   persisting identity to your own store and must return a `NextResponse` with
+   *   your session cookie attached.
+   * - {@link Auth0Client.getSession} and {@link Auth0Client.getAccessToken} throw,
+   *   rather than returning `null`, because Auth0 holds no session to read.
+   * - Configuration that cannot work in this mode (`offline_access` in scope, or a
+   *   static default `organization`) is reported at initialization.
+   *
+   * @example
+   * ```ts
+   * export const auth0 = new Auth0Client({
+   *   enterpriseConnect: true,
+   *   authorizationParameters: {
+   *     scope: "openid profile email",
+   *     // Do NOT set a static organization here for multi-customer deployments.
+   *     // The organization is resolved per login via Home Realm Discovery from
+   *     // the login_hint email domain.
+   *   },
+   *   async onCallback(error, ctx, session) {
+   *     if (error) throw error;
+   *     // persist identity and return a NextResponse with your session cookie
+   *   }
+   * });
+   * ```
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for additional details
+   */
+  enterpriseConnect?: true;
 
   // provide a session store to persist sessions in your own data store
   /**
@@ -671,6 +714,9 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      federatedDomain:
+        process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+        "/auth/federated-domain",
       connectAccount: "/auth/connect",
       mfaAuthenticators:
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
@@ -755,6 +801,37 @@ export class Auth0Client {
         return runtimeDomain;
       });
 
+    // Enterprise Connect: disable everything that depends on an Auth0 session, and
+    // surface configuration that cannot work in this mode at startup rather than as
+    // a confusing failure on a later request.
+    if (options.enterpriseConnect) {
+      this.disableSessionMembersForEnterpriseConnect();
+
+      const scope = options.authorizationParameters?.scope ?? DEFAULT_SCOPES;
+
+      if (
+        typeof scope === "string" &&
+        scope.split(/\s+/).includes("offline_access")
+      ) {
+        console.warn(
+          "WARNING: 'offline_access' is in scope but Enterprise Connect clients are not " +
+            "issued refresh tokens. Set authorizationParameters.scope to " +
+            "'openid profile email' to drop it — the default scope includes offline_access."
+        );
+      }
+
+      if (options.authorizationParameters?.organization) {
+        console.warn(
+          "WARNING: enterpriseConnect is true but a static 'organization' is set in " +
+            "authorizationParameters. In Enterprise Connect the organization is resolved " +
+            "per login by Home Realm Discovery from the login_hint email domain. A static " +
+            "value routes every enterprise customer to the same organization, breaking " +
+            "multi-customer deployments. Leave 'organization' unset unless this client " +
+            "serves exactly one organization."
+        );
+      }
+    }
+
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
@@ -784,6 +861,7 @@ export class Auth0Client {
 
           beforeSessionSaved: options.beforeSessionSaved,
           onCallback: options.onCallback,
+          enterpriseConnect: options.enterpriseConnect,
 
           routes: this.routes,
 
@@ -1694,6 +1772,30 @@ export class Auth0Client {
   }
 
   /**
+   * Replaces every session-backed member with one that throws, for Enterprise
+   * Connect clients.
+   *
+   * Called once from the constructor. Each entry is defined as an own property on
+   * the instance, which shadows the prototype implementation for ordinary property
+   * access. Members absent from {@link EC_UNAVAILABLE_MEMBERS} are untouched —
+   * notably `middleware`, which mounts the routes the whole flow depends on.
+   *
+   * Shadowing is deliberate, in preference to returning a `Proxy` from the
+   * constructor. A Proxy would additionally close the two remaining escapes below,
+   * but it costs an indirection on every property access and depends on three
+   * easily-broken invariants (`Reflect.get` must receive `target` rather than the
+   * proxy, function values must be bound to `target`, and reads must be memoised
+   * to keep method identity stable). Both escapes require deliberate effort, so
+   * the trade is not worth it:
+   *
+   * - `Object.getPrototypeOf(client).getSession.call(client)`
+   * - `delete client.getSession`, since the property is `configurable`
+   */
+  private disableSessionMembersForEnterpriseConnect(): void {
+    applyEnterpriseConnectRestrictions(this);
+  }
+
+  /**
    * Resolves request context from any Next.js server context into a uniform shape.
    *
    * Handles the 3-way branch:
@@ -1836,6 +1938,85 @@ export class Auth0Client {
     const reqHeaders = await getHeaders();
     const authClient = await this.provider.forRequest(reqHeaders, undefined);
     return authClient.startInteractiveLogin(options);
+  }
+
+  /**
+   * Login entry point for {@link Auth0Client.enterpriseConnect} mode.
+   *
+   * Runs Home Realm Discovery on the email domain and, when it is federated,
+   * redirects to Auth0 with the email as `login_hint` so Auth0 can resolve the
+   * connection and organization from the domain. When the domain is not
+   * federated it returns `null`, so the caller can fall back to its own
+   * non-enterprise login.
+   *
+   * `authorizationParameters`, `returnTo`, and `challengeMode` are forwarded to
+   * the underlying interactive login. `login_hint` is always set from `email`,
+   * overriding any `login_hint` in `authorizationParameters`.
+   *
+   * @param options - Login options. `email` is required and drives discovery.
+   * @returns A `NextResponse` redirect for a federated domain, or `null` when
+   * the domain is not federated.
+   *
+   * Call this from a Route Handler, not a Server Action: the returned redirect
+   * carries the transaction (`__txn_*`) cookie that must reach `/auth/callback`,
+   * and only a Route Handler returns that `NextResponse` to the browser.
+   *
+   * @example
+   * ```ts
+   * // app/api/login/route.ts
+   * import { NextRequest, NextResponse } from "next/server";
+   *
+   * export async function POST(req: NextRequest) {
+   *   const email = String((await req.formData()).get("email") ?? "");
+   *   const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
+   *
+   *   if (res) {
+   *     // Re-emit the 307 as 303 so the browser switches POST -> GET for
+   *     // Auth0's /authorize endpoint, carrying over the __txn_* cookie.
+   *     const redirect = NextResponse.redirect(res.headers.get("location")!, 303);
+   *     for (const c of res.cookies.getAll()) redirect.cookies.set(c);
+   *     return redirect;
+   *   }
+   *   return NextResponse.redirect(new URL("/existing-login", req.url)); // not federated
+   * }
+   * ```
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
+   */
+  async startEnterpriseLogin(
+    options: StartEnterpriseLoginOptions
+  ): Promise<NextResponse | null> {
+    const emailDomain = options.email.split("@")[1]?.toLowerCase();
+    if (!emailDomain) {
+      return null;
+    }
+
+    // Resolve the per-request AuthClient (static domain, or MCD resolver mode)
+    // and run WebFinger against the SAME domain the redirect will use. In
+    // resolver mode the resolved custom domain differs from the static option,
+    // so discovering against `this.#options.domain` would check the wrong tenant
+    // while the redirect fired against the resolved one. `authClient.domain` is
+    // always populated (the provider validates domain-or-resolver at
+    // construction), so no `AUTH0_DOMAIN` fallback is needed.
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const federated = await isFederatedDomain(authClient.domain, emailDomain);
+    if (!federated) {
+      return null;
+    }
+
+    // Forward all interactive-login passthrough (returnTo, challengeMode, and any
+    // caller-supplied authorizationParameters such as organization/connection).
+    // `login_hint` is set from `email` last, so it wins over a caller-passed one.
+    const { email, authorizationParameters, ...rest } = options;
+    return authClient.startInteractiveLogin({
+      ...rest,
+      authorizationParameters: {
+        ...authorizationParameters,
+        login_hint: email
+      }
+    });
   }
 
   /**

@@ -12,6 +12,9 @@ export function getDefaultRoutes(): Routes {
     profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
     accessToken:
       process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+    federatedDomain:
+      process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+      "/auth/federated-domain",
     connectAccount: "/auth/connect",
     mfaAuthenticators:
       process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||

@@ -6338,3 +6338,178 @@ if (session) {
   console.log("Session issuer:", session.internal.mcd?.issuer);
 }
 ```
+
+## Enterprise Connect (B2B Integration)
+
+Enterprise Connect lets a B2B SaaS application layer enterprise SSO on top of its own auth server without replacing it. Auth0 acts as a pure SSO relay — it federates to the customer's enterprise IdP (Okta, Azure AD, SAML, etc.) and returns an ID token. The SaaS app's own auth server remains the session authority.
+
+Set `enterpriseConnect: true` to put the SDK into this mode.
+
+### How it works
+
+1. The user enters their email on your login page.
+2. Your app calls `startEnterpriseLogin({ email })`. It runs domain discovery internally.
+3. If the domain is federated, the SDK redirects to `/auth/login` with the email as `login_hint`. Auth0's Home Realm Discovery resolves the connection and organization from the domain — no database lookup needed.
+4. Auth0 federates to the enterprise IdP, validates the assertion, and redirects back to `/auth/callback`.
+5. `onCallback` fires with the ID token claims — your app writes its own session and returns a `NextResponse`.
+6. Auth0 never writes a session cookie. `getSession()` is unavailable in this mode.
+
+### Initialize the SDK
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { NextResponse } from "next/server";
+
+export const auth0 = new Auth0Client({
+  enterpriseConnect: true,
+  authorizationParameters: {
+    scope: "openid profile email",  // no offline_access — EC has no refresh token
+    // Do not set a static organization — it is resolved per login via HRD
+  },
+  async onCallback(error, ctx, session) {
+    if (error) throw error;
+    if (!session?.user) throw new Error("No session on Enterprise Connect callback");
+
+    const orgId = session.user["org_id"] as string;
+
+    // Optional: you can validate your session's org_id against your own records here.
+    // For example:
+    //   const isKnownOrg = await db.organizations.exists(orgId);
+    //   if (!isKnownOrg) throw new Error(`Unknown org: ${orgId}`);
+
+    // Write your own session. Auth0 does not manage it.
+    // In production use a signed/encrypted cookie or a server-side session store —
+    // plain base64 JSON is forgeable and unsuitable for production.
+    const encoded = Buffer.from(JSON.stringify({
+      sub: session.user.sub,
+      email: session.user.email,
+      orgId,
+    })).toString("base64");
+
+    const res = NextResponse.redirect(
+      new URL(ctx.returnTo ?? "/dashboard", process.env.APP_BASE_URL)
+    );
+    res.cookies.set("app_session", encoded, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+    return res;
+  }
+});
+```
+
+`session.user` in `onCallback` contains all raw ID token claims unfiltered, including `org_id`, any UAP-mapped enterprise IdP claims (`department`, `employee_id`, etc.), and OIDC protocol claims (`iss`, `aud`, `exp`). Persist only the claims you need.
+
+### Login form
+
+`startEnterpriseLogin` is the single login entry point. It runs domain discovery and, for a federated domain, redirects to Auth0 with the email as `login_hint`. For a non-federated domain it hands control back so you route to your own login.
+
+Call `startEnterpriseLogin` from a **Route Handler**, not a Server Action. The redirect it returns carries the transaction (`__txn_*`) cookie that must survive to `/auth/callback`, and only a Route Handler returns that `NextResponse` to the browser. A Server Action does not, so the transaction cookie would be lost.
+
+```ts
+// app/api/login/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const email = String(formData.get("email") ?? "");
+
+  const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
+
+  if (res) {
+    // startEnterpriseLogin returns a 307, which preserves the POST method, so
+    // the browser would POST to Auth0's /authorize endpoint (GET only) and fail.
+    // Re-emit as 303 See Other to force GET, carrying over the __txn_* cookie so
+    // it survives to /auth/callback.
+    const location = res.headers.get("location");
+    if (!location) return res;
+
+    const redirect = NextResponse.redirect(location, 303);
+    for (const cookie of res.cookies.getAll()) {
+      redirect.cookies.set(cookie);
+    }
+    return redirect;
+  }
+
+  // Not federated: route to your own login.
+  return NextResponse.redirect(new URL("/existing-login", req.url));
+}
+```
+
+```tsx
+// app/login/page.tsx
+export default function LoginPage() {
+  return (
+    <form method="POST" action="/api/login">
+      <input name="email" type="email" required />
+      <button type="submit">Continue</button>
+    </form>
+  );
+}
+```
+
+To trigger login from a client component, use the client flavour, which asks the SDK's mounted `/auth/federated-domain` route whether the domain is federated before navigating:
+
+```tsx
+"use client";
+import { startEnterpriseLogin } from "@auth0/nextjs-auth0";
+
+async function onSubmit(email: string) {
+  const redirected = await startEnterpriseLogin({ email, returnTo: "/dashboard" });
+  if (!redirected) await yourExistingLogin(email);  // not a federated domain
+}
+```
+
+In the **Pages Router**, use this client-side `startEnterpriseLogin` helper. It calls the SDK's mounted `/auth/federated-domain` and `/auth/login` routes over HTTP, so it is router-agnostic. The server `auth0.startEnterpriseLogin` relies on `next/headers`, which is App Router only.
+
+Auth0 resolves the connection and organization from the email domain via Home Realm Discovery, so you do not pass `connection` or `organization`. Do not set a static `organization` in `authorizationParameters` — a static value routes every enterprise customer to the same organization. If a domain maps to multiple connections, enable **Display connection as button** on each so Auth0 can present a picker.
+
+`isFederatedDomain` (the underlying discovery primitive used by `startEnterpriseLogin`) remains exported from `@auth0/nextjs-auth0/server` for advanced server-side use. Call it server-side only — never from the browser, which would let anyone enumerate your enterprise customer domains.
+
+### Protected pages
+
+```ts
+// app/dashboard/page.tsx
+import { redirect } from "next/navigation";
+import { getAppSession } from "@/lib/session"; // your own store
+
+export default async function Dashboard() {
+  const session = await getAppSession(); // auth0.getSession() throws in EC mode
+  if (!session) redirect("/login");
+  return <p>Welcome, {session.email}</p>;
+}
+```
+
+### Logout
+
+```ts
+// app/api/logout/route.ts
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  // The /auth/logout route forwards returnTo to Auth0 as-is (this is not
+  // EC-specific), so it must be an absolute URL registered as an Allowed
+  // Logout URL. A relative path would be rejected by Auth0.
+  const logoutUrl = new URL("/auth/logout?federated", process.env.APP_BASE_URL);
+  logoutUrl.searchParams.set("returnTo", new URL("/login", process.env.APP_BASE_URL).toString());
+
+  const res = NextResponse.redirect(logoutUrl);
+  res.cookies.set("app_session", "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
+  return res;
+}
+```
+
+Clear your own session cookie, then redirect to the SDK's shared `/auth/logout` route. It logs the user out of Auth0 through the OIDC `end_session_endpoint`, and the `federated` flag terminates the enterprise IdP session (via SAML SLO for SAML connections). There is no EC-specific logout path: EC simply has no Auth0 session cookie for the shared route to clear.
+
+For SAML IdPs, ensure the IdP application has `logout.callback` configured in the SAML addon settings, otherwise the IdP session persists after logout and the next login reuses the previous user's session.
+
+### Unavailable methods
+
+The following throw `InvalidConfigurationError` in EC mode because they require an Auth0-managed session or refresh token that EC does not create:
+
+`getSession`, `getAccessToken`, `getAccessTokenForConnection`, `revokeRefreshToken`, `requestSessionTransferToken`, `updateSession`, `connectAccount`, `createFetcher`, `buildSessionTransferRedirect`, `getTokenByBackchannelAuth`, `passwordless`, `passkey`, `mfa`
+
+See `examples/with-enterprise-connect` for a working end-to-end example.

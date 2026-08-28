@@ -9,6 +9,9 @@ export { filterDefaultIdTokenClaims, DEFAULT_ID_TOKEN_CLAIMS } from "./user.js";
 // DPoP utilities
 export { generateDpopKeyPair } from "../utils/dpopRetry.js";
 
+// Enterprise Connect domain discovery (server-side only)
+export { isFederatedDomain } from "../utils/webfingerCache.js";
+
 // MFA error classes for handling MFA step-up authentication
 export {
   MfaRequiredError,
