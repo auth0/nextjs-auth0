@@ -802,7 +802,6 @@ export class Auth0Client {
           fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
-
           discoveryCache,
           provider: this.provider
         });
@@ -1835,7 +1834,14 @@ export class Auth0Client {
   ): Promise<NextResponse> {
     const reqHeaders = await getHeaders();
     const authClient = await this.provider.forRequest(reqHeaders, undefined);
-    return authClient.startInteractiveLogin(options);
+    // Pass request cookies so the transaction store can evict accumulated
+    // `__txn_*` cookies before writing the new one — otherwise logins started
+    // from Server Components/Actions never trigger eviction.
+    return authClient.startInteractiveLogin(
+      options,
+      undefined,
+      await cookies()
+    );
   }
 
   /**
