@@ -17,7 +17,7 @@ import {
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";

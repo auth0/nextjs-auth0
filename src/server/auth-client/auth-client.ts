@@ -4,7 +4,7 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
 
-import packageJson from "../../package.json" with { type: "json" };
+import packageJson from "../../../package.json" with { type: "json" };
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -36,7 +36,6 @@ import {
   MissingStateError,
   MtlsError,
   MtlsErrorCode,
-  MyAccountApiError,
   OAuth2Error,
   PasskeyChallengeError,
   PasskeyEnrollmentChallengeError,
@@ -50,11 +49,11 @@ import {
   SdkError,
   TokenRevocationError,
   TokenRevocationErrorCode
-} from "../errors/index.js";
+} from "../../errors/index.js";
 import {
   IssuerValidationError,
   SessionDomainMismatchError
-} from "../errors/mcd.js";
+} from "../../errors/mcd.js";
 import {
   CompleteConnectAccountRequest,
   CompleteConnectAccountResponse,
@@ -62,8 +61,8 @@ import {
   ConnectAccountRequest,
   ConnectAccountResponse,
   ConnectedAccount
-} from "../types/connected-accounts.js";
-import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
+} from "../../types/connected-accounts.js";
+import { DpopKeyPair, DpopOptions } from "../../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
@@ -112,84 +111,83 @@ import {
   TokenSet,
   User,
   VerifyMfaOptions
-} from "../types/index.js";
-import type { SessionCheckResult } from "../types/mcd.js";
-import type { MfaTokenEndpointResponse } from "../types/mfa.js";
-import { resolveAppBaseUrl } from "../utils/app-base-url.js";
+} from "../../types/index.js";
+import type { SessionCheckResult } from "../../types/mcd.js";
+import type { MfaTokenEndpointResponse } from "../../types/mfa.js";
+import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import {
   mergeAuthorizationParamsIntoSearchParams,
   parseNonNegativeIntegerParam
-} from "../utils/authorization-params-helpers.js";
+} from "../../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES,
   DEFAULT_STT_SCOPES
-} from "../utils/constants.js";
-import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
-import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
+} from "../../utils/constants.js";
+import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
+import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
 import {
   buildVerifyParams,
   getVerifyGrantType,
   transformVerifyBodyToOptions
-} from "../utils/mfa-transform-utils.js";
-import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
-import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
-import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
-import { isNonNavigationalRequest } from "../utils/request.js";
+} from "../../utils/mfa-transform-utils.js";
+import { normalizeDomain, normalizeIssuer } from "../../utils/normalize.js";
+import { extractOAuthErrorDetails } from "../../utils/oauth-error-utils.js";
+import { createRouteUrl, removeTrailingSlash } from "../../utils/pathUtils.js";
+import { isNonNavigationalRequest } from "../../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
-} from "../utils/scope-helpers.js";
-import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
-import type { AuthClientProvider } from "./auth-client-provider.js";
+} from "../../utils/scope-helpers.js";
+import { isUrl, toSafeRedirect } from "../../utils/url-helpers.js";
+import type { AuthClientProvider } from "../auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
   type ReadonlyRequestCookies
-} from "./cookies/index.js";
-import { DiscoveryCache } from "./discovery-cache.js";
-import { withDPoPNonceRetry } from "./dpop/retry.js";
+} from "../cookies/index.js";
+import { DiscoveryCache } from "../discovery-cache.js";
+import { withDPoPNonceRetry } from "../dpop/retry.js";
 import {
   AccessTokenFactory,
   Fetcher,
   FetcherConfig,
-  FetcherHooks,
-  FetcherMinimalConfig
-} from "./fetcher/fetcher.js";
+  FetcherHooks
+} from "../fetcher/fetcher.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,
   transformTargetUrl
-} from "./fetcher/proxy.js";
-import { buildEnrollOptions } from "./mfa/mfa-server-utils.js";
+} from "../fetcher/proxy.js";
+import { buildEnrollOptions } from "../mfa/mfa-server-utils.js";
 import {
   decryptMfaToken,
   encryptMfaToken,
   extractMfaErrorDetails,
   handleMfaError,
   isMfaRequiredError
-} from "./mfa/mfa-utils.js";
+} from "../mfa/mfa-utils.js";
 import {
   extractMfaToken,
   parseJsonBody,
   validateArrayFieldAndThrow,
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
-} from "./mfa/mfa-validation-utils.js";
-import { AbstractSessionStore } from "./session/abstract-session-store.js";
-import { getSessionChangesAfterGetAccessToken } from "./session/session-changes-helpers.js";
+} from "../mfa/mfa-validation-utils.js";
+import { AbstractSessionStore } from "../session/abstract-session-store.js";
+import { getSessionChangesAfterGetAccessToken } from "../session/session-changes-helpers.js";
 import {
   buildSessionFromCallback,
   isSessionCeilingInPast,
   isSessionCeilingReached,
   mergePopupTokenIntoSession
-} from "./session/session-helpers.js";
+} from "../session/session-helpers.js";
 import {
   buildSessionTransferAudience,
   buildSessionTransferRedirectUrl,
   mapSttServerError,
   parseSessionTransferTokenResponse,
   resolveActorFromSession
-} from "./session/session-transfer-helpers.js";
+} from "../session/session-transfer-helpers.js";
 import {
   compareScopes,
   findAccessTokenSet,
@@ -198,51 +196,26 @@ import {
   normalizeExpiresAt,
   normalizeTokenType,
   tokenSetFromAccessTokenSet
-} from "./session/token-set-helpers.js";
+} from "../session/token-set-helpers.js";
 import {
   clampReturnTo,
   clampTransactionField,
   TransactionState,
   TransactionStore
-} from "./transaction-store.js";
-import { filterDefaultIdTokenClaims } from "./user.js";
-
-export type BeforeSessionSavedHook = (
-  session: SessionData,
-  idToken: string | null
-) => Promise<SessionData>;
-
-export type OnCallbackContext = {
-  /**
-   * The type of response expected from the authorization server.
-   * One of {@link RESPONSE_TYPES}
-   */
-  responseType?: RESPONSE_TYPES;
-  /**
-   * The resolved base URL for the current request, used to build safe redirects.
-   */
-  appBaseUrl?: string;
-  /**
-   * The URL or path the user should be redirected to after completing the transaction.
-   */
-  returnTo?: string;
-  /**
-   * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
-   */
-  connectedAccount?: CompleteConnectAccountResponse;
-  /**
-   * The return strategy for this callback flow.
-   * - 'redirect' (default): Standard OAuth redirect flow
-   * - 'popup': Popup flow returning via window.postMessage
-   * Hook authors can use this to detect popup flows and adapt behavior.
-   */
-  challengeMode?: "redirect" | "popup";
-};
-export type OnCallbackHook = (
-  error: SdkError | null,
-  ctx: OnCallbackContext,
-  session: SessionData | null
-) => Promise<NextResponse>;
+} from "../transaction-store.js";
+import { filterDefaultIdTokenClaims } from "../user.js";
+import {
+  buildConnectAccountErrorResponse,
+  buildConnectedAccountsErrorResponse
+} from "./connect-account-errors.js";
+import type {
+  AuthClientOptions,
+  BeforeSessionSavedHook,
+  FetcherFactoryOptions,
+  OnCallbackContext,
+  OnCallbackHook,
+  Routes
+} from "./types.js";
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -274,117 +247,6 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
  */
 const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "http://auth0.com/oauth/token-type/federated-connection-access-token";
-
-export interface Routes {
-  login: string;
-  logout: string;
-  callback: string;
-  profile: string;
-  accessToken: string;
-  backChannelLogout: string;
-  connectAccount: string;
-  mfaAuthenticators: string;
-  mfaChallenge: string;
-  mfaVerify: string;
-  mfaAssociate: string;
-  passwordlessStart: string;
-  passwordlessVerify: string;
-  passwordlessDbOtpChallenge: string;
-  passwordlessDbGetToken: string;
-  passkeyRegister: string;
-  passkeyChallenge: string;
-  passkeyGetToken: string;
-  passkeyEnrollmentChallenge: string;
-  passkeyEnrollmentVerify: string;
-}
-export type RoutesOptions = Partial<Routes>;
-
-/**
- * @private
- */
-export interface AuthClientOptions {
-  transactionStore: TransactionStore;
-  sessionStore: AbstractSessionStore;
-
-  domain: string;
-  /**
-   * Issuer URL override. When provided, this is used instead of constructing
-   * the issuer from the domain hostname. Required for providers like Okta that
-   * use path-based authorization server URLs (e.g. https://myorg.okta.com/oauth2/default/).
-   */
-  issuer?: string;
-  clientId: string;
-  clientSecret?: string;
-  clientAssertionSigningKey?: string | jose.CryptoKey;
-  clientAssertionSigningAlg?: string;
-  authorizationParameters?: AuthorizationParameters;
-  pushedAuthorizationRequests?: boolean;
-
-  secret: string;
-  /**
-   * Normalized appBaseUrl. When omitted, the SDK infers the base URL from the request.
-   * If you construct AuthClient directly, normalize the value first.
-   */
-  appBaseUrl?: string | string[];
-  signInReturnToPath?: string;
-  logoutStrategy?: LogoutStrategy;
-  includeIdTokenHintInOIDCLogoutUrl?: boolean;
-
-  beforeSessionSaved?: BeforeSessionSavedHook;
-  onCallback?: OnCallbackHook;
-
-  routes: Routes;
-
-  // custom fetch implementation to allow for dependency injection
-  fetch?: typeof fetch;
-  discoveryCache?: DiscoveryCache;
-  provider?: AuthClientProvider;
-  allowInsecureRequests?: boolean;
-  httpTimeout?: number;
-  enableTelemetry?: boolean;
-  enableAccessTokenEndpoint?: boolean;
-  noContentProfileResponseWhenUnauthenticated?: boolean;
-  enableConnectAccountEndpoint?: boolean;
-  tokenRefreshBuffer?: number;
-
-  useDPoP?: boolean;
-  dpopKeyPair?: DpopKeyPair;
-  dpopOptions?: DpopOptions;
-
-  /**
-   * Enable mTLS (Mutual TLS) client authentication (RFC 8705).
-   *
-   * When `true`, the SDK uses `oauth.TlsClientAuth()` for client authentication
-   * and routes all token requests to the mTLS endpoint aliases advertised in
-   * the Auth0 discovery document (`mtls_endpoint_aliases`).
-   *
-   * Requires the `fetch` option to be set with a TLS-aware implementation
-   * (e.g. Node.js `undici` with a client certificate). The standard `fetch`
-   * global has no client certificate API.
-   *
-   * @default false
-   */
-  useMtls?: boolean;
-
-  /**
-   * MFA token TTL in seconds (for token encryption expiration).
-   * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
-   */
-  mfaTokenTtl?: number;
-
-  /**
-   * Content Security Policy nonce for inline scripts.
-   * Required when CSP is enabled and popup flows use postMessage return strategy.
-   * The nonce is injected into the <script> tag of the postMessage HTML response.
-   */
-  cspNonce?: string;
-
-  /**
-   * @future This option is reserved for future implementation.
-   * Currently not used - placeholder for upcoming nonce persistence feature.
-   */
-  // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
-}
 
 /**
  * @private
@@ -639,7 +501,7 @@ export class AuthClient {
     }
 
     // Dynamic import only when needed - prevents crypto from being bundled
-    const dpopModule = await import("./dpop/utils.js");
+    const dpopModule = await import("../dpop/utils.js");
     const dpopConfig = await dpopModule.validateDpopConfiguration({
       useDPoP: this.useDPoP,
       dpopKeyPair: this.dpopKeyPair, // Pass existing keypair for validation
@@ -3232,7 +3094,7 @@ export class AuthClient {
    */
   async getSessionWithDomainCheck(
     cookies:
-      RequestCookies | import("./cookies/index.js").ReadonlyRequestCookies,
+      RequestCookies | import("../cookies/index.js").ReadonlyRequestCookies,
     { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
     // Read session from store
@@ -6952,96 +6814,6 @@ type GetTokenSetResponse = {
   tokenSet: TokenSet;
   idTokenClaims?: { [key: string]: any };
 };
-
-/**
- * Options for creating a Fetcher instance via the factory method.
- *
- * Includes all FetcherMinimalConfig options plus internal session data.
- * The `nonceStorageId` from FetcherMinimalConfig is included but currently ignored.
- */
-export type FetcherFactoryOptions<TOutput extends Response> = {
-  useDPoP?: boolean;
-  getAccessToken: AccessTokenFactory;
-  dpopHandle?: oauth.DPoPHandle;
-} & FetcherMinimalConfig<TOutput>;
-
-/**
- * Builds a ConnectAccountError response based on the provided Response object and error code.
- * @param res The Response object containing the error details.
- * @param errorCode The ConnectAccountErrorCodes enum value representing the type of error.
- * @returns
- */
-export async function buildConnectAccountErrorResponse(
-  res: Response,
-  errorCode: ConnectAccountErrorCodes
-): Promise<[ConnectAccountError, null]> {
-  const actionVerb =
-    errorCode === ConnectAccountErrorCodes.FAILED_TO_INITIATE
-      ? "initiate"
-      : "complete";
-
-  try {
-    const errorBody = await res.json();
-    return [
-      new ConnectAccountError({
-        code: errorCode,
-        message: `The request to ${actionVerb} the connect account flow failed with status ${res.status}.`,
-        cause: new MyAccountApiError({
-          type: errorBody.type,
-          title: errorBody.title,
-          detail: errorBody.detail,
-          status: res.status,
-          validationErrors: errorBody.validation_errors
-        })
-      }),
-      null
-    ];
-  } catch (e) {
-    return [
-      new ConnectAccountError({
-        code: errorCode,
-        message: `The request to ${actionVerb} the connect account flow failed with status ${res.status}.`
-      }),
-      null
-    ];
-  }
-}
-
-export async function buildConnectedAccountsErrorResponse(
-  res: Response,
-  errorCode: ConnectedAccountsErrorCodes
-): Promise<[ConnectedAccountsError, null]> {
-  const actionVerb =
-    errorCode === ConnectedAccountsErrorCodes.FAILED_TO_LIST
-      ? "list the connected accounts"
-      : "delete the connected account";
-
-  try {
-    const errorBody = await res.json();
-    return [
-      new ConnectedAccountsError({
-        code: errorCode,
-        message: `The request to ${actionVerb} failed with status ${res.status}.`,
-        cause: new MyAccountApiError({
-          type: errorBody.type,
-          title: errorBody.title,
-          detail: errorBody.detail,
-          status: res.status,
-          validationErrors: errorBody.validation_errors
-        })
-      }),
-      null
-    ];
-  } catch (e) {
-    return [
-      new ConnectedAccountsError({
-        code: errorCode,
-        message: `The request to ${actionVerb} failed with status ${res.status}.`
-      }),
-      null
-    ];
-  }
-}
 
 /**
  * Identifies a DPoP failure by its `code` rather than an `instanceof` check.

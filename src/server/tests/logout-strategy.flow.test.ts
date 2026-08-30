@@ -14,7 +14,7 @@ import {
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { Auth0Client } from "../client.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";

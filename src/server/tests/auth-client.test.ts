@@ -39,7 +39,7 @@ import { DEFAULT_SCOPES } from "../../utils/constants.js";
 import {
   AuthClient,
   buildConnectAccountErrorResponse
-} from "../auth-client.js";
+} from "../auth-client/index.js";
 import { decrypt, encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 import { StatefulSessionStore } from "../session/stateful-session-store.js";

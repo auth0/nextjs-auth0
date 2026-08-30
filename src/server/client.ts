@@ -50,7 +50,7 @@ import {
   OnCallbackHook,
   Routes,
   RoutesOptions
-} from "./auth-client.js";
+} from "./auth-client/index.js";
 import { RequestCookies, ResponseCookies } from "./cookies/index.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {

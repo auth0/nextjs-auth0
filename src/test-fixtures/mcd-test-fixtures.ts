@@ -5,7 +5,7 @@
  * and maintain consistency.
  */
 
-import type { Routes } from "../server/auth-client.js";
+import type { Routes } from "../server/auth-client/index.js";
 import type { TransactionState } from "../server/transaction-store.js";
 import type { SessionData } from "../types/index.js";
 import type { MCDMetadata } from "../types/mcd.js";

@@ -8,7 +8,7 @@ import { DomainResolutionError } from "../errors/mcd.js";
 import type { DomainResolver } from "../types/mcd.js";
 import { LruMap } from "../utils/lru-map.js";
 import { normalizeDomain } from "../utils/normalize.js";
-import type { AuthClient } from "./auth-client.js";
+import type { AuthClient } from "./auth-client/index.js";
 
 /**
  * Options for AuthClientProvider.

@@ -16,7 +16,7 @@ import {
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { decrypt, encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
