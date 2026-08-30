@@ -138,6 +138,7 @@
   - [Customizing Transaction Cookie Expiration](#customizing-transaction-cookie-expiration)
   - [Transaction Management Modes](#transaction-management-modes)
   - [Transaction Cookie Options](#transaction-cookie-options)
+  - [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors)
 - [Database sessions](#database-sessions)
 - [Using Client-Initiated Backchannel Authentication](#using-client-initiated-backchannel-authentication)
 - [Connected Accounts](#connected-accounts)
@@ -217,6 +218,9 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 ```html
 <a href="/auth/login?audience=urn:my-api">Login</a>
 ```
+
+> [!NOTE]
+> A default `<Link href="/auth/login">` is safe — the SDK returns `204 No Content` on AUTO prefetches without writing a transaction cookie. Avoid `<Link href="/auth/login" prefetch={true}>` (FULL prefetch), which is indistinguishable from a real navigation server-side. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ### Social Login
 
@@ -304,6 +308,9 @@ For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/
 
 > [!NOTE]  
 > The URL specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
+
+> [!IMPORTANT]  
+> `returnTo`, `scope`, and `audience` query parameters on `/auth/login` are stored inside the encrypted transaction cookie. Any single field longer than 2 KB is silently clamped back to its default value and a one-time warning is logged, to keep the transaction cookie under the browser and proxy header limits (~4 KB per cookie). Keep these values short. For `returnTo` specifically, the fallback is `signInReturnToPath` (the SDK-configured default post-login path).
 
 ### Redirecting the user after logging out
 
@@ -551,6 +558,9 @@ export async function middleware(request: NextRequest) {
 
 ## Protecting a Server-Side Rendered (SSR) Page
 
+> [!TIP]
+> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware for protected pages. When a prefetch follows the redirect to `/auth/login`, the SDK returns `204 No Content` (no transaction cookie written). A middleware redirect achieves the same result, but `withPageAuthRequired` keeps the auth logic co-located with the page. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+
 #### Page Router
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
@@ -592,6 +602,9 @@ export default auth0.withPageAuthRequired(
 ## Protecting a Client-Side Rendered (CSR) Page
 
 To protect a Client-Side Rendered (CSR) page, you can use the `withPageAuthRequired` higher-order function. Requests to `/profile` without a valid session cookie will be redirected to the login page.
+
+> [!TIP]
+> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) keeps auth logic co-located with the page. Prefetches that follow the redirect to `/auth/login` are handled by the SDK's `204` guard, so no transaction cookie is written. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ```tsx
 // app/profile/page.tsx
@@ -3978,20 +3991,90 @@ const authClient = new Auth0Client({
 
 **Use Single Transaction Mode When:**
 
-- You want to prevent cookie accumulation issues in applications with frequent login attempts
-- You prefer simpler transaction management
+- You want the simplest possible transaction management
 - Users typically don't need multiple concurrent login flows
-- You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
+
+> [!NOTE]
+> In single transaction mode, starting a new login while one is already in progress overwrites the existing `__txn_` cookie rather than rejecting the new attempt. If a user has two tabs open and starts a login in both, only the most recently started login can complete; the other tab's callback will fail because its transaction state was overwritten. This is expected in single transaction mode — use the default parallel mode if concurrent logins across tabs need to succeed.
 
 ### Transaction Cookie Options
 
-| Option                 | Type                          | Description                                                                                                                                                    |
-| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| cookieOptions.maxAge   | `number`                      | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically. |
-| cookieOptions.prefix   | `string`                      | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.             |
-| cookieOptions.sameSite | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                |
-| cookieOptions.secure   | `boolean`                     | When `true`, the cookie will only be sent over HTTPS connections. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted. |
-| cookieOptions.path     | `string`                      | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                       |
+| Option                                    | Type                          | Description                                                                                                                                                                                                                                         |
+| ----------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transactionCookie.maxAge`                | `number`                      | Expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned cookies expire automatically.                                                                                                           |
+| `transactionCookie.prefix`                | `string`                      | Prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`; in single mode, just `__txn_`.                                                                                                     |
+| `transactionCookie.sameSite`              | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                                                     |
+| `transactionCookie.secure`                | `boolean`                     | When `true`, the cookie is only sent over HTTPS. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted.                                                                                                     |
+| `transactionCookie.path`                  | `string`                      | URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                                                                          |
+
+### Preventing "431 Request Header Fields Too Large" Errors
+
+If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookies have grown beyond your server's header size limit.
+
+**This is fixed in the current SDK version.** The SDK now:
+
+1. Returns `204 No Content` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
+2. Automatically evicts accumulated `__txn_*` cookies once their combined size reaches a fixed internal limit (3500 bytes, roughly six concurrent in-flight logins) — oldest-first (FIFO) by creation timestamp — before writing the new cookie. Only transaction cookies are measured and evicted; the session and other cookies are never touched. This limit is not configurable.
+
+#### Recommended practices to avoid transaction cookie accumulation
+
+Even with the automatic protections above, follow these two practices so login flows are only started by real user navigation:
+
+**1. Avoid `<Link href="/auth/login" prefetch={true}>`.**
+
+A default `<Link href="/auth/login">` (AUTO prefetch) is safe — the SDK detects the prefetch header and returns `204 No Content` without writing a transaction cookie. However, `<Link prefetch={true}>` triggers a FULL prefetch which sends no detectable prefetch header, so the SDK cannot distinguish it from a real navigation and will start a login flow. Use a plain `<a>` tag or `<Link prefetch={false}>` if you need to be explicit:
+
+```tsx
+// ✅ Safe — default Link, AUTO prefetch is caught by the 204 guard
+<Link href="/auth/login">Sign In</Link>
+
+// ✅ Safe — plain anchor never prefetches
+<a href="/auth/login">Sign In</a>
+
+// ✅ Safe — prefetch explicitly disabled
+<Link href="/auth/login" prefetch={false}>
+  Sign In
+</Link>
+
+// ❌ Avoid — FULL prefetch is indistinguishable from a real navigation server-side
+<Link href="/auth/login" prefetch={true}>
+  Sign In
+</Link>
+```
+
+**2. Prefer `withPageAuthRequired` over middleware redirects to protect pages.**
+
+`withPageAuthRequired` redirects to the login route from inside the React Server Component render. When a prefetch follows that redirect to `/auth/login`, the SDK returns `204 No Content` — so `handleLogin` is never called and no `__txn_*` cookie is written. A middleware redirect to `/auth/login` behaves the same way: prefetches that follow it are also caught by the `204` guard. The preference for `withPageAuthRequired` is about keeping auth logic co-located with the page, not a difference in prefetch behaviour.
+
+```tsx
+// ✅ Preferred — auth logic co-located with the page; prefetches caught by the 204 guard
+export default auth0.withPageAuthRequired(async function Page() {
+  return <div>Protected content</div>;
+}, { returnTo: "/protected" });
+```
+
+```ts
+// ✅ Also safe — prefetches following this redirect are caught by the 204 guard
+export async function middleware(request: NextRequest) {
+  const session = await auth0.getSession(request);
+  if (!session) {
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin));
+  }
+  return NextResponse.next();
+}
+```
+
+If you are running an older SDK version without the automatic protections above, adding `prefetch={false}` to `<Link>` components pointing to your login route is the key fallback.
+
+If accumulation persists after upgrading, shorten the transaction cookie lifetime so abandoned logins expire sooner:
+
+```ts
+export const auth0 = new Auth0Client({
+  transactionCookie: {
+    maxAge: 600, // shorten TTL to 10 minutes (default 3600)
+  },
+});
+```
 
 ## Database sessions
 

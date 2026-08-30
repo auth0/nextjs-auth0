@@ -4,7 +4,7 @@ import * as oauth from "oauth4webapi";
 import { describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
 import { AuthClient } from "./auth-client.js";
@@ -166,7 +166,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       const { payload: txn } = (await decrypt(
-        transactionCookie!.value,
+        stripTransactionValuePrefix(transactionCookie!.value),
         secret
       )) as jose.JWTDecryptResult;
       expect(txn.challengeMode).toBe("popup");
@@ -200,7 +200,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       const { payload: txn } = (await decrypt(
-        transactionCookie!.value,
+        stripTransactionValuePrefix(transactionCookie!.value),
         secret
       )) as jose.JWTDecryptResult;
       // When challengeMode is 'redirect' (default), it's not stored to minimize cookie size
@@ -260,7 +260,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       const { payload: txn } = (await decrypt(
-        transactionCookie!.value,
+        stripTransactionValuePrefix(transactionCookie!.value),
         secret
       )) as jose.JWTDecryptResult;
 
