@@ -1,7 +1,7 @@
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
 
-import type { Routes } from "../server/auth-client.js";
+import type { Routes } from "../server/auth-client/index.js";
 
 export function getDefaultRoutes(): Routes {
   return {

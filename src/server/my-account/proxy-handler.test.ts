@@ -16,7 +16,7 @@ import {
   extractDPoPInfo
 } from "../../test-fixtures/proxy-handler-test-helpers.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";

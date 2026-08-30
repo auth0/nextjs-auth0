@@ -7,7 +7,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { decrypt, encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";

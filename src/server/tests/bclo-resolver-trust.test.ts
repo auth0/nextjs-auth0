@@ -7,7 +7,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client.js";
+import { AuthClient } from "../auth-client/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 import { StatefulSessionStore } from "../session/stateful-session-store.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
