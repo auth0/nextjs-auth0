@@ -17,11 +17,11 @@ import {
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import type { EnrollOobOptions } from "../../types/mfa.js";
-import { encryptMfaToken } from "../../utils/mfa-utils.js";
 import { AuthClient } from "../auth-client.js";
-import { encrypt } from "../cookies.js";
+import { encrypt } from "../cookies/index.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
+import { encryptMfaToken } from "./mfa-utils.js";
 
 // Test constants
 const DEFAULT = {
@@ -596,7 +596,7 @@ describe("AuthClient MFA Methods", () => {
         const mfaError = error as any;
 
         // Decrypt new token to verify context preserved
-        const { decryptMfaToken } = await import("../../utils/mfa-utils.js");
+        const { decryptMfaToken } = await import("./mfa-utils.js");
         const newContext = await decryptMfaToken(mfaError.mfa_token, secret);
         expect(newContext.audience).toBe("https://api.example.com");
         expect(newContext.scope).toBe("read:data write:data");

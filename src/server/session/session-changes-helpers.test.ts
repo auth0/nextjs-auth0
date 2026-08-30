@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SessionData } from "../types/index.js";
+import { SessionData } from "../../types/index.js";
 import { getSessionChangesAfterGetAccessToken } from "./session-changes-helpers.js";
 
 function createSessionData(

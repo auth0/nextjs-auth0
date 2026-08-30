@@ -7,7 +7,7 @@ import {
   addCacheControlHeadersForSession,
   decrypt,
   encrypt
-} from "../cookies.js";
+} from "../cookies/index.js";
 
 describe("encrypt/decrypt", async () => {
   const secret = await generateSecret(32);

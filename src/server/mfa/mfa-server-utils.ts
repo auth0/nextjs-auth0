@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server.js";
 
-import type { EnrollOobOptions, EnrollOtpOptions } from "../types/index.js";
+import type { EnrollOobOptions, EnrollOtpOptions } from "../../types/index.js";
 
 /**
  * Builds type-safe enrollment options from request body.

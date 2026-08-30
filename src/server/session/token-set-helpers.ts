@@ -1,4 +1,4 @@
-import { AccessTokenSet, SessionData, TokenSet } from "../types/index.js";
+import { AccessTokenSet, SessionData, TokenSet } from "../../types/index.js";
 
 /**
  * Normalizes oauth4webapi's lowercase token_type to canonical OAuth casing.

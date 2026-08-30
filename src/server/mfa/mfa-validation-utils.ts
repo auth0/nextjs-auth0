@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server.js";
 
-import { InvalidRequestError } from "../errors/index.js";
+import { InvalidRequestError } from "../../errors/index.js";
 
 /**
  * Extracts Bearer token from Authorization header.

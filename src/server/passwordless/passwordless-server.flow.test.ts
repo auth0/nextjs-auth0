@@ -14,7 +14,7 @@ import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client.js";
-import { decrypt, encrypt } from "../cookies.js";
+import { decrypt, encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 import { ServerPasswordlessClient } from "../passwordless/server-passwordless-client.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";

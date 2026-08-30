@@ -1,5 +1,5 @@
 import { SessionData, SessionDataStore } from "../../types/index.js";
-import * as cookies from "../cookies.js";
+import * as cookies from "../cookies/index.js";
 import {
   AbstractSessionStore,
   BeforeSessionRolledHook,

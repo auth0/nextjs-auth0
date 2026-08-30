@@ -1,7 +1,7 @@
 import type * as jose from "jose";
 
 import { RESPONSE_TYPES } from "../types/index.js";
-import * as cookies from "./cookies.js";
+import * as cookies from "./cookies/index.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 

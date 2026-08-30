@@ -9,8 +9,8 @@ import {
   encrypt,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
-import * as cookies from "../cookies.js";
+} from "../cookies/index.js";
+import * as cookies from "../cookies/index.js";
 import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
 import { StatelessSessionStore } from "./stateless-session-store.js";
 

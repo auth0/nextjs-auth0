@@ -8,7 +8,7 @@ import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
 import { AuthClient } from "../auth-client.js";
-import { decrypt, encrypt } from "../cookies.js";
+import { decrypt, encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "../transaction-store.js";

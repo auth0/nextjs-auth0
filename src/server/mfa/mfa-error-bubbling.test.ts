@@ -22,7 +22,7 @@ import { generateSecret } from "../../test-fixtures/utils.js";
 import { MfaContext, SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client.js";
 import { Auth0Client } from "../client.js";
-import { decrypt } from "../cookies.js";
+import { decrypt } from "../cookies/index.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
 

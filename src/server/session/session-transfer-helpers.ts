@@ -3,12 +3,12 @@ import * as jose from "jose";
 import {
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode
-} from "../errors/oauth-errors.js";
+} from "../../errors/oauth-errors.js";
 import {
   SessionData,
   SessionTransferTokenResult,
   TOKEN_TYPES
-} from "../types/index.js";
+} from "../../types/index.js";
 
 /**
  * Builds the `audience` value for a Session Transfer Token exchange.

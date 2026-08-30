@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { Auth0Client } from "../client.js";
-import { RequestCookies } from "../cookies.js";
+import { RequestCookies } from "../cookies/index.js";
 import {
   appRouteHandlerFactory,
   pageRouteHandlerFactory

@@ -9,7 +9,7 @@ import {
   encrypt,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
+} from "../cookies/index.js";
 import { TransactionState, TransactionStore } from "../transaction-store.js";
 
 describe("Transaction Store", async () => {
