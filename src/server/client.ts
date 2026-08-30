@@ -43,8 +43,6 @@ import {
   DEFAULT_SCOPES
 } from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
-import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
-import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -53,7 +51,7 @@ import {
   Routes,
   RoutesOptions
 } from "./auth-client.js";
-import { RequestCookies, ResponseCookies } from "./cookies.js";
+import { RequestCookies, ResponseCookies } from "./cookies/index.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {
   AccessTokenFactory,
@@ -70,13 +68,13 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
-import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import {
   toHeadersFromIncomingMessage,
   toNextRequest,
   toNextResponse,
   toUrlFromPagesRouter
-} from "./next-compat.js";
+} from "./http/next-compat.js";
+import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import {
@@ -84,6 +82,8 @@ import {
   SessionConfiguration,
   SessionCookieOptions
 } from "./session/abstract-session-store.js";
+import { getSessionChangesAfterGetAccessToken } from "./session/session-changes-helpers.js";
+import { buildSessionTransferRedirectUrl } from "./session/session-transfer-helpers.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import {
@@ -859,7 +859,7 @@ export class Auth0Client {
 
     // extract cookies
     let reqCookies:
-      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies/index.js").ReadonlyRequestCookies;
     if (normalizedReq) {
       reqCookies =
         normalizedReq instanceof NextRequest
@@ -884,7 +884,7 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     let reqCookies:
-      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies/index.js").ReadonlyRequestCookies;
     if (req) {
       reqCookies =
         req instanceof NextRequest
@@ -1128,7 +1128,7 @@ export class Auth0Client {
     // subject to the IPSIE primary session ceiling — skip only the ceiling check,
     // MCD domain validation still applies.
     let reqCookies:
-      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+      RequestCookies | import("./cookies/index.js").ReadonlyRequestCookies;
     if (normalizedReq) {
       reqCookies =
         normalizedReq instanceof NextRequest

@@ -6,7 +6,7 @@
  * DPoP nonce retry validation.
  */
 
-import { encrypt } from "../server/cookies.js";
+import { encrypt } from "../server/cookies/index.js";
 import { SessionData } from "../types/index.js";
 
 /**

@@ -1,7 +1,7 @@
 import * as oauth from "oauth4webapi";
 
-import { TransactionState } from "../server/transaction-store.js";
-import type { AccessTokenSet, SessionData } from "../types/index.js";
+import type { AccessTokenSet, SessionData } from "../../types/index.js";
+import { TransactionState } from "../transaction-store.js";
 
 const SESSION_EXPIRY_LEEWAY_SECONDS = 30;
 

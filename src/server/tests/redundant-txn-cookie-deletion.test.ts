@@ -23,7 +23,7 @@ import {
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
+} from "../cookies/index.js";
 import {
   AbstractSessionStore,
   SessionStoreOptions

@@ -127,26 +127,11 @@ import {
 } from "../utils/constants.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
-import { buildEnrollOptions } from "../utils/mfa-server-utils.js";
 import {
   buildVerifyParams,
   getVerifyGrantType,
   transformVerifyBodyToOptions
 } from "../utils/mfa-transform-utils.js";
-import {
-  decryptMfaToken,
-  encryptMfaToken,
-  extractMfaErrorDetails,
-  handleMfaError,
-  isMfaRequiredError
-} from "../utils/mfa-utils.js";
-import {
-  extractMfaToken,
-  parseJsonBody,
-  validateArrayFieldAndThrow,
-  validateStringFieldAndThrow,
-  validateVerificationCredentialAndThrow
-} from "../utils/mfa-validation-utils.js";
 import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
 import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
 import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
@@ -155,35 +140,12 @@ import {
   ensureDefaultScope,
   getScopeForAudience
 } from "../utils/scope-helpers.js";
-import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
-import {
-  buildSessionFromCallback,
-  isSessionCeilingInPast,
-  isSessionCeilingReached,
-  mergePopupTokenIntoSession
-} from "../utils/session-helpers.js";
-import {
-  buildSessionTransferAudience,
-  buildSessionTransferRedirectUrl,
-  mapSttServerError,
-  parseSessionTransferTokenResponse,
-  resolveActorFromSession
-} from "../utils/session-transfer-helpers.js";
-import {
-  compareScopes,
-  findAccessTokenSet,
-  isBeforeOrEqual,
-  mergeScopes,
-  normalizeExpiresAt,
-  normalizeTokenType,
-  tokenSetFromAccessTokenSet
-} from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
   type ReadonlyRequestCookies
-} from "./cookies.js";
+} from "./cookies/index.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { withDPoPNonceRetry } from "./dpop/retry.js";
 import {
@@ -198,7 +160,45 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "./fetcher/proxy.js";
+import { buildEnrollOptions } from "./mfa/mfa-server-utils.js";
+import {
+  decryptMfaToken,
+  encryptMfaToken,
+  extractMfaErrorDetails,
+  handleMfaError,
+  isMfaRequiredError
+} from "./mfa/mfa-utils.js";
+import {
+  extractMfaToken,
+  parseJsonBody,
+  validateArrayFieldAndThrow,
+  validateStringFieldAndThrow,
+  validateVerificationCredentialAndThrow
+} from "./mfa/mfa-validation-utils.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
+import { getSessionChangesAfterGetAccessToken } from "./session/session-changes-helpers.js";
+import {
+  buildSessionFromCallback,
+  isSessionCeilingInPast,
+  isSessionCeilingReached,
+  mergePopupTokenIntoSession
+} from "./session/session-helpers.js";
+import {
+  buildSessionTransferAudience,
+  buildSessionTransferRedirectUrl,
+  mapSttServerError,
+  parseSessionTransferTokenResponse,
+  resolveActorFromSession
+} from "./session/session-transfer-helpers.js";
+import {
+  compareScopes,
+  findAccessTokenSet,
+  isBeforeOrEqual,
+  mergeScopes,
+  normalizeExpiresAt,
+  normalizeTokenType,
+  tokenSetFromAccessTokenSet
+} from "./session/token-set-helpers.js";
 import {
   clampReturnTo,
   clampTransactionField,
@@ -3231,7 +3231,8 @@ export class AuthClient {
    * @internal
    */
   async getSessionWithDomainCheck(
-    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies,
+    cookies:
+      RequestCookies | import("./cookies/index.js").ReadonlyRequestCookies,
     { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
     // Read session from store

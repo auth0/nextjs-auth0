@@ -40,7 +40,7 @@ import {
   AuthClient,
   buildConnectAccountErrorResponse
 } from "../auth-client.js";
-import { decrypt, encrypt } from "../cookies.js";
+import { decrypt, encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 import { StatefulSessionStore } from "../session/stateful-session-store.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";

@@ -146,7 +146,7 @@ export type {
 export type {
   CookieOptions,
   ReadonlyRequestCookies
-} from "../server/cookies.js";
+} from "../server/cookies/index.js";
 
 export type {
   TransactionStoreOptions,

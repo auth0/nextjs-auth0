@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode
-} from "../errors/index.js";
-import { SessionData, TOKEN_TYPES } from "../types/index.js";
+} from "../../errors/index.js";
+import { SessionData, TOKEN_TYPES } from "../../types/index.js";
 import {
   buildSessionTransferAudience,
   buildSessionTransferRedirectUrl,

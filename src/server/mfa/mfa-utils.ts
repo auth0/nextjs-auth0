@@ -12,9 +12,9 @@ import {
   MfaVerifyError,
   OAuth2Error,
   SdkError
-} from "../errors/index.js";
-import { decrypt, encrypt } from "../server/cookies.js";
-import type { MfaContext } from "../types/index.js";
+} from "../../errors/index.js";
+import type { MfaContext } from "../../types/index.js";
+import { decrypt, encrypt } from "../cookies/index.js";
 
 /**
  * Encrypt mfa_token with full context before exposing to application.

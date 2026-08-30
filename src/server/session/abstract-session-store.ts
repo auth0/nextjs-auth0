@@ -6,7 +6,7 @@ import {
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
+} from "../cookies/index.js";
 
 /**
  * A predicate function that decides whether the session expiry should be extended

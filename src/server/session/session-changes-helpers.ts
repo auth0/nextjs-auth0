@@ -1,5 +1,5 @@
-import { AccessTokenSet, SessionData, TokenSet } from "../types/index.js";
-import { getScopeForAudience } from "./scope-helpers.js";
+import { AccessTokenSet, SessionData, TokenSet } from "../../types/index.js";
+import { getScopeForAudience } from "../../utils/scope-helpers.js";
 import {
   accessTokenSetFromTokenSet,
   compareScopes,

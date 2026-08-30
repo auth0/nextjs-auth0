@@ -10,7 +10,7 @@ import {
   RequestCookies,
   ResponseCookies,
   sign
-} from "../cookies.js";
+} from "../cookies/index.js";
 import {
   LEGACY_COOKIE_NAME,
   LegacySessionPayload

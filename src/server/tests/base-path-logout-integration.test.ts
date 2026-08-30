@@ -2,7 +2,7 @@ import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Auth0Client } from "../client.js";
-import { deleteChunkedCookie, deleteCookie } from "../cookies.js";
+import { deleteChunkedCookie, deleteCookie } from "../cookies/index.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
 

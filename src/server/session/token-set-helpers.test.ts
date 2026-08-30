@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AccessTokenSet, SessionData } from "../types/index.js";
+import { AccessTokenSet, SessionData } from "../../types/index.js";
 import {
   accessTokenSetFromTokenSet,
   compareScopes,
