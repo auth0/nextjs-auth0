@@ -6,27 +6,13 @@ import {
   SessionData
 } from "../../types/index.js";
 import * as cookies from "../cookies/index.js";
-import {
-  AbstractSessionStore,
-  BeforeSessionRolledHook,
-  SessionCookieOptions
-} from "./abstract-session-store.js";
+import { AbstractSessionStore } from "./abstract-session-store.js";
 import {
   LEGACY_COOKIE_NAME,
   LegacySessionPayload,
   normalizeStatelessSession
 } from "./normalize-session.js";
-
-interface StatelessSessionStoreOptions {
-  secret: string;
-
-  rolling?: boolean; // defaults to true
-  beforeSessionRolled?: BeforeSessionRolledHook;
-  absoluteDuration?: number; // defaults to 3 days
-  inactivityDuration?: number; // defaults to 1 day
-
-  cookieOptions?: SessionCookieOptions;
-}
+import type { StatelessSessionStoreOptions } from "./types.js";
 
 export class StatelessSessionStore extends AbstractSessionStore {
   connectionTokenSetsCookieName = "__FC";

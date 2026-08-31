@@ -1,4 +1,7 @@
 import { AccessTokenSet, SessionData, TokenSet } from "../../types/index.js";
+import type { ExpiresAtInput } from "./types.js";
+
+export type { ExpiresAtInput } from "./types.js";
 
 /**
  * Normalizes oauth4webapi's lowercase token_type to canonical OAuth casing.
@@ -11,12 +14,6 @@ export function normalizeTokenType(tokenType: string | undefined): string {
   if (lower === "bearer") return "Bearer";
   return tokenType.charAt(0).toUpperCase() + tokenType.slice(1);
 }
-
-/**
- * Input type for expires-at values that may come from various sources.
- * Supports number (epoch seconds), string (parseable number), null, or undefined.
- */
-export type ExpiresAtInput = number | string | null | undefined;
 
 /**
  * Normalizes an expires at value to a Unix timestamp (seconds).

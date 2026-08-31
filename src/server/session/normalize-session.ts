@@ -1,15 +1,15 @@
 import { JWTDecryptResult } from "jose";
 
 import { SessionData } from "../../types/index.js";
+import type {
+  LegacyClaims,
+  LegacyHeaders,
+  LegacySessionPayload
+} from "./types.js";
+
+export type { LegacySessionPayload } from "./types.js";
 
 export const LEGACY_COOKIE_NAME = "appSession";
-
-/**
- * Key-value store for the user's claims.
- */
-interface LegacyClaims {
-  [key: string]: any;
-}
 
 /**
  * The user's session.
@@ -53,36 +53,6 @@ export class LegacySession {
   constructor(user: LegacyClaims) {
     this.user = user;
   }
-}
-
-/**
- * The legacy headers of the session.
- */
-interface LegacyHeaders {
-  /**
-   * Timestamp (in secs) when the session was created.
-   */
-  iat: number;
-  /**
-   * Timestamp (in secs) when the session was last touched.
-   */
-  uat: number;
-  /**
-   * Timestamp (in secs) when the session expires.
-   */
-  exp: number;
-}
-
-export interface LegacySessionPayload {
-  /**
-   * The session header.
-   */
-  header: LegacyHeaders;
-
-  /**
-   * The session data.
-   */
-  data: LegacySession;
 }
 
 export function normalizeStatelessSession(

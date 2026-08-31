@@ -9,6 +9,9 @@ import {
   MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE
 } from "../../utils/constants.js";
 import { isEdgeRuntime } from "./retry.js";
+import type { DpopConfigurationOptions } from "./types.js";
+
+export type { DpopConfigurationOptions } from "./types.js";
 
 /**
  * Validates that a private and public key form a compatible key pair
@@ -86,16 +89,6 @@ export async function validateKeyPairCompatibility(
     );
     return false;
   }
-}
-
-/**
- * Configuration options for DPoP validation.
- * This interface mirrors the relevant options from Auth0ClientOptions.
- */
-export interface DpopConfigurationOptions {
-  useDPoP?: boolean;
-  dpopKeyPair?: DpopKeyPair;
-  dpopOptions?: DpopOptions;
 }
 
 /**
