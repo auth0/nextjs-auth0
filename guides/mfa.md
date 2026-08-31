@@ -233,7 +233,12 @@ import { auth0 } from "@/lib/auth0";
 try {
   // Server-side: `auth0.getAccessToken()` returns `{ token }`.
   const { token } = await auth0.getAccessToken({
-    audience: "https://api.example.com"
+    audience: "https://api.example.com",
+    // Force the token exchange so the MFA post-login Action runs and can throw
+    // `MfaRequiredError`. `getAccessToken` defaults to `refresh: false`, so a
+    // valid cached token would otherwise be returned without hitting the token
+    // endpoint and the challenge would never be triggered.
+    refresh: true
   });
 } catch (error) {
   if (error instanceof MfaRequiredError) {
@@ -242,13 +247,22 @@ try {
     // Referer header). A short-lived, httpOnly cookie keeps it server-side; the
     // /mfa page reads it back and passes it to the SDK MFA methods
     // (getAuthenticators, challenge, verify).
+    //
+    // Bind the token to the current session owner's `sub` so it cannot be
+    // replayed by a different user in the same browser (the /mfa page rejects
+    // the cookie if it does not match the active session).
+    const session = await auth0.getSession();
     const cookieStore = await cookies();
-    cookieStore.set("mfa_token", error.mfa_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 300 // keep in step with your mfaTokenTtl
-    });
+    cookieStore.set(
+      "mfa_token",
+      JSON.stringify({ sub: session?.user.sub, token: error.mfa_token }),
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 300 // keep in step with your mfaTokenTtl
+      }
+    );
     redirect("/mfa");
   }
   throw error;
@@ -264,14 +278,27 @@ import { redirect } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
 
 export default async function MfaPage() {
-  const mfaToken = (await cookies()).get("mfa_token")?.value;
-  if (!mfaToken) redirect("/"); // no pending challenge
+  const raw = (await cookies()).get("mfa_token")?.value;
+  const session = await auth0.getSession();
+
+  // No pending challenge, or no active session: nothing to do.
+  if (!raw || !session) redirect("/");
+
+  const { sub, token: mfaToken } = JSON.parse(raw);
+
+  // Reject a token issued for a different user (e.g. a user switch in the same
+  // browser). The stale cookie expires on its own via `maxAge`; clear it
+  // explicitly from a Server Action or Route Handler if you need it gone sooner.
+  if (sub !== session.user.sub) redirect("/");
 
   // Use it to list authenticators, challenge, and verify (see below).
   const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
   // ...render your MFA UI
 }
 ```
+
+> [!IMPORTANT]
+> The `mfa_token` cookie is bound to the session owner's `sub` and validated on read, so it cannot be replayed after a user switch in the same browser. Cookies can only be mutated from a Server Action or Route Handler (not a Server Component), so delete it once verification succeeds (`(await cookies()).delete("mfa_token")` inside your verify action) and clear it on logout as well (for example, from middleware that intercepts your logout route) so a stale token never outlives the session.
 
 > [!NOTE]
 > The client-side [popup flow](#reactive-mfa-step-up-popup) avoids this handoff entirely: the SDK keeps the `mfa_token` in the server-side session, so the token never travels through your own routes.
