@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@auth0/auth0-server-js':
+        specifier: ^1.12.1
+        version: 1.12.1
       '@edge-runtime/cookies':
         specifier: ^5.0.1
         version: 5.0.2
@@ -114,6 +117,12 @@ packages:
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
+
+  '@auth0/auth0-auth-js@1.12.1':
+    resolution: {integrity: sha512-YgYOAGmfwO40YOYkYSW7XvE6b+qkdlXdpzBshvOjCioygesUxIw2qRerilW1/8XQV41mnFvQIPnsTdEOHN9BeA==}
+
+  '@auth0/auth0-server-js@1.12.1':
+    resolution: {integrity: sha512-EeHSoJBCvzOv3j2ExvZy7g3m7eppsBVbgtz1j7srDhgWsd+igs2+sISewxGJ02BL0ccXbeKZk2vVmVMvvrRYmg==}
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -2760,6 +2769,16 @@ snapshots:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
+
+  '@auth0/auth0-auth-js@1.12.1':
+    dependencies:
+      jose: 6.2.9
+      openid-client: 6.8.7
+
+  '@auth0/auth0-server-js@1.12.1':
+    dependencies:
+      '@auth0/auth0-auth-js': 1.12.1
+      jose: 6.2.9
 
   '@babel/code-frame@7.29.0':
     dependencies:

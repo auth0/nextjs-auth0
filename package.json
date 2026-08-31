@@ -86,6 +86,7 @@
     }
   },
   "dependencies": {
+    "@auth0/auth0-server-js": "^1.12.1",
     "@edge-runtime/cookies": "^5.0.1",
     "@panva/hkdf": "^1.2.1",
     "jose": "^6.0.11",
