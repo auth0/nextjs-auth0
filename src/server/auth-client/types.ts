@@ -9,7 +9,8 @@ import type {
   AuthorizationParameters,
   LogoutStrategy,
   RESPONSE_TYPES,
-  SessionData
+  SessionData,
+  TokenSet
 } from "../../types/index.js";
 import type { AuthClientProvider } from "../auth-client-provider.js";
 import type { DiscoveryCache } from "../discovery-cache.js";
@@ -179,3 +180,8 @@ export type FetcherFactoryOptions<TOutput extends Response> = {
   getAccessToken: AccessTokenFactory;
   dpopHandle?: oauth.DPoPHandle;
 } & FetcherMinimalConfig<TOutput>;
+
+export type GetTokenSetResponse = {
+  tokenSet: TokenSet;
+  idTokenClaims?: { [key: string]: any };
+};

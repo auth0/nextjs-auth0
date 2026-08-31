@@ -208,45 +208,29 @@ import {
   buildConnectAccountErrorResponse,
   buildConnectedAccountsErrorResponse
 } from "./connect-account-errors.js";
+import {
+  GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+  INTERNAL_AUTHORIZE_PARAMS,
+  REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+} from "./constants.js";
+import {
+  bcloErrorResponse,
+  encodeBase64,
+  extractIssuerDomainFromToken,
+  isDPoPError,
+  validateActorTokenType,
+  validateSubjectTokenType,
+  warnIfNotCertificateBound
+} from "./helpers.js";
 import type {
   AuthClientOptions,
   BeforeSessionSavedHook,
   FetcherFactoryOptions,
+  GetTokenSetResponse,
   OnCallbackContext,
   OnCallbackHook,
   Routes
 } from "./types.js";
-
-// params passed to the /authorize endpoint that cannot be overwritten
-const INTERNAL_AUTHORIZE_PARAMS = [
-  "client_id",
-  "redirect_uri",
-  "response_type",
-  "code_challenge",
-  "code_challenge_method",
-  "state",
-  "nonce"
-];
-
-/**
- * A constant representing the grant type for federated connection access token exchange.
- *
- * This grant type is used in OAuth token exchange scenarios where a federated connection
- * access token is required. It is specific to Auth0's implementation and follows the
- * "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token" format.
- */
-const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
-  "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
-
-/**
- * A constant representing the token type for federated connection access tokens.
- * This is used to specify the type of token being requested from Auth0.
- *
- * @constant
- * @type {string}
- */
-const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
-  "http://auth0.com/oauth/token-type/federated-connection-access-token";
 
 /**
  * @private
@@ -1315,7 +1299,7 @@ export class AuthClient {
     }
 
     if (this.useMtls) {
-      this.warnIfNotCertificateBound(oidcRes.access_token);
+      warnIfNotCertificateBound(oidcRes.access_token);
     }
 
     // ★ POSTMESSAGE BRANCH
@@ -2989,23 +2973,6 @@ export class AuthClient {
     return [null, undefined];
   }
 
-  private warnIfNotCertificateBound(accessToken: string): void {
-    try {
-      const payload = jose.decodeJwt(accessToken);
-      const cnf = payload["cnf"] as Record<string, unknown> | undefined;
-      if (!cnf?.["x5t#S256"]) {
-        console.warn(
-          "[nextjs-auth0] useMtls is enabled but the issued access token does not contain " +
-            "a cnf.x5t#S256 claim. The token is not certificate-bound. " +
-            "Verify that mTLS is correctly configured on your Auth0 tenant and that " +
-            "token requests are routed through your mTLS custom domain."
-        );
-      }
-    } catch {
-      // decodeJwt only fails for opaque tokens — skip the check silently
-    }
-  }
-
   private async getClientAuth(): Promise<oauth.ClientAuth> {
     if (this.useMtls) {
       return oauth.TlsClientAuth();
@@ -3365,70 +3332,6 @@ export class AuthClient {
   }
 
   /**
-   * Validates subject_token_type: 10-100 chars, valid URI (URL or URN).
-   * The 10-100 length constraint matches the Auth0 CTE Profile Management API requirement
-   * for subject_token_type, which is used as a routing key to select a profile.
-   */
-  private validateSubjectTokenType(
-    type: string
-  ): CustomTokenExchangeError | null {
-    if (type.length < 10) {
-      return new CustomTokenExchangeError(
-        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
-        `Invalid subject_token_type: must be at least 10 characters. Received ${type.length} characters.`
-      );
-    }
-    if (type.length > 100) {
-      return new CustomTokenExchangeError(
-        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
-        `Invalid subject_token_type: must be at most 100 characters. Received ${type.length} characters.`
-      );
-    }
-    return this.validateTokenTypeUri(type, "subject_token_type");
-  }
-
-  /**
-   * Validates actor_token_type: valid URI (URL or URN).
-   * No length constraint — actor_token_type is not registered in a CTE profile
-   * and RFC 8693 §3 imposes no length limit on token type URIs.
-   */
-  private validateActorTokenType(
-    type: string
-  ): CustomTokenExchangeError | null {
-    return this.validateTokenTypeUri(type, "actor_token_type");
-  }
-
-  private validateTokenTypeUri(
-    type: string,
-    field: "subject_token_type" | "actor_token_type"
-  ): CustomTokenExchangeError | null {
-    let isValidUrl = false;
-    try {
-      new URL(type);
-      isValidUrl = true;
-    } catch {
-      // Not a valid URL, check URN format next
-    }
-
-    // URN format: urn:<nid>:<nss> where nid is alphanumeric (can contain hyphens)
-    const isValidUrn =
-      /^urn:[a-z0-9][a-z0-9-]{0,31}:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$/i.test(type);
-
-    if (!isValidUrl && !isValidUrn) {
-      const code =
-        field === "actor_token_type"
-          ? CustomTokenExchangeErrorCode.INVALID_ACTOR_TOKEN_TYPE
-          : CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE;
-      return new CustomTokenExchangeError(
-        code,
-        `Invalid ${field}: must be a valid URI (URL or URN format). Received: "${type}"`
-      );
-    }
-
-    return null;
-  }
-
-  /**
    * Exchanges an external token for Auth0 tokens via Custom Token Exchange (RFC 8693).
    *
    * This method allows you to exchange a token from an external identity provider
@@ -3475,9 +3378,7 @@ export class AuthClient {
     }
 
     // Validate subjectTokenType
-    const tokenTypeError = this.validateSubjectTokenType(
-      options.subjectTokenType
-    );
+    const tokenTypeError = validateSubjectTokenType(options.subjectTokenType);
     if (tokenTypeError) {
       return [tokenTypeError, null];
     }
@@ -3495,7 +3396,7 @@ export class AuthClient {
 
     // Validate actorTokenType is a valid URI (RFC 8693 §3)
     if (options.actorToken && options.actorTokenType) {
-      const actorTokenTypeError = this.validateActorTokenType(
+      const actorTokenTypeError = validateActorTokenType(
         options.actorTokenType
       );
       if (actorTokenTypeError) {
@@ -3688,9 +3589,7 @@ export class AuthClient {
     }
 
     // Validate subjectTokenType
-    const tokenTypeError = this.validateSubjectTokenType(
-      options.subjectTokenType
-    );
+    const tokenTypeError = validateSubjectTokenType(options.subjectTokenType);
     if (tokenTypeError) {
       return [tokenTypeError, null, null];
     }
@@ -6748,7 +6647,7 @@ export class AuthClient {
     }
 
     if (this.useMtls) {
-      this.warnIfNotCertificateBound(oauthRes.access_token);
+      warnIfNotCertificateBound(oauthRes.access_token);
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
@@ -6794,90 +6693,5 @@ export class AuthClient {
         idTokenClaims
       }
     ];
-  }
-}
-
-const encodeBase64 = (input: string) => {
-  const unencoded = new TextEncoder().encode(input);
-  const CHUNK_SIZE = 0x8000;
-  const arr = [];
-  for (let i = 0; i < unencoded.length; i += CHUNK_SIZE) {
-    arr.push(
-      // @ts-expect-error Argument of type 'Uint8Array' is not assignable to parameter of type 'number[]'.
-      String.fromCharCode.apply(null, unencoded.subarray(i, i + CHUNK_SIZE))
-    );
-  }
-  return btoa(arr.join(""));
-};
-
-type GetTokenSetResponse = {
-  tokenSet: TokenSet;
-  idTokenClaims?: { [key: string]: any };
-};
-
-/**
- * Identifies a DPoP failure by its `code` rather than an `instanceof` check.
- * `instanceof` is unreliable across module/realm boundaries (duplicate copies
- * of the error class), so we match on the well-known DPoP error codes instead.
- *
- * @internal
- */
-function isDPoPError(
-  e: unknown
-): e is { code: DPoPErrorCode; message: string } {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    "code" in e &&
-    "message" in e &&
-    typeof (e as { message: unknown }).message === "string" &&
-    Object.values(DPoPErrorCode).includes((e as { code: DPoPErrorCode }).code)
-  );
-}
-
-/**
- * Creates a NextResponse for BCLO error cases.
- * Centralizes the response format (text/plain content type) for all BCLO error branches.
- *
- * @internal
- */
-function bcloErrorResponse(message: string, status: number): NextResponse {
-  return new NextResponse(message, {
-    status,
-    headers: { "Content-Type": "text/plain" }
-  });
-}
-
-/**
- * Extracts and normalizes the issuer domain from an unverified logout token.
- *
- * Returns `[null, { domain, issuer }]` on success, or `[Error, null]` if the token
- * cannot be decoded, has no iss claim, or the issuer domain fails normalization
- * (e.g., IP address, localhost).
- *
- * SECURITY: This function decodes the JWT without verification. The unverified
- * `iss` claim is used ONLY for comparison against an independently-resolved domain
- * (resolver mode) or the configured static domain (static mode). It does NOT
- * determine which cryptographic key is used for verification — the JWKS source is
- * determined by the resolver/configuration, not by the token itself. This prevents
- * issuer-substitution attacks where an attacker supplies a token with a crafted
- * `iss` and has it verified against their own JWKS.
- *
- * @internal
- */
-function extractIssuerDomainFromToken(
-  logoutToken: string
-): [Error, null] | [null, { domain: string; issuer: string }] {
-  try {
-    const { iss } = jose.decodeJwt(logoutToken);
-    if (typeof iss !== "string" || !iss) {
-      return [
-        new Error("Missing or invalid 'iss' claim in logout token."),
-        null
-      ];
-    }
-    return [null, normalizeDomain(iss)];
-  } catch (err) {
-    return [err instanceof Error ? err : new Error(String(err)), null];
   }
 }

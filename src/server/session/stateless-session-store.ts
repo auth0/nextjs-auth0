@@ -6,16 +6,13 @@ import {
   SessionData
 } from "../../types/index.js";
 import * as cookies from "../cookies/index.js";
-import {
-  AbstractSessionStore,
-  BeforeSessionRolledHook,
-  SessionCookieOptions
-} from "./abstract-session-store.js";
+import { AbstractSessionStore } from "./abstract-session-store.js";
 import {
   LEGACY_COOKIE_NAME,
   LegacySessionPayload,
   normalizeStatelessSession
 } from "./normalize-session.js";
+import type { StatelessSessionStoreOptions } from "./types.js";
 
 // Total encoded session-cookie size (across all `__session` chunks) above which
 // we warn. A large session is the main remaining cause of `431 Request Header
@@ -40,17 +37,6 @@ const FC_COOKIE_SIZE_WARN_BYTES = 4096;
 // on every request. Emit it once per process to keep the diagnostic without
 // spamming logs.
 let sessionSizeWarningEmitted = false;
-
-interface StatelessSessionStoreOptions {
-  secret: string;
-
-  rolling?: boolean; // defaults to true
-  beforeSessionRolled?: BeforeSessionRolledHook;
-  absoluteDuration?: number; // defaults to 3 days
-  inactivityDuration?: number; // defaults to 1 day
-
-  cookieOptions?: SessionCookieOptions;
-}
 
 export class StatelessSessionStore extends AbstractSessionStore {
   connectionTokenSetsCookieName = "__FC";
