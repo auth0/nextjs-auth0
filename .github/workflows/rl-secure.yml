@@ -60,7 +60,8 @@ jobs:
         env:
           ARTIFACT_NAME: ${{ inputs.artifact-name }}
         run: |
-          tar -czvf "$ARTIFACT_NAME" *
+          pnpm pack --pack-destination .
+          mv *.tgz "$ARTIFACT_NAME"
 
       - id: get_version
         uses: ./.github/actions/get-version
