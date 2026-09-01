@@ -1067,7 +1067,13 @@ export class AuthClient {
     }
 
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
-    const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
+    const rawReturnTo = req.nextUrl.searchParams.get("returnTo");
+    const safeReturnTo = rawReturnTo
+      ? toSafeRedirect(rawReturnTo, new URL(appBaseUrl))
+      : null;
+    const returnTo: string = safeReturnTo
+      ? (rawReturnTo as string)
+      : appBaseUrl;
     const logoutState = req.nextUrl.searchParams.get("state");
     const federated = req.nextUrl.searchParams.has("federated");
 

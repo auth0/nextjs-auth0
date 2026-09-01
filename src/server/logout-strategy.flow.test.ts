@@ -769,7 +769,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should work with federated parameter and custom returnTo", async () => {
-      const customReturnTo = "https://example.com/custom-logout";
+      const customReturnTo = "http://localhost:3000/custom-logout";
       const authClient = new AuthClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
