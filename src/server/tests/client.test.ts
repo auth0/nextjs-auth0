@@ -3412,6 +3412,43 @@ describe("Auth0Client", () => {
       });
     });
   });
+
+  describe("startInteractiveLogin", () => {
+    it("forwards request cookies to AuthClient.startInteractiveLogin so transaction-cookie eviction can run", async () => {
+      process.env[ENV_VARS.DOMAIN] = "env.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "env_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "env_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.com";
+      process.env[ENV_VARS.SECRET] = "env_secret";
+
+      const client = new Auth0Client();
+
+      const mockCookieJar = { getAll: () => [] };
+      const nextHeaders = await import("next/headers.js");
+      vi.mocked(nextHeaders.cookies).mockResolvedValue(mockCookieJar as any);
+
+      const mockAuthClient = {
+        startInteractiveLogin: vi
+          .fn()
+          .mockResolvedValue(NextResponse.redirect("https://example.com"))
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+
+      await client.startInteractiveLogin();
+
+      expect(mockAuthClient.startInteractiveLogin).toHaveBeenCalledTimes(1);
+      const [, req, reqCookies] =
+        mockAuthClient.startInteractiveLogin.mock.calls[0];
+      // No NextRequest is available from Server Components/Actions.
+      expect(req).toBeUndefined();
+      // Cookies must be forwarded — otherwise TransactionStore.save() never
+      // runs eviction, and __txn_* cookies accumulate unbounded for logins
+      // started this way (e.g. from a Server Action).
+      expect(reqCookies).toBe(mockCookieJar);
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {

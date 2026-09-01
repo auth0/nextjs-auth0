@@ -10,7 +10,10 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
-import { generateSecret } from "../../test-fixtures/utils.js";
+import {
+  generateSecret,
+  stripTransactionValuePrefix
+} from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client/index.js";
@@ -268,8 +271,9 @@ describe("AuthClient passwordless methods", () => {
       const state = authParams.state as string;
       const txnCookie = resCookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
+      const jweValue = stripTransactionValuePrefix(txnCookie!.value);
       const { payload } = (await decrypt(
-        txnCookie!.value,
+        jweValue,
         secret
       )) as jose.JWTDecryptResult;
       expect(payload.nonce).toBe(authParams.nonce);
