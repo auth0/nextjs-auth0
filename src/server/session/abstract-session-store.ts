@@ -106,6 +106,10 @@ export interface SessionConfiguration {
    *
    * Default: `0` (no threshold; every eligible request rolls the session,
    * matching prior behavior).
+   *
+   * Must be smaller than `inactivityDuration`. Values greater than or equal to
+   * `inactivityDuration` are clamped down so the threshold can never make an
+   * active session appear "recently rolled" for its entire remaining lifetime.
    */
   rollingThreshold?: number;
   /**
@@ -170,9 +174,16 @@ export abstract class AbstractSessionStore {
 
     this.rolling = rolling;
     this.beforeSessionRolled = beforeSessionRolled;
-    this.rollingThreshold = rollingThreshold > 0 ? rollingThreshold : 0;
     this.absoluteDuration = absoluteDuration;
     this.inactivityDuration = inactivityDuration;
+    // Clamp to (0, inactivityDuration): a threshold >= inactivityDuration
+    // would make `inactivityDuration - rollingThreshold` non-positive, so
+    // `isWithinRollingThreshold` would consider every unexpired cookie
+    // "recently rolled" and the session would never actually be extended.
+    this.rollingThreshold =
+      rollingThreshold > 0
+        ? Math.min(rollingThreshold, inactivityDuration - 1)
+        : 0;
     this.store = store;
 
     this.sessionCookieName = cookieOptions?.name ?? SESSION_COOKIE_NAME;
