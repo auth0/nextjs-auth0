@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server.js";
 import type { SessionData, SessionDataStore } from "../../types/index.js";
 import {
   CookieOptions,
+  decrypt,
+  getChunkedCookie,
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
@@ -85,6 +87,28 @@ export interface SessionConfiguration {
    */
   beforeSessionRolled?: BeforeSessionRolledHook;
   /**
+   * Minimum number of seconds that must elapse between two rolling-session
+   * cookie writes. Only consulted when `rolling` is enabled, and applies to
+   * the middleware's passive session-touch path — the same path `beforeSessionRolled`
+   * guards.
+   *
+   * A request that arrives before the threshold has elapsed since the session
+   * cookie was last (re)issued skips the write entirely: no `Set-Cookie` header
+   * is sent and the backing store (for stateful sessions) is not touched. This
+   * is a route-agnostic complement to `beforeSessionRolled` for cutting down
+   * on redundant `Set-Cookie` headers — e.g. when a page fires several Server
+   * Actions in quick succession, each of which would otherwise re-roll the
+   * session and invalidate the Next.js Router Cache.
+   *
+   * The check only reads the `exp` claim off the existing session cookie (no
+   * backing-store read for stateful sessions), so it is cheap even when the
+   * threshold is not met.
+   *
+   * Default: `0` (no threshold; every eligible request rolls the session,
+   * matching prior behavior).
+   */
+  rollingThreshold?: number;
+  /**
    * The absolute duration after which the session will expire. The value must be specified in seconds.
    *
    * Once the absolute duration has been reached, the session will no longer be extended.
@@ -122,6 +146,7 @@ export abstract class AbstractSessionStore {
 
   protected rolling: boolean;
   private beforeSessionRolled?: BeforeSessionRolledHook;
+  private rollingThreshold: number;
   private absoluteDuration: number;
   private inactivityDuration: number;
 
@@ -134,6 +159,7 @@ export abstract class AbstractSessionStore {
 
     rolling = true,
     beforeSessionRolled,
+    rollingThreshold = 0,
     absoluteDuration = 60 * 60 * 24 * 3, // 3 days in seconds
     inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
@@ -144,6 +170,7 @@ export abstract class AbstractSessionStore {
 
     this.rolling = rolling;
     this.beforeSessionRolled = beforeSessionRolled;
+    this.rollingThreshold = rollingThreshold > 0 ? rollingThreshold : 0;
     this.absoluteDuration = absoluteDuration;
     this.inactivityDuration = inactivityDuration;
     this.store = store;
@@ -213,6 +240,13 @@ export abstract class AbstractSessionStore {
       return false;
     }
 
+    if (
+      this.rollingThreshold > 0 &&
+      (await this.isWithinRollingThreshold(req.cookies as RequestCookies))
+    ) {
+      return false;
+    }
+
     if (!this.beforeSessionRolled) {
       return true;
     }
@@ -226,6 +260,37 @@ export abstract class AbstractSessionStore {
       );
       return true;
     }
+  }
+
+  /**
+   * Returns true when the existing session cookie still carries close to a
+   * full `inactivityDuration` of remaining validity, meaning it was rolled
+   * recently (within `rollingThreshold` seconds) and does not need to be
+   * re-issued yet.
+   *
+   * Only the outer session cookie's `exp` claim is decrypted here - for
+   * stateful sessions this deliberately avoids a backing-store round trip
+   * just to decide whether a roll is due.
+   */
+  private async isWithinRollingThreshold(
+    reqCookies: RequestCookies
+  ): Promise<boolean> {
+    const cookieValue = getChunkedCookie(this.sessionCookieName, reqCookies);
+    if (!cookieValue) {
+      return false;
+    }
+
+    const decrypted = await decrypt<Record<string, unknown>>(
+      cookieValue,
+      this.secret
+    );
+    const exp = decrypted?.payload.exp;
+    if (typeof exp !== "number") {
+      return false;
+    }
+
+    const remaining = exp - this.epoch();
+    return remaining >= this.inactivityDuration - this.rollingThreshold;
   }
 
   /**

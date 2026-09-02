@@ -21,6 +21,7 @@ interface StatefulSessionStoreOptions {
 
   rolling?: boolean; // defaults to true
   beforeSessionRolled?: BeforeSessionRolledHook;
+  rollingThreshold?: number; // defaults to 0 (no threshold)
   absoluteDuration?: number; // defaults to 3 days
   inactivityDuration?: number; // defaults to 1 day
 
@@ -45,6 +46,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     store,
     rolling,
     beforeSessionRolled,
+    rollingThreshold,
     absoluteDuration,
     inactivityDuration,
     cookieOptions
@@ -53,6 +55,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       secret,
       rolling,
       beforeSessionRolled,
+      rollingThreshold,
       absoluteDuration,
       inactivityDuration,
       cookieOptions
