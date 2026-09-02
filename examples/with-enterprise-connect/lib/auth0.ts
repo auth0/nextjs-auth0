@@ -9,14 +9,32 @@ export interface AppSession {
   name?: string;
 }
 
-// Session is stored as base64 JSON in a cookie — no server-side store needed for this demo.
-// In production use a signed/encrypted cookie or a database-backed session.
+// This is a minimal, secure default. In production, replace this with whatever session mechanism your app already has.
+// Signs the cookie with the native Web Crypto API (no extra package) so the payload can't be forged.
+const enc = new TextEncoder();
+const key = () =>
+  crypto.subtle.importKey(
+    "raw",
+    enc.encode(process.env.AUTH0_SECRET!),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
+
 export async function getAppSession(): Promise<AppSession | null> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get("app_session")?.value;
+  const raw = (await cookies()).get("app_session")?.value;
   if (!raw) return null;
+  const [body, signature] = raw.split(".");
+  if (!body || !signature) return null;
   try {
-    return JSON.parse(Buffer.from(raw, "base64").toString("utf-8")) as AppSession;
+    // Verify the signature before trusting the payload; reject if tampered.
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      await key(),
+      Buffer.from(signature, "base64url"),
+      enc.encode(body)
+    );
+    return valid ? (JSON.parse(Buffer.from(body, "base64url").toString()) as AppSession) : null;
   } catch {
     return null;
   }
@@ -32,9 +50,6 @@ export const auth0 = new Auth0Client({
   async onCallback(error, ctx, session) {
     if (error) throw error;
 
-    // No authenticated user on the callback: surface it on the login page
-    // instead of silently re-prompting (which would look like a redirect loop).
-    // onCallback must return a NextResponse on every path.
     if (!session?.user) {
       const loginUrl = new URL("/login", process.env.APP_BASE_URL);
       loginUrl.searchParams.set("error", "no-session");
@@ -44,13 +59,11 @@ export const auth0 = new Auth0Client({
     const user = session.user;
     const orgId = user["org_id"] as string;
 
-    // In production, validate orgId against your database before trusting the login.
-    // The check below only verifies the claim exists — replace with a real lookup:
-    // e.g. const isKnown = await db.orgs.exists(orgId); if (!isKnown) throw new Error(...)
     if (!orgId) {
       throw new Error("org_id missing from token");
     }
 
+    // session.user holds the OIDC claims; keep only the fields you need.
     const appSession: AppSession = {
       sub: user.sub,
       email: user.email as string,
@@ -58,11 +71,17 @@ export const auth0 = new Auth0Client({
       name: user.name as string | undefined
     };
 
-    const encoded = Buffer.from(JSON.stringify(appSession)).toString("base64");
+    // Sign the payload so the cookie can't be forged: "<body>.<signature>".
+    const body = Buffer.from(JSON.stringify(appSession)).toString("base64url");
+    const signature = Buffer.from(
+      await crypto.subtle.sign("HMAC", await key(), enc.encode(body))
+    ).toString("base64url");
+
     const returnTo = ctx.returnTo ?? "/dashboard";
     const res = NextResponse.redirect(new URL(returnTo, process.env.APP_BASE_URL));
-    res.cookies.set("app_session", encoded, {
+    res.cookies.set("app_session", `${body}.${signature}`, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/"
     });
