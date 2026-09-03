@@ -331,48 +331,6 @@ describe("mTLS AuthClient", () => {
       expect((clientArg as oauth.Client).use_mtls_endpoint_aliases).toBe(true);
       expect(tokenArg).toBe("rt_mtls_123");
     });
-
-    it("does not call oauth.revocationRequest when useMtls=false", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
-
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-        domain: DOMAIN,
-        clientId: CLIENT_ID,
-        clientSecret: "some-secret",
-        secret,
-        appBaseUrl: "https://example.com",
-        routes: getDefaultRoutes(),
-        fetch: vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
-      });
-
-      const session: SessionData = {
-        user: { sub: "user_123" },
-        tokenSet: {
-          accessToken: "at_123",
-          refreshToken: "rt_plain_123",
-          expiresAt: 9999999999
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Math.floor(Date.now() / 1000)
-        }
-      };
-      const expiration = Math.floor(Date.now() / 1000 + 3600);
-      const sessionCookie = await encrypt(session, secret, expiration);
-      const headers = new Headers();
-      headers.append("cookie", `__session=${sessionCookie}`);
-
-      const request = new NextRequest(
-        new URL("/auth/logout", "https://example.com"),
-        { method: "GET", headers }
-      );
-
-      await authClient.handleLogout(request);
-
-      expect(oauth.revocationRequest).not.toHaveBeenCalled();
-    });
   });
 
   describe("discovery guard — mtls_endpoint_aliases missing", () => {

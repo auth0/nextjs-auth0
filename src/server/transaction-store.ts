@@ -5,10 +5,89 @@ import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
-// Value prefix for prefetch-created cookies — pure garbage, never leads to a
-// real callback. Short maxAge (60s) further limits accumulation window.
-const PREFETCH_VALUE_PREFIX = "p:";
-const PREFETCH_MAX_AGE = 60; // seconds
+// Maximum total byte size of all transaction (`__txn_*`) cookies
+// combined. When the accumulated size meets or exceeds this limit, the oldest
+// cookies are evicted (FIFO by creation timestamp) before a new one is written.
+// One JWE is ~450–555 bytes, so this allows ~6 concurrent in-flight logins —
+// enough for multi-tab use while staying well under the request-header limits
+// enforced by browsers (~4 KB per cookie) and servers/proxies. Intentionally
+// fixed and not configurable: it caps transaction-cookie accumulation regardless
+// of the deployment's header limit, which the SDK cannot know.
+const MAX_TRANSACTION_COOKIE_BYTES = 3500;
+
+// Ceiling on any single user-influenced string field in `TransactionState`
+// (returnTo, scope, audience). A very long value in any of these can push the
+// transaction cookie past `MAX_TRANSACTION_COOKIE_BYTES` on its own, which the
+// FIFO eviction below cannot fix (there is nothing to evict that would make
+// room). Anything longer is clamped back to a safe fallback by
+// `clampTransactionField` and warned once. 2 KB is well above any realistic
+// value for these fields and well under the ~3 KB budget available inside the
+// JWE + cookie envelope.
+export const MAX_TRANSACTION_FIELD_BYTES = 2048;
+
+// Backward-compatible alias — the export name callers migrated to first.
+export const MAX_RETURN_TO_BYTES = MAX_TRANSACTION_FIELD_BYTES;
+
+// Emit once per process — same reasoning as sessionSizeWarningEmitted in
+// stateless-session-store.ts: prefetch/bot traffic hits this path repeatedly,
+// so a per-eviction warn would spam logs.
+let txnEvictionWarningEmitted = false;
+// Separate flag for the "single cookie exceeds cap on its own" case. Distinct
+// from `txnEvictionWarningEmitted` so an operator sees the right diagnostic
+// even if the other warn has already fired earlier in the process.
+let txnOversizeWarningEmitted = false;
+
+// One flag per field so a scope clamp does not silence a later returnTo clamp
+// (each field surfaces independently to the developer).
+const clampWarnEmittedByField = new Set<string>();
+
+/**
+ * If a user-influenced transaction field would push the transaction cookie past
+ * `MAX_TRANSACTION_COOKIE_BYTES`, clamp it back to `fallback` and warn once per
+ * field. Returning `fallback` instead of throwing preserves the login flow so
+ * the user lands on the default post-login path (or an unspecified value if
+ * `fallback` is `undefined`) instead of hitting a 500. For `returnTo`, this is
+ * safe because `toSafeRedirect` has already validated same-origin; for `scope`
+ * and `audience`, the authorization server will reject any invalid value at
+ * `/authorize`, so silently clamping cannot escalate to something worse than a
+ * failed authorize call.
+ *
+ * @param fieldName - Which field is being clamped ("returnTo" | "scope" | "audience").
+ *                    Used in the warning text and to guard the once-per-field emit.
+ * @param value     - Current value of the field.
+ * @param fallback  - Value to substitute when `value` exceeds the ceiling.
+ */
+export function clampTransactionField<T extends string | undefined>(
+  fieldName: string,
+  value: T,
+  fallback: T
+): T {
+  if (
+    value === undefined ||
+    new TextEncoder().encode(value).length <= MAX_TRANSACTION_FIELD_BYTES
+  ) {
+    return value;
+  }
+  if (!clampWarnEmittedByField.has(fieldName)) {
+    clampWarnEmittedByField.add(fieldName);
+    console.warn(
+      `[auth0] ${fieldName} value exceeds ${MAX_TRANSACTION_FIELD_BYTES} bytes; ` +
+        `clamping to ${fallback ?? "undefined"} to keep the transaction cookie ` +
+        `under the header size limit. Shorten the ${fieldName} value in your ` +
+        `application.`
+    );
+  }
+  return fallback;
+}
+
+/**
+ * Backward-compatible wrapper: same behaviour as
+ * `clampTransactionField("returnTo", returnTo, fallback)` but with the
+ * original name callers already imported.
+ */
+export function clampReturnTo(returnTo: string, fallback: string): string {
+  return clampTransactionField("returnTo", returnTo, fallback);
+}
 
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
@@ -58,24 +137,6 @@ export interface TransactionCookieOptions {
    */
   prefix?: string;
   /**
-   * Maximum total byte size of all transaction cookies combined. When the
-   * accumulated size meets or exceeds this limit, cookies are evicted before
-   * the new one is written using a two-phase strategy:
-   *
-   * Phase 1 — delete all prefetch cookies (value prefix `p:`). These are
-   * provably garbage and never lead to a completed OAuth flow.
-   *
-   * Phase 2 — if still over threshold after phase 1, evict real login cookies
-   * oldest-first by the timestamp encoded in their value prefix (`{ts}:`).
-   * Zero crypto decryption happens during eviction.
-   *
-   * One `__txn_*` JWE is ~450–555 bytes. Default `4096` allows ~7–9 cookies —
-   * well under the 8 KB request-header limit most servers enforce.
-   *
-   * @default 4096
-   */
-  maxSizeBytes?: number;
-  /**
    * The sameSite attribute of the transaction cookie.
    *
    * Default: `lax`.
@@ -92,7 +153,7 @@ export interface TransactionCookieOptions {
    */
   path?: string;
   /**
-   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3|Domain Set-Cookie attribute}. By default, no
+   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3 | Domain Set-Cookie attribute}. By default, no
    * domain is set, and most clients will consider the cookie to apply to only
    * the current domain.
    */
@@ -117,13 +178,6 @@ export interface TransactionStoreOptions {
    * @default true
    */
   enableParallelTransactions?: boolean;
-  /**
-   * Mirrors the `dangerouslyAllowLoginPrefetch` flag from `Auth0ClientOptions`.
-   * Controls the eviction strategy when `maxSizeBytes` is exceeded.
-   *
-   * @default false
-   */
-  dangerouslyAllowLoginPrefetch?: boolean;
 }
 
 /**
@@ -136,14 +190,11 @@ export class TransactionStore {
   private readonly transactionCookiePrefix: string;
   private readonly cookieOptions: cookies.CookieOptions;
   private readonly enableParallelTransactions: boolean;
-  private readonly maxSizeBytes: number;
-  private readonly dangerouslyAllowLoginPrefetch: boolean;
 
   constructor({
     secret,
     cookieOptions,
-    enableParallelTransactions,
-    dangerouslyAllowLoginPrefetch
+    enableParallelTransactions
   }: TransactionStoreOptions) {
     this.secret = secret;
     this.transactionCookiePrefix =
@@ -157,8 +208,6 @@ export class TransactionStore {
       maxAge: cookieOptions?.maxAge || 60 * 60 // 1 hour in seconds
     };
     this.enableParallelTransactions = enableParallelTransactions ?? true;
-    this.maxSizeBytes = cookieOptions?.maxSizeBytes ?? 4096;
-    this.dangerouslyAllowLoginPrefetch = dangerouslyAllowLoginPrefetch ?? false;
   }
 
   /**
@@ -184,122 +233,183 @@ export class TransactionStore {
    *
    * @param resCookies - The response cookies object to set the transaction cookie on
    * @param transactionState - The transaction state to save
-   * @param reqCookies - Optional request cookies. When provided, enables maxSizeBytes
-   *                     eviction before writing the new cookie.
-   * @param isPrefetch - When true, the cookie value is prefixed with "p:" and gets a
-   *                     short maxAge (60s). Prefetch cookies are evicted first during
-   *                     eviction and never match a real callback.
+   * @param reqCookies - Optional request cookies. When provided, enables FIFO
+   *                     eviction of accumulated transaction cookies (capped at
+   *                     {@link MAX_TRANSACTION_COOKIE_BYTES}) before writing the
+   *                     new cookie.
    * @throws {Error} When transaction state is missing required state parameter
    */
   async save(
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState,
-    reqCookies?: cookies.RequestCookies,
-    isPrefetch?: boolean
+    reqCookies?: cookies.RequestCookies | cookies.ReadonlyRequestCookies
   ) {
     if (!transactionState.state) {
       throw new Error("Transaction state is required");
     }
 
-    // Evict accumulated transaction cookies when accumulated size meets the cap.
-    // Safety net for abandoned logins and silent prefetches that bypass Fix 1
-    // (e.g. router.prefetch(), CDNs that strip sec-fetch-mode).
-    if (reqCookies) {
-      const existing = reqCookies
-        .getAll()
-        .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
-      const totalBytes = existing.reduce(
-        (sum, c) =>
-          sum + new TextEncoder().encode(`${c.name}=${c.value}`).length,
-        0
-      );
-      if (totalBytes >= this.maxSizeBytes) {
-        // Two-phase eviction — zero crypto decryption.
-        // Phase 1: evict all prefetch cookies (value starts with "p:") — always garbage.
-        // Phase 2: if still over threshold, evict real login cookies oldest-first
-        //          by timestamp encoded in value prefix ("{ts}:").
-        const deleteOptions = {
-          domain: this.cookieOptions.domain,
-          path: this.cookieOptions.path,
-          secure: this.cookieOptions.secure,
-          sameSite: this.cookieOptions.sameSite,
-          httpOnly: this.cookieOptions.httpOnly
-        };
-
-        const prefetchCookies = existing.filter((c) =>
-          c.value.startsWith(PREFETCH_VALUE_PREFIX)
-        );
-        const realCookies = existing
-          .filter((c) => !c.value.startsWith(PREFETCH_VALUE_PREFIX))
-          .sort((a, b) => {
-            // Parse timestamp from "{ts}:{jwe}" — legacy "{jwe}" gets timestamp 0
-            const tsA = parseInt(a.value) || 0;
-            const tsB = parseInt(b.value) || 0;
-            return tsA - tsB; // ascending — oldest first
-          });
-
-        let freed = prefetchCookies.reduce(
-          (sum, c) =>
-            sum + new TextEncoder().encode(`${c.name}=${c.value}`).length,
-          0
-        );
-
-        const toEvict = [...prefetchCookies];
-        if (freed < totalBytes - this.maxSizeBytes + 1) {
-          // Phase 1 insufficient — evict oldest real login cookies until under threshold
-          for (const c of realCookies) {
-            toEvict.push(c);
-            freed += new TextEncoder().encode(`${c.name}=${c.value}`).length;
-            if (freed >= totalBytes - this.maxSizeBytes + 1) break;
-          }
-        }
-
-        if (toEvict.length > 0) {
-          const evictedPrefetch = toEvict.filter((c) =>
-            c.value.startsWith(PREFETCH_VALUE_PREFIX)
-          ).length;
-          const evictedReal = toEvict.length - evictedPrefetch;
-          console.warn(
-            `[auth0] Evicting ${toEvict.length} transaction cookie(s) ` +
-              `(${totalBytes} bytes ≥ ${this.maxSizeBytes} byte limit): ` +
-              `${evictedPrefetch} prefetch, ${evictedReal} real login(s). ` +
-              `Increase transactionCookie.maxSizeBytes to reduce eviction of in-flight logins.`
-          );
-          for (const c of toEvict) {
-            cookies.deleteCookie(resCookies, c.name, deleteOptions);
-          }
-        }
-      }
-    }
-
-    const expirationSeconds = isPrefetch
-      ? PREFETCH_MAX_AGE
-      : this.cookieOptions.maxAge!;
-    const expiration = Math.floor(Date.now() / 1000 + expirationSeconds);
+    const expiration = Math.floor(
+      Date.now() / 1000 + this.cookieOptions.maxAge!
+    );
     const jwe = await cookies.encrypt(
       transactionState,
       this.secret,
       expiration
     );
 
-    // Encode type and creation timestamp in the value for O(1) classification
-    // during eviction — no cookie name change, no breaking change.
-    // "p:{jwe}"      → prefetch cookie (60s TTL, evicted first)
-    // "{ts}:{jwe}"   → real login cookie (FIFO by ts during phase-2 eviction)
+    // Encode creation timestamp in the value for O(1) FIFO ordering during eviction.
+    // Format: "{ts}:{jwe}" — cookie name is unchanged.
+    //
+    // Compatibility notes:
+    // - Forward (new code reads old cookie): get() strips a "{ts}:" prefix
+    //   before decrypting, so legacy bare "{jwe}" values still read correctly.
+    //   See `get()` below.
+    // - Backward (old code reads new cookie): a version of get() that predates
+    //   this change passes the full "{ts}:{jwe}" string to decrypt(), which
+    //   returns null (ERR_JWE_INVALID is swallowed). Any in-flight login
+    //   started against a pod with this write-side change but completed against
+    //   a pod without the read-side prefix stripping will fail once — the user
+    //   sees "state parameter is invalid" and must re-initiate login. This
+    //   affects rolling deploys where old and new pods coexist, and rollbacks.
+    //   Transaction cookies are short-lived (default maxAge 1h), so the window
+    //   is bounded to one hour after the deploy/rollback boundary.
+    //
+    //   To eliminate the window, ship the get() prefix-stripping in a prior
+    //   backfill release; then every pod can read the new format before the
+    //   first pod writes it. If that is not feasible, call out the one-time
+    //   in-flight login failure in the release notes.
     const ts = Math.floor(Date.now() / 1000);
-    const encodedValue = isPrefetch
-      ? `${PREFETCH_VALUE_PREFIX}${jwe}`
-      : `${ts}:${jwe}`;
+    const newCookieName = this.getTransactionCookieName(transactionState.state);
+    const newCookieValue = `${ts}:${jwe}`;
 
-    const cookieOptions = isPrefetch
-      ? { ...this.cookieOptions, maxAge: PREFETCH_MAX_AGE }
-      : this.cookieOptions;
+    // Evict oldest transaction cookies FIFO before writing the new one, so the
+    // accumulated `__txn_*` cookies stay under the fixed byte limit. Only
+    // transaction cookies are measured/deleted — the session and other cookies
+    // are left untouched, and the cookie about to be written is never evicted.
+    if (reqCookies) {
+      this.evictOldestTransactionCookies(
+        reqCookies,
+        resCookies,
+        newCookieName,
+        newCookieValue
+      );
+    }
 
-    resCookies.set(
-      this.getTransactionCookieName(transactionState.state),
-      encodedValue,
-      cookieOptions
+    resCookies.set(newCookieName, newCookieValue, this.cookieOptions);
+  }
+
+  /**
+   * Evicts the oldest transaction cookies (FIFO by the `{ts}:` value prefix) from
+   * the response so that the accumulated `__txn_*` cookies — including the one
+   * about to be written — stay under {@link MAX_TRANSACTION_COOKIE_BYTES}.
+   *
+   * Only cookies matching the transaction prefix are measured and deleted — the
+   * session, connection-token, and application cookies are never touched. The
+   * cookie about to be (re)written for the current transaction (`newCookieName`)
+   * is never evicted. No-op when the projected total is under the limit.
+   *
+   * @param newCookieName - Name of the cookie about to be written (never evicted).
+   * @param newCookieValue - Value of that cookie; its size is included in the cap
+   *                         so a large new cookie can still trigger eviction.
+   */
+  private evictOldestTransactionCookies(
+    reqCookies: cookies.RequestCookies | cookies.ReadonlyRequestCookies,
+    resCookies: cookies.ResponseCookies,
+    newCookieName: string,
+    newCookieValue: string
+  ) {
+    const sizeOf = (name: string, value: string) =>
+      new TextEncoder().encode(`${name}=${value}`).length;
+
+    const txnCookies = reqCookies
+      .getAll()
+      .filter((c) => c.name.startsWith(this.transactionCookiePrefix));
+
+    // Existing transaction-cookie bytes, excluding any cookie with the same name
+    // as the one we're about to write — its old bytes are replaced, not added.
+    const existingBytes = txnCookies.reduce(
+      (sum, c) =>
+        c.name === newCookieName ? sum : sum + sizeOf(c.name, c.value),
+      0
     );
+    // Project the total that will be on the request header after this write.
+    const projectedBytes =
+      existingBytes + sizeOf(newCookieName, newCookieValue);
+
+    if (projectedBytes < MAX_TRANSACTION_COOKIE_BYTES) {
+      return;
+    }
+
+    const deleteOptions = {
+      domain: this.cookieOptions.domain,
+      path: this.cookieOptions.path,
+      secure: this.cookieOptions.secure,
+      sameSite: this.cookieOptions.sameSite,
+      httpOnly: this.cookieOptions.httpOnly
+    };
+
+    // Sort by timestamp encoded in value prefix "{ts}:{jwe}".
+    // Legacy bare "{jwe}" values (no colon) get timestamp 0 — evicted first.
+    const sorted = [...txnCookies].sort(
+      (a, b) =>
+        this.parseCookieTimestamp(a.value) - this.parseCookieTimestamp(b.value)
+    );
+
+    let freed = 0;
+    const target = projectedBytes - MAX_TRANSACTION_COOKIE_BYTES + 1;
+    for (const c of sorted) {
+      // Never evict the cookie we are about to (re)write for this state.
+      if (c.name === newCookieName) continue;
+      cookies.deleteCookie(resCookies, c.name, deleteOptions);
+      freed += sizeOf(c.name, c.value);
+      if (freed >= target) break;
+    }
+
+    if (freed > 0) {
+      // Something was actually evicted — the accumulation-of-abandoned-logins
+      // diagnostic is the right one to surface. Guarded by `freed > 0` so we
+      // do not send an operator hunting for phantom abandoned logins when the
+      // real issue is a single oversized cookie (see the else branch below).
+      if (!txnEvictionWarningEmitted) {
+        txnEvictionWarningEmitted = true;
+        console.warn(
+          `[auth0] Evicted the oldest transaction cookie(s) — projected total size ${projectedBytes} bytes ` +
+            `reached the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit. This usually means many ` +
+            `login flows were started but never completed (e.g. prefetches or abandoned logins); ` +
+            `reduce transactionCookie.maxAge if in-flight logins are being evicted too aggressively.`
+        );
+      }
+    } else {
+      // Nothing was evicted but the cap is still exceeded — the new cookie
+      // itself is bigger than the cap on its own. Usually means a very long
+      // `returnTo`, `scope`, or `audience` slipped past the field clamps.
+      // Different message so the operator does not go looking for accumulation.
+      if (!txnOversizeWarningEmitted) {
+        txnOversizeWarningEmitted = true;
+        console.warn(
+          `[auth0] Transaction cookie exceeds the ${MAX_TRANSACTION_COOKIE_BYTES} byte limit ` +
+            `on its own (projected size ${projectedBytes} bytes). This is usually caused by a very ` +
+            `long returnTo, scope, or audience value on /auth/login. Check the field clamps in ` +
+            `handleLogin; the cookie was still written but may be rejected by the browser or a proxy.`
+        );
+      }
+    }
+  }
+
+  /**
+   * Extracts the creation timestamp from a cookie value shaped "{ts}:{jwe}".
+   * Legacy bare "{jwe}" values (no colon) have no timestamp and sort first (0).
+   * Uses an explicit split on the first colon rather than `parseInt`, so a
+   * legacy JWE that happens to start with digits is never mistaken for a
+   * timestamp — consistent with the split used in {@link get}.
+   */
+  private parseCookieTimestamp(value: string): number {
+    const colonIdx = value.indexOf(":");
+    if (colonIdx === -1) {
+      return 0;
+    }
+    const ts = Number(value.slice(0, colonIdx));
+    return Number.isFinite(ts) ? ts : 0;
   }
 
   async get(reqCookies: cookies.RequestCookies, state: string) {
@@ -310,10 +420,7 @@ export class TransactionStore {
       return null;
     }
 
-    // Strip value prefix before decryption — backward compatible with legacy "{jwe}" format.
-    // "p:{jwe}"    → strip "p:" prefix
-    // "{ts}:{jwe}" → strip "{ts}:" prefix (find first colon)
-    // "{jwe}"      → no prefix, decrypt as-is (legacy)
+    // Strip "{ts}:" prefix before decryption — backward compatible with legacy bare "{jwe}".
     const colonIdx = cookieValue.indexOf(":");
     const jwe = colonIdx !== -1 ? cookieValue.slice(colonIdx + 1) : cookieValue;
 
@@ -348,37 +455,6 @@ export class TransactionStore {
 
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        cookies.deleteCookie(resCookies, cookie.name, deleteOptions);
-      }
-    });
-  }
-
-  /**
-   * Deletes all prefetch-created transaction cookies (value prefix "p:").
-   * These are provably garbage — they were created by non-navigational requests
-   * and can never lead to a completed OAuth flow.
-   *
-   * Called on callback success to sweep accumulated prefetch cookies without
-   * touching real in-flight logins from other tabs.
-   */
-  async deletePrefetchCookies(
-    reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
-  ) {
-    const txnPrefix = this.getCookiePrefix();
-    const deleteOptions = {
-      domain: this.cookieOptions.domain,
-      path: this.cookieOptions.path,
-      secure: this.cookieOptions.secure,
-      sameSite: this.cookieOptions.sameSite,
-      httpOnly: this.cookieOptions.httpOnly
-    };
-
-    reqCookies.getAll().forEach((cookie) => {
-      if (
-        cookie.name.startsWith(txnPrefix) &&
-        cookie.value.startsWith(PREFETCH_VALUE_PREFIX)
-      ) {
         cookies.deleteCookie(resCookies, cookie.name, deleteOptions);
       }
     });

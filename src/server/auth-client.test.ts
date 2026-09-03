@@ -18,8 +18,13 @@ import {
   BackchannelAuthenticationError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidConfigurationError,
-  MyAccountApiError
+  MyAccountApiError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
@@ -30,7 +35,7 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient } from "./auth-client.js";
+import { AuthClient, buildConnectAccountErrorResponse } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -116,7 +121,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onCompleteConnectAccountRequest,
     completeConnectAccountErrorResponse,
     onRevocationRequest,
-    revocationErrorResponse
+    revocationErrorResponse,
+    onListConnectedAccountsRequest,
+    listConnectedAccountsResponses,
+    onDeleteConnectedAccountRequest,
+    deleteConnectedAccountErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -132,7 +141,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     completeConnectAccountErrorResponse?: Response;
     onRevocationRequest?: (request: Request) => Promise<void>;
     revocationErrorResponse?: Response;
+    onListConnectedAccountsRequest?: (request: Request) => Promise<void>;
+    // Successive responses for the paginated list endpoint. Each call consumes
+    // the next entry; the last entry is reused once exhausted.
+    listConnectedAccountsResponses?: Response[];
+    onDeleteConnectedAccountRequest?: (request: Request) => Promise<void>;
+    deleteConnectedAccountErrorResponse?: Response;
   } = {}) {
+    let listConnectedAccountsCallCount = 0;
     // this function acts as a mock authorization server
     return vi.fn(
       async (
@@ -280,6 +296,41 @@ ca/T0LLtgmbMmxSv/MmzIg==
               status: 201
             }
           );
+        }
+
+        // List connected accounts
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts" &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          if (onListConnectedAccountsRequest) {
+            await onListConnectedAccountsRequest(new Request(input, init));
+          }
+
+          if (listConnectedAccountsResponses?.length) {
+            const index = Math.min(
+              listConnectedAccountsCallCount,
+              listConnectedAccountsResponses.length - 1
+            );
+            listConnectedAccountsCallCount++;
+            return listConnectedAccountsResponses[index];
+          }
+
+          return Response.json({ accounts: [] }, { status: 200 });
+        }
+
+        // Delete connected account
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          if (onDeleteConnectedAccountRequest) {
+            await onDeleteConnectedAccountRequest(new Request(input, init));
+          }
+          if (deleteConnectedAccountErrorResponse) {
+            return deleteConnectedAccountErrorResponse;
+          }
+          return new Response(null, { status: 204 });
         }
 
         // Revocation endpoint
@@ -4004,6 +4055,114 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const cookie = response.cookies.get("__session");
         expect(cookie?.maxAge).toEqual(0);
       });
+
+      it("should call revocation endpoint on logout when session has a refresh token", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const onRevocationRequest = vi.fn(
+          async () => {}
+        ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({ onRevocationRequest })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(onRevocationRequest).toHaveBeenCalledOnce();
+
+        const body = await onRevocationRequest.mock.calls[0][0].clone().text();
+        const params = new URLSearchParams(body);
+        expect(params.get("token")).toEqual(DEFAULT.refreshToken);
+      });
+
+      it("should not block logout if revocation fails and should warn", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer({
+            revocationErrorResponse: new Response(
+              JSON.stringify({ error: "server_error" }),
+              { status: 500 }
+            )
+          })
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 3600);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          { method: "GET", headers }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("[nextjs-auth0]"),
+          expect.anything()
+        );
+
+        warnSpy.mockRestore();
+      });
     });
   });
 
@@ -4237,6 +4396,67 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
       expect(transactionCookie!.maxAge).toEqual(0);
+    });
+
+    it("should reject the callback when the ID token's nonce does not match the transaction's stored nonce", async () => {
+      const state = "transaction-state";
+      const code = "auth-code";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        // The mock token endpoint returns an ID token signed with a nonce
+        // that differs from the one stored in the transaction below —
+        // this is what a magic-link ID token replay would look like.
+        fetch: getMockAuthorizationServer({ nonce: "attacker-supplied-nonce" })
+      });
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+      url.searchParams.set("code", code);
+      url.searchParams.set("state", state);
+
+      const headers = new Headers();
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        codeVerifier: "code-verifier",
+        responseType: RESPONSE_TYPES.CODE,
+        state: state,
+        returnTo: "/dashboard"
+      };
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+      );
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handleCallback(request);
+
+      // oauth4webapi's expectedNonce check fails and throws; the SDK
+      // surfaces this as a 500 AuthorizationCodeGrantError, matching the
+      // max_age mismatch case below. No session cookie should be set.
+      expect(response.status).toEqual(500);
+      expect(await response.text()).toEqual(
+        "An error occurred while trying to exchange the authorization code."
+      );
+      expect(response.cookies.get("__session")).toBeUndefined();
     });
 
     it("should reject at login when session_expiry is already in the past — no session cookie, no redirect to returnTo", async () => {
@@ -9338,7 +9558,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: undefined,
+        loginHint: "000100123"
       });
     });
 
@@ -9441,7 +9663,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: undefined,
+        loginHint: "000100123"
       });
       expect(fetchSpy).toHaveBeenCalled();
     });
@@ -9884,6 +10108,517 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error).toBeTruthy();
       expect(error?.code).toBe("failed_to_exchange_refresh_token");
       expect(connectionTokenSet).toBeNull();
+    });
+  });
+
+  describe("listConnectedAccounts", async () => {
+    function buildAuthClient(fetchSpy: any) {
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret: "secret" }),
+        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret: "secret",
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+    }
+
+    const tokenSet = {
+      accessToken: "my-account-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+
+    it("returns the mapped connected accounts from a single page", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                {
+                  id: "cac_1",
+                  connection: "google-oauth2",
+                  access_type: "offline",
+                  scopes: ["email"],
+                  created_at: "2024-01-01T00:00:00.000Z",
+                  expires_at: "2024-02-01T00:00:00.000Z",
+                  org_id: "org_123"
+                }
+              ]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts).toEqual([
+        {
+          id: "cac_1",
+          connection: "google-oauth2",
+          accessType: "offline",
+          scopes: ["email"],
+          createdAt: "2024-01-01T00:00:00.000Z",
+          expiresAt: "2024-02-01T00:00:00.000Z",
+          orgId: "org_123"
+        }
+      ]);
+    });
+
+    it("maps orgId as undefined for accounts not bound to an organization", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [{ id: "cac_1", connection: "google-oauth2" }]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts?.[0].orgId).toBeUndefined();
+    });
+
+    it("follows pagination via the next token", async () => {
+      const listConnectedAccountsResponses = [
+        Response.json(
+          {
+            accounts: [{ id: "cac_1", connection: "google-oauth2" }],
+            next: "page-2"
+          },
+          { status: 200 }
+        ),
+        Response.json(
+          { accounts: [{ id: "cac_2", connection: "github" }] },
+          { status: 200 }
+        )
+      ];
+      const nextParams: (string | null)[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses,
+        onListConnectedAccountsRequest: async (req) => {
+          nextParams.push(new URL(req.url).searchParams.get("next"));
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts?.map((a) => a.id)).toEqual(["cac_1", "cac_2"]);
+      // First request has no next param, second passes the token from page 1.
+      expect(nextParams).toEqual([null, "page-2"]);
+    });
+
+    it("returns a FAILED_TO_LIST error on a non-ok response", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              type: "https://auth0.com/errors",
+              title: "Forbidden",
+              detail: "insufficient scope"
+            },
+            { status: 403 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.cause?.status).toBe(403);
+    });
+
+    it("fails with FAILED_TO_LIST when the server repeats the same next token", async () => {
+      // A server that echoes the same `next` token on every page would loop
+      // forever without the cycle guard. Returning the partial list as success
+      // is unsafe (callers reconcile against it destructively), so we surface a
+      // FAILED_TO_LIST error instead. Each call returns a fresh Response
+      // (bodies can only be read once).
+      let requests = 0;
+      const base = getMockAuthorizationServer();
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts" &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          requests++;
+          return Response.json(
+            {
+              accounts: [{ id: "cac_1", connection: "google-oauth2" }],
+              next: "same-token"
+            },
+            { status: 200 }
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe(
+        "Connected-account pagination did not terminate safely."
+      );
+      // First page (no token) + one page for "same-token", then the repeat is
+      // detected before a third request is issued.
+      expect(requests).toBe(2);
+    });
+
+    it("returns a FAILED_TO_LIST error when the fetch throws", async () => {
+      // A transport-level failure (e.g. network error) is thrown, not returned
+      // as a non-ok Response, and must be caught and surfaced as a typed error.
+      const fetchSpy = vi.fn(async () => {
+        throw new TypeError("network down");
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe(
+        "An unexpected error occurred while trying to list the connected accounts."
+      );
+    });
+
+    it("surfaces a DPoPError message when listing throws one", async () => {
+      // A DPoP failure throws a DPoPError; its message is passed through rather
+      // than the generic fallback. Discovery must succeed first (it also uses
+      // this.fetch), so only the accounts request throws.
+      const base = getMockAuthorizationServer();
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname === "/me/v1/connected-accounts/accounts") {
+          throw new DPoPError(
+            DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+            "DPoP keypair is missing."
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe("DPoP keypair is missing.");
+    });
+  });
+
+  describe("disconnectAccount", async () => {
+    function buildAuthClient(fetchSpy: any) {
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret: "secret" }),
+        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret: "secret",
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+    }
+
+    const tokenSet = {
+      accessToken: "my-account-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+
+    it("deletes every account matching the connection", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                { id: "cac_1", connection: "google-oauth2" },
+                { id: "cac_2", connection: "github" },
+                { id: "cac_3", connection: "google-oauth2" }
+              ]
+            },
+            { status: 200 }
+          )
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(error).toBeNull();
+      expect(deletedIds).toEqual(["cac_1", "cac_3"]);
+      expect(removed?.map((a) => a.id)).toEqual(["cac_1", "cac_3"]);
+    });
+
+    it("is idempotent when no account matches the connection", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_2", connection: "github" }] },
+            { status: 200 }
+          )
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(error).toBeNull();
+      expect(deletedIds).toEqual([]);
+      expect(removed).toEqual([]);
+    });
+
+    it("propagates a list error without attempting deletes", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json({ title: "Nope", detail: "no" }, { status: 401 })
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error?.code).toBe("failed_to_list");
+      expect(deletedIds).toEqual([]);
+    });
+
+    it("returns a FAILED_TO_DELETE error when a delete fails", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ],
+        deleteConnectedAccountErrorResponse: Response.json(
+          { title: "Too many", detail: "rate limited" },
+          { status: 429 }
+        )
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.cause?.status).toBe(429);
+    });
+
+    it("returns a FAILED_TO_DELETE error even when the first delete succeeded (partial failure)", async () => {
+      // Two accounts for the same connection: cac_1 unlinks successfully, cac_2
+      // fails with 429. The error surfaces so the caller knows the disconnect
+      // did not fully complete. The caller-side (client.ts) prunes connection
+      // -scoped cached tokens regardless, so orphaned __FC cookies are cleaned up.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                { id: "cac_1", connection: "google-oauth2" },
+                { id: "cac_2", connection: "google-oauth2" }
+              ]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts/cac_1" &&
+          init?.method === "DELETE"
+        ) {
+          return new Response(null, { status: 204 });
+        }
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts/cac_2" &&
+          init?.method === "DELETE"
+        ) {
+          return Response.json(
+            { title: "Too many", detail: "rate limited" },
+            { status: 429 }
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.cause?.status).toBe(429);
+    });
+
+    it("returns a FAILED_TO_DELETE error when the delete fetch throws", async () => {
+      // List succeeds, but the DELETE transport call throws (e.g. network
+      // error). The thrown error must be caught and surfaced as a typed error.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          throw new TypeError("network down");
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.message).toBe(
+        "An unexpected error occurred while trying to delete the connected account."
+      );
+    });
+
+    it("surfaces a DPoPError message when the delete throws one", async () => {
+      // List succeeds; the DELETE throws a DPoPError whose message is passed
+      // through rather than the generic fallback.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          throw new DPoPError(
+            DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+            "DPoP keypair is missing."
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.message).toBe("DPoP keypair is missing.");
+    });
+  });
+
+  describe("buildConnectAccountErrorResponse", async () => {
+    it("falls back to a plain error when the response body is not JSON", async () => {
+      // Some error responses (e.g. an upstream proxy 502) carry a non-JSON
+      // body; `res.json()` then throws and we must still return a typed error
+      // without a MyAccountApiError cause.
+      const res = new Response("<html>Bad Gateway</html>", {
+        status: 502,
+        headers: { "content-type": "text/html" }
+      });
+
+      const [error, result] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_INITIATE
+      );
+
+      expect(result).toBeNull();
+      expect(error).toBeInstanceOf(ConnectAccountError);
+      expect(error?.code).toBe(ConnectAccountErrorCodes.FAILED_TO_INITIATE);
+      expect(error?.message).toBe(
+        "The request to initiate the connect account flow failed with status 502."
+      );
+      // No parseable body means no MyAccountApiError cause is attached.
+      expect(error?.cause).toBeUndefined();
+    });
+
+    it("uses the complete verb for a FAILED_TO_COMPLETE code", async () => {
+      const res = new Response("not json", {
+        status: 500,
+        headers: { "content-type": "text/plain" }
+      });
+
+      const [error] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+      );
+
+      expect(error?.message).toBe(
+        "The request to complete the connect account flow failed with status 500."
+      );
     });
   });
 
@@ -11358,6 +12093,128 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
       expect((fetcher as any).config.dpopHandle).toBeUndefined();
       expect((fetcher as any).hooks.isDpopEnabled()).toBe(false);
+    });
+  });
+
+  describe("revokeToken", () => {
+    async function createAuthClient(
+      fetch: ReturnType<typeof getMockAuthorizationServer>
+    ) {
+      const secret = await generateSecret(32);
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret }),
+        sessionStore: new StatelessSessionStore({ secret }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch
+      });
+    }
+
+    it("should revoke a token and forward client credentials", async () => {
+      let capturedBody: URLSearchParams | undefined;
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          onRevocationRequest: async (request) => {
+            capturedBody = new URLSearchParams(await request.text());
+          }
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).toBeNull();
+      expect(result).toBeUndefined();
+      expect(capturedBody?.get("token")).toBe(DEFAULT.refreshToken);
+      expect(capturedBody?.get("token_type_hint")).toBe("refresh_token");
+      expect(capturedBody?.get("client_id")).toBe(DEFAULT.clientId);
+      expect(capturedBody?.get("client_secret")).toBe(DEFAULT.clientSecret);
+    });
+
+    it("should omit token_type_hint when not provided", async () => {
+      let capturedBody: URLSearchParams | undefined;
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          onRevocationRequest: async (request) => {
+            capturedBody = new URLSearchParams(await request.text());
+          }
+        })
+      );
+
+      const [error] = await authClient.revokeToken(DEFAULT.refreshToken);
+
+      expect(error).toBeNull();
+      expect(capturedBody?.has("token_type_hint")).toBe(false);
+    });
+
+    it("should return a TokenRevocationError when the token is empty", async () => {
+      const authClient = await createAuthClient(getMockAuthorizationServer());
+
+      const [error, result] = await authClient.revokeToken("");
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      expect(error?.code).toBe(TokenRevocationErrorCode.MISSING_REFRESH_TOKEN);
+      expect(result).toBeNull();
+    });
+
+    it("should return a TokenRevocationError when the token is whitespace only", async () => {
+      const authClient = await createAuthClient(getMockAuthorizationServer());
+
+      const [error, result] = await authClient.revokeToken("   ");
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      expect(error?.code).toBe(TokenRevocationErrorCode.MISSING_REFRESH_TOKEN);
+      expect(result).toBeNull();
+    });
+
+    it("should return the original discovery error when discovery fails", async () => {
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          discoveryResponse: new Response(null, { status: 500 })
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).not.toBeNull();
+      expect(error).not.toBeInstanceOf(TokenRevocationError);
+      expect(result).toBeNull();
+    });
+
+    it("should return a TokenRevocationError when the request fails", async () => {
+      const authClient = await createAuthClient(
+        getMockAuthorizationServer({
+          revocationErrorResponse: Response.json(
+            {
+              error: "invalid_request",
+              error_description: "bad token"
+            },
+            { status: 400 }
+          )
+        })
+      );
+
+      const [error, result] = await authClient.revokeToken(
+        DEFAULT.refreshToken,
+        "refresh_token"
+      );
+
+      expect(error).toBeInstanceOf(TokenRevocationError);
+      const revocationError = error as TokenRevocationError;
+      expect(revocationError.code).toBe(
+        TokenRevocationErrorCode.FAILED_TO_REVOKE
+      );
+      expect(revocationError.cause?.code).toBe("invalid_request");
+      expect(result).toBeNull();
     });
   });
 });

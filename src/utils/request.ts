@@ -18,25 +18,47 @@ export const isRequest = (req: Req): req is Request | NextRequest => {
 };
 
 /**
- * Returns true if the request is non-navigational (e.g. a prefetch, fetch, or
- * XHR) rather than a full browser navigation. Used to guard against Next.js
- * prefetch requests triggering side-effectful handlers like handleLogin.
+ * Returns true only when a request carries an unambiguous prefetch signal.
+ * Used to block Next.js prefetch requests from triggering handleLogin.
  *
- * Uses the W3C Fetch Metadata `sec-fetch-mode` header as the primary signal
- * (supported in Chrome 76+, Firefox 90+, Safari 16.4+). Falls back to
- * Next.js-specific and legacy prefetch headers for older environments.
+ * Only headers that are exclusive to prefetches are checked:
+ * - `next-router-prefetch` / `x-middleware-prefetch` — Next.js prefetch markers
+ * - `purpose` / `sec-purpose` = `prefetch` — W3C/browser prefetch hints
+ *
+ * `sec-purpose` matching:
+ * - `prefetch` alone → prefetch, block it.
+ * - `prefetch;prerender` → Speculation Rules prerender. The browser activates
+ *   this as the real navigation when the user clicks, so blocking it with 204
+ *   would silently swallow the login click. Excluded by requiring the value
+ *   does not contain `prerender`.
+ *
+ * Intentionally excludes:
+ * - `sec-fetch-mode` — also set on legitimate fetch()/XHR calls to /auth/login.
+ * - `accept: text/x-component` — sent by ALL App Router RSC requests, including
+ *   real client-side `<Link>` navigations (e.g. `<Link prefetch={false}>`), so
+ *   matching it would 401 genuine login clicks, not just prefetches.
+ *
+ * Note: `x-middleware-prefetch` is a Pages Router signal only
+ * (`shared/lib/router/router.js`). It never fires on App Router prefetch paths,
+ * but is kept for Pages Router coverage.
  */
 export const isNonNavigationalRequest = (req: NextRequest): boolean => {
-  const fetchMode = req.headers.get("sec-fetch-mode");
-  if (fetchMode !== null) {
-    return fetchMode !== "navigate";
-  }
-
+  const secPurpose = req.headers.get("sec-purpose") ?? "";
+  const routerPrefetch = req.headers.get("next-router-prefetch");
   return (
-    req.headers.get("next-router-prefetch") === "1" ||
-    req.headers.get("accept") === "text/x-component" ||
+    // next-router-prefetch: "1" = AUTO prefetch (Next 15); "2" = runtime
+    // prefetch (Next 16+). Accept any truthy non-"0"/non-"false" value to
+    // cover future Next versions, but reject falsy values a proxy or client
+    // might set explicitly — matching those would silently 204 real logins.
+    isTruthyHeaderValue(routerPrefetch) ||
     req.headers.get("purpose") === "prefetch" ||
-    req.headers.get("sec-purpose") === "prefetch" ||
+    (secPurpose.includes("prefetch") && !secPurpose.includes("prerender")) ||
     req.headers.get("x-middleware-prefetch") === "1"
   );
+};
+
+const isTruthyHeaderValue = (value: string | null): boolean => {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized !== "" && normalized !== "0" && normalized !== "false";
 };

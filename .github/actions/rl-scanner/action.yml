@@ -40,18 +40,23 @@ runs:
         RLSECURE_SITE_KEY: ${{ env.RLSECURE_SITE_KEY }}
         SIGNAL_HANDLER_TOKEN: ${{ env.SIGNAL_HANDLER_TOKEN }}
         PYTHONUNBUFFERED: 1
+        ARTIFACT_PATH: ${{ inputs.artifact-path }}
+        VERSION: ${{ inputs.version }}
+        REPOSITORY_NAME: ${{ github.event.repository.name }}
+        REPOSITORY: ${{ github.repository }}
+        COMMIT_SHA: ${{ github.sha }}
       run: |
-        if [ ! -f "${{ inputs.artifact-path }}" ]; then
-          echo "Artifact not found: ${{ inputs.artifact-path }}"
+        if [ ! -f "$ARTIFACT_PATH" ]; then
+          echo "Artifact not found: $ARTIFACT_PATH"
           exit 1
         fi
 
         rl-wrapper \
-          --artifact "${{ inputs.artifact-path }}" \
-          --name "${{ github.event.repository.name }}" \
-          --version "${{ inputs.version }}" \
-          --repository "${{ github.repository }}" \
-          --commit "${{ github.sha }}" \
+          --artifact "$ARTIFACT_PATH" \
+          --name "$REPOSITORY_NAME" \
+          --version "$VERSION" \
+          --repository "$REPOSITORY" \
+          --commit "$COMMIT_SHA" \
           --build-env "github_actions" \
           --suppress_output
 

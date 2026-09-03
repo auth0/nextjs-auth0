@@ -10,6 +10,13 @@ export const DEFAULT_SCOPES = [
 ].join(" ");
 
 /**
+ * Default scopes for Session Transfer Token exchanges — same as {@link DEFAULT_SCOPES}
+ * minus `offline_access`. Auth0 silently drops `offline_access` for STT-issued
+ * impersonation sessions, so requesting it here would just be a scope the server ignores.
+ */
+export const DEFAULT_STT_SCOPES = ["openid", "profile", "email"].join(" ");
+
+/**
  * Default clock skew in seconds for DPoP proof validation.
  *
  * Clock skew adjusts the assumed current time when validating DPoP proofs.

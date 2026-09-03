@@ -17,7 +17,9 @@ export {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   CustomTokenExchangeError,
-  CustomTokenExchangeErrorCode
+  CustomTokenExchangeErrorCode,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "./oauth-errors.js";
 
 export { DPoPError, DPoPErrorCode } from "./dpop-errors.js";
@@ -27,7 +29,9 @@ export { MtlsError, MtlsErrorCode } from "./mtls-errors.js";
 export {
   MyAccountApiError,
   ConnectAccountError,
-  ConnectAccountErrorCodes
+  ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes
 } from "./my-account-errors.js";
 
 export {

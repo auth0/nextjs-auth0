@@ -18,6 +18,8 @@ import {
   BackchannelLogoutError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode,
   DiscoveryError,
@@ -45,7 +47,9 @@ import {
   PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError,
-  SdkError
+  SdkError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import {
   IssuerValidationError,
@@ -56,7 +60,8 @@ import {
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
   ConnectAccountRequest,
-  ConnectAccountResponse
+  ConnectAccountResponse,
+  ConnectedAccount
 } from "../types/connected-accounts.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -99,8 +104,11 @@ import {
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult,
   StartInteractiveLoginOptions,
   SUBJECT_TOKEN_TYPES,
+  TOKEN_TYPES,
   TokenSet,
   User,
   VerifyMfaOptions
@@ -114,7 +122,8 @@ import {
 } from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
-  DEFAULT_SCOPES
+  DEFAULT_SCOPES,
+  DEFAULT_STT_SCOPES
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
@@ -160,6 +169,13 @@ import {
   mergePopupTokenIntoSession
 } from "../utils/session-helpers.js";
 import {
+  buildSessionTransferAudience,
+  buildSessionTransferRedirectUrl,
+  mapSttServerError,
+  parseSessionTransferTokenResponse,
+  resolveActorFromSession
+} from "../utils/session-transfer-helpers.js";
+import {
   compareScopes,
   findAccessTokenSet,
   isBeforeOrEqual,
@@ -183,7 +199,12 @@ import {
   FetcherMinimalConfig
 } from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import {
+  clampReturnTo,
+  clampTransactionField,
+  TransactionState,
+  TransactionStore
+} from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
 
 export type BeforeSessionSavedHook = (
@@ -212,7 +233,7 @@ export type OnCallbackContext = {
   /**
    * The return strategy for this callback flow.
    * - 'redirect' (default): Standard OAuth redirect flow
-   * - 'postMessage': Popup flow returning via window.postMessage
+   * - 'popup': Popup flow returning via window.postMessage
    * Hook authors can use this to detect popup flows and adapt behavior.
    */
   challengeMode?: "redirect" | "popup";
@@ -359,18 +380,6 @@ export interface AuthClientOptions {
   cspNonce?: string;
 
   /**
-   * When `false` (default), the SDK returns a `401` on prefetch requests to the
-   * login route, preventing `__txn_*` cookies from being created for OAuth flows
-   * that will never complete.
-   *
-   * Set to `true` only if your login route renders custom page content worth
-   * prefetching (i.e. it does not immediately redirect to Auth0).
-   *
-   * @default false
-   */
-  dangerouslyAllowLoginPrefetch?: boolean;
-
-  /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
@@ -428,7 +437,6 @@ export class AuthClient {
 
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
-  private readonly dangerouslyAllowLoginPrefetch: boolean;
 
   private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
 
@@ -615,8 +623,6 @@ export class AuthClient {
 
     // CSP nonce for popup postMessage inline scripts
     this.cspNonce = options.cspNonce;
-    this.dangerouslyAllowLoginPrefetch =
-      options.dangerouslyAllowLoginPrefetch ?? false;
 
     // Store keypair if provided, but validate lazily to avoid crypto bundling
     this.dpopKeyPair = options.dpopKeyPair;
@@ -659,19 +665,6 @@ export class AuthClient {
     this.dpopValidated = true;
   }
 
-  private async cleanupTransactionCookies(
-    req: NextRequest,
-    resCookies: ResponseCookies,
-    state: string
-  ): Promise<void> {
-    // Targeted cleanup — regardless of dangerouslyAllowLoginPrefetch flag:
-    // 1. Sweep all accumulated "p:" prefetch cookies — provably garbage, never match a callback
-    // 2. Delete only the single __txn_{state} that belongs to this completing flow
-    // All other real login cookies (e.g. Tab B mid-login, prompt:login multi-account) are untouched.
-    await this.transactionStore.deletePrefetchCookies(req.cookies, resCookies);
-    await this.transactionStore.delete(resCookies, state);
-  }
-
   async handler(req: NextRequest): Promise<NextResponse> {
     let { pathname } = req.nextUrl;
 
@@ -688,11 +681,18 @@ export class AuthClient {
     const method = req.method;
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
-      if (
-        !this.dangerouslyAllowLoginPrefetch &&
-        isNonNavigationalRequest(req)
-      ) {
-        return new NextResponse(null, { status: 401 });
+      if (isNonNavigationalRequest(req)) {
+        // 204 No Content signals "intentionally did nothing" for prefetch/
+        // non-navigational requests, avoiding polluting auth-failure telemetry
+        // and access logs. Next.js discards prefetch responses regardless, so
+        // behavior is unaffected.
+        // Cache-Control: no-store prevents CDNs and reverse proxies from caching
+        // this 204 — RFC 9111 makes 204 heuristically cacheable without an explicit
+        // directive, so a cached 204 would silently break real login navigations.
+        return new NextResponse(null, {
+          status: 204,
+          headers: { "Cache-Control": "no-store" }
+        });
       }
       return this.handleLogin(req);
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
@@ -821,7 +821,8 @@ export class AuthClient {
 
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
-    req?: NextRequest
+    req?: NextRequest,
+    reqCookies?: RequestCookies | ReadonlyRequestCookies
   ): Promise<NextResponse> {
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
@@ -840,10 +841,12 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo =
+        returnTo = clampReturnTo(
           sanitizedReturnTo.pathname +
-          sanitizedReturnTo.search +
-          sanitizedReturnTo.hash;
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
       }
     }
 
@@ -939,6 +942,11 @@ export class AuthClient {
       }
       resolvedMaxAge = parsed;
     }
+    // scope and audience come from user-controllable query params on
+    // /auth/login, so clamp each independently to keep the resulting cookie
+    // under the byte cap. A ridiculous value gets replaced with `undefined`
+    // (equivalent to not passing the field), and the authorization server
+    // will reject any invalid value at /authorize.
     const transactionState: TransactionState = {
       nonce,
       maxAge: resolvedMaxAge,
@@ -946,8 +954,16 @@ export class AuthClient {
       responseType: RESPONSE_TYPES.CODE,
       state,
       returnTo,
-      scope: authorizationParams.get("scope") || undefined,
-      audience: authorizationParams.get("audience") || undefined,
+      scope: clampTransactionField(
+        "scope",
+        authorizationParams.get("scope") || undefined,
+        undefined
+      ),
+      audience: clampTransactionField(
+        "audience",
+        authorizationParams.get("audience") || undefined,
+        undefined
+      ),
       challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
       // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
@@ -969,13 +985,10 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    // Save transaction state; pass req.cookies so save() can apply maxSizeBytes eviction.
-    // isPrefetch encodes "p:" prefix in value so eviction and cleanup can classify O(1).
     await this.transactionStore.save(
       res.cookies,
       transactionState,
-      req?.cookies,
-      req ? isNonNavigationalRequest(req) : false
+      req?.cookies ?? reqCookies
     );
 
     return res;
@@ -1136,14 +1149,18 @@ export class AuthClient {
     // Revoke the refresh token before clearing the session so it cannot be
     // replayed after logout (e.g. from a stolen session cookie). Errors are
     // swallowed — a failed revocation must never block the logout redirect.
-    if (this.useMtls && session?.tokenSet.refreshToken && !hasDomainMismatch) {
+    if (session?.tokenSet.refreshToken && !hasDomainMismatch) {
       try {
-        await this.revokeRefreshToken(
+        await this.performTokenRevocation(
           authorizationServerMetadata,
-          session.tokenSet.refreshToken
+          session.tokenSet.refreshToken,
+          "refresh_token"
         );
-      } catch {
-        // intentionally ignored
+      } catch (e) {
+        console.warn(
+          "[nextjs-auth0] Failed to revoke refresh token during logout (logout will still proceed):",
+          e
+        );
       }
     }
 
@@ -1280,7 +1297,7 @@ export class AuthClient {
         session
       );
 
-      await this.cleanupTransactionCookies(req, res.cookies, state);
+      await this.transactionStore.delete(res.cookies, state);
 
       return res;
     }
@@ -1490,7 +1507,7 @@ export class AuthClient {
           true
         );
         addCacheControlHeadersForSession(popupResponse);
-        await this.cleanupTransactionCookies(req, popupResponse.cookies, state);
+        await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       } else {
         // No existing session (edge case: session expired during popup flow)
@@ -1560,7 +1577,7 @@ export class AuthClient {
           true
         );
         addCacheControlHeadersForSession(popupResponse);
-        await this.cleanupTransactionCookies(req, popupResponse.cookies, state);
+        await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       }
     }
@@ -1622,7 +1639,7 @@ export class AuthClient {
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
-    await this.cleanupTransactionCookies(req, res.cookies, state);
+    await this.transactionStore.delete(res.cookies, state);
 
     return res;
   }
@@ -2781,7 +2798,7 @@ export class AuthClient {
   /**
    * Handle errors during the OAuth callback flow.
    *
-   * For popup flows (`challengeMode: 'postMessage'`): returns error details
+   * For popup flows (`challengeMode: 'popup'`): returns error details
    * as a postMessage HTML page instead of redirecting. The parent window
    * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
    * and the promise returned by `challengeWithPopup()` rejects with a typed error.
@@ -3022,19 +3039,92 @@ export class AuthClient {
     return as;
   }
 
-  private async revokeRefreshToken(
+  /**
+   * Low-level revocation call against the authorization server's
+   * `/oauth/revoke` endpoint. Callers must supply the discovered metadata.
+   *
+   * @param as The discovered authorization server metadata.
+   * @param token The token to revoke.
+   * @param tokenTypeHint Optional `token_type_hint` per RFC 7009.
+   */
+  private async performTokenRevocation(
     as: oauth.AuthorizationServer,
-    refreshToken: string
+    token: string,
+    tokenTypeHint?: "refresh_token" | "access_token"
   ): Promise<void> {
     const clientAuth = await this.getClientAuth();
     const response = await oauth.revocationRequest(
       as,
       this.clientMetadata,
       clientAuth,
-      refreshToken,
-      { [oauth.customFetch]: this.fetch, ...this.httpOptions() }
+      token,
+      {
+        [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+        ...this.httpOptions(),
+        ...(tokenTypeHint
+          ? { additionalParameters: { token_type_hint: tokenTypeHint } }
+          : {})
+      }
     );
     await oauth.processRevocationResponse(response);
+  }
+
+  /**
+   * Revokes a token at the Auth0 `/oauth/revoke` endpoint (RFC 7009).
+   *
+   * Per RFC 7009, revoking a refresh token also invalidates the other tokens
+   * issued under the same authorization grant. Client authentication
+   * (`client_secret`, Private Key JWT, or mTLS) is applied automatically based
+   * on the configured client credentials.
+   *
+   * @param token The token to revoke.
+   * @param tokenTypeHint Optional `token_type_hint` (`refresh_token` or `access_token`).
+   * @returns A tuple of `[error, null]` on failure or `[null, undefined]` on success.
+   */
+  async revokeToken(
+    token: string,
+    tokenTypeHint?: "refresh_token" | "access_token"
+  ): Promise<[SdkError, null] | [null, undefined]> {
+    if (!token || token.trim() === "") {
+      return [
+        new TokenRevocationError(
+          TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
+          "A token is required to perform revocation."
+        ),
+        null
+      ];
+    }
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    try {
+      await this.performTokenRevocation(
+        authorizationServerMetadata,
+        token,
+        tokenTypeHint
+      );
+    } catch (e) {
+      return [
+        new TokenRevocationError(
+          TokenRevocationErrorCode.FAILED_TO_REVOKE,
+          "An error occurred while trying to revoke the token.",
+          new OAuth2Error({
+            code:
+              e instanceof oauth.ResponseBodyError ? e.error : "revoke_failed",
+            message: e instanceof Error ? e.message : String(e)
+          })
+        ),
+        null
+      ];
+    }
+
+    return [null, undefined];
   }
 
   private warnIfNotCertificateBound(accessToken: string): void {
@@ -3402,7 +3492,8 @@ export class AuthClient {
             Math.floor(Date.now() / 1000) +
             Number(tokenEndpointResponse.expires_in),
           scope: tokenEndpointResponse.scope,
-          connection: options.connection
+          connection: options.connection,
+          ...(options.login_hint ? { loginHint: options.login_hint } : {})
         }
       ];
     }
@@ -3674,6 +3765,372 @@ export class AuthClient {
   }
 
   /**
+   * Requests a Session Transfer Token (STT) via Custom Token Exchange.
+   *
+   * The STT is a one-shot, ~60s token that lets an authenticated agent establish
+   * a web session **as the customer** in a target app — without the customer's password.
+   * Pass the result to `buildSessionTransferRedirect` to start the redirect.
+   *
+   * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`.
+   * The actor is sourced from the agent session's ID token. The token must be an
+   * unexpired, asymmetrically-signed (RS256/PS256) JWT — the server rejects HS256
+   * or expired actor tokens. If the session ID token is expired and a refresh token
+   * is present the SDK silently refreshes it first; if no refresh token is available
+   * the exchange fails client-side with `ACTOR_UNAVAILABLE`. If that refresh itself
+   * requires MFA step-up, the error is `[MfaRequiredError, null, null]` — same as any
+   * other refresh-triggered step-up — rather than being collapsed into `ACTOR_UNAVAILABLE`.
+   * On Multiple Custom Domains (MCD) tenants, a session created for a different domain than
+   * the current request is never used as the actor source (`ACTOR_UNAVAILABLE`) — this holds
+   * even if the caller bypasses `Auth0Client`'s own domain check on session read.
+   * Precedence: explicit `options.actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
+   *
+   * **The STT is never cached.** Use it immediately with `buildSessionTransferRedirect`.
+   *
+   * @param options - STT exchange options
+   * @param session - The agent's current session, used to source the actor token
+   * @returns A tuple of `[error, null, null]` or `[null, SessionTransferTokenResult, updatedSession]`.
+   * `updatedSession` is non-null only when the agent's ID token was refreshed to resolve the
+   * actor — the caller (`Auth0Client.requestSessionTransferToken`) MUST persist it back to the
+   * session store, or the agent's session cookie will hold a stale refresh token once refresh
+   * token rotation consumes it.
+   *
+   * @example
+   * ```typescript
+   * const session = await this.getSession();
+   * const [error, result, updatedSession] = await authClient.requestSessionTransferToken(
+   *   { subjectToken, subjectTokenType: "urn:acme:subject" },
+   *   session
+   * );
+   * ```
+   */
+  async requestSessionTransferToken(
+    options: SessionTransferTokenOptions,
+    session: SessionData | null
+  ): Promise<
+    | [CustomTokenExchangeError | MfaRequiredError, null, null]
+    | [null, SessionTransferTokenResult, SessionData | null]
+  > {
+    await this.ensureDpopValidated();
+
+    // Validate subjectToken
+    if (!options.subjectToken || options.subjectToken.trim() === "") {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN,
+          "The subject_token is required and cannot be empty."
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Validate subjectTokenType
+    const tokenTypeError = this.validateSubjectTokenType(
+      options.subjectTokenType
+    );
+    if (tokenTypeError) {
+      return [tokenTypeError, null, null];
+    }
+
+    // MCD defense-in-depth: refuse to source the actor from a session created for a
+    // different domain than the current request. `Auth0Client.requestSessionTransferToken`
+    // already enforces this via `getSession()` → `getSessionWithDomainCheck`, but this method
+    // can also be called directly with a session read some other way, so the guard is
+    // duplicated here rather than relied on solely at the caller. Only applies when the actor
+    // is sourced from the session — an explicit `actor` bypasses the session entirely.
+    if (
+      !options.actor &&
+      session?.internal?.mcd &&
+      session.internal.mcd.domain !== this.domain
+    ) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
+          `No usable actor token: the agent session was created for domain '${session.internal.mcd.domain}' ` +
+            `but the current request is for domain '${this.domain}'.`
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Resolve actor — must come before any network call (client-side guard).
+    // If the session ID token is expired but a refresh token is available, attempt a
+    // silent refresh to get a fresh ID token before giving up with ACTOR_UNAVAILABLE.
+    // `refreshedSession`, once set, is returned to the caller so it can persist the new
+    // refresh token — #refreshTokenSet only returns the new token set, it does not save it,
+    // and refresh token rotation invalidates the old one still sitting in the session cookie.
+    //
+    // Only attempt this when no explicit `actor` was passed: `resolveActorFromSession` returns
+    // the same ACTOR_UNAVAILABLE code whether the cause is a blank explicit actor or a stale
+    // session ID token, so we can't distinguish them from the error alone. Gating on
+    // `!options.actor` ensures a bad explicit actor never triggers a wasted refresh (or a
+    // confusing MfaRequiredError) for a problem refreshing the session can't fix.
+    let [actorError, actor] = resolveActorFromSession(session, options.actor);
+    let refreshedSession: SessionData | null = null;
+    if (!options.actor && actorError && session?.tokenSet?.refreshToken) {
+      const [refreshError, refreshed] = await this.#refreshTokenSet(
+        session.tokenSet,
+        { requestedScope: DEFAULT_SCOPES }
+      );
+      // A step-up challenge on the refresh is a distinct, recoverable case from "no usable
+      // actor" — surface it to the caller instead of silently falling through to
+      // ACTOR_UNAVAILABLE, which would give the agent no path to complete MFA and retry.
+      if (refreshError instanceof MfaRequiredError) {
+        return [refreshError, null, null];
+      }
+      if (!refreshError && refreshed?.updatedTokenSet?.idToken) {
+        refreshedSession = {
+          ...session,
+          user: refreshed.idTokenClaims
+            ? (refreshed.idTokenClaims as User)
+            : session.user,
+          tokenSet: refreshed.updatedTokenSet
+        };
+        [actorError, actor] = resolveActorFromSession(
+          refreshedSession,
+          options.actor
+        );
+      }
+    }
+    if (actorError) {
+      return [actorError, null, null];
+    }
+
+    // Discover authorization server metadata
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "Failed to discover authorization server metadata.",
+          new OAuth2Error({
+            code: "discovery_error",
+            message: discoveryError.message
+          })
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Build the STT-specific audience: urn:{domain}:session_transfer
+    // Use this.domain (the effective domain for this request) so MCD tenants
+    // get the correct per-domain audience.
+    const audience = buildSessionTransferAudience(this.domain);
+
+    // Merge scopes. offline_access is excluded from the STT default scopes — Auth0
+    // silently suppresses it for impersonation sessions, so requesting it here would
+    // just be a scope the server ignores.
+    const finalScope = mergeScopes(DEFAULT_STT_SCOPES, options.scope);
+
+    const params = new URLSearchParams();
+    params.append("subject_token", options.subjectToken);
+    params.append("subject_token_type", options.subjectTokenType);
+    params.append("audience", audience);
+    params.append("scope", finalScope);
+    params.append("actor_token", actor!.token);
+    params.append("actor_token_type", actor!.type);
+
+    if (options.organization) {
+      params.append("organization", options.organization);
+    }
+    if (options.reason) {
+      params.append("reason", options.reason);
+    }
+    if (options.additionalParameters) {
+      // Guard against callers overriding parameters the SDK manages — silently
+      // shadowing e.g. audience or actor_token would break the STT contract, and
+      // organization/reason are already appended above so re-appending them here
+      // would produce a duplicate (and ambiguous) query param.
+      const reservedParams = new Set([
+        "subject_token",
+        "subject_token_type",
+        "audience",
+        "scope",
+        "actor_token",
+        "actor_token_type",
+        "grant_type",
+        "organization",
+        "reason"
+      ]);
+      for (const [key, value] of Object.entries(options.additionalParameters)) {
+        if (reservedParams.has(key)) {
+          continue;
+        }
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      }
+    }
+
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+
+    // STT responses carry `token_type: "N_A"` which oauth4webapi's
+    // processGenericTokenEndpointResponse rejects. We send the request via
+    // genericTokenEndpointRequest and parse the body ourselves.
+    const sendExchange = async (): Promise<Response> => {
+      return oauth.genericTokenEndpointRequest(
+        tokenExchangeMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          ...(dpopHandle && { DPoP: dpopHandle })
+        }
+      );
+    };
+
+    // DPoP nonce handling via the shared retry helper (Path 1: it inspects the
+    // returned Response for a `use_dpop_nonce` 400 and retries once). The DPoP
+    // handle learns the nonce from the `DPoP-Nonce` header automatically, so the
+    // resent request carries a valid proof. When DPoP is disabled this is a
+    // single pass-through call.
+    let httpResponse: Response;
+    try {
+      httpResponse = await withDPoPNonceRetry(sendExchange, {
+        isDPoPEnabled: !!(this.useDPoP && dpopHandle),
+        ...this.dpopOptions?.retry
+      });
+    } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+      const errorCode = oauthErr.error ?? "unknown_error";
+      const sttCode = mapSttServerError(errorCode);
+      return [
+        new CustomTokenExchangeError(
+          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          oauthErr.error_description ??
+            "There was an error trying to exchange the token for a Session Transfer Token.",
+          new OAuth2Error({
+            code: errorCode,
+            message: oauthErr.error_description ?? err.message
+          })
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Parse the raw JSON response ourselves — bypasses oauth4webapi's
+    // token_type allowlist which blocks "N_A".
+    // Fall back to text() when the body is not JSON (e.g. plain-text gateway errors)
+    // so the status code and raw message are preserved in the error.
+    let rawBody: any;
+    try {
+      rawBody = await httpResponse.json();
+    } catch {
+      let rawText = "";
+      try {
+        rawText = await httpResponse.text();
+      } catch {
+        // ignore — body already consumed or unreadable
+      }
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          `Failed to parse the Session Transfer Token response body (HTTP ${httpResponse.status}).${rawText ? " " + rawText : ""}`
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Surface server-side errors (4xx/5xx with error field)
+    if (!httpResponse.ok || rawBody?.error) {
+      const errorCode = rawBody?.error ?? "unknown_error";
+      const sttCode = mapSttServerError(errorCode);
+      return [
+        new CustomTokenExchangeError(
+          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          rawBody?.error_description ??
+            "There was an error trying to exchange the token for a Session Transfer Token.",
+          new OAuth2Error({
+            code: errorCode,
+            message: rawBody?.error_description ?? errorCode
+          })
+        ),
+        null,
+        null
+      ];
+    }
+
+    // The spec requires branching on issued_token_type to identify an STT.
+    // Reject any response where it is missing or not the STT URN — a plain Bearer
+    // access-token response must never be mistaken for a session transfer token.
+    if (rawBody.issued_token_type !== TOKEN_TYPES.SESSION_TRANSFER_TOKEN) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          `Unexpected issued_token_type: "${rawBody.issued_token_type ?? "(missing)"}". Expected "${TOKEN_TYPES.SESSION_TRANSFER_TOKEN}".`
+        ),
+        null,
+        null
+      ];
+    }
+
+    // STT never decoded, never cached — treat as opaque handle
+    return [
+      null,
+      parseSessionTransferTokenResponse({
+        access_token: rawBody.access_token,
+        issued_token_type: rawBody.issued_token_type,
+        expires_in: rawBody.expires_in,
+        token_type: rawBody.token_type
+      }),
+      refreshedSession
+    ];
+  }
+
+  /**
+   * Builds the redirect URL that carries the STT to the target app's login route.
+   *
+   * Returns a `NextResponse` redirect to
+   * `targetLoginUrl?session_transfer_token=<encoded>(&organization=…)`.
+   *
+   * This is a pure URL builder — no network call, nothing written to session.
+   * The STT is one-shot; use this immediately after `requestSessionTransferToken`.
+   *
+   * @param targetLoginUrl - The target app's login URL (e.g. `https://app.example.com/auth/login`).
+   *   Must be a trusted, app-controlled value. Never derive this from untrusted input.
+   * @param result - The `SessionTransferTokenResult` from `requestSessionTransferToken`
+   * @param opts - Optional overrides
+   * @param opts.organization - Org ID/name to append; use the same value passed to `requestSessionTransferToken`
+   *
+   * @example
+   * ```typescript
+   * const redirect = authClient.buildSessionTransferRedirect(
+   *   "https://app.example.com/auth/login",
+   *   result,
+   *   { organization: "org_abc123" }
+   * );
+   * return redirect;
+   * ```
+   */
+  buildSessionTransferRedirect(
+    targetLoginUrl: string,
+    result: SessionTransferTokenResult,
+    opts?: { organization?: string }
+  ): NextResponse {
+    const url = buildSessionTransferRedirectUrl(
+      targetLoginUrl,
+      result.sessionTransferToken,
+      opts
+    );
+    return NextResponse.redirect(url);
+  }
+
+  /**
    * Filters and processes ID token claims for a session.
    *
    * If a `beforeSessionSaved` callback is configured, it will be invoked to allow
@@ -3720,10 +4177,12 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo =
+        returnTo = clampReturnTo(
           sanitizedReturnTo.pathname +
-          sanitizedReturnTo.search +
-          sanitizedReturnTo.hash;
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
       }
     }
 
@@ -3764,8 +4223,7 @@ export class AuthClient {
     await this.transactionStore.save(
       res.cookies,
       transactionState,
-      req?.cookies,
-      false // connect account — always a real user-initiated flow, never prefetch
+      req?.cookies
     );
 
     return [null, res];
@@ -3835,7 +4293,7 @@ export class AuthClient {
     } catch (e: any) {
       let message =
         "An unexpected error occurred while trying to initiate the connect account flow.";
-      if (e instanceof DPoPError) {
+      if (isDPoPError(e)) {
         message = e.message;
       }
       return [
@@ -3918,6 +4376,215 @@ export class AuthClient {
         null
       ];
     }
+  }
+
+  /**
+   * Lists the connected accounts for the current user via the My Account API.
+   *
+   * Handles pagination transparently (the endpoint returns at most 20 accounts
+   * per page and an optional `next` token) so the full set is always returned.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+   */
+  async listConnectedAccounts(
+    tokenSet: TokenSet
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    try {
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt || 0,
+          scope: tokenSet.scope,
+          token_type: tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const accounts: ConnectedAccount[] = [];
+      let next: string | undefined;
+      // `next` is server-controlled. Guard against a server that echoes the same
+      // token or cycles, which would otherwise loop and grow `accounts` without
+      // bound on the request thread.
+      const seenNext = new Set<string>();
+      const MAX_PAGES = 100;
+      let pages = 0;
+
+      do {
+        if (++pages > MAX_PAGES || (next && seenNext.has(next))) {
+          // The server returned a non-terminating cursor (page cap exceeded or
+          // a repeated `next` token). Returning the partial list as success is
+          // unsafe: callers reconcile against it destructively (pruning cached
+          // tokens for omitted accounts, and disconnectAccount would leave
+          // additional matching accounts linked). Fail loudly instead.
+          return [
+            new ConnectedAccountsError({
+              code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+              message: "Connected-account pagination did not terminate safely."
+            }),
+            null
+          ];
+        }
+        if (next) {
+          seenNext.add(next);
+        }
+        const url = new URL("/me/v1/connected-accounts/accounts", this.issuer);
+        if (next) {
+          url.searchParams.set("next", next);
+        }
+
+        const res = await fetcher.fetchWithAuth(url.toString(), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          return buildConnectedAccountsErrorResponse(
+            res,
+            ConnectedAccountsErrorCodes.FAILED_TO_LIST
+          );
+        }
+
+        const body = await res.json();
+        for (const account of body.accounts ?? []) {
+          accounts.push({
+            id: account.id,
+            connection: account.connection,
+            accessType: account.access_type,
+            scopes: account.scopes,
+            createdAt: account.created_at,
+            expiresAt: account.expires_at,
+            orgId: account.org_id
+          });
+        }
+        next = body.next;
+      } while (next);
+
+      return [null, accounts];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to list the connected accounts.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Deletes a single connected account by its id via the My Account API.
+   *
+   * Accepts a pre-built fetcher so callers (e.g. `disconnectAccount`) can reuse
+   * a single fetcher across multiple deletes. With DPoP enabled, a new fetcher
+   * starts without a nonce and pays a `use_dpop_nonce` rejection + retry on the
+   * first request; reusing the fetcher amortises that to one round-trip total
+   * instead of one per account.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+   */
+  private async deleteConnectedAccount(
+    fetcher: Fetcher<Response>,
+    id: string
+  ): Promise<[null, null] | [ConnectedAccountsError, null]> {
+    try {
+      const url = new URL(
+        `/me/v1/connected-accounts/accounts/${encodeURIComponent(id)}`,
+        this.issuer
+      );
+
+      const res = await fetcher.fetchWithAuth(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!res.ok) {
+        return buildConnectedAccountsErrorResponse(
+          res,
+          ConnectedAccountsErrorCodes.FAILED_TO_DELETE
+        );
+      }
+
+      return [null, null];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to delete the connected account.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_DELETE,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Disconnects all connected accounts for the given connection.
+   *
+   * Resolves the connection name to the connected-account id(s) via the list
+   * endpoint (the delete endpoint is keyed by id), then deletes each. The
+   * operation is idempotent: if the server reports no accounts for the
+   * connection, it returns the empty list without error so callers can still
+   * reconcile local state.
+   */
+  async disconnectAccount(
+    tokenSet: TokenSet,
+    connection: string
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    const [listError, accounts] = await this.listConnectedAccounts(tokenSet);
+    if (listError) {
+      return [listError, null];
+    }
+
+    const matching = accounts.filter(
+      (account) => account.connection === connection
+    );
+
+    if (matching.length === 0) {
+      return [null, []];
+    }
+
+    // Build the fetcher once and reuse it across every DELETE. With DPoP
+    // enabled, per-account fetchers would each start with an empty nonce cache
+    // and pay a `use_dpop_nonce` rejection + retry — turning N deletes into 2N
+    // requests. `listConnectedAccounts` already does this for pagination.
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      getAccessToken: async () => ({
+        accessToken: tokenSet.accessToken,
+        expiresAt: tokenSet.expiresAt || 0,
+        scope: tokenSet.scope,
+        token_type: tokenSet.token_type
+      }),
+      fetch: this.fetch
+    });
+
+    const removed: ConnectedAccount[] = [];
+    for (const account of matching) {
+      const [deleteError] = await this.deleteConnectedAccount(
+        fetcher,
+        account.id
+      );
+      if (deleteError) {
+        return [deleteError, null];
+      }
+      removed.push(account);
+    }
+
+    return [null, removed];
   }
 
   private async getOpenIdClientConfig(): Promise<
@@ -4474,22 +5141,68 @@ export class AuthClient {
       );
     }
 
-    // Decrypt token to extract audience
-    const { audience } = await decryptMfaToken(
+    // Decrypt token to extract audience and the requested scope
+    const { audience, scope: requestedScope } = await decryptMfaToken(
       encryptedMfaToken,
       this.sessionStore.secret
     );
 
     session.accessTokens = session.accessTokens || [];
-    session.accessTokens.push({
+
+    const newAccessTokenSet = {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
+      requestedScope,
       // oauth4webapi TokenEndpointResponse does NOT include audience field
       audience: audience || "",
       expiresAt:
         Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
       token_type: tokenResponse.token_type
-    });
+    };
+
+    // Replace an existing token for the same audience AND scope, or append a
+    // new one. Without this, each MFA step-up appends another full token set —
+    // growing the session cookie unbounded (and eventually a 431). The key is
+    // audience + normalized scope (not audience alone), so a differently-scoped
+    // step-up for the same audience does not evict a still-useful entry.
+    //
+    // The match is exact normalized-set equality on requestedScope (with a
+    // fallback to granted `scope` for legacy entries). `findAccessTokenSet`
+    // does a looser superset match via `compareScopes`; the two rules do NOT
+    // agree. Consequences of the divergence:
+    // - `findAccessTokenSet` may return a wider entry to satisfy a narrower
+    //   request (superset match on read), while this dedup keeps them as
+    //   separate entries (exact match on write).
+    // - Per audience, the session can accumulate up to one entry per distinct
+    //   normalized-scope set. Bounded per session, but looser than
+    //   `findAccessTokenSet` would suggest.
+    // Aligning to `compareScopes` here would be a behaviour change (wide
+    // entries would evict narrower ones), which is out of scope for this fix.
+    // See also `mergePopupTokenIntoSession` (session-helpers.ts) which uses a
+    // third rule — keyed on audience alone — pre-existing on main.
+    //
+    // Key on the requested scope (always present, with a fallback to the
+    // granted scope for legacy entries): the granted `scope` may be reduced or
+    // omitted by the server, which would otherwise collide distinct requests.
+    const normalizeScope = (scope?: string) =>
+      (scope ?? "").trim().split(/\s+/).filter(Boolean).sort().join(" ");
+    const newScope = normalizeScope(
+      newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
+    );
+    // Remove ALL existing entries for this audience + scope (not just the first)
+    // so sessions that accumulated duplicates before this fix deployed are
+    // compacted on the next step-up. Best-effort for legacy entries: those have
+    // no `requestedScope` and fall back to the granted `scope`, so if the server
+    // reduced scope, a legacy entry's fallback key may not match a new request's
+    // requestedScope key and it will be retained alongside the new entry.
+    session.accessTokens = session.accessTokens.filter(
+      (t) =>
+        !(
+          t.audience === newAccessTokenSet.audience &&
+          normalizeScope(t.requestedScope ?? t.scope) === newScope
+        )
+    );
+    session.accessTokens.push(newAccessTokenSet);
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
@@ -5293,6 +6006,7 @@ export class AuthClient {
         appBaseUrl
       ).toString();
       const state = oauth.generateRandomState();
+      const nonce = oauth.generateRandomNonce();
 
       // Preserve tenant-level authorizationParameters (org, acr_values, etc.)
       // but exclude PKCE and fields we set explicitly.
@@ -5325,6 +6039,7 @@ export class AuthClient {
           response_type: RESPONSE_TYPES.CODE,
           scope,
           state,
+          nonce,
           ...(audience && { audience })
         }
       };
@@ -5332,6 +6047,7 @@ export class AuthClient {
       magicLinkTransactionState = {
         responseType: RESPONSE_TYPES.CODE,
         state,
+        nonce,
         returnTo: this.signInReturnToPath,
         scope,
         audience: this.authorizationParameters.audience as string | undefined,
@@ -5408,8 +6124,7 @@ export class AuthClient {
       await this.transactionStore.save(
         resCookies,
         magicLinkTransactionState,
-        req?.cookies,
-        false // magic link — always a real user-initiated flow, never prefetch
+        req?.cookies
       );
     }
   }
@@ -6289,6 +7004,62 @@ export async function buildConnectAccountErrorResponse(
       null
     ];
   }
+}
+
+export async function buildConnectedAccountsErrorResponse(
+  res: Response,
+  errorCode: ConnectedAccountsErrorCodes
+): Promise<[ConnectedAccountsError, null]> {
+  const actionVerb =
+    errorCode === ConnectedAccountsErrorCodes.FAILED_TO_LIST
+      ? "list the connected accounts"
+      : "delete the connected account";
+
+  try {
+    const errorBody = await res.json();
+    return [
+      new ConnectedAccountsError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`,
+        cause: new MyAccountApiError({
+          type: errorBody.type,
+          title: errorBody.title,
+          detail: errorBody.detail,
+          status: res.status,
+          validationErrors: errorBody.validation_errors
+        })
+      }),
+      null
+    ];
+  } catch (e) {
+    return [
+      new ConnectedAccountsError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`
+      }),
+      null
+    ];
+  }
+}
+
+/**
+ * Identifies a DPoP failure by its `code` rather than an `instanceof` check.
+ * `instanceof` is unreliable across module/realm boundaries (duplicate copies
+ * of the error class), so we match on the well-known DPoP error codes instead.
+ *
+ * @internal
+ */
+function isDPoPError(
+  e: unknown
+): e is { code: DPoPErrorCode; message: string } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    "message" in e &&
+    typeof (e as { message: unknown }).message === "string" &&
+    Object.values(DPoPErrorCode).includes((e as { code: DPoPErrorCode }).code)
+  );
 }
 
 /**

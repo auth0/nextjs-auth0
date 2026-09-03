@@ -45,20 +45,7 @@
     - [Usage Example](#usage-example)
     - [Token Management Best Practices](#token-management-best-practices)
   - [Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations)
-- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
-  - [Step-up Authentication](#step-up-authentication)
-  - [Handling `MfaRequiredError`](#handling-mfarequirederror)
-  - [MFA Tenant Configuration](#mfa-tenant-configuration)
-  - [Critical Warning](#critical-warning)
-- [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup)
-  - [Overview](#overview-1)
-  - [Basic Usage](#basic-usage)
-  - [Handling MfaRequiredError from Client Components](#handling-mfarequirederror-from-client-components)
-  - [Configuration Options](#configuration-options)
-  - [CSP Nonce Support](#csp-nonce-support)
-  - [Error Handling](#error-handling-2)
-  - [Security Considerations](#security-considerations-1)
-  - [Known Limitations](#known-limitations)
+- [Multi-Factor Authentication (MFA)](guides/mfa.md)
 - [Passwordless Authentication](#passwordless-authentication)
   - [Auth0 Setup](#auth0-setup)
   - [Route Handler Setup](#route-handler-setup)
@@ -151,11 +138,14 @@
   - [Customizing Transaction Cookie Expiration](#customizing-transaction-cookie-expiration)
   - [Transaction Management Modes](#transaction-management-modes)
   - [Transaction Cookie Options](#transaction-cookie-options)
+  - [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors)
 - [Database sessions](#database-sessions)
 - [Using Client-Initiated Backchannel Authentication](#using-client-initiated-backchannel-authentication)
 - [Connected Accounts](#connected-accounts)
   - [`onCallback` hook](#oncallback-hook)
   - [`connectAccount` method](#connectaccount-method)
+  - [`getConnectedAccounts` method](#getconnectedaccounts-method)
+  - [`disconnectAccount` method](#disconnectaccount-method)
 - [Back-Channel Logout](#back-channel-logout)
 - [Session Expiry from the Upstream IdP](#session-expiry-from-the-upstream-idp)
 - [Combining middleware](#combining-middleware)
@@ -182,22 +172,18 @@
   - [Token Type Requirements](#token-type-requirements)
   - [Limitations](#limitations)
   - [DPoP Support](#dpop-support)
+- [Session Transfer Token](#session-transfer-token)
+  - [Basic Usage](#basic-usage-1)
+  - [Actor Override](#actor-override)
+  - [With Organization](#with-organization-1)
+  - [Error Handling](#error-handling-5)
+  - [Reading the `act` claim on the established session](#reading-the-act-claim-on-the-established-session)
+  - [Limitations](#limitations-1)
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
 - [Next.js 16 Compatibility](#nextjs-16-compatibility)
-- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa-1)
-  - [Setup & Configuration](#setup--configuration)
-  - [Handling MfaRequiredError](#handling-mfarequirederror-1)
-  - [Accessing the MFA API](#accessing-the-mfa-api)
-  - [Getting Authenticators](#getting-authenticators)
-  - [Enrollment](#enrollment)
-  - [Challenge](#challenge)
-  - [Verify](#verify)
-  - [MFA Tenant Configuration](#mfa-tenant-configuration-1)
-  - [MFA Error Handling](#mfa-error-handling)
 - [Multiple Custom Domains (MCD)](#multiple-custom-domains-mcd)
-  - [Overview](#overview-1)
   - [Static Mode (Default)](#static-mode-default)
   - [Resolver Mode](#resolver-mode)
     - [Basic Setup](#basic-setup)
@@ -232,6 +218,9 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 ```html
 <a href="/auth/login?audience=urn:my-api">Login</a>
 ```
+
+> [!NOTE]
+> A default `<Link href="/auth/login">` is safe — the SDK returns `204 No Content` on AUTO prefetches without writing a transaction cookie. Avoid `<Link href="/auth/login" prefetch={true}>` (FULL prefetch), which is indistinguishable from a real navigation server-side. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ### Social Login
 
@@ -319,6 +308,9 @@ For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/
 
 > [!NOTE]  
 > The URL specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
+
+> [!IMPORTANT]  
+> `returnTo`, `scope`, and `audience` query parameters on `/auth/login` are stored inside the encrypted transaction cookie. Any single field longer than 2 KB is silently clamped back to its default value and a one-time warning is logged, to keep the transaction cookie under the browser and proxy header limits (~4 KB per cookie). Keep these values short. For `returnTo` specifically, the fallback is `signInReturnToPath` (the SDK-configured default post-login path).
 
 ### Redirecting the user after logging out
 
@@ -566,6 +558,9 @@ export async function middleware(request: NextRequest) {
 
 ## Protecting a Server-Side Rendered (SSR) Page
 
+> [!TIP]
+> Prefer `withPageAuthRequired` (below) over redirecting to `/auth/login` from middleware for protected pages. When a prefetch follows the redirect to `/auth/login`, the SDK returns `204 No Content` (no transaction cookie written). A middleware redirect achieves the same result, but `withPageAuthRequired` keeps the auth logic co-located with the page. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
+
 #### Page Router
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
@@ -607,6 +602,9 @@ export default auth0.withPageAuthRequired(
 ## Protecting a Client-Side Rendered (CSR) Page
 
 To protect a Client-Side Rendered (CSR) page, you can use the `withPageAuthRequired` higher-order function. Requests to `/profile` without a valid session cookie will be redirected to the login page.
+
+> [!TIP]
+> Using `withPageAuthRequired` (rather than a middleware redirect to `/auth/login`) keeps auth logic co-located with the page. Prefetches that follow the redirect to `/auth/login` are handled by the SDK's `204` guard, so no transaction cookie is written. See [Preventing "431 Request Header Fields Too Large" Errors](#preventing-431-request-header-fields-too-large-errors).
 
 ```tsx
 // app/profile/page.tsx
@@ -1575,140 +1573,60 @@ This ensures that the token you send is guaranteed to be valid for at least the 
 > [!IMPORTANT]
 > This strategy is **not** a solution for long-running operations that take longer than the token's total validity period (e.g., 10 minutes). In those cases, the token will still expire mid-operation. The correct approach for long-running tasks is to call `getAccessToken()` immediately before the operation that requires it, ensuring you have a fresh token. The buffer is only for mitigating latency-related failures in short-lived requests.
 
-## Multi-Factor Authentication (MFA)
+## Revoking tokens
 
-### Step-up Authentication
-
-Step-up authentication is a pattern where an application allows access to some resources with potential sensitive data, but requires the user to authenticate with a stronger mechanism (like MFA) to access others.
-
-The SDK supports handling the `mfa_required` error from Auth0 when an API requires higher security. This typically happens when you use an Auth0 Action or Rule to enforce MFA for specific audiences or scopes.
-
-### Handling `MfaRequiredError`
-
-When you request an Access Token for a resource that requires MFA, Auth0 will return a `403 Forbidden` with an `mfa_required` error code. The SDK automatically catches this and bubbles it up as an `MfaRequiredError`, containing the `mfa_token` needed to resolve the challenge.
-
-You should catch this error in your API routes or Server Actions and forward the `mfa_token` to your client.
-
-**Server Side (API Route):**
-```javascript
-import { NextResponse } from "next/server";
-import { auth0 } from "@/lib/auth0";
-import { MfaRequiredError } from "@auth0/nextjs-auth0/server";
-
-export async function GET() {
-  try {
-    const { token } = await auth0.getAccessToken({
-      audience: "https://my-high-security-api",
-      refresh: true // Ensure we get a fresh token check
-    });
-    return NextResponse.json({ token });
-  } catch (error) {
-    if (error instanceof MfaRequiredError) {
-      // Forward the error details to the client
-      return NextResponse.json(error.toJSON(), { status: 403 });
-    }
-    throw error;
-  }
-}
-```
-
-**Client Side:**
-When the client receives the 403 with `mfa_required`, you can either redirect the user to a dedicated MFA page or use the popup-based approach to complete MFA without a full-page redirect.
-
-**Option 1: Full-page redirect**
-```javascript
-const response = await fetch("/api/protected");
-if (response.status === 403) {
-  const data = await response.json();
-  if (data.error === "mfa_required") {
-    // Redirect to your MFA page or show MFA prompt
-    // Pass the mfa_token to the challenge flow
-    window.location.href = `/mfa-challenge?token=${data.mfa_token}`;
-  }
-}
-```
-
-**Option 2: Popup (no redirect)**
-
-Use `mfa.challengeWithPopup()` to complete MFA in a popup without leaving the current page. See [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup) for full documentation.
-
-### MFA Tenant Configuration
-
-The SDK relies on background token refreshes to maintain user sessions. For these non-interactive requests to succeed, it is important to configure your MFA policies to allow `refresh_token` exchanges without immediate user challenge.
-
-Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block these background requests, as they cannot satisfy an interactive MFA challenge.
-
-**Recommended Configuration:**
-1. Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
-2. Use **Auth0 Actions** to enforce MFA conditionally (only when specific resources are requested).
-
-**Example Action Code:**
-```javascript
-exports.onExecutePostLogin = async (event, api) => {
-  const grantType = event.request?.body?.grant_type;
-  if (grantType === 'refresh_token') {
-    // Check if user has enrolled factors
-    const enrolledFactors = event.user.multifactor || [];
-    
-    if (enrolledFactors.length > 0) {
-      // Challenge with all available factor types
-      // This returns mfa_required error during token endpoint
-      api.authentication.challengeWithAny([
-        { type: 'otp' },
-        { type: 'phone' },
-        { type: 'email' },
-        { type: 'push-notification' },
-        { type: 'recovery-code' }
-      ]);
-    } else {
-      // Prompt enrollment (also returns mfa_required error)
-      api.authentication.enrollWithAny([
-        { type: 'otp' },
-        { type: 'phone' },
-        { type: 'email' },
-        { type: 'push-notification' }
-      ]);
-    }
-  } else {
-    console.log('[MFA Action] Skipping: not refresh_token grant or audience not protected');
-  }
-};
-```
-For more information on how to customize MFA flows using post-login Actions, take a look at this [auth0 docs page](https://auth0.com/docs/secure/multi-factor-authentication/customize-mfa/customize-mfa-enrollments-universal-login).
-
-### MFA Error Types
-
-| Error Class | Code | When Thrown |
-|-------------|------|-------------|
-| `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up |
-| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for provided token |
-| `MfaTokenExpiredError` | `mfa_token_expired` | Encrypted MFA token TTL exceeded |
-| `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret |
-
-### Configuration
-
-Configure MFA token TTL via options or environment variable:
-
-```typescript
-// Option 1: Via constructor
-const auth0 = new Auth0Client({
-  mfaContextTtl: 600 // 10 minutes in seconds
-});
-```
-
-```bash
-# Option 2: Via environment variable
-AUTH0_MFA_CONTEXT_TTL=600
-```
-
-Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
-
-### Session Context
-
-When MFA is required, the SDK automatically stores MFA context in the session keyed by a hash of the raw token.
+`revokeRefreshToken()` revokes the refresh token stored in the current session at Auth0's `/oauth/revoke` endpoint ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009)). Auth0 will also invalidate all access tokens issued under the same authorization grant — any subsequent API calls using those tokens will fail. Client authentication (`clientSecret`, Private Key JWT, or mTLS) is applied automatically from your `Auth0Client` configuration.
 
 > [!NOTE]
-> The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaContextTtl`) are removed to prevent session bloat.
+> Logging out revokes the session's refresh token automatically — `auth0.middleware` / the `/auth/logout` route revokes before clearing the session. `revokeRefreshToken()` is for explicit revocation outside the logout flow, for example revoking a user's access without redirecting them.
+
+`revokeRefreshToken()` reads the refresh token from the current session and revokes it. The local session cookie is not cleared — call `handleLogout` for a full logout that also clears the session.
+
+**App Router (Server Actions, Route Handlers):**
+
+```typescript
+// app/api/revoke/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export async function POST() {
+  try {
+    await auth0.revokeRefreshToken();
+    return Response.json({ revoked: true });
+  } catch (error) {
+    console.error("Failed to revoke refresh token:", error);
+    return Response.json({ error: "Failed to revoke" }, { status: 500 });
+  }
+}
+```
+
+**Pages Router:** pass the incoming request via `options.req`:
+
+```typescript
+// pages/api/revoke.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    await auth0.revokeRefreshToken({ req });
+    res.status(200).json({ revoked: true });
+  } catch (error) {
+    console.error("Failed to revoke refresh token:", error);
+    res.status(500).json({ error: "Failed to revoke" });
+  }
+}
+```
+
+If there is no active session or the session has no refresh token, a `TokenRevocationError` is thrown.
+
+## Multi-Factor Authentication (MFA)
+
+MFA examples — step-up authentication, the MFA management API (enrollment, challenge, and verification), and reactive MFA step-up via a browser popup — now live in a dedicated guide:
+
+➡️ **[Multi-Factor Authentication examples](guides/mfa.md)**
 
 ## Passwordless Authentication
 
@@ -3645,6 +3563,61 @@ Common scopes for My Organization API:
 - `roles:read` - Read organization roles
 - `roles:manage` - Manage organization roles
 
+### Reading Organization Permissions
+
+Auth0 includes a `urn:auth0:my_org_current_user_permissions` claim in the ID token containing all `my_org:*` permissions the authenticated user holds in their current organization. The SDK passes this claim through to `session.user` automatically — no additional scope or `beforeSessionSaved` configuration is required.
+
+The permissions are cached in the encrypted session cookie and refreshed only when the ID token is re-issued, so there is no extra network call on each component mount.
+
+#### Server Component
+
+```tsx
+import { auth0 } from "@/lib/auth0";
+
+export default async function Page() {
+  const session = await auth0.getSession();
+  const permissions: string[] =
+    session?.user["urn:auth0:my_org_current_user_permissions"] ?? [];
+
+  const canInvite = permissions.includes("my_org:invite_members");
+
+  return (
+    <div>
+      {canInvite && (
+        <button type="button">Invite Member</button>
+      )}
+    </div>
+  );
+}
+```
+
+#### Client Component
+
+```tsx
+"use client";
+
+import { useUser } from "@auth0/nextjs-auth0";
+
+export function OrgActions() {
+  const { user } = useUser();
+  const permissions: string[] =
+    user?.["urn:auth0:my_org_current_user_permissions"] ?? [];
+
+  const canInvite = permissions.includes("my_org:invite_members");
+  const canManageRoles = permissions.includes("my_org:manage_member_roles");
+
+  return (
+    <div>
+      <button disabled={!canInvite}>Invite Member</button>
+      <button disabled={!canManageRoles}>Manage Roles</button>
+    </div>
+  );
+}
+```
+
+> [!NOTE]
+> This claim is for UI gating only. The My Organization API enforces authorization server-side on every request regardless of what the claim contains.
+
 ### Integration with UI Components
 
 When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
@@ -4021,42 +3994,83 @@ const authClient = new Auth0Client({
 - You want the simplest possible transaction management
 - Users typically don't need multiple concurrent login flows
 
+> [!NOTE]
+> In single transaction mode, starting a new login while one is already in progress overwrites the existing `__txn_` cookie rather than rejecting the new attempt. If a user has two tabs open and starts a login in both, only the most recently started login can complete; the other tab's callback will fail because its transaction state was overwritten. This is expected in single transaction mode — use the default parallel mode if concurrent logins across tabs need to succeed.
+
 ### Transaction Cookie Options
 
 | Option                                    | Type                          | Description                                                                                                                                                                                                                                         |
 | ----------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `transactionCookie.maxAge`                | `number`                      | Expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned cookies expire automatically.                                                                                                           |
-| `transactionCookie.maxSizeBytes`          | `number`                      | Maximum total byte size of all `__txn_*` cookies combined. Defaults to `4096`. When exceeded, the SDK evicts prefetch cookies first (phase 1), then oldest real login cookies (phase 2), before writing the new cookie. One JWE is ~450–555 bytes. |
 | `transactionCookie.prefix`                | `string`                      | Prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`; in single mode, just `__txn_`.                                                                                                     |
 | `transactionCookie.sameSite`              | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                                                     |
 | `transactionCookie.secure`                | `boolean`                     | When `true`, the cookie is only sent over HTTPS. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted.                                                                                                     |
 | `transactionCookie.path`                  | `string`                      | URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                                                                          |
-| `dangerouslyAllowLoginPrefetch`           | `boolean`                     | Defaults to `false`. When `false`, the SDK returns a `401` on non-navigational requests to `/auth/login` (Next.js prefetch, XHR), preventing prefetch cookies from accumulating. Set to `true` only for apps with custom login pages worth caching. |
 
-### Troubleshooting: 431 / cookie header too large
+### Preventing "431 Request Header Fields Too Large" Errors
 
 If your app shows `431 Request Header Fields Too Large` errors, `__txn_*` cookies have grown beyond your server's header size limit.
 
 **This is fixed in the current SDK version.** The SDK now:
 
-1. Returns `401` on Next.js prefetch requests to `/auth/login` so no cookie is written (`dangerouslyAllowLoginPrefetch: false` by default).
-2. Automatically evicts accumulated cookies when the `maxSizeBytes` limit is reached — prefetch cookies first, then oldest real login cookies.
+1. Returns `204 No Content` on Next.js prefetch requests to `/auth/login` (detected via prefetch headers such as `next-router-prefetch`, `purpose`, `sec-purpose`, and `x-middleware-prefetch`), so no `__txn_*` cookie is written for a flow that will never complete.
+2. Automatically evicts accumulated `__txn_*` cookies once their combined size reaches a fixed internal limit (3500 bytes, roughly six concurrent in-flight logins) — oldest-first (FIFO) by creation timestamp — before writing the new cookie. Only transaction cookies are measured and evicted; the session and other cookies are never touched. This limit is not configurable.
 
-If you are running an older version, adding `prefetch={false}` to `<Link>` components pointing to your login route is a safe fallback:
+#### Recommended practices to avoid transaction cookie accumulation
+
+Even with the automatic protections above, follow these two practices so login flows are only started by real user navigation:
+
+**1. Avoid `<Link href="/auth/login" prefetch={true}>`.**
+
+A default `<Link href="/auth/login">` (AUTO prefetch) is safe — the SDK detects the prefetch header and returns `204 No Content` without writing a transaction cookie. However, `<Link prefetch={true}>` triggers a FULL prefetch which sends no detectable prefetch header, so the SDK cannot distinguish it from a real navigation and will start a login flow. Use a plain `<a>` tag or `<Link prefetch={false}>` if you need to be explicit:
 
 ```tsx
-// Optional safety net — not required in current SDK versions
+// ✅ Safe — default Link, AUTO prefetch is caught by the 204 guard
+<Link href="/auth/login">Sign In</Link>
+
+// ✅ Safe — plain anchor never prefetches
+<a href="/auth/login">Sign In</a>
+
+// ✅ Safe — prefetch explicitly disabled
 <Link href="/auth/login" prefetch={false}>
+  Sign In
+</Link>
+
+// ❌ Avoid — FULL prefetch is indistinguishable from a real navigation server-side
+<Link href="/auth/login" prefetch={true}>
   Sign In
 </Link>
 ```
 
-If accumulation persists after upgrading, increase the byte limit or reduce `maxAge`:
+**2. Prefer `withPageAuthRequired` over middleware redirects to protect pages.**
+
+`withPageAuthRequired` redirects to the login route from inside the React Server Component render. When a prefetch follows that redirect to `/auth/login`, the SDK returns `204 No Content` — so `handleLogin` is never called and no `__txn_*` cookie is written. A middleware redirect to `/auth/login` behaves the same way: prefetches that follow it are also caught by the `204` guard. The preference for `withPageAuthRequired` is about keeping auth logic co-located with the page, not a difference in prefetch behaviour.
+
+```tsx
+// ✅ Preferred — auth logic co-located with the page; prefetches caught by the 204 guard
+export default auth0.withPageAuthRequired(async function Page() {
+  return <div>Protected content</div>;
+}, { returnTo: "/protected" });
+```
+
+```ts
+// ✅ Also safe — prefetches following this redirect are caught by the 204 guard
+export async function middleware(request: NextRequest) {
+  const session = await auth0.getSession(request);
+  if (!session) {
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin));
+  }
+  return NextResponse.next();
+}
+```
+
+If you are running an older SDK version without the automatic protections above, adding `prefetch={false}` to `<Link>` components pointing to your login route is the key fallback.
+
+If accumulation persists after upgrading, shorten the transaction cookie lifetime so abandoned logins expire sooner:
 
 ```ts
 export const auth0 = new Auth0Client({
   transactionCookie: {
-    maxSizeBytes: 8192, // raise the ceiling (default 4096)
     maxAge: 600, // shorten TTL to 10 minutes (default 3600)
   },
 });
@@ -4195,7 +4209,14 @@ export const auth0 = new Auth0Client({
 
 ### `connectAccount` method
 
-In case you'd like to have more control over the connected accounts flow, a `connectAccount` method is also available on the Auth0 client instance. For example, you could mount a custom route to start the connected accounts flow, like so:
+In case you'd like to have more control over the connected accounts flow, a `connectAccount` method is also available on the Auth0 client instance. It accepts an object with the following properties:
+
+- `connection`: (required) the name of the connection to link the account with (e.g., `google-oauth2`, `facebook`).
+- `scopes`: (optional) the scopes to request from the Identity Provider during the connect flow.
+- `authorizationParams`: (optional) additional parameters passed to the authorization server. This is where a `login_hint` is supplied to pre-select which upstream account to connect (see below).
+- `returnTo`: (optional) the URL to redirect to after the account is connected.
+
+The method returns a `NextResponse` that carries the redirect and transaction cookies. For example, you could mount a custom route to start the connected accounts flow, like so:
 
 ```ts
 import { auth0 } from "@/lib/auth0";
@@ -4215,8 +4236,143 @@ export async function GET() {
 }
 ```
 
+#### Connecting a specific account with `login_hint`
+
+To connect a specific upstream account (for example, when a user wants to link more than one account on the same connection), pass a `login_hint` through `authorizationParams`. It is forwarded to the authorization server so the correct account is pre-selected during the connect flow:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  const res = await auth0.connectAccount({
+    connection: "google-oauth2",
+    scopes: ["openid", "profile", "offline_access"],
+    authorizationParams: {
+      login_hint: "alice@example.com"
+    },
+    returnTo: "/connected"
+  });
+
+  return res;
+}
+```
+
+> [!NOTE]
+> The `login_hint` on `connectAccount` (an authorization-request parameter passed via `authorizationParams`) is distinct from the top-level `login_hint` on [`getAccessTokenForConnection`](#getting-access-tokens-for-connections) (a token-exchange parameter). Connecting an account and later retrieving a token for it are separate operations, so the hint is supplied in the place appropriate to each.
+
+#### Middleware and dynamic base URLs
+
+When calling from middleware, or when `APP_BASE_URL` is configured dynamically (as an array of allowed origins), pass the `req` object so the redirect and session are resolved from the request context:
+
+```ts
+import { NextRequest } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function middleware(request: NextRequest) {
+  const res = await auth0.connectAccount(
+    { connection: "google-oauth2", returnTo: "/connected" },
+    request
+  );
+
+  return res;
+}
+```
+
 > [!IMPORTANT]  
 > You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
+
+### `getConnectedAccounts` method
+
+The `getConnectedAccounts` method lists the current user's connected accounts from the [My Account API](https://auth0.com/docs/manage-users/my-account-api). It returns an array of `ConnectedAccount` objects, each with the following shape:
+
+- `id`: the unique identifier of the connected account (e.g., `cac_...`).
+- `connection`: the name of the connection the account is linked through.
+- `accessType` (optional): the access type. Currently returned as `"offline"` by the My Account API when present.
+- `scopes`: the scopes granted for the connected account.
+- `createdAt`: ISO date string of when the account was connected.
+- `expiresAt`: (optional) ISO date string of when the connected account expires.
+- `orgId`: (optional) the organization ID the connected account is scoped to. Only present for accounts bound to an organization.
+
+Because the My Account API is the source of truth, this method also reconciles the session: any locally cached connection tokens whose connection is no longer present server-side are pruned, so stale tokens are not re-assembled on subsequent reads. As this may write cookies, call it from a context that can set them.
+
+#### On the server (App Router)
+
+```ts
+import { NextResponse } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  const accounts = await auth0.getConnectedAccounts();
+
+  return NextResponse.json({ accounts });
+}
+```
+
+> [!IMPORTANT]  
+> Do not call `getConnectedAccounts()` from a React Server Component. Minting the My Account access token can rotate the refresh token, and Server Components cannot write cookies — the rotated token is silently dropped. On the next request the browser still sends the old refresh token, which the authorization server rejects as replay and logs the user out. Call from a Route Handler, Server Action, API route, or middleware.
+
+#### On the server (Pages Router) and middleware
+
+Pass the `req` and `res` objects so the reconciled session can be persisted to the response cookies:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const accounts = await auth0.getConnectedAccounts(req, res);
+
+  res.status(200).json({ accounts });
+}
+```
+
+### `disconnectAccount` method
+
+The `disconnectAccount` method disconnects (unlinks) connected accounts for a given connection via the [My Account API](https://auth0.com/docs/manage-users/my-account-api). It revokes the connection server-side and removes the corresponding cached connection tokens from the session so they are not re-assembled on subsequent reads. It accepts an object with the following property:
+
+- `connection`: (required) the name of the connection to disconnect (e.g., `google-oauth2`, `facebook`).
+
+> [!NOTE]
+> Disconnect is connection-scoped: **all** accounts connected through the given connection are disconnected. Per-account disconnect is not currently supported because the My Account API keys connected accounts by `id` and does not expose the login hint used to disambiguate multiple accounts on the same connection.
+
+#### On the server (App Router)
+
+```ts
+import { NextResponse } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function POST() {
+  await auth0.disconnectAccount({ connection: "google-oauth2" });
+
+  return NextResponse.json({ message: "Disconnected!" });
+}
+```
+
+#### On the server (Pages Router) and middleware
+
+Pass the `req` and `res` objects so the pruned session can be persisted to the response cookies:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  await auth0.disconnectAccount({ connection: "google-oauth2" }, req, res);
+
+  res.status(200).json({ message: "Disconnected!" });
+}
+```
 
 ## Back-Channel Logout
 
@@ -4332,6 +4488,7 @@ By default, the following properties claims from the ID token are added to the `
 - `email`
 - `email_verified`
 - `org_id`
+- `urn:auth0:my_org_current_user_permissions` — effective `my_org:*` permissions for the authenticated user in their current organization. Present when Auth0's My Organization API is enabled. Useful for permission-based UI gating (see [Reading Organization Permissions](#reading-organization-permissions)).
 
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](#beforesessionsaved))
 
@@ -4592,7 +4749,29 @@ export const GET = async (req: NextRequest) => {
 You can retrieve an access token for a connection using the `getAccessTokenForConnection()` method, which accepts an object with the following properties:
 
 - `connection`: The federated connection for which an access token should be retrieved.
-- `login_hint`: The optional login_hint parameter to pass to the `/authorize` endpoint.
+- `login_hint`: (optional) The login hint identifying which connected account to retrieve a token for. Provide it when a user has connected more than one account on the same connection so the correct one is selected; the token is then cached per `connection` + `login_hint`.
+
+**Multi-account note.** The cache key is `connection` + `login_hint`. A call **with** a hint matches only entries stamped with the same hint. A call **without** a hint matches only entries that also have no hint — it does **not** match hinted entries. This isolation means an unhinted call cannot select and later overwrite a hinted entry, so cached per-account tokens for a connection are preserved across mixed hinted/unhinted usage. Existing sessions written before multi-account support have no hint stamped on any entry, so unhinted calls continue to match them as before (back-compat).
+
+Without a login hint (single account per connection, or explicitly unhinted flow):
+
+```ts
+const token = await auth0.getAccessTokenForConnection({
+  connection: "google-oauth2"
+});
+```
+
+With a login hint (to target a specific account among several on the same connection):
+
+```ts
+const token = await auth0.getAccessTokenForConnection({
+  connection: "google-oauth2",
+  login_hint: "alice@example.com"
+});
+```
+
+> [!NOTE]
+> If the underlying refresh-token exchange fails (for example, the upstream refresh token was revoked), the stale cached connection token for that account is cleared from the session before the error is thrown, so it is not left behind on subsequent requests.
 
 ### On the server (App Router)
 
@@ -4909,6 +5088,167 @@ const result = await auth0.customTokenExchange({
 // result.tokenType will be "DPoP"
 ```
 
+## Session Transfer Token
+
+Session Transfer Token (STT) is CTE Release 2. An authenticated agent (for example a support engineer) establishes a web session **as the customer** in a target app — without the customer's password — so they can see and reproduce the customer's exact experience. The agent app requests a one-shot STT, then redirects the agent's browser to the target app's login URL carrying the token. Auth0 redeems the STT and establishes an ephemeral, device-bound session **as the customer, with the agent recorded in the `act` claim**. The access and ID tokens for that session carry `act`, exactly as in the Release 1 delegation flow.
+
+Almost all of the new SDK surface is on the **initiator** side (the app that requests the STT and builds the redirect): one method — `requestSessionTransferToken()` — plus a redirect helper — `buildSessionTransferRedirect()`. The **target** app barely changes: it does a standard OIDC Authorization Code login with `session_transfer_token` riding along in the `/authorize` query string.
+
+> [!IMPORTANT]
+> Session Transfer is a **two-client flow** and requires the `cte_session_transfer_token` feature flag on your tenant (contact Auth0 support to enable it). Both clients must be on the same Auth0 tenant. Configure:
+> - **Issuing (initiator) client** — `token_exchange.allow_any_profile_of_type: ["custom_authentication"]` and `session_transfer.can_create_session_transfer_token: true`.
+> - **Redeeming (target) client** — `session_transfer.delegation.allow_delegated_access: true`, `allowed_authentication_methods` must include `"query"` (the STT is redeemed as a query parameter), and `session_transfer.delegation.enforce_device_binding` (`"ip"` default or `"asn"`). Register a **non-localhost** callback — STT redemption rejects `localhost` redirect URIs.
+>
+> A CTE Action must validate the `subject_token`, call `setUserById(customer)`, and call `setActor(agent)` — an STT is only issued when an actor is set. These client settings are configured out of band via the Management API; they are not SDK code.
+
+### Basic Usage
+
+```ts
+// app/api/stt/route.ts — runs in the agent (initiator) app
+export async function POST(req: NextRequest) {
+  const { subjectToken, subjectTokenType, targetLoginUrl } = await req.json();
+
+  // Your app runs its own authorization check here: is this agent allowed to
+  // impersonate this customer, right now? That decision is the app's, not the SDK's.
+
+  // Request a one-shot STT. `subjectToken` is always developer-supplied — it is
+  // your own proof of which customer to impersonate, opaque to Auth0 and validated
+  // only by your CTE Action. The SDK fills in audience, grant_type, and the actor
+  // (from the agent's session ID token) automatically.
+  const result = await auth0.requestSessionTransferToken({
+    subjectToken,
+    subjectTokenType,              // must match a registered CTE profile
+    reason: "Support investigation #1234"
+  });
+
+  // Redirect the agent's browser to the target app's login URL. The STT is
+  // one-shot (~60s) — hand it straight to the redirect, never store it.
+  return auth0.buildSessionTransferRedirect(targetLoginUrl, result);
+  // → 307 to https://target-app.example.com/auth/login?session_transfer_token=<stt>
+}
+```
+
+The target app needs no SDK changes — `nextjs-auth0`'s login handler already forwards arbitrary authorization parameters to `/authorize`, so `session_transfer_token` (and `organization`, when present) pass through automatically on the existing login route.
+
+> [!NOTE]
+> The redeemed impersonation session cannot mint a refresh token and is short-lived (the platform hard-caps it). To continue after it expires, the agent re-runs the whole flow.
+
+Pages Router — pass `req`/`res` so a silently-refreshed actor token set is persisted back to the session cookie:
+
+```ts
+// pages/api/stt.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { subjectToken, subjectTokenType, targetLoginUrl } = req.body;
+
+  const result = await auth0.requestSessionTransferToken(req, res, {
+    subjectToken,
+    subjectTokenType,
+    reason: "Support investigation #1234"
+  });
+
+  const redirect = auth0.buildSessionTransferRedirect(targetLoginUrl, result);
+  res.redirect(307, redirect.headers.get("location")!);
+}
+```
+
+### Actor Override
+
+The actor (the party making the request on the customer's behalf) defaults to the agent session's ID token. Pass `actor` explicitly to override:
+
+```ts
+import { TOKEN_TYPES } from "@auth0/nextjs-auth0/server";
+
+const result = await auth0.requestSessionTransferToken({
+  subjectToken: customerIdToken,
+  subjectTokenType: TOKEN_TYPES.ID_TOKEN,
+  actor: { token: agentIdToken, type: TOKEN_TYPES.ID_TOKEN }
+});
+```
+
+### With Organization
+
+```ts
+const result = await auth0.requestSessionTransferToken({
+  subjectToken: customerIdToken,
+  subjectTokenType: TOKEN_TYPES.ID_TOKEN,
+  organization: "org_abc123"
+});
+
+return auth0.buildSessionTransferRedirect(
+  "https://target-app.example.com/auth/login",
+  result,
+  { organization: "org_abc123" }
+);
+```
+
+### Error Handling
+
+```ts
+import {
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode
+} from "@auth0/nextjs-auth0/server";
+
+try {
+  const result = await auth0.requestSessionTransferToken({ ... });
+} catch (error) {
+  if (error instanceof CustomTokenExchangeError) {
+    switch (error.code) {
+      case CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE:
+        // Raised client-side, before any network call: no explicit `actor` was
+        // passed and the agent session has no usable (unexpired) ID token and no
+        // refresh token to recover with.
+        break;
+      case CustomTokenExchangeErrorCode.SETACTOR_REQUIRED:
+        // Tenant requires api.authentication.setActor() to be called in an Action
+        break;
+      case CustomTokenExchangeErrorCode.SESSION_TRANSFER_DISABLED:
+        // cte_session_transfer_token feature flag not enabled on this tenant
+        break;
+      case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
+        // Server-side failure. Today the server returns a generic `invalid_request`
+        // for "setActor is required" and "feature disabled", so those surface here —
+        // read error.cause for the server's exact `error` / `error_description`.
+        console.error("STT exchange failed:", error.cause);
+        break;
+    }
+  }
+}
+```
+
+> [!NOTE]
+> `SETACTOR_REQUIRED` (the Action didn't call `setActor()`) and `SESSION_TRANSFER_DISABLED` (the `cte_session_transfer_token` flag is off) are defined as named constants, but the SDK does not remap based on the server's message text. Auth0 currently returns these as a generic `invalid_request`, so they surface as `EXCHANGE_FAILED` with the raw server message on `error.cause`; the typed codes begin firing once the platform emits a machine-readable error code.
+
+### Reading the `act` claim on the established session
+
+Once the STT is redeemed and the code exchanged, the target app has a normal session whose tokens carry the `act` (actor) claim identifying the impersonating agent. Read it off the session user through the SDK's existing claims surface — no new method — to drive UI such as an impersonation banner:
+
+```ts
+// In the target app, after the session is established:
+const session = await auth0.getSession();
+const actor = session?.user.act; // { sub: "agent|support-007", ... } | undefined
+
+if (actor) {
+  // e.g. show an "Impersonating — acting as <customer>" banner,
+  // and/or restrict destructive actions while impersonating.
+}
+```
+
+`act` carries the acting party's `sub` and optionally a few small custom fields the Action added (for example the agent's email or a reason). The `act` claim is **not** present on the STT exchange response — it only appears on the redeemed session's tokens.
+
+### Limitations
+
+- **Server-side only**: `requestSessionTransferToken` requires `client_secret` and can only be called server-side (confidential-client RWAs; SPAs/native are out of scope). Supported in both the App Router (Server Components, Server Actions, Route Handlers) and the Pages Router (`requestSessionTransferToken(req, res, options)`).
+- **One-shot, ~60 s**: The STT is opaque and must never be decoded, cached, or reused. Redeem it immediately.
+- **Branch on `issued_token_type`, not `token_type`**: The response carries `token_type: "N_A"` (informational). The SDK already validates that `issued_token_type === "urn:auth0:params:oauth:token-type:session_transfer_token"` before returning; if it doesn't match the exchange throws `EXCHANGE_FAILED`. Use `TOKEN_TYPES.SESSION_TRANSFER_TOKEN` in any downstream checks — never branch on `token_type`.
+- **Actor is mandatory and must be fresh**: The actor token (the agent's session ID token by default) must be an unexpired, asymmetrically-signed (RS256/PS256) JWT. If it is expired and a refresh token is present the SDK automatically refreshes it — the refreshed token set is persisted back to the agent's session, since refresh token rotation invalidates the old refresh token; otherwise it fails with `ACTOR_UNAVAILABLE`. If the refresh itself requires MFA step-up, an `MfaRequiredError` is thrown instead. Pass an explicit `actor` to use a non-session token and skip the refresh path entirely.
+- **Non-localhost callback**: STT redemption rejects `localhost` redirect URIs — use a real domain (or a tunnel) for the target callback.
+- **Same tenant**: Both agent and target app must be on the same Auth0 tenant.
+- **No refresh token / no `offline_access`**: Auth0 silently drops `offline_access` from the STT scope — the impersonation session has no refresh token and self-expires according to the tenant's session lifetime settings. Pass `scope: "openid profile"` on the target login URL (or via `options.scope`) to make the intent explicit and avoid unexpected scope-negotiation warnings.
+- **STT itself is never written to the agent's session**: `session.tokenSet` never carries the STT. The agent's own session tokens are only touched when the actor's ID token had to be refreshed (see above) — otherwise nothing about the agent's session changes.
+
 ## Customizing Auth Handlers
 
 Authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`) are handled automatically by the middleware. You can intercept these routes in your middleware to run custom logic before the auth handlers execute.
@@ -4998,450 +5338,6 @@ For more details, see the official Next.js documentation:
 
 ➡️ [Upgrading to Next 16 Middleware](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#upgrading-to-nextjs-16)  
 ➡️ [Proxy.ts Conventions](https://nextjs.org/docs/app/api-reference/file-conventions/proxy)
-
-## Multi-Factor Authentication (MFA)
-
-> [!NOTE]
-> Multi Factor Authentication support via SDKs is currently in Early Access.
-
-The SDK provides comprehensive MFA client APIs to manage multi-factor authentication for your users. The MFA client is accessible via the `mfa` property on both server and client Auth0 instances.
-
-### Setup & Configuration
-
-Before using MFA APIs, configure your Auth0 tenant:
-
-1. **Enable MFA** in [Auth0 Dashboard > Security > Multi-factor Auth](https://manage.auth0.com/#/security/multi-factor-authentication)
-2. **Configure Factors**: Enable OTP, SMS, Email, or Push Notification
-3. **Set Tenant Policy** to "Adaptive" or "Never" (see [MFA Tenant Configuration](#mfa-tenant-configuration))
-4. **Configure MFA Actions** to conditionally enforce MFA for specific resources
-
-### Configuration
-
-Configure MFA token TTL via options or environment variable:
-
-```typescript
-// lib/auth0.ts
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client({
-  mfaContextTtl: 600 // 10 minutes in seconds
-});
-```
-
-```bash
-# .env.local
-AUTH0_MFA_CONTEXT_TTL=600
-```
-
-Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
-
-### Handling MfaRequiredError
-
-When you request an Access Token for a resource that requires MFA, Auth0 will return a `403 Forbidden`. The SDK automatically catches this and throws an `MfaRequiredError` containing the `mfaToken` needed to resolve the challenge.
-
-**`mfa_required` Response:**
-```json
-{
-  "error": "mfa_required",
-  "error_description": "Multifactor authentication required",
-  "mfa_token": "Fe26...encoded_token"
-}
-```
-
-Add a catch handler for `MfaRequiredError` around `getAccessToken` call:
-```js
-try {
-  const { token } = await getAccessToken({ audience: "https://api.example.com" });
-} catch (error) {
-  if (error instanceof MfaRequiredError) {
-    // MFA logic here
-    // You can pass the `error.mfa_token` to SDK MFA methods
-    // Example, redirect to MFA challenge page that contains MFA handling logic
-    redirect(`/mfa?token=${error.mfa_token}`);
-  }
-  throw error;
-}
-```
-
-### Accessing the MFA API
-
-The MFA API is accessible on both the server and the client to manage authenticators and perform verification.
-
-**On the Server:**
-
-The MFA API is available via the `mfa` property of your `Auth0Client` instance.
-
-```ts
-// lib/auth0.ts
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client();
-
-// Usage in Route Handler or Server Action
-const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
-```
-
-**On the Client:**
-
-The MFA API is available as a named export `mfa` from the client entry point.
-
-```ts
-// components/mfa-form.tsx
-import { mfa } from "@auth0/nextjs-auth0/client";
-
-// Usage in client component
-await mfa.verify({ mfaToken, otp });
-```
-
-### Getting Authenticators
-
-List all enrolled authenticators for the current user:
-
-```ts
-const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
-```
-
-### Enrollment
-
-Enroll new authenticators for MFA. Support includes OTP (TOTP apps), SMS, Email, and Push Notification.
-
-**OTP (Authenticator App)**
-
-```ts
-// Returns secret, barcodeUri for QR code
-const enrollment = await auth0.mfa.enroll({
-  mfaToken,
-  authenticatorTypes: ["otp"]
-});
-```
-
-**SMS**
-
-```ts
-const enrollment = await auth0.mfa.enroll({
-  mfaToken,
-  authenticatorTypes: ["oob"],
-  oobChannels: ["sms"],
-  phoneNumber: "+15555555555"
-});
-```
-
-**Email**
-
-```ts
-const enrollment = await auth0.mfa.enroll({
-  mfaToken,
-  authenticatorTypes: ["oob"],
-  oobChannels: ["email"],
-  email: "user@example.com"
-});
-```
-
-**Push Notification**
-
-```ts
-const enrollment = await auth0.mfa.enroll({
-  mfaToken,
-  authenticatorTypes: ["oob"],
-  oobChannels: ["auth0"]
-});
-```
-
-### Challenge
-
-Initiate an MFA challenge for OOB authenticators (SMS/Email/Push). OTP authenticators do not require explicit challenge.
-
-```ts
-// Returns oobCode and bindingMethod
-const challenge = await auth0.mfa.challenge({
-  mfaToken,
-  challengeType: "oob",
-  authenticatorId: "sms|..."
-});
-```
-
-### Verify
-
-Verify MFA with OTP code, OOB code, or recovery code.
-
-**OTP Verification**
-
-```ts
-await auth0.mfa.verify({
-  mfaToken,
-  otp: "123456"
-});
-```
-
-**OOB Verification (SMS/Email/Push)**
-
-```ts
-await auth0.mfa.verify({
-  mfaToken,
-  oobCode: challenge.oobCode,
-  bindingCode: "123456" // User input
-});
-```
-
-**Recovery Code Verification**
-
-```ts
-await auth0.mfa.verify({
-  mfaToken,
-  recoveryCode: "ABCD-EFGH-IJKL-MNOP"
-});
-```
-
-### Complete Flow Examples
-
-For complete implementation guides and best practices, refer to the official Auth0 documentation:
-
-- [Explore multi-factor authentication](https://auth0.com/docs/secure/multi-factor-authentication)
-- [Customize Multi-Factor Authentication Pages](https://auth0.com/docs/brand-and-customize/universal-login-pages/customize-mfa-pages)
-
-### MFA Tenant Configuration
-
-The SDK relies on background token refreshes to maintain user sessions. For these non-interactive requests to succeed, configure your MFA policies to allow `refresh_token` exchanges without immediate user challenge.
-
-> [!NOTE]
-> Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block background token refreshes, as they cannot satisfy an interactive MFA challenge.
-
-**Recommended Configuration:**
-Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
-
-**Example Action Code:**
-```javascript
-exports.onExecutePostLogin = async (event, api) => {
-  // Only trigger on refresh_token grant (step-up)
-  if (event.request?.body?.grant_type == "refresh_token") {
-    
-    if (event.user.enrolledFactors.length) {
-      // User has factors enrolled - challenge
-      api.authentication.challengeWithAny([
-        { type: 'otp' }, 
-        { type: 'phone' }, 
-        { type: 'push-notification' }, 
-        { type: 'email' },
-        { type: 'recovery-code' }
-      ]);
-    } else {
-      // No factors enrolled - prompt enrollment
-      api.authentication.enrollWithAny([
-        { type: 'otp'}, 
-        { type: 'phone'},
-        { type: 'push-notification' }
-      ]);
-    }
-  }
-};
-```
-
-### MFA Error Handling
-
-The SDK provides typed error classes for all MFA operations:
-
-| Error Class | Code | When Thrown | Example |
-|-------------|------|-------------|---------|
-| `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up | Accessing protected API |
-| `MfaGetAuthenticatorsError` | Various | Failed to list authenticators | Invalid/expired token |
-| `MfaEnrollmentError` | Various | Enrollment failed | Unsupported factor type |
-| `MfaDeleteAuthenticatorError` | Various | Delete failed | Authenticator not found |
-| `MfaChallengeError` | Various | Challenge failed | Invalid authenticator ID |
-| `MfaVerifyError` | `invalid_grant` | Verification failed | Invalid OTP code |
-| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for token | Token not in session |
-| `MfaTokenExpiredError` | `mfa_token_expired` | Token TTL exceeded | Context expired |
-| `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret | Decryption failed |
-
-## Reactive MFA Step-Up (Popup)
-
-### Overview
-
-The SDK supports **reactive MFA step-up** via a browser popup using Auth0 Universal Login. When an API call fails with `mfa_required`, the client-side `mfa.challengeWithPopup()` method opens a popup window where the user completes MFA through Auth0's Universal Login. After completion, the token is cached in the server-side session and returned directly to the caller — no full-page redirect required.
-
-This is useful for applications that need to protect specific actions (e.g., transferring funds, changing settings) with MFA without disrupting the user's current page state.
-
-**Flow summary:**
-1. App calls an API that requires MFA → receives `MfaRequiredError`
-2. App calls `mfa.challengeWithPopup({ audience })` → popup opens
-3. User completes MFA in the popup via Auth0 Universal Login
-4. Popup sends result back via `postMessage` → popup auto-closes
-5. SDK retrieves the cached token from the server session
-6. `challengeWithPopup()` resolves with the access token
-
-### Basic Usage
-
-```tsx
-'use client';
-
-import { mfa, getAccessToken } from '@auth0/nextjs-auth0/client';
-import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
-import { useState } from 'react';
-
-export function ProtectedAction() {
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-
-  async function handleAction() {
-    try {
-      // 1. Try to get an access token for the protected API
-      const token = await getAccessToken({
-        audience: 'https://api.example.com',
-        scope: 'read:sensitive'
-      });
-
-      // 2. Use the token to call your API
-      const res = await fetch('https://api.example.com/sensitive', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setResult(await res.json());
-    } catch (err) {
-      if (err instanceof MfaRequiredError) {
-        try {
-          // 3. MFA required — trigger popup step-up
-          const { token } = await mfa.challengeWithPopup({
-            audience: 'https://api.example.com',
-            scope: 'read:sensitive'
-          });
-
-          // 4. Retry with the step-up token
-          const res = await fetch('https://api.example.com/sensitive', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setResult(await res.json());
-        } catch (popupErr) {
-          setError(popupErr.message);
-        }
-      } else {
-        setError(err.message);
-      }
-    }
-  }
-
-  return (
-    <div>
-      <button onClick={handleAction}>Perform Sensitive Action</button>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
-    </div>
-  );
-}
-```
-
-### Handling MfaRequiredError from Client Components
-
-The client-side `getAccessToken()` helper automatically detects 403 responses with `error: "mfa_required"` and throws `MfaRequiredError`. This allows you to use `instanceof` checks to trigger the popup flow:
-
-```tsx
-import { getAccessToken } from '@auth0/nextjs-auth0/client';
-import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
-
-try {
-  const token = await getAccessToken({ audience: 'https://api.example.com' });
-} catch (err) {
-  if (err instanceof MfaRequiredError) {
-    // Trigger popup MFA step-up
-    const { token } = await mfa.challengeWithPopup({
-      audience: 'https://api.example.com'
-    });
-  }
-}
-```
-
-> [!NOTE]
-> The `MfaRequiredError` detection works for both server-side and client-side `getAccessToken()` calls. On the client, it is reconstructed from the 403 JSON response returned by the `/auth/access-token` endpoint.
-
-### Configuration Options
-
-`challengeWithPopup()` accepts the following options:
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `audience` | `string` | *(required)* | Target API audience identifier |
-| `scope` | `string` | `'openid profile email'` | Space-separated scopes for the token |
-| `acr_values` | `string` | `'http://schemas.openid.net/pape/policies/2007/06/multi-factor'` | ACR values sent to Auth0 for step-up policy |
-| `returnTo` | `string` | `'/'` | Return URL (used internally by the OAuth flow) |
-| `timeout` | `number` | `60000` | Popup timeout in milliseconds |
-| `popupWidth` | `number` | `400` | Popup window width in pixels |
-| `popupHeight` | `number` | `600` | Popup window height in pixels |
-
-**Example with custom options:**
-
-```tsx
-const { token } = await mfa.challengeWithPopup({
-  audience: 'https://api.example.com',
-  scope: 'openid profile email transfer:funds',
-  timeout: 120000,    // 2 minutes
-  popupWidth: 500,
-  popupHeight: 700
-});
-```
-
-> [!NOTE]
-> Popup timeout is configured per-call only. There is no server-side configuration option or environment variable for this — timeout is a client-side runtime concern. If you need a consistent default across your app, define an application-level constant and pass it to every call.
-
-### CSP Nonce Support
-
-If your application uses a strict Content Security Policy that blocks inline scripts, configure a CSP nonce on the server-side `Auth0Client`:
-
-```typescript
-// lib/auth0.ts
-import { Auth0Client } from '@auth0/nextjs-auth0/server';
-
-export const auth0 = new Auth0Client({
-  cspNonce: 'your-generated-nonce'
-});
-```
-
-The nonce is injected into the `<script>` tag of the popup callback HTML response, making it compliant with `script-src 'nonce-...'` CSP policies.
-
-> [!IMPORTANT]
-> The nonce must contain only base64 characters (`A-Za-z0-9+/=-_`). Invalid characters will throw an `InvalidConfigurationError`.
-
-> [!NOTE]
-> The `cspNonce` is set at `Auth0Client` construction time and remains static for the lifetime of the instance. Since `Auth0Client` is typically a singleton, this means the same nonce is reused across requests. This still provides protection over `'unsafe-inline'` (the script must know the nonce), but is weaker than per-request nonce rotation. If your security policy requires per-request nonces, you would need to create the `Auth0Client` per-request or use middleware to inject a fresh nonce via a custom header.
-
-If you do **not** configure a `cspNonce` and your CSP blocks inline scripts, the popup will complete the MFA flow but the parent window will never receive the `postMessage`. This manifests as a `PopupTimeoutError` after the configured timeout.
-
-### Error Handling
-
-`challengeWithPopup()` can throw several typed errors. Handle them to provide appropriate user feedback:
-
-```tsx
-import { mfa } from '@auth0/nextjs-auth0/client';
-import {
-  PopupBlockedError,
-  PopupCancelledError,
-  PopupTimeoutError,
-  PopupInProgressError,
-  ExecutionContextError
-} from '@auth0/nextjs-auth0/errors';
-
-try {
-  const { token } = await mfa.challengeWithPopup({
-    audience: 'https://api.example.com'
-  });
-} catch (err) {
-  if (err instanceof PopupBlockedError) {
-    // Browser blocked the popup — prompt user to allow popups
-    alert('Please allow popups for this site and try again.');
-  } else if (err instanceof PopupCancelledError) {
-    // User closed the popup before completing MFA
-    console.log('MFA cancelled by user.');
-  } else if (err instanceof PopupTimeoutError) {
-    // Popup did not complete within the timeout
-    console.log('MFA timed out. Please try again.');
-  } else if (err instanceof PopupInProgressError) {
-    // Another popup is already open
-    console.log('Please complete the current MFA prompt first.');
-  } else if (err instanceof ExecutionContextError) {
-    // Called from server-side code (SSR, middleware)
-    console.error('challengeWithPopup() can only be called in browser context.');
-  } else {
-    // AccessTokenError or other errors
-    console.error('MFA failed:', err.message);
-  }
-}
-```
 
 ## Multiple Custom Domains (MCD)
 

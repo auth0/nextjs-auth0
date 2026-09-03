@@ -1,12 +1,25 @@
+import { cookies as nextCookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
+import { ResponseCookies } from "@edge-runtime/cookies";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   DomainResolutionError,
-  InvalidConfigurationError
+  InvalidConfigurationError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../errors/index.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
+
+vi.mock("next/headers.js", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+  cookies: vi.fn().mockResolvedValue({ getAll: () => [] })
+}));
 
 // Define ENV_VARS at the top level for broader scope
 const ENV_VARS = {
@@ -569,6 +582,1999 @@ describe("Auth0Client", () => {
         expect.any(Object),
         mockRes
       );
+    });
+  });
+
+  describe("getAccessTokenForConnection (login_hint multi-account)", () => {
+    const baseSession = (
+      connectionTokenSets: SessionData["connectionTokenSets"]
+    ): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        refreshToken: "refresh_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: {
+        sid: "mock_sid",
+        createdAt: Date.now() / 1000
+      },
+      connectionTokenSets
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      client = new Auth0Client();
+    });
+
+    // Wires up the auth client so getConnectionTokenSet returns `minted` and
+    // records the `existingTokenSet` it was called with (the match the SDK found).
+    function mockAuthClient(
+      session: SessionData,
+      minted: any,
+      getConnectionTokenSet = vi.fn().mockResolvedValue([null, minted])
+    ) {
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session, error: null }),
+        getConnectionTokenSet
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+      return { getConnectionTokenSet };
+    }
+
+    it("appends a second entry for the same connection with a different login hint", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_alice",
+          expiresAt: 999,
+          loginHint: "alice@example.com"
+        }
+      ]);
+      const minted = {
+        connection: "google-oauth2",
+        accessToken: "fc_bob",
+        expiresAt: 1000,
+        loginHint: "bob@example.com"
+      };
+      const { getConnectionTokenSet } = mockAuthClient(session, minted);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const result = await client.getAccessTokenForConnection({
+        connection: "google-oauth2",
+        login_hint: "bob@example.com"
+      });
+
+      // Alice's entry was not treated as a match, so a fresh exchange happened
+      // with no existing token set.
+      expect(getConnectionTokenSet).toHaveBeenCalledWith(
+        session.tokenSet,
+        undefined,
+        expect.objectContaining({ login_hint: "bob@example.com" })
+      );
+      // Both accounts are now stored under the same connection.
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ loginHint: "alice@example.com" }),
+        expect.objectContaining({ loginHint: "bob@example.com" })
+      ]);
+      expect(result.token).toBe("fc_bob");
+    });
+
+    it("reuses the entry matching the provided login hint", async () => {
+      const fresh = Math.floor(Date.now() / 1000) + 3600;
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_alice",
+          expiresAt: fresh,
+          loginHint: "alice@example.com"
+        },
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_bob",
+          expiresAt: fresh,
+          loginHint: "bob@example.com"
+        }
+      ]);
+      // The auth client, given a still-valid existing token set, returns it as-is.
+      const getConnectionTokenSet = vi.fn(
+        async (_tokenSet: any, existing: any) => [null, existing]
+      );
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const result = await client.getAccessTokenForConnection({
+        connection: "google-oauth2",
+        login_hint: "bob@example.com"
+      });
+
+      // Bob's entry (not Alice's) was passed as the existing token set.
+      expect(getConnectionTokenSet).toHaveBeenCalledWith(
+        session.tokenSet,
+        expect.objectContaining({ loginHint: "bob@example.com" }),
+        expect.objectContaining({ login_hint: "bob@example.com" })
+      );
+      // Nothing changed, so no save.
+      expect(saveToSession).not.toHaveBeenCalled();
+      expect(result.token).toBe("fc_bob");
+    });
+
+    it("no-hint call does not match hinted entries (multi-account isolation)", async () => {
+      // Regression: an unhinted call must not select a hinted entry and then
+      // overwrite it with an unhinted token, which would erase the hint. If no
+      // hinted-less entry exists, treat as a cache miss (undefined) → fresh exchange.
+      const fresh = Math.floor(Date.now() / 1000) + 3600;
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_alice",
+          expiresAt: fresh,
+          loginHint: "alice@example.com"
+        },
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_bob",
+          expiresAt: fresh,
+          loginHint: "bob@example.com"
+        }
+      ]);
+      const getConnectionTokenSet = vi.fn(async () => [
+        null,
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_new",
+          expiresAt: fresh
+        }
+      ]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await client.getAccessTokenForConnection({ connection: "google-oauth2" });
+
+      // No hinted-less entry existed, so getConnectionTokenSet must have been
+      // called with `undefined` (cache miss) rather than one of the hinted entries.
+      expect(getConnectionTokenSet).toHaveBeenCalledWith(
+        session.tokenSet,
+        undefined,
+        expect.objectContaining({ connection: "google-oauth2" })
+      );
+      // The new unhinted token is appended; Alice and Bob are preserved intact.
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ loginHint: "alice@example.com" }),
+        expect.objectContaining({ loginHint: "bob@example.com" }),
+        expect.objectContaining({ accessToken: "fc_new" })
+      ]);
+    });
+
+    it("matches on connection alone when no login hint is provided (back-compat)", async () => {
+      const fresh = Math.floor(Date.now() / 1000) + 3600;
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_g",
+          expiresAt: fresh
+        }
+      ]);
+      const getConnectionTokenSet = vi.fn(
+        async (_tokenSet: any, existing: any) => [null, existing]
+      );
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
+
+      await client.getAccessTokenForConnection({ connection: "google-oauth2" });
+
+      expect(getConnectionTokenSet).toHaveBeenCalledWith(
+        session.tokenSet,
+        expect.objectContaining({ accessToken: "fc_g" }),
+        expect.objectContaining({ connection: "google-oauth2" })
+      );
+    });
+
+    it("clears the cached connection token when the exchange fails, then rethrows", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_dead",
+          expiresAt: 999
+        }
+      ]);
+      const exchangeError = new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+        "Failed to exchange the refresh token."
+      );
+      const getConnectionTokenSet = vi
+        .fn()
+        .mockResolvedValue([exchangeError, null]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await expect(
+        client.getAccessTokenForConnection({ connection: "google-oauth2" })
+      ).rejects.toBe(exchangeError);
+
+      // The dead connection token set was the only entry, so the property is
+      // omitted entirely (which deletes the orphaned `__FC` cookie).
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toBeUndefined();
+    });
+
+    it("clears only the matching account on exchange failure, keeping siblings", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_alice",
+          expiresAt: 999,
+          loginHint: "alice@example.com"
+        },
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_bob",
+          expiresAt: 999,
+          loginHint: "bob@example.com"
+        }
+      ]);
+      const exchangeError = new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+        "Failed to exchange the refresh token."
+      );
+      const getConnectionTokenSet = vi
+        .fn()
+        .mockResolvedValue([exchangeError, null]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await expect(
+        client.getAccessTokenForConnection({
+          connection: "google-oauth2",
+          login_hint: "bob@example.com"
+        })
+      ).rejects.toBe(exchangeError);
+
+      // Only Bob's dead entry is pruned; Alice's cached token survives.
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ loginHint: "alice@example.com" })
+      ]);
+    });
+
+    it("does not touch the session on a non-exchange error", async () => {
+      const session = baseSession([
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_g",
+          expiresAt: 999
+        }
+      ]);
+      const otherError = new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
+        "The refresh token is missing."
+      );
+      const getConnectionTokenSet = vi
+        .fn()
+        .mockResolvedValue([otherError, null]);
+      mockAuthClient(session, undefined, getConnectionTokenSet as any);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await expect(
+        client.getAccessTokenForConnection({ connection: "google-oauth2" })
+      ).rejects.toBe(otherError);
+
+      // A transient/other error must not nuke a potentially valid cached token.
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("mintMyAccountToken (private)", () => {
+    const baseSession = (): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        idToken: "id_token",
+        refreshToken: "refresh_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: { sid: "mock_sid", createdAt: Date.now() / 1000 }
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      client = new Auth0Client();
+    });
+
+    function mockAuthClient(
+      session: SessionData | null,
+      tokenSetResponse: { tokenSet: any; idTokenClaims?: any } | null,
+      error: Error | null = null
+    ) {
+      const mockClient = {
+        issuer: "https://test.auth0.com/",
+        getTokenSet: vi
+          .fn()
+          .mockResolvedValue(error ? [error, null] : [null, tokenSetResponse]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockClient
+      );
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      return mockClient;
+    }
+
+    it("throws MISSING_SESSION when there is no active session", async () => {
+      mockAuthClient(null, null);
+
+      await expect(
+        (client as any).mintMyAccountToken({
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        })
+      ).rejects.toMatchObject({
+        code: AccessTokenErrorCode.MISSING_SESSION
+      });
+    });
+
+    it("returns the token and the session from getTokenSet", async () => {
+      const session = baseSession();
+      const tokenSet = {
+        accessToken: "my_account_token",
+        expiresAt: 9999999999,
+        scope: "read:me:connected_accounts",
+        audience: "https://test.auth0.com/me/"
+      };
+      mockAuthClient(session, { tokenSet });
+      vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
+
+      const result = await (client as any).mintMyAccountToken({
+        audience: "https://test.auth0.com/me/",
+        scope: "read:me:connected_accounts"
+      });
+
+      expect(result.token).toBe("my_account_token");
+      expect(result.expiresAt).toBe(9999999999);
+      expect(result.audience).toBe("https://test.auth0.com/me/");
+    });
+
+    it("returns sessionChanged=true and persists when persist:true (default) and token set changed", async () => {
+      const session = baseSession();
+      // A refreshed tokenSet with a new accessToken triggers sessionChanges.
+      const tokenSet = {
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+        idToken: "new_id_token",
+        expiresAt: 9999999999,
+        scope: "openid profile email"
+      };
+      mockAuthClient(session, { tokenSet, idTokenClaims: { sub: "user123" } });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const result = await (client as any).mintMyAccountToken(
+        {
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        },
+        undefined,
+        undefined,
+        { persist: true }
+      );
+
+      expect(result.sessionChanged).toBe(true);
+      expect(saveToSession).toHaveBeenCalledOnce();
+    });
+
+    it("does not persist when persist:false even if the token set changed", async () => {
+      const session = baseSession();
+      const tokenSet = {
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+        idToken: "new_id_token",
+        expiresAt: 9999999999,
+        scope: "openid profile email"
+      };
+      mockAuthClient(session, { tokenSet, idTokenClaims: { sub: "user123" } });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const result = await (client as any).mintMyAccountToken(
+        {
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        },
+        undefined,
+        undefined,
+        { persist: false }
+      );
+
+      expect(result.sessionChanged).toBe(true);
+      // persist:false — caller is responsible for saving.
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("rethrows the error from getTokenSet", async () => {
+      const session = baseSession();
+      const tokenError = new AccessTokenError(
+        AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+        "No refresh token."
+      );
+      mockAuthClient(session, null, tokenError);
+
+      await expect(
+        (client as any).mintMyAccountToken({
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        })
+      ).rejects.toBe(tokenError);
+    });
+  });
+
+  describe("connectAccount", () => {
+    const sessionWith = (
+      connectionTokenSets?: SessionData["connectionTokenSets"]
+    ): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        idToken: "id_token",
+        refreshToken: "refresh_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: {
+        sid: "mock_sid",
+        createdAt: Date.now() / 1000
+      },
+      connectionTokenSets
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      client = new Auth0Client();
+    });
+
+    function mockAuthClientWith(
+      connectAccount: ReturnType<typeof vi.fn>,
+      issuer = "https://test.auth0.com/"
+    ) {
+      const mockAuthClient = { issuer, connectAccount };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+      return mockAuthClient;
+    }
+
+    it("throws ConnectAccountError when there is no session", async () => {
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        null
+      );
+      const connect = vi.fn();
+      mockAuthClientWith(connect);
+
+      await expect(
+        client.connectAccount({ connection: "google-oauth2" })
+      ).rejects.toMatchObject({ code: "missing_session" });
+      expect(connect).not.toHaveBeenCalled();
+    });
+
+    it("mints a create-scoped My Account token and returns the redirect response", async () => {
+      const session = sessionWith();
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
+        .mockResolvedValue({
+          token: "my_account_token",
+          expiresAt: 12345,
+          audience: "https://test.auth0.com/me/",
+          session
+        });
+      const redirect = NextResponse.redirect("https://test.auth0.com/connect");
+      const connect = vi.fn().mockResolvedValue([null, redirect]);
+      mockAuthClientWith(connect);
+
+      const result = await client.connectAccount({
+        connection: "google-oauth2"
+      });
+
+      expect(result).toBe(redirect);
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          audience: "https://test.auth0.com/me/",
+          scope: "create:me:connected_accounts"
+        }),
+        undefined,
+        undefined,
+        { persist: false }
+      );
+      expect(connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connection: "google-oauth2",
+          tokenSet: expect.objectContaining({ accessToken: "my_account_token" })
+        }),
+        undefined
+      );
+    });
+
+    it("threads a NextRequest through session resolution and to the auth client", async () => {
+      const getSessionFromAuthClient = vi
+        .spyOn(client as any, "getSessionFromAuthClient")
+        .mockResolvedValue(sessionWith());
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: sessionWith()
+      });
+      const redirect = NextResponse.redirect("https://test.auth0.com/connect");
+      const connect = vi.fn().mockResolvedValue([null, redirect]);
+      mockAuthClientWith(connect);
+
+      const req = new NextRequest("https://myapp.test/api/connect");
+
+      await client.connectAccount({ connection: "google-oauth2" }, req);
+
+      expect(getSessionFromAuthClient).toHaveBeenCalledWith(
+        expect.anything(),
+        req
+      );
+      // The request is forwarded so appBaseUrl can be resolved dynamically.
+      expect(connect).toHaveBeenCalledWith(expect.anything(), req);
+    });
+
+    it("propagates the error from the auth client", async () => {
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        sessionWith()
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: sessionWith()
+      });
+      const connectError = new Error("connect failed");
+      mockAuthClientWith(vi.fn().mockResolvedValue([connectError, null]));
+
+      await expect(
+        client.connectAccount({ connection: "google-oauth2" })
+      ).rejects.toThrow("connect failed");
+    });
+
+    it("persists a rotated token set before rethrowing when connect fails", async () => {
+      // There is no redirect response on the error path, so the rotated session
+      // is written best-effort via saveToSession (App Router ambient cookies).
+      // Without this the rotation is dropped and the next refresh logs the user
+      // out.
+      const session = sessionWith();
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      mockAuthClientWith(
+        vi.fn().mockResolvedValue([new Error("connect failed"), null])
+      );
+
+      await expect(
+        client.connectAccount({ connection: "google-oauth2" })
+      ).rejects.toThrow("connect failed");
+
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
+    });
+
+    it("persists a rotated refresh token onto the redirect response", async () => {
+      const session = sessionWith();
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      // The mint refreshed the primary token, rotating the refresh token.
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      const redirect = NextResponse.redirect("https://test.auth0.com/connect");
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, redirect]));
+      const set = vi
+        .spyOn(client["sessionStore"] as any, "set")
+        .mockResolvedValue(undefined);
+
+      const result = await client.connectAccount({
+        connection: "google-oauth2"
+      });
+
+      expect(result).toBe(redirect);
+      // The rotated session is written onto the redirect response's cookies so
+      // it is not dropped (which would trigger reuse-detection on next refresh).
+      expect(set).toHaveBeenCalledTimes(1);
+      const [, resCookies, savedSession] = set.mock.calls[0];
+      expect(resCookies).toBe(redirect.cookies);
+      expect((savedSession as SessionData).tokenSet.refreshToken).toBe(
+        "rotated_refresh_token"
+      );
+    });
+
+    it("does not write the session when the mint did not rotate the token", async () => {
+      const session = sessionWith();
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session,
+        sessionChanged: false
+      });
+      const redirect = NextResponse.redirect("https://test.auth0.com/connect");
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, redirect]));
+      const set = vi
+        .spyOn(client["sessionStore"] as any, "set")
+        .mockResolvedValue(undefined);
+
+      await client.connectAccount({ connection: "google-oauth2" });
+
+      expect(set).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("disconnectAccount", () => {
+    const sessionWith = (
+      connectionTokenSets: SessionData["connectionTokenSets"]
+    ): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        idToken: "id_token",
+        refreshToken: "refresh_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: {
+        sid: "mock_sid",
+        createdAt: Date.now() / 1000
+      },
+      connectionTokenSets
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      client = new Auth0Client();
+    });
+
+    function mockAuthClientWith(
+      disconnectAccount: ReturnType<typeof vi.fn>,
+      issuer = "https://test.auth0.com/"
+    ) {
+      const mockAuthClient = { issuer, disconnectAccount };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+      return mockAuthClient;
+    }
+
+    it("throws ConnectedAccountsError when there is no session", async () => {
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        null
+      );
+      const disconnect = vi.fn();
+      mockAuthClientWith(disconnect);
+
+      await expect(
+        client.disconnectAccount({ connection: "google-oauth2" })
+      ).rejects.toMatchObject({
+        code: "missing_session"
+      });
+      expect(disconnect).not.toHaveBeenCalled();
+    });
+
+    it("mints a My Account token, disconnects, and prunes cached tokens", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
+        .mockResolvedValue({
+          token: "my_account_token",
+          expiresAt: 12345,
+          audience: "https://test.auth0.com/me/",
+          session
+        });
+      const disconnect = vi.fn().mockResolvedValue([null, []]);
+      mockAuthClientWith(disconnect);
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      // Correct My Account audience + scopes were requested.
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts delete:me:connected_accounts"
+        }),
+        undefined,
+        undefined,
+        { persist: false }
+      );
+      // The connection name (not id) was passed to the auth client.
+      expect(disconnect).toHaveBeenCalledWith(
+        expect.objectContaining({ accessToken: "my_account_token" }),
+        "google-oauth2"
+      );
+      // Only the disconnected connection was pruned; github remains.
+      // (App Router path: req/res are undefined trailing args.)
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionTokenSets: [
+            expect.objectContaining({ connection: "github" })
+          ]
+        }),
+        undefined,
+        undefined
+      );
+    });
+
+    it("omits connectionTokenSets when the last account is removed", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      const savedSession = saveToSession.mock.calls[0][0] as SessionData;
+      expect(savedSession.connectionTokenSets).toBeUndefined();
+    });
+
+    it("does not save the session when no cached token matches", async () => {
+      const session = sessionWith([
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("prunes cached connection tokens then rethrows when the disconnect partially fails", async () => {
+      // When multiple accounts share a connection and only some unlink before
+      // an error, the server-side state is partially disconnected while cached
+      // tokens are now stale. Prune connection-scoped local state so we don't
+      // leak orphaned __FC cookies, then rethrow so the caller sees the error.
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      const disconnectError = new Error("delete failed");
+      mockAuthClientWith(vi.fn().mockResolvedValue([disconnectError, null]));
+
+      await expect(
+        client.disconnectAccount({ connection: "google-oauth2" })
+      ).rejects.toThrow("delete failed");
+
+      // Session was pruned: google-oauth2 entry gone, github survives.
+      expect(saveToSession).toHaveBeenCalledOnce();
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ connection: "github" })
+      ]);
+    });
+
+    it("persists a rotated token set before rethrowing when there is nothing to prune", async () => {
+      // No cached tokens for the connection, so pruning writes nothing. The mint
+      // still rotated the refresh token, and the disconnect then failed. The
+      // rotation must be persisted before the rethrow, otherwise the next
+      // refresh replays the old token and the user is logged out.
+      const session = sessionWith(undefined);
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      mockAuthClientWith(
+        vi.fn().mockResolvedValue([new Error("delete failed"), null])
+      );
+
+      await expect(
+        client.disconnectAccount({ connection: "google-oauth2" })
+      ).rejects.toThrow("delete failed");
+
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
+    });
+
+    it("Pages Router: threads req/res through session read, token mint, and save", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
+      ]);
+      const getSessionFromAuthClient = vi
+        .spyOn(client as any, "getSessionFromAuthClient")
+        .mockResolvedValue(session);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
+        .mockResolvedValue({
+          token: "my_account_token",
+          expiresAt: 12345,
+          audience: "https://test.auth0.com/me/",
+          session
+        });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      const req = { headers: { cookie: "" } } as any;
+      const res = { setHeader: vi.fn(), appendHeader: vi.fn() } as any;
+
+      await client.disconnectAccount({ connection: "google-oauth2" }, req, res);
+
+      // The session is resolved from the request context.
+      expect(getSessionFromAuthClient).toHaveBeenCalledWith(
+        expect.anything(),
+        req
+      );
+      // mintMyAccountToken is called with req/res so the rotated refresh token
+      // persists to the Pages Router response.
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: "read:me:connected_accounts delete:me:connected_accounts"
+        }),
+        req,
+        res,
+        { persist: false }
+      );
+      // The pruned session is written back to the Pages Router response.
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionTokenSets: [
+            expect.objectContaining({ connection: "github" })
+          ]
+        }),
+        req,
+        res
+      );
+    });
+
+    it("prunes from the session the mint persisted, preserving a rotated refresh token", async () => {
+      // Pre-mint snapshot has the old refresh token.
+      const preMint = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 }
+      ]);
+      // Minting the My Account token refreshes the primary token, rotating the
+      // refresh token. mintMyAccountToken returns the persisted snapshot so
+      // pruning does not clobber the rotated token via a stale re-read.
+      const postMint = {
+        ...preMint,
+        tokenSet: { ...preMint.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      // Initial session read returns preMint (used only for MISSING_SESSION guard).
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        preMint
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      // mintMyAccountToken returns postMint as the persisted session.
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: postMint
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      const saved = saveToSession.mock.calls[0][0] as SessionData;
+      // The rotated refresh token survives (not clobbered by the stale snapshot)
+      expect(saved.tokenSet.refreshToken).toBe("rotated_refresh_token");
+      // ...and the disconnected connection is still pruned.
+      expect(saved.connectionTokenSets).toEqual([
+        expect.objectContaining({ connection: "github" })
+      ]);
+    });
+
+    it("persists a rotated session even when there is nothing to prune", async () => {
+      // No cached connection tokens, so nothing is pruned, but the mint rotated
+      // the refresh token: it must still be persisted (single write).
+      const session = sessionWith(undefined);
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      // A single write persists the rotated token; no double write.
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
+    });
+
+    it("does not write the session when the mint did not rotate and nothing is pruned", async () => {
+      const session = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session,
+        sessionChanged: false
+      });
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, []]));
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getConnectedAccounts", () => {
+    const sessionWith = (
+      connectionTokenSets: SessionData["connectionTokenSets"]
+    ): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        idToken: "id_token",
+        refreshToken: "refresh_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: {
+        sid: "mock_sid",
+        createdAt: Date.now() / 1000
+      },
+      connectionTokenSets
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      client = new Auth0Client();
+    });
+
+    function mockAuthClientWith(
+      listConnectedAccounts: ReturnType<typeof vi.fn>,
+      issuer = "https://test.auth0.com/"
+    ) {
+      const mockAuthClient = { issuer, listConnectedAccounts };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+      return mockAuthClient;
+    }
+
+    it("throws ConnectedAccountsError when there is no session", async () => {
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        null
+      );
+      const list = vi.fn();
+      mockAuthClientWith(list);
+
+      await expect(client.getConnectedAccounts()).rejects.toMatchObject({
+        code: "missing_session"
+      });
+      expect(list).not.toHaveBeenCalled();
+    });
+
+    it("returns the accounts and requests the read scope", async () => {
+      const session = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
+        .mockResolvedValue({
+          token: "my_account_token",
+          expiresAt: 12345,
+          audience: "https://test.auth0.com/me/",
+          session
+        });
+      const accounts = [
+        { id: "cac_1", connection: "google-oauth2" },
+        { id: "cac_2", connection: "github" }
+      ];
+      mockAuthClientWith(vi.fn().mockResolvedValue([null, accounts]));
+
+      const result = await client.getConnectedAccounts();
+
+      expect(result).toEqual(accounts);
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          audience: "https://test.auth0.com/me/",
+          scope: "read:me:connected_accounts"
+        }),
+        undefined,
+        undefined,
+        { persist: false }
+      );
+    });
+
+    it("prunes cached tokens whose connection is no longer present server-side", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "slack", accessToken: "fc_s", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      // Server only knows about google-oauth2; slack was disconnected elsewhere.
+      mockAuthClientWith(
+        vi
+          .fn()
+          .mockResolvedValue([
+            null,
+            [{ id: "cac_1", connection: "google-oauth2" }]
+          ])
+      );
+
+      await client.getConnectedAccounts();
+
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionTokenSets: [
+            expect.objectContaining({ connection: "google-oauth2" })
+          ]
+        }),
+        undefined,
+        undefined
+      );
+    });
+
+    it("does not save the session when nothing is stale", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      mockAuthClientWith(
+        vi
+          .fn()
+          .mockResolvedValue([
+            null,
+            [{ id: "cac_1", connection: "google-oauth2" }]
+          ])
+      );
+
+      await client.getConnectedAccounts();
+
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("propagates the error from the auth client", async () => {
+      const session = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      const listError = new Error("list failed");
+      mockAuthClientWith(vi.fn().mockResolvedValue([listError, null]));
+
+      await expect(client.getConnectedAccounts()).rejects.toThrow(
+        "list failed"
+      );
+    });
+
+    it("persists a rotated token set before rethrowing when the list fails", async () => {
+      // The first list call in a session always rotates the refresh token (the
+      // My Account audience is not cached yet). If the list then fails, the
+      // rotation must still be persisted, otherwise the next refresh replays the
+      // old token and the user is logged out.
+      const session = sessionWith(undefined);
+      const rotatedSession = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotatedSession,
+        sessionChanged: true
+      });
+      const listError = new Error("list failed");
+      mockAuthClientWith(vi.fn().mockResolvedValue([listError, null]));
+
+      await expect(client.getConnectedAccounts()).rejects.toThrow(
+        "list failed"
+      );
+      expect(saveToSession).toHaveBeenCalledWith(
+        rotatedSession,
+        undefined,
+        undefined
+      );
+    });
+
+    it("does not persist on a failed list when the token was not rotated", async () => {
+      const session = sessionWith(undefined);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session,
+        sessionChanged: false
+      });
+      mockAuthClientWith(
+        vi.fn().mockResolvedValue([new Error("list failed"), null])
+      );
+
+      await expect(client.getConnectedAccounts()).rejects.toThrow(
+        "list failed"
+      );
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("Pages Router: threads req/res through session read, token mint, and reconcile save", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "slack", accessToken: "fc_s", expiresAt: 999 }
+      ]);
+      const getSessionFromAuthClient = vi
+        .spyOn(client as any, "getSessionFromAuthClient")
+        .mockResolvedValue(session);
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      const mintMyAccountToken = vi
+        .spyOn(client as any, "mintMyAccountToken")
+        .mockResolvedValue({
+          token: "my_account_token",
+          expiresAt: 12345,
+          audience: "https://test.auth0.com/me/",
+          session
+        });
+      // Server only knows about google-oauth2; slack was disconnected elsewhere.
+      mockAuthClientWith(
+        vi
+          .fn()
+          .mockResolvedValue([
+            null,
+            [{ id: "cac_1", connection: "google-oauth2" }]
+          ])
+      );
+
+      const req = { headers: { cookie: "" } } as any;
+      const res = { setHeader: vi.fn(), appendHeader: vi.fn() } as any;
+
+      const result = await client.getConnectedAccounts(req, res);
+
+      expect(result).toEqual([{ id: "cac_1", connection: "google-oauth2" }]);
+      // The session is resolved from the request context.
+      expect(getSessionFromAuthClient).toHaveBeenCalledWith(
+        expect.anything(),
+        req
+      );
+      // mintMyAccountToken is called with req/res so the rotated refresh token
+      // persists to the Pages Router response.
+      expect(mintMyAccountToken).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "read:me:connected_accounts" }),
+        req,
+        res,
+        { persist: false }
+      );
+      // The reconciled (pruned) session is written back to the Pages Router response.
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionTokenSets: [
+            expect.objectContaining({ connection: "google-oauth2" })
+          ]
+        }),
+        req,
+        res
+      );
+    });
+
+    it("persists a rotated session even when nothing needs reconciling", async () => {
+      // No cached connection tokens, so nothing is reconciled, but the mint
+      // rotated the refresh token: it must still be persisted (single write).
+      const session = sessionWith(undefined);
+      const rotated = {
+        ...session,
+        tokenSet: { ...session.tokenSet, refreshToken: "rotated_refresh_token" }
+      };
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: 12345,
+        audience: "https://test.auth0.com/me/",
+        session: rotated,
+        sessionChanged: true
+      });
+      mockAuthClientWith(
+        vi
+          .fn()
+          .mockResolvedValue([
+            null,
+            [{ id: "cac_1", connection: "google-oauth2" }]
+          ])
+      );
+
+      await client.getConnectedAccounts();
+
+      expect(saveToSession).toHaveBeenCalledTimes(1);
+      expect(saveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            refreshToken: "rotated_refresh_token"
+          })
+        }),
+        undefined,
+        undefined
+      );
+    });
+  });
+
+  // Regression coverage for gh-2450: disconnecting / reconciling connected
+  // accounts must actually shrink the cookie jar (emit `Set-Cookie` deletions
+  // for orphaned `__FC_i` cookies), otherwise the stale connection-token
+  // cookies accumulate and eventually trip an HTTP 431 (Request Header Fields
+  // Too Large). These tests exercise the real StatelessSessionStore end-to-end,
+  // asserting on the emitted Set-Cookie headers rather than mocking saveToSession.
+  describe("connected-account cookie reclamation (gh-2450)", () => {
+    // `ResponseCookies` dedupes headers by name in place, so `getSetCookie()`
+    // reflects the *final* state of each cookie (one header per name). A cookie
+    // is considered deleted when its final header has an empty value and
+    // `Max-Age=0` (how `deleteCookie` reclaims it); otherwise it is a live
+    // rewrite. Returns a map of cookie name -> { deleted, value }.
+    function finalCookieState(
+      headers: Headers
+    ): Map<string, { deleted: boolean; value: string }> {
+      const state = new Map<string, { deleted: boolean; value: string }>();
+      for (const raw of headers.getSetCookie()) {
+        const [pair, ...attrs] = raw.split(";").map((s) => s.trim());
+        const eq = pair.indexOf("=");
+        const name = pair.slice(0, eq);
+        const value = pair.slice(eq + 1);
+        // A cookie is reclaimed either via `Max-Age=0` (how `deleteCookie`
+        // writes it) or via a past `Expires` date (how `ResponseCookies.delete`
+        // writes it when the orphan deletion is mirrored onto a shared jar).
+        const maxAge0 = attrs.some((a) => a.toLowerCase() === "max-age=0");
+        const expiredEpoch = attrs.some(
+          (a) => a.toLowerCase() === "expires=thu, 01 jan 1970 00:00:00 gmt"
+        );
+        state.set(name, {
+          deleted: value === "" && (maxAge0 || expiredEpoch),
+          value
+        });
+      }
+      return state;
+    }
+
+    // Names of `__FC_i` cookies that ended up deleted (reclaimed).
+    function deletedConnectionCookies(headers: Headers): string[] {
+      return [...finalCookieState(headers).entries()]
+        .filter(([name, s]) => name.startsWith("__FC") && s.deleted)
+        .map(([name]) => name);
+    }
+
+    // Names of `__FC_i` cookies that ended up rewritten with a live value.
+    function rewrittenConnectionCookies(headers: Headers): string[] {
+      return [...finalCookieState(headers).entries()]
+        .filter(([name, s]) => name.startsWith("__FC") && !s.deleted)
+        .map(([name]) => name);
+    }
+
+    const sessionWith = (
+      connectionTokenSets: SessionData["connectionTokenSets"]
+    ): SessionData => ({
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "access_token",
+        idToken: "id_token",
+        refreshToken: "refresh_token",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      },
+      internal: {
+        sid: "mock_sid",
+        createdAt: Math.floor(Date.now() / 1000)
+      },
+      connectionTokenSets
+    });
+
+    let client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      client = new Auth0Client();
+    });
+
+    // Points the mocked `cookies()` (used by the app-router saveToSession path)
+    // at a real ResponseCookies jar seeded with the given connection cookies.
+    // The app-router path passes the same jar as both request and response
+    // cookies, so seeds written here are both readable (via getAll) by the
+    // store's cleanup loop and observable as emitted Set-Cookie headers.
+    // Returns the underlying Headers; since ResponseCookies dedupes by name,
+    // the final header per `__FC_i` reflects whether the store rewrote or
+    // deleted it (see finalCookieState).
+    function seedAppRouterCookies(connectionCount: number): Headers {
+      const headers = new Headers();
+      const jar = new ResponseCookies(headers);
+      for (let i = 0; i < connectionCount; i++) {
+        jar.set(`__FC_${i}`, `seed_fc_${i}`);
+      }
+      // A session cookie is present in any real request; its exact value is
+      // irrelevant here since getSession is mocked.
+      jar.set("__session", "seed_session");
+      vi.mocked(nextCookies).mockResolvedValue(jar as any);
+      return headers;
+    }
+
+    it("emits Set-Cookie deletions for orphaned __FC cookies on disconnect", async () => {
+      // Session has three connected accounts; we disconnect the middle one.
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "github", accessToken: "fc_gh", expiresAt: 999 },
+        { connection: "slack", accessToken: "fc_s", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        issuer: "https://test.auth0.com/",
+        disconnectAccount: vi.fn().mockResolvedValue([null, []])
+      });
+
+      const headers = seedAppRouterCookies(3);
+
+      await client.disconnectAccount({ connection: "github" });
+
+      // After disconnect, two accounts remain -> __FC_0, __FC_1 are rewritten
+      // and __FC_2 must be deleted so the cookie jar shrinks.
+      const deletedNames = deletedConnectionCookies(headers);
+      const rewrittenNames = rewrittenConnectionCookies(headers);
+      expect(deletedNames).toContain("__FC_2");
+      expect(rewrittenNames).toContain("__FC_0");
+      expect(rewrittenNames).toContain("__FC_1");
+      expect(deletedNames).not.toContain("__FC_0");
+      expect(deletedNames).not.toContain("__FC_1");
+    });
+
+    it("emits Set-Cookie deletions for every __FC cookie when the last account is disconnected", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        issuer: "https://test.auth0.com/",
+        disconnectAccount: vi.fn().mockResolvedValue([null, []])
+      });
+
+      const headers = seedAppRouterCookies(1);
+
+      await client.disconnectAccount({ connection: "google-oauth2" });
+
+      // No accounts remain -> __FC_0 must be deleted.
+      expect(deletedConnectionCookies(headers)).toContain("__FC_0");
+      expect(rewrittenConnectionCookies(headers)).toEqual([]);
+    });
+
+    it("emits Set-Cookie deletions for stale __FC cookies during getConnectedAccounts reconciliation", async () => {
+      // Two accounts cached locally, but the server only knows about one.
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 },
+        { connection: "slack", accessToken: "fc_s", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        issuer: "https://test.auth0.com/",
+        listConnectedAccounts: vi
+          .fn()
+          .mockResolvedValue([
+            null,
+            [{ id: "cac_1", connection: "google-oauth2" }]
+          ])
+      });
+
+      const headers = seedAppRouterCookies(2);
+
+      await client.getConnectedAccounts();
+
+      // slack was pruned -> one account remains -> __FC_1 must be deleted,
+      // __FC_0 rewritten.
+      const deletedNames = deletedConnectionCookies(headers);
+      expect(deletedNames).toContain("__FC_1");
+      expect(deletedNames).not.toContain("__FC_0");
+      expect(rewrittenConnectionCookies(headers)).toContain("__FC_0");
+    });
+
+    it("does not delete any __FC cookies when nothing was disconnected", async () => {
+      const session = sessionWith([
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 999 }
+      ]);
+      vi.spyOn(client as any, "getSessionFromAuthClient").mockResolvedValue(
+        session
+      );
+      vi.spyOn(client as any, "mintMyAccountToken").mockResolvedValue({
+        token: "my_account_token",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        audience: "https://test.auth0.com/me/",
+        session
+      });
+      // Disconnect a connection the user does not have -> no local change.
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        issuer: "https://test.auth0.com/",
+        disconnectAccount: vi.fn().mockResolvedValue([null, []])
+      });
+
+      const headers = seedAppRouterCookies(1);
+
+      await client.disconnectAccount({ connection: "not-connected" });
+
+      // saveToSession is skipped entirely, so no __FC deletions are emitted.
+      expect(deletedConnectionCookies(headers)).toEqual([]);
+    });
+  });
+
+  describe("revokeRefreshToken", () => {
+    let client: Auth0Client;
+
+    const sessionWithRefreshToken: SessionData = {
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "at_123",
+        refreshToken: "rt_session",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: { sid: "sid_123", createdAt: Date.now() / 1000 }
+    };
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      client = new Auth0Client();
+    });
+
+    it("should revoke the refresh token from the session", async () => {
+      const revokeToken = vi.fn().mockResolvedValue([null, undefined]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: sessionWithRefreshToken,
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).resolves.toBeUndefined();
+      expect(revokeToken).toHaveBeenCalledWith("rt_session", "refresh_token");
+    });
+
+    it("should throw a MISSING_SESSION error when there is no session", async () => {
+      const revokeToken = vi.fn();
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: null, error: null }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.MISSING_SESSION
+      });
+      expect(revokeToken).not.toHaveBeenCalled();
+    });
+
+    it("should throw a MISSING_REFRESH_TOKEN error when the session has no refresh token", async () => {
+      const revokeToken = vi.fn();
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: {
+            ...sessionWithRefreshToken,
+            tokenSet: { accessToken: "at_123", expiresAt: 9999999999 }
+          },
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.MISSING_REFRESH_TOKEN
+      });
+      expect(revokeToken).not.toHaveBeenCalled();
+    });
+
+    it("should re-throw the error returned by revokeToken", async () => {
+      const revocationError = new TokenRevocationError(
+        TokenRevocationErrorCode.FAILED_TO_REVOKE,
+        "Revocation request failed."
+      );
+      const revokeToken = vi.fn().mockResolvedValue([revocationError, null]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: sessionWithRefreshToken,
+          error: null
+        }),
+        revokeToken
+      });
+
+      const req = new NextRequest("https://myapp.test/api/test");
+      await expect(client.revokeRefreshToken({ req })).rejects.toMatchObject({
+        code: TokenRevocationErrorCode.FAILED_TO_REVOKE
+      });
+    });
+  });
+
+  describe("requestSessionTransferToken / buildSessionTransferRedirect", () => {
+    let client: Auth0Client;
+
+    const mockSession: SessionData = {
+      user: { sub: "agent|007" },
+      tokenSet: {
+        accessToken: "at_agent",
+        idToken: "id_token_agent",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      },
+      internal: { sid: "sid_agent", createdAt: Math.floor(Date.now() / 1000) }
+    };
+
+    const mockSttResult = {
+      sessionTransferToken: "stt_opaque_123",
+      issuedTokenType:
+        "urn:auth0:params:oauth:token-type:session_transfer_token",
+      expiresIn: 60,
+      tokenType: "N_A"
+    };
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      client = new Auth0Client();
+    });
+
+    it("should call authClient.requestSessionTransferToken with the current session and return the result", async () => {
+      const requestSessionTransferToken = vi
+        .fn()
+        .mockResolvedValue([null, mockSttResult]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken
+      });
+
+      const result = await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(result).toBe(mockSttResult);
+      expect(requestSessionTransferToken).toHaveBeenCalledWith(
+        { subjectToken: "sub-tok", subjectTokenType: "urn:acme:subject" },
+        mockSession
+      );
+    });
+
+    it("should throw when authClient.requestSessionTransferToken returns an error", async () => {
+      const { CustomTokenExchangeError, CustomTokenExchangeErrorCode } =
+        await import("../errors/index.js");
+      const sttError = new CustomTokenExchangeError(
+        CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
+        "No actor available."
+      );
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: null, error: null }),
+        requestSessionTransferToken: vi.fn().mockResolvedValue([sttError, null])
+      });
+
+      await expect(
+        client.requestSessionTransferToken({
+          subjectToken: "sub-tok",
+          subjectTokenType: "urn:acme:subject"
+        })
+      ).rejects.toMatchObject({
+        code: CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE
+      });
+    });
+
+    it("should pass null session when there is no active session", async () => {
+      const requestSessionTransferToken = vi
+        .fn()
+        .mockResolvedValue([null, mockSttResult]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: null, error: null }),
+        requestSessionTransferToken
+      });
+
+      await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(requestSessionTransferToken).toHaveBeenCalledWith(
+        expect.anything(),
+        null
+      );
+    });
+
+    it("should persist the refreshed session (through finalizeSession) when the actor's ID token was refreshed", async () => {
+      const refreshedSession: SessionData = {
+        ...mockSession,
+        tokenSet: {
+          ...mockSession.tokenSet,
+          idToken: "id_token_agent_refreshed",
+          refreshToken: "rt_agent_rotated"
+        }
+      };
+      const finalizedSession: SessionData = {
+        ...refreshedSession,
+        user: { sub: "agent|007", extra: "filtered" }
+      };
+      const finalizeSession = vi.fn().mockResolvedValue(finalizedSession);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken: vi
+          .fn()
+          .mockResolvedValue([null, mockSttResult, refreshedSession]),
+        finalizeSession
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(finalizeSession).toHaveBeenCalledWith(
+        refreshedSession,
+        refreshedSession.tokenSet.idToken
+      );
+      expect(saveToSession).toHaveBeenCalledWith(
+        finalizedSession,
+        undefined,
+        undefined
+      );
+    });
+
+    it("should not persist a session when the actor's ID token was not refreshed", async () => {
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken: vi
+          .fn()
+          .mockResolvedValue([null, mockSttResult, null])
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      await client.requestSessionTransferToken({
+        subjectToken: "sub-tok",
+        subjectTokenType: "urn:acme:subject"
+      });
+
+      expect(saveToSession).not.toHaveBeenCalled();
+    });
+
+    it("should support the Pages Router overload (req, res, options) and persist via saveToSession(session, req, res)", async () => {
+      const refreshedSession: SessionData = {
+        ...mockSession,
+        tokenSet: {
+          ...mockSession.tokenSet,
+          idToken: "id_token_agent_refreshed",
+          refreshToken: "rt_agent_rotated"
+        }
+      };
+      const finalizeSession = vi.fn().mockResolvedValue(refreshedSession);
+      const requestSessionTransferToken = vi
+        .fn()
+        .mockResolvedValue([null, mockSttResult, refreshedSession]);
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue({
+        getSessionWithDomainCheck: vi
+          .fn()
+          .mockResolvedValue({ session: mockSession, error: null }),
+        requestSessionTransferToken,
+        finalizeSession
+      });
+      const saveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      const mockReq = {
+        headers: {},
+        cookies: {}
+      } as any;
+      const mockRes = {
+        headers: {},
+        setHeader: vi.fn(),
+        appendHeader: vi.fn()
+      } as any;
+
+      const result = await client.requestSessionTransferToken(
+        mockReq,
+        mockRes,
+        { subjectToken: "sub-tok", subjectTokenType: "urn:acme:subject" }
+      );
+
+      expect(result).toBe(mockSttResult);
+      expect(requestSessionTransferToken).toHaveBeenCalledWith(
+        { subjectToken: "sub-tok", subjectTokenType: "urn:acme:subject" },
+        mockSession
+      );
+      expect(saveToSession).toHaveBeenCalledWith(
+        refreshedSession,
+        mockReq,
+        mockRes
+      );
+    });
+
+    it("buildSessionTransferRedirect should return a redirect with session_transfer_token param", () => {
+      const response = client.buildSessionTransferRedirect(
+        "https://app.example.com/auth/login",
+        mockSttResult
+      );
+
+      expect(response.status).toBeGreaterThanOrEqual(300);
+      expect(response.status).toBeLessThan(400);
+      const location = response.headers.get("location") ?? "";
+      const url = new URL(location);
+      expect(url.searchParams.get("session_transfer_token")).toBe(
+        "stt_opaque_123"
+      );
+    });
+
+    it("buildSessionTransferRedirect should append organization when provided", () => {
+      const response = client.buildSessionTransferRedirect(
+        "https://app.example.com/auth/login",
+        mockSttResult,
+        { organization: "org_abc" }
+      );
+
+      const location = response.headers.get("location") ?? "";
+      const url = new URL(location);
+      expect(url.searchParams.get("organization")).toBe("org_abc");
     });
   });
 
@@ -1404,6 +3410,43 @@ describe("Auth0Client", () => {
         expect(Array.isArray(cookieValues)).toBe(true);
         expect(cookieValues).toHaveLength(1);
       });
+    });
+  });
+
+  describe("startInteractiveLogin", () => {
+    it("forwards request cookies to AuthClient.startInteractiveLogin so transaction-cookie eviction can run", async () => {
+      process.env[ENV_VARS.DOMAIN] = "env.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "env_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "env_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.com";
+      process.env[ENV_VARS.SECRET] = "env_secret";
+
+      const client = new Auth0Client();
+
+      const mockCookieJar = { getAll: () => [] };
+      const nextHeaders = await import("next/headers.js");
+      vi.mocked(nextHeaders.cookies).mockResolvedValue(mockCookieJar as any);
+
+      const mockAuthClient = {
+        startInteractiveLogin: vi
+          .fn()
+          .mockResolvedValue(NextResponse.redirect("https://example.com"))
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+
+      await client.startInteractiveLogin();
+
+      expect(mockAuthClient.startInteractiveLogin).toHaveBeenCalledTimes(1);
+      const [, req, reqCookies] =
+        mockAuthClient.startInteractiveLogin.mock.calls[0];
+      // No NextRequest is available from Server Components/Actions.
+      expect(req).toBeUndefined();
+      // Cookies must be forwarded — otherwise TransactionStore.save() never
+      // runs eviction, and __txn_* cookies accumulate unbounded for logins
+      // started this way (e.g. from a Server Action).
+      expect(reqCookies).toBe(mockCookieJar);
     });
   });
 });

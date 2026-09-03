@@ -8,7 +8,6 @@ export async function generateSecret(length: number) {
 
 /**
  * Strip the value prefix that TransactionStore encodes in cookie values.
- * "p:{jwe}"    → prefetch cookie — strips "p:" prefix
  * "{ts}:{jwe}" → real login — strips "{ts}:" prefix
  * "{jwe}"      → legacy (no prefix) — returned as-is
  *

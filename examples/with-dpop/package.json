@@ -36,15 +36,15 @@
     "express-rate-limit": "^7.5.1",
     "helmet": "^7.1.0",
     "jwks-rsa": "^3.1.0",
-    "morgan": "^1.10.0",
-    "next": "15.5.18",
+    "morgan": "^1.11.0",
+    "next": "15.5.24",
     "nodemon": "^3.0.0",
     "oauth4webapi": "^3.8.2",
     "prop-types": "^15.8.1",
     "react": "19.0.1",
     "react-dom": "19.0.1",
     "reactstrap": "^9.1.5",
-    "undici": "^7.28.0"
+    "undici": "^7.29.0"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",
