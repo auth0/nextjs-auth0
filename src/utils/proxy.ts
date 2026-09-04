@@ -195,7 +195,7 @@ export function transformTargetUrl(
   const targetUrl = new URL(baseUrl.origin + finalPath);
 
   req.nextUrl.searchParams.forEach((value, key) => {
-    targetUrl.searchParams.set(key, value);
+    targetUrl.searchParams.append(key, value);
   });
 
   return targetUrl;
