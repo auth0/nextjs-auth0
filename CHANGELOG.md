@@ -1,5 +1,18 @@
 # Change Log
 
+## [v4.29.0](https://github.com/auth0/nextjs-auth0/tree/v4.29.0) (2026-09-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.28.0...v4.29.0)
+
+**Added**
+- feat: FIFO eviction for `__txn_*` cookies — total size capped at 3500 bytes; oldest in-flight transactions are evicted first when the limit is reached, preventing 431 Request Header Fields Too Large errors caused by unbounded accumulation [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+
+**⚠️ Changed**
+- `__txn_*` cookies are now written as `{timestamp}:{jwe}` instead of bare `{jwe}`. **Rolling deployments only**: any login started on a v4.29.0 pod and completed on a v4.28.0 pod (or vice versa) will receive "state parameter is invalid" and the user must re-initiate login — the window is bounded by `transactionCookie.maxAge` (default 1 hour). To eliminate the overlap entirely, deploy v4.29.0 to all pods before accepting new logins, or shorten the TTL (`transactionCookie: { maxAge: 600 }`) to reduce the window. [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: txn cookie accumulation [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+- fix: preserve multi-value query params in proxy URL builder [\#2834](https://github.com/auth0/nextjs-auth0/pull/2834) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.28.0](https://github.com/auth0/nextjs-auth0/tree/v4.28.0) (2026-08-28)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.27.0...v4.28.0)
 
