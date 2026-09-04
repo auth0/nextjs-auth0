@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.29.0](https://github.com/auth0/nextjs-auth0/tree/v4.29.0) (2026-09-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.28.0...v4.29.0)
+
+**Added**
+- fix: txn cookie accumulation [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: preserve multi-value query params in proxy URL builder [\#2834](https://github.com/auth0/nextjs-auth0/pull/2834) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.28.0](https://github.com/auth0/nextjs-auth0/tree/v4.28.0) (2026-08-28)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.27.0...v4.28.0)
 
