@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { AuthClient } from "../auth-client/index.js";
 import { Auth0Client } from "../client.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 const domain = "guabu.us.auth0.com";
 const clientId = "my-client-id";
@@ -93,33 +92,12 @@ describe("APP_BASE_URL Configuration", () => {
   });
 
   describe("Array-based APP_BASE_URL configuration", () => {
-    const transactionStore = new TransactionStore({
-      secret,
-      cookieOptions: {
-        prefix: "__txn_",
-        secure: false,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 3600
-      }
-    });
-
-    const sessionStore = new StatelessSessionStore({
-      secret,
-      cookieOptions: {
-        name: "__session",
-        secure: false,
-        sameSite: "lax",
-        path: "/",
-        transient: false
-      }
-    });
+    const stores = createTestStores({ secret });
 
     it("should throw error if array is empty", () => {
       expect(() => {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain,
           clientId,
           clientSecret,
@@ -133,8 +111,7 @@ describe("APP_BASE_URL Configuration", () => {
     it("should throw error if array contains invalid URLs", () => {
       expect(() => {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain,
           clientId,
           clientSecret,
@@ -146,8 +123,7 @@ describe("APP_BASE_URL Configuration", () => {
 
       expect(() => {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain,
           clientId,
           clientSecret,

@@ -16,11 +16,10 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 import { ServerPasskeyClient } from "./server-passkey-client.js";
 
 // Shared mutable headers that the mocked next/headers cookies() returns.
@@ -99,8 +98,7 @@ async function makePasskeyClient(
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: s,
-        transactionStore: new TransactionStore({ secret: s }),
-        sessionStore: new StatelessSessionStore({ secret: s }),
+        ...createTestStores({ secret: s }),
         routes: getDefaultRoutes()
       }),
     isResolverMode: false
@@ -440,7 +438,7 @@ describe("ServerPasskeyClient.getToken()", () => {
 
     const setCookie = mockCookieHeaders.get("set-cookie");
     expect(setCookie).toBeTruthy();
-    expect(setCookie).toMatch(/__session=/);
+    expect(setCookie).toMatch(/__session\.0=/);
   });
 
   it("throws PasskeyGetTokenError on token exchange failure", async () => {
@@ -589,7 +587,7 @@ describe("ServerPasskeyClient.getToken()", () => {
 
     const setCookie = mockCookieHeaders.get("set-cookie");
     expect(setCookie).toBeTruthy();
-    expect(setCookie).toMatch(/__session=/);
+    expect(setCookie).toMatch(/__session\.0=/);
   });
 
   it("throws PasskeyGetTokenError when id_token is missing from response", async () => {

@@ -2,11 +2,10 @@ import * as oauth from "oauth4webapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 // Mock oauth4webapi for integration tests
 vi.mock("oauth4webapi", async () => {
@@ -30,7 +29,6 @@ vi.mock("oauth4webapi", async () => {
 
 describe("DPoP Tests", () => {
   let authClient: AuthClient;
-  let sessionStore: StatelessSessionStore;
   let secret: string;
   let dpopKeyPair: { privateKey: CryptoKey; publicKey: CryptoKey };
 
@@ -47,12 +45,10 @@ describe("DPoP Tests", () => {
     secret = await generateSecret(32);
     dpopKeyPair = await generateDpopKeyPair();
 
-    const transactionStore = new TransactionStore({ secret });
-    sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
 
     authClient = new AuthClient({
-      transactionStore,
-      sessionStore,
+      ...stores,
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -91,8 +87,7 @@ describe("DPoP Tests", () => {
 
     it("should create auth client without DPoP", () => {
       const nonDpopAuthClient = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -166,8 +161,7 @@ describe("DPoP Tests", () => {
     it("should work with non-DPoP auth client", async () => {
       // Create auth client without DPoP and verify it works correctly
       const nonDpopAuthClient = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

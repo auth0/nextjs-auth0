@@ -18,13 +18,12 @@ import {
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
 import { createNextHeadersMock } from "../../test-fixtures/mocks.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { MfaContext, SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
 import { Auth0Client } from "../client.js";
 import { decrypt } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 vi.mock("next/headers.js", () => createNextHeadersMock({ cookies: false }));
 
@@ -597,8 +596,7 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
       clientSecret: testAuth0ClientConfig.clientSecret,
       appBaseUrl: testAuth0ClientConfig.appBaseUrl,
       secret: passkeySecret,
-      transactionStore: new TransactionStore({ secret: passkeySecret }),
-      sessionStore: new StatelessSessionStore({ secret: passkeySecret }),
+      ...createTestStores({ secret: passkeySecret }),
       routes: getDefaultRoutes()
     });
   });
@@ -678,8 +676,7 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
       clientSecret: testAuth0ClientConfig.clientSecret,
       appBaseUrl: testAuth0ClientConfig.appBaseUrl,
       secret: scopedSecret,
-      transactionStore: new TransactionStore({ secret: scopedSecret }),
-      sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+      ...createTestStores({ secret: scopedSecret }),
       routes: getDefaultRoutes(),
       authorizationParameters: { audience: testAudience, scope: testScope }
     });
@@ -762,8 +759,7 @@ describe("MFA Error Bubbling — passwordlessVerify", () => {
       clientSecret: testAuth0ClientConfig.clientSecret,
       appBaseUrl: testAuth0ClientConfig.appBaseUrl,
       secret: passwordlessSecret,
-      transactionStore: new TransactionStore({ secret: passwordlessSecret }),
-      sessionStore: new StatelessSessionStore({ secret: passwordlessSecret }),
+      ...createTestStores({ secret: passwordlessSecret }),
       routes: getDefaultRoutes()
     });
   });
@@ -844,8 +840,7 @@ describe("MFA Error Bubbling — passwordlessVerify", () => {
       clientSecret: testAuth0ClientConfig.clientSecret,
       appBaseUrl: testAuth0ClientConfig.appBaseUrl,
       secret: scopedSecret,
-      transactionStore: new TransactionStore({ secret: scopedSecret }),
-      sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+      ...createTestStores({ secret: scopedSecret }),
       routes: getDefaultRoutes(),
       authorizationParameters: { audience: testAudience, scope: testScope }
     });

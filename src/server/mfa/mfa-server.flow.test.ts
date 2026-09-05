@@ -14,13 +14,15 @@ import {
   getAuthenticatorsScenarios,
   verifyScenarios
 } from "../../test-fixtures/mfa-scenarios-shared.js";
+import {
+  createTestStores,
+  type TestStores
+} from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import type { EnrollOobOptions } from "../../types/mfa.js";
 import { AuthClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 import { encryptMfaToken } from "./mfa-utils.js";
 
 // Test constants
@@ -65,22 +67,22 @@ async function createSessionCookie(
 
 describe("AuthClient MFA Methods", () => {
   let secret: string;
-  let transactionStore: TransactionStore;
-  let sessionStore: StatelessSessionStore;
+  let stateStore: TestStores["stateStore"];
+  let stateIdentifier: string;
   let authClient: AuthClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
-    transactionStore = new TransactionStore({ secret });
-    sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
+    stateStore = stores.stateStore;
+    stateIdentifier = stores.stateIdentifier;
     authClient = new AuthClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
       appBaseUrl: DEFAULT.appBaseUrl,
       secret,
-      transactionStore,
-      sessionStore,
+      ...stores,
       routes: getDefaultRoutes()
     });
   });
@@ -484,16 +486,16 @@ describe("AuthClient MFA Methods", () => {
         resCookies
       );
 
-      // Verify session was updated
-      const updatedSession = await sessionStore.get(reqCookies);
-      expect(updatedSession?.accessTokens).toBeDefined();
-      expect(updatedSession?.accessTokens?.length).toBeGreaterThan(0);
-      expect(updatedSession?.accessTokens?.[0].accessToken).toBe(
-        "new-mfa-access-token"
+      // Verify session was updated — read from stateStore which uses native format
+      const updatedState = await stateStore.get(stateIdentifier, {
+        reqCookies
+      });
+      const newToken = updatedState?.tokenSets?.find(
+        (t) => t.audience === "https://api.example.com"
       );
-      expect(updatedSession?.accessTokens?.[0].audience).toBe(
-        "https://api.example.com"
-      );
+      expect(newToken).toBeDefined();
+      expect(newToken?.accessToken).toBe("new-mfa-access-token");
+      expect(newToken?.audience).toBe("https://api.example.com");
     });
 
     it("should replace (not append) the access token for the same audience on repeated step-up", async () => {
@@ -567,8 +569,10 @@ describe("AuthClient MFA Methods", () => {
         resCookies
       );
 
-      const updatedSession = await sessionStore.get(reqCookies);
-      const forAudience = updatedSession?.accessTokens?.filter(
+      const updatedState = await stateStore.get(stateIdentifier, {
+        reqCookies
+      });
+      const forAudience = updatedState?.tokenSets?.filter(
         (t) => t.audience === "https://api.example.com"
       );
       // Exactly one entry for the audience (replaced, not appended)...
@@ -653,8 +657,10 @@ describe("AuthClient MFA Methods", () => {
         resCookies
       );
 
-      const updatedSession = await sessionStore.get(reqCookies);
-      const forAudience = updatedSession?.accessTokens?.filter(
+      const updatedState = await stateStore.get(stateIdentifier, {
+        reqCookies
+      });
+      const forAudience = updatedState?.tokenSets?.filter(
         (t) => t.audience === "https://api.example.com"
       );
       // Both stale duplicates must be gone; exactly one fresh entry remains.
@@ -737,11 +743,17 @@ describe("AuthClient MFA Methods", () => {
         resCookies
       );
 
-      const updatedSession = await sessionStore.get(reqCookies);
-      const audiences = updatedSession?.accessTokens?.map((t) => t.audience);
+      const updatedState = await stateStore.get(stateIdentifier, {
+        reqCookies
+      });
+      // tokenSets[0] is the primary token (audience ""); filter to additional tokens only
+      const additionalTokens = updatedState?.tokenSets?.filter(
+        (t) => t.audience && t.audience !== ""
+      );
+      const audiences = additionalTokens?.map((t) => t.audience);
       expect(audiences).toContain("https://api-a.example.com");
       expect(audiences).toContain("https://api-b.example.com");
-      expect(updatedSession?.accessTokens?.length).toBe(2);
+      expect(additionalTokens?.length).toBe(2);
     });
 
     it("should keep separate entries for the same audience at different scopes", async () => {
@@ -833,8 +845,10 @@ describe("AuthClient MFA Methods", () => {
         resCookies
       );
 
-      const updatedSession = await sessionStore.get(reqCookies);
-      const forAudience = updatedSession?.accessTokens?.filter(
+      const updatedState = await stateStore.get(stateIdentifier, {
+        reqCookies
+      });
+      const forAudience = updatedState?.tokenSets?.filter(
         (t) => t.audience === audience
       );
       // Both scope-distinct tokens are retained for the audience.

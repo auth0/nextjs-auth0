@@ -18,10 +18,9 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 import { ServerPasswordlessClient } from "./server-passwordless-client.js";
 
 // Shared mutable headers that the mocked next/headers cookies() returns.
@@ -90,10 +89,7 @@ function makePasswordlessClient(): ServerPasswordlessClient {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: "test-secret-long-enough-for-hs256-algorithm",
-        transactionStore: new TransactionStore({
-          secret: "test-secret-long-enough-for-hs256-algorithm"
-        }),
-        sessionStore: new StatelessSessionStore({
+        ...createTestStores({
           secret: "test-secret-long-enough-for-hs256-algorithm"
         }),
         routes: getDefaultRoutes()
@@ -310,7 +306,7 @@ describe("ServerPasswordlessClient.verify() — App Router", () => {
     // Session cookie written to next/headers — value is an encrypted JWE blob.
     const setCookie = mockCookieHeaders.get("set-cookie");
     expect(setCookie).toBeTruthy();
-    expect(setCookie).toMatch(/__session=/);
+    expect(setCookie).toMatch(/__session\.0=/);
   });
 
   it("creates a session cookie in next/headers for SMS OTP", async () => {
@@ -335,7 +331,7 @@ describe("ServerPasswordlessClient.verify() — App Router", () => {
 
     const setCookie = mockCookieHeaders.get("set-cookie");
     expect(setCookie).toBeTruthy();
-    expect(setCookie).toMatch(/__session=/);
+    expect(setCookie).toMatch(/__session\.0=/);
   });
 
   it("throws PasswordlessVerifyError on Auth0 token failure", async () => {

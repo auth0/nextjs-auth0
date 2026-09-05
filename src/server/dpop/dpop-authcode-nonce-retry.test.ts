@@ -6,13 +6,12 @@ import * as oauth from "oauth4webapi";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, TransactionState } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
-import { decrypt, encrypt } from "../cookies/index.js";
+import { encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 /**
  * Real SDK Integration Test for DPoP Nonce Retry on Auth Code Callback
@@ -191,14 +190,12 @@ describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
 
     try {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       // Create AuthClient with DPoP enabled
       // Note: No custom fetch needed - MSW intercepts global fetch automatically
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -252,30 +249,27 @@ describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
       );
 
       // Validate session cookie was created with tokens
-      const sessionCookie = response.cookies.get("__session");
+      const sessionCookie = response.cookies.get("__session.0");
       expect(sessionCookie).toBeDefined();
 
-      const { payload: session } = (await decrypt(
-        sessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult;
-
-      expect(session).toMatchObject({
-        user: {
-          sub: DEFAULT.sub
-        },
-        tokenSet: {
-          accessToken: DEFAULT.accessToken,
-          refreshToken: DEFAULT.refreshToken,
-          idToken: expect.stringMatching(/^eyJhbGciOiJSUzI1NiJ9\..+\..+$/)
-        }
+      // Read session from stateStore (native A256CBC-HS512 format) instead of
+      // decrypting the cookie directly (which would fail — engine uses A256CBC-HS512,
+      // not the v4 A256GCM that decrypt() expects).
+      const sessionState = await stores.stateStore.get(stores.stateIdentifier, {
+        reqCookies: response.cookies as any
       });
+      expect(sessionState?.user?.sub).toBe(DEFAULT.sub);
+      expect(sessionState?.tokenSets?.[0]?.accessToken).toBe(
+        DEFAULT.accessToken
+      );
+      expect(sessionState?.refreshToken).toBe(DEFAULT.refreshToken);
+      expect(sessionState?.idToken).toMatch(/^eyJhbGciOiJSUzI1NiJ9\..+\..+$/);
 
       // Validate transaction cookie was cleaned up
       const txnCookie = response.cookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
       expect(txnCookie!.value).toBe("");
-      expect(txnCookie!.maxAge).toBe(0);
+      expect(new Date(txnCookie!.expires!).getTime()).toBe(0);
 
       // Validate that TWO fetch calls were made to token endpoint:
       // 1. First call: No nonce → Got 400 use_dpop_nonce error

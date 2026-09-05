@@ -15,11 +15,10 @@ import {
   createSessionCookie,
   extractDPoPInfo
 } from "../../test-fixtures/proxy-handler-test-helpers.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 /**
  * Comprehensive Test Suite: AuthClient Custom Proxy Handler
@@ -168,8 +167,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       appBaseUrl: DEFAULT.appBaseUrl,
       routes: getDefaultRoutes(),
       secret,
-      sessionStore: new StatelessSessionStore({ secret }),
-      transactionStore: new TransactionStore({ secret }),
+      ...createTestStores({ secret }),
       fetch: (url, init) =>
         fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
     });
@@ -1086,8 +1084,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         secret,
-        sessionStore: new StatelessSessionStore({ secret }),
-        transactionStore: new TransactionStore({ secret }),
+        ...createTestStores({ secret }),
         useDPoP: true,
         dpopKeyPair: dpopKeyPair,
         fetch: (url, init) =>
@@ -2015,8 +2012,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         secret,
-        sessionStore: new StatelessSessionStore({ secret }),
-        transactionStore: new TransactionStore({ secret }),
+        ...createTestStores({ secret }),
         fetch: (url, init) =>
           fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
       });
@@ -2104,8 +2100,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         secret,
-        sessionStore: new StatelessSessionStore({ secret }),
-        transactionStore: new TransactionStore({ secret }),
+        ...createTestStores({ secret }),
         useDPoP: true,
         dpopKeyPair,
         dpopOptions: {

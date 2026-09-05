@@ -2,11 +2,10 @@ import * as oauth from "oauth4webapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 // Mock oauth4webapi for integration tests
 vi.mock("oauth4webapi", async () => {
@@ -29,7 +28,6 @@ vi.mock("oauth4webapi", async () => {
 });
 
 describe("Connected Accounts DPoP Integration Tests", () => {
-  let sessionStore: StatelessSessionStore;
   let secret: string;
   let dpopKeyPair: { privateKey: CryptoKey; publicKey: CryptoKey };
 
@@ -119,7 +117,6 @@ describe("Connected Accounts DPoP Integration Tests", () => {
   beforeEach(async () => {
     secret = await generateSecret(32);
     dpopKeyPair = await generateDpopKeyPair();
-    sessionStore = new StatelessSessionStore({ secret });
 
     // Reset mocks
     vi.mocked(oauth.protectedResourceRequest).mockReset();
@@ -161,8 +158,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
 
       // Create auth client with DPoP enabled
       const authClientWithDPoP = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -232,8 +228,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
 
       // Create auth client without DPoP
       const authClientNoDPoP = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -312,8 +307,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
 
       // Create auth client with DPoP enabled
       const authClientWithDPoP = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -381,8 +375,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
 
       // Create auth client without DPoP
       const authClientNoDPoP = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -451,8 +444,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
 
       // Create auth client with DPoP enabled but no key pair
       const authClientDPoPNoKeys = new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore,
+        ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

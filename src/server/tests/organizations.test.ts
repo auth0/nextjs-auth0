@@ -2,9 +2,8 @@ import { NextRequest } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { AuthClient } from "../auth-client/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 const DEFAULT = {
   domain: "test.auth0.com",
@@ -78,16 +77,10 @@ describe("Organizations Feature", () => {
     vi.resetModules();
 
     const secret = DEFAULT.secret;
-    const transactionStore = new TransactionStore({
-      secret
-    });
-    const sessionStore = new StatelessSessionStore({
-      secret
-    });
+    const stores = createTestStores({ secret });
 
     authClient = new AuthClient({
-      transactionStore,
-      sessionStore,
+      ...stores,
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -197,8 +190,7 @@ describe("Organizations Feature", () => {
   describe("Static Configuration", () => {
     it("should support organization in static configuration", async () => {
       const authClientWithOrg = new AuthClient({
-        transactionStore: new TransactionStore({ secret: DEFAULT.secret }),
-        sessionStore: new StatelessSessionStore({ secret: DEFAULT.secret }),
+        ...createTestStores({ secret: DEFAULT.secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -225,8 +217,7 @@ describe("Organizations Feature", () => {
 
     it("should allow URL parameter to override static configuration", async () => {
       const authClientWithOrg = new AuthClient({
-        transactionStore: new TransactionStore({ secret: DEFAULT.secret }),
-        sessionStore: new StatelessSessionStore({ secret: DEFAULT.secret }),
+        ...createTestStores({ secret: DEFAULT.secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -262,8 +253,7 @@ describe("Organizations Feature", () => {
   describe("PAR (Pushed Authorization Requests) Mode", () => {
     it("should not forward organization parameter when PAR is enabled", async () => {
       const authClientWithPAR = new AuthClient({
-        transactionStore: new TransactionStore({ secret: DEFAULT.secret }),
-        sessionStore: new StatelessSessionStore({ secret: DEFAULT.secret }),
+        ...createTestStores({ secret: DEFAULT.secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

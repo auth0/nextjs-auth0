@@ -3,15 +3,22 @@ import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi
+} from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
-import { decrypt, encrypt } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
+import { encrypt } from "../cookies/index.js";
 
 /**
  * Test suite for the beforeSessionSaved hook.
@@ -146,20 +153,14 @@ describe("AuthClient - beforeSessionSaved hook", async () => {
     const newAccessToken = "at_new_refreshed";
 
     const secret = await generateSecret(32);
-    const transactionStore = new TransactionStore({
-      secret
-    });
-    const sessionStore = new StatelessSessionStore({
-      secret
-    });
+    const stores = createTestStores({ secret });
 
     // Track what the hook receives
     let hookReceivedAccessToken: string | undefined;
     let hookReceivedSession: SessionData | undefined;
 
     const authClient = new AuthClient({
-      transactionStore,
-      sessionStore,
+      ...stores,
 
       domain: domain,
       clientId: clientId,
@@ -217,6 +218,9 @@ describe("AuthClient - beforeSessionSaved hook", async () => {
       headers
     });
 
+    // Spy on stateStore.set before the action to capture the persisted session
+    const setSpy = vi.spyOn(stores.stateStore, "set");
+
     const response = await authClient.handleAccessToken(request);
 
     // Verify the response
@@ -232,21 +236,19 @@ describe("AuthClient - beforeSessionSaved hook", async () => {
     expect(hookReceivedSession?.tokenSet?.accessToken).toEqual(newAccessToken);
     expect(hookReceivedSession?.tokenSet?.refreshToken).toEqual(refreshToken);
 
-    // Verify the session cookie is updated with hook modifications
-    const updatedSessionCookie = response.cookies.get("__session");
-    const { payload: updatedSession } = (await decrypt<SessionData>(
-      updatedSessionCookie!.value,
-      secret
-    )) as jose.JWTDecryptResult<SessionData>;
+    // Verify the persisted session contains hook modifications
+    const capturedStateData = setSpy.mock.calls[0]?.[1] as any;
 
     // Hook modifications should be persisted
-    expect(updatedSession.user).toEqual(
+    expect(capturedStateData?.user).toEqual(
       expect.objectContaining({
         enriched: true
       })
     );
 
     // Updated token should be in final session
-    expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
+    expect(capturedStateData?.tokenSets?.[0]?.accessToken).toEqual(
+      newAccessToken
+    );
   });
 });

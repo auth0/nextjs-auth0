@@ -26,11 +26,10 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -176,9 +175,7 @@ describe("mTLS flow tests", () => {
   });
 
   function makeStores() {
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
-    return { transactionStore, sessionStore };
+    return createTestStores({ secret });
   }
 
   async function makeExpiredSession(): Promise<SessionData> {
@@ -208,7 +205,7 @@ describe("mTLS flow tests", () => {
         onTokenRequest: (url) => requestedUrls.push(url)
       });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       // Track which URLs the custom fetch is called with
       const customFetch = vi.fn(
@@ -218,8 +215,7 @@ describe("mTLS flow tests", () => {
       );
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         appBaseUrl: APP_BASE_URL,
@@ -246,11 +242,10 @@ describe("mTLS flow tests", () => {
         onTokenRequest: (url) => requestedUrls.push(url)
       });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         clientSecret: "client-secret",
@@ -283,11 +278,10 @@ describe("mTLS flow tests", () => {
         }
       });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         appBaseUrl: APP_BASE_URL,
@@ -315,11 +309,10 @@ describe("mTLS flow tests", () => {
         }
       });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         clientSecret: "my-secret",
@@ -345,7 +338,7 @@ describe("mTLS flow tests", () => {
     it("calls the custom fetch implementation for all Auth0 requests when useMtls=true", async () => {
       setupHandlers({ includeMtlsAliases: true });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       const customFetch = vi.fn(
         async (input: RequestInfo | URL, init?: RequestInit) =>
@@ -353,8 +346,7 @@ describe("mTLS flow tests", () => {
       );
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         appBaseUrl: APP_BASE_URL,
@@ -396,11 +388,10 @@ describe("mTLS flow tests", () => {
         onTokenRequest: (url) => requestedUrls.push(url)
       });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         appBaseUrl: APP_BASE_URL,
@@ -432,11 +423,10 @@ describe("mTLS flow tests", () => {
         includeMtlsAliases: false
       });
 
-      const { transactionStore, sessionStore } = makeStores();
+      const stores = makeStores();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         appBaseUrl: APP_BASE_URL,

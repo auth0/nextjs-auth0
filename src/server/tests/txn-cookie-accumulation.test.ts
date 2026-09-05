@@ -4,11 +4,11 @@ import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES } from "../../types/connected-accounts.js";
 import { AuthClient } from "../auth-client/index.js";
 import { RequestCookies, ResponseCookies } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import {
   clampReturnTo,
   clampTransactionField,
@@ -616,16 +616,14 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     });
 
   const makeAuthClient = () => {
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
     return new AuthClient({
       domain,
       clientId,
       clientSecret: "test-secret",
       appBaseUrl: "http://localhost:3000",
       secret,
-      transactionStore,
-      sessionStore,
+      ...stores,
       routes: getDefaultRoutes(),
       fetch: makeFetch()
     });
@@ -758,11 +756,13 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
     expect(callbackRes.status).toBeLessThan(400);
 
     // Completing cookie deleted
-    expect(callbackRes.cookies.get(`__txn_${state}`)?.maxAge).toBe(0);
+    expect(
+      new Date(callbackRes.cookies.get(`__txn_${state}`)!.expires!).getTime()
+    ).toBe(0);
     // Tab B real login cookie must NOT be deleted — it must not appear on the
     // response at all (not even as a deletion tombstone).
     expect(callbackRes.cookies.get("__txn_tabB")).toBeUndefined();
     // Session written
-    expect(callbackRes.cookies.get("__session")?.value).toBeTruthy();
+    expect(callbackRes.cookies.get("__session.0")?.value).toBeTruthy();
   });
 });

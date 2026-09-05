@@ -14,13 +14,12 @@ import {
 } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
 import { decrypt, encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 const DEFAULT = {
   domain: "test.auth0.local",
@@ -117,12 +116,7 @@ describe("Authentication Client", async () => {
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
       authClient = new AuthClient({
-        transactionStore: new TransactionStore({
-          secret
-        }),
-        sessionStore: new StatelessSessionStore({
-          secret
-        }),
+        ...createTestStores({ secret }),
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -251,12 +245,12 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const setSpy = vi.spyOn(authClient["stateStore"], "set");
+      await authClient.handler(request);
 
-      const accessToken = await getAccessTokenFromSetCookieHeader(
-        response,
-        secret,
-        `https://${DEFAULT.domain}/me/`
+      const stateData = setSpy.mock.calls[0]?.[1] as any;
+      const accessToken = stateData?.tokenSets?.find(
+        (ts: any) => ts.audience === `https://${DEFAULT.domain}/me/`
       );
 
       expect(accessToken).toBeDefined();
@@ -289,12 +283,12 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const setSpy = vi.spyOn(authClient["stateStore"], "set");
+      await authClient.handler(request);
 
-      const accessToken = await getAccessTokenFromSetCookieHeader(
-        response,
-        secret,
-        `https://${DEFAULT.domain}/me/`
+      const stateData = setSpy.mock.calls[0]?.[1] as any;
+      const accessToken = stateData?.tokenSets?.find(
+        (ts: any) => ts.audience === `https://${DEFAULT.domain}/me/`
       );
 
       expect(accessToken).toBeDefined();
@@ -728,12 +722,7 @@ describe("Authentication Client", async () => {
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
       authClient = new AuthClient({
-        transactionStore: new TransactionStore({
-          secret
-        }),
-        sessionStore: new StatelessSessionStore({
-          secret
-        }),
+        ...createTestStores({ secret }),
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -862,12 +851,12 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const setSpy = vi.spyOn(authClient["stateStore"], "set");
+      await authClient.handler(request);
 
-      const accessToken = await getAccessTokenFromSetCookieHeader(
-        response,
-        secret,
-        `https://${DEFAULT.domain}/my-org/`
+      const stateData = setSpy.mock.calls[0]?.[1] as any;
+      const accessToken = stateData?.tokenSets?.find(
+        (ts: any) => ts.audience === `https://${DEFAULT.domain}/my-org/`
       );
 
       expect(accessToken).toBeDefined();
@@ -900,12 +889,12 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const setSpy = vi.spyOn(authClient["stateStore"], "set");
+      await authClient.handler(request);
 
-      const accessToken = await getAccessTokenFromSetCookieHeader(
-        response,
-        secret,
-        `https://${DEFAULT.domain}/my-org/`
+      const stateData = setSpy.mock.calls[0]?.[1] as any;
+      const accessToken = stateData?.tokenSets?.find(
+        (ts: any) => ts.audience === `https://${DEFAULT.domain}/my-org/`
       );
 
       expect(accessToken).toBeDefined();
@@ -1335,7 +1324,7 @@ async function createSessionCookie(session: SessionData, secret: string) {
   return `__session=${sessionCookie}`;
 }
 
-async function getAccessTokenFromSetCookieHeader(
+async function _getAccessTokenFromSetCookieHeader(
   response: NextResponse,
   secret: string,
   audience: string

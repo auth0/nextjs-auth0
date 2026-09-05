@@ -4,17 +4,14 @@ import * as oauth from "oauth4webapi";
 import { describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
-import {
-  generateSecret,
-  stripTransactionValuePrefix
-} from "../../test-fixtures/utils.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
 import { AuthClient } from "../auth-client/index.js";
-import { decrypt, encrypt } from "../cookies/index.js";
+import { encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionState, TransactionStore } from "../transaction-store.js";
+import { TransactionState } from "../transaction-store.js";
 
 function createSessionData(sessionData: Partial<SessionData>): SessionData {
   return {
@@ -133,11 +130,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
   describe("handleLogin — challengeMode", () => {
     it("should parse challengeMode=postMessage from URL and store in transaction", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -153,6 +148,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       url.searchParams.set("prompt", "login");
       const request = new NextRequest(url, { method: "GET" });
 
+      const setSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(307);
 
@@ -168,20 +164,17 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
-      const { payload: txn } = (await decrypt(
-        stripTransactionValuePrefix(transactionCookie!.value),
-        secret
-      )) as jose.JWTDecryptResult;
-      expect(txn.challengeMode).toBe("popup");
+      // Read transaction data from spy instead of decrypting (engine uses A256CBC-HS512)
+      const txn = setSpy.mock.calls[0]?.[1];
+      expect(txn).toBeDefined();
+      expect(txn?.challengeMode).toBe("popup");
     });
 
     it("should accept challengeMode=redirect (no-op, default)", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -195,6 +188,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       url.searchParams.set("challengeMode", "redirect");
       const request = new NextRequest(url, { method: "GET" });
 
+      const setSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(307);
 
@@ -202,21 +196,18 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const authUrl = new URL(response.headers.get("Location")!);
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
-      const { payload: txn } = (await decrypt(
-        stripTransactionValuePrefix(transactionCookie!.value),
-        secret
-      )) as jose.JWTDecryptResult;
+      expect(transactionCookie).toBeDefined();
+      // Read transaction data from spy instead of decrypting (engine uses A256CBC-HS512)
+      const txn = setSpy.mock.calls[0]?.[1];
       // When challengeMode is 'redirect' (default), it's not stored to minimize cookie size
-      expect(txn.challengeMode).toBeUndefined();
+      expect(txn?.challengeMode).toBeUndefined();
     });
 
     it("should return 400 for invalid challengeMode", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -238,11 +229,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
 
     it("should store audience and scope in transaction for postMessage flow", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -258,18 +247,18 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       url.searchParams.set("scope", "openid profile email read:data");
       const request = new NextRequest(url, { method: "GET" });
 
+      const setSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       const authUrl = new URL(response.headers.get("Location")!);
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
-      const { payload: txn } = (await decrypt(
-        stripTransactionValuePrefix(transactionCookie!.value),
-        secret
-      )) as jose.JWTDecryptResult;
+      expect(transactionCookie).toBeDefined();
+      // Read transaction data from spy instead of decrypting (engine uses A256CBC-HS512)
+      const txn = setSpy.mock.calls[0]?.[1];
 
-      expect(txn.audience).toBe("https://api.example.com");
-      expect(txn.scope).toBe("openid profile email read:data");
-      expect(txn.challengeMode).toBe("popup");
+      expect(txn?.audience).toBe("https://api.example.com");
+      expect(txn?.scope).toBe("openid profile email read:data");
+      expect(txn?.challengeMode).toBe("popup");
     });
   });
 
@@ -279,11 +268,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
   describe("startInteractiveLogin — challengeMode", () => {
     it("should throw InvalidConfigurationError for invalid challengeMode (programmatic)", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -302,11 +289,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
 
     it("should accept challengeMode=postMessage (programmatic)", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -336,12 +321,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -415,10 +398,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const txnCookie = response.cookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
       expect(txnCookie!.value).toEqual("");
-      expect(txnCookie!.maxAge).toEqual(0);
+      expect(new Date(txnCookie!.expires!).getTime()).toEqual(0);
 
       // Session cookie should be set (merged session)
-      const sessionCookie = response.cookies.get("__session");
+      const sessionCookie = response.cookies.get("__session.0");
       expect(sessionCookie).toBeDefined();
     });
 
@@ -427,12 +410,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -478,12 +459,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -539,12 +518,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -601,12 +578,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const state = "txn-state";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -659,19 +634,17 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const txnCookie = response.cookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
       expect(txnCookie!.value).toEqual("");
-      expect(txnCookie!.maxAge).toEqual(0);
+      expect(new Date(txnCookie!.expires!).getTime()).toEqual(0);
     });
 
     it("should return redirect error for standard flow (no challengeMode)", async () => {
       const state = "txn-state";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -820,11 +793,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
   describe("handleAccessToken — mergeScopes", () => {
     it("should pass mergeScopes=false to getTokenSet when query param is 'false'", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -876,11 +847,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
 
     it("should use default mergeScopes behavior when param is absent", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -920,11 +889,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
   describe("getTokenSet — mergeScopes", () => {
     it("should use ONLY options.scope when mergeScopes=false", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -965,11 +932,9 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
 
     it("should use empty string when mergeScopes=false and no scope provided", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -1023,12 +988,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       let capturedCtx: any;
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -1090,12 +1053,10 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       let capturedCtx: any;
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

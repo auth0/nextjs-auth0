@@ -16,11 +16,10 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 const DEFAULT = {
   domain: "auth0.local",
@@ -74,16 +73,14 @@ describe("AuthClient passkey methods", () => {
 
   beforeEach(async () => {
     secret = await generateSecret(32);
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
     authClient = new AuthClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
       appBaseUrl: DEFAULT.appBaseUrl,
       secret,
-      transactionStore,
-      sessionStore,
+      ...stores,
       routes: getDefaultRoutes()
     });
   });
@@ -359,7 +356,7 @@ describe("AuthClient passkey methods", () => {
       expect(capturedBody.authn_response).toBeTruthy();
       expect(String(capturedBody.grant_type)).toContain("webauthn");
       // Session cookie written to resCookies
-      expect(resHeaders.get("set-cookie")).toMatch(/__session=/);
+      expect(resHeaders.get("set-cookie")).toMatch(/__session\.0=/);
     });
 
     it("throws PasskeyGetTokenError on invalid_grant from Auth0", async () => {
@@ -449,8 +446,7 @@ describe("AuthClient passkey methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: dpopSecret,
-        transactionStore: new TransactionStore({ secret: dpopSecret }),
-        sessionStore: new StatelessSessionStore({ secret: dpopSecret }),
+        ...createTestStores({ secret: dpopSecret }),
         routes: getDefaultRoutes(),
         useDPoP: true,
         dpopKeyPair
@@ -518,8 +514,7 @@ describe("AuthClient passkey methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: dpopSecret,
-        transactionStore: new TransactionStore({ secret: dpopSecret }),
-        sessionStore: new StatelessSessionStore({ secret: dpopSecret }),
+        ...createTestStores({ secret: dpopSecret }),
         routes: getDefaultRoutes(),
         useDPoP: true,
         dpopKeyPair
@@ -626,8 +621,7 @@ describe("AuthClient passkey methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: freshSecret,
-        transactionStore: new TransactionStore({ secret: freshSecret }),
-        sessionStore: new StatelessSessionStore({ secret: freshSecret }),
+        ...createTestStores({ secret: freshSecret }),
         routes: getDefaultRoutes()
       });
 

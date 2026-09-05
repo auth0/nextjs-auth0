@@ -12,12 +12,11 @@ import {
 } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 // Test constants
 const DEFAULT = {
@@ -90,13 +89,11 @@ async function createSessionCookie(
 
 describe("Logout Strategy Flow Tests", () => {
   let secret: string;
-  let transactionStore: TransactionStore;
-  let sessionStore: StatelessSessionStore;
+  let stores: ReturnType<typeof createTestStores>;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
-    transactionStore = new TransactionStore({ secret });
-    sessionStore = new StatelessSessionStore({ secret });
+    stores = createTestStores({ secret });
   });
 
   describe("logoutStrategy: 'auto' (default)", () => {
@@ -107,8 +104,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });
@@ -166,8 +162,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });
@@ -199,8 +194,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });
@@ -234,8 +228,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "oidc",
         routes: getDefaultRoutes()
       });
@@ -286,8 +279,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "oidc",
         routes: getDefaultRoutes()
       });
@@ -316,8 +308,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -367,8 +358,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -399,8 +389,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -434,8 +423,7 @@ describe("Logout Strategy Flow Tests", () => {
           clientSecret: DEFAULT.clientSecret,
           appBaseUrl: DEFAULT.appBaseUrl,
           secret,
-          transactionStore,
-          sessionStore,
+          ...stores,
           logoutStrategy: strategy,
           routes: getDefaultRoutes()
         });
@@ -474,7 +462,7 @@ describe("Logout Strategy Flow Tests", () => {
         // Session cookie should be cleared
         const cookie = response.cookies.get("__session");
         expect(cookie?.value).toBe("");
-        expect(cookie?.maxAge).toBe(0);
+        expect(new Date(cookie!.expires!).getTime()).toBe(0);
 
         // Response should have cache control headers
         expect(response.headers.get("cache-control")).toContain("no-cache");
@@ -488,8 +476,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });
@@ -523,8 +510,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         includeIdTokenHintInOIDCLogoutUrl: false,
         routes: getDefaultRoutes()
@@ -575,8 +561,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "oidc",
         includeIdTokenHintInOIDCLogoutUrl: false,
         routes: getDefaultRoutes()
@@ -627,8 +612,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         includeIdTokenHintInOIDCLogoutUrl: false, // should have no effect on v2 logout
         routes: getDefaultRoutes()
@@ -682,8 +666,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "oidc",
         routes: getDefaultRoutes()
       });
@@ -740,8 +723,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -776,8 +758,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -810,8 +791,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });
@@ -844,8 +824,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });
@@ -875,8 +854,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -905,8 +883,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -938,8 +915,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "oidc",
         routes: getDefaultRoutes()
       });
@@ -967,8 +943,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "oidc",
         routes: getDefaultRoutes()
       });
@@ -992,8 +967,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "v2",
         routes: getDefaultRoutes()
       });
@@ -1017,8 +991,7 @@ describe("Logout Strategy Flow Tests", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret,
-        transactionStore,
-        sessionStore,
+        ...stores,
         logoutStrategy: "auto",
         routes: getDefaultRoutes()
       });

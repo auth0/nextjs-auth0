@@ -4,12 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MtlsError, MtlsErrorCode } from "../../errors/index.js";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 vi.mock("oauth4webapi", async () => {
   const actual = await vi.importActual<typeof oauth>("oauth4webapi");
@@ -31,10 +30,7 @@ const DOMAIN = "test.auth0.com";
 const CLIENT_ID = "test-client-id";
 
 function makeStores(secret: string) {
-  return {
-    transactionStore: new TransactionStore({ secret }),
-    sessionStore: new StatelessSessionStore({ secret })
-  };
+  return createTestStores({ secret });
 }
 
 function setupDiscoveryMocks(overrides: Record<string, unknown> = {}) {
@@ -66,13 +62,12 @@ describe("mTLS AuthClient", () => {
 
   describe("constructor validation", () => {
     it("throws MtlsError when useMtls=true and no custom fetch provided", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       expect(
         () =>
           new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DOMAIN,
             clientId: CLIENT_ID,
             // no clientSecret — avoid triggering MTLS_INCOMPATIBLE_CLIENT_AUTH first
@@ -86,13 +81,12 @@ describe("mTLS AuthClient", () => {
     });
 
     it("throws MtlsError with code MTLS_REQUIRES_CUSTOM_FETCH when fetch is missing", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       let caught: unknown;
       try {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
           // no clientSecret
@@ -113,13 +107,12 @@ describe("mTLS AuthClient", () => {
     });
 
     it("throws MtlsError with code MTLS_INCOMPATIBLE_CLIENT_AUTH when clientSecret is also set", () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       let caught: unknown;
       try {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
           clientSecret: "should-not-be-here",
@@ -140,13 +133,12 @@ describe("mTLS AuthClient", () => {
     });
 
     it("throws MtlsError with code MTLS_INCOMPATIBLE_CLIENT_AUTH when clientAssertionSigningKey is also set", () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       let caught: unknown;
       try {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
           clientAssertionSigningKey: "some-key",
@@ -167,13 +159,12 @@ describe("mTLS AuthClient", () => {
     });
 
     it("throws MtlsError with code MTLS_INCOMPATIBLE_CLIENT_AUTH when useDPoP is also set", () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       let caught: unknown;
       try {
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
           secret,
@@ -194,13 +185,12 @@ describe("mTLS AuthClient", () => {
     });
 
     it("does not throw when useMtls=true and a custom fetch is provided", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       expect(
         () =>
           new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DOMAIN,
             clientId: CLIENT_ID,
             // No clientSecret — mTLS doesn't need it
@@ -214,13 +204,12 @@ describe("mTLS AuthClient", () => {
     });
 
     it("does not throw when useMtls=false (default) even without custom fetch", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       expect(
         () =>
           new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DOMAIN,
             clientId: CLIENT_ID,
             clientSecret: "some-secret",
@@ -235,11 +224,10 @@ describe("mTLS AuthClient", () => {
 
   describe("clientMetadata.use_mtls_endpoint_aliases", () => {
     it("sets use_mtls_endpoint_aliases=true on clientMetadata when useMtls=true", () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         secret,
@@ -257,11 +245,10 @@ describe("mTLS AuthClient", () => {
     });
 
     it("does NOT set use_mtls_endpoint_aliases when useMtls=false", () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         clientSecret: "some-secret",
@@ -279,11 +266,10 @@ describe("mTLS AuthClient", () => {
 
   describe("refresh token revocation on logout (mTLS)", () => {
     it("calls oauth.revocationRequest with the mTLS alias revocation endpoint", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         secret,
@@ -337,10 +323,9 @@ describe("mTLS AuthClient", () => {
     it("returns MtlsError with MTLS_ENDPOINT_ALIASES_MISSING when discovery has no mtls_endpoint_aliases", async () => {
       setupDiscoveryMocks({ mtls_endpoint_aliases: undefined });
 
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         secret,
@@ -366,10 +351,9 @@ describe("mTLS AuthClient", () => {
         }
       });
 
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         secret,
@@ -391,11 +375,10 @@ describe("mTLS AuthClient", () => {
 
   describe("getClientAuth()", () => {
     it("returns TlsClientAuth() when useMtls=true", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         secret,
@@ -417,11 +400,10 @@ describe("mTLS AuthClient", () => {
     });
 
     it("does NOT call TlsClientAuth() when useMtls=false", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         clientSecret: "some-secret",
@@ -440,11 +422,10 @@ describe("mTLS AuthClient", () => {
     });
 
     it("throws when useMtls=false and no clientSecret or signingKey", async () => {
-      const { transactionStore, sessionStore } = makeStores(secret);
+      const stores = makeStores(secret);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
         // no clientSecret, no signingKey, no useMtls

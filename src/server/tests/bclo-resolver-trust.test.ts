@@ -4,14 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BackchannelLogoutError } from "../../errors/index.js";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
-import { StatefulSessionStore } from "../session/stateful-session-store.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 describe("BCLO Resolver-Based Trust", () => {
   const DEFAULT = {
@@ -114,8 +112,7 @@ describe("BCLO Resolver-Based Trust", () => {
     const kp = await getKeyPair();
     const secret = await generateSecret(32);
     const deleteByLogoutTokenSpy = vi.fn();
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatefulSessionStore({
+    const stores = createTestStores({
       secret,
       store: {
         get: vi.fn(),
@@ -125,8 +122,7 @@ describe("BCLO Resolver-Based Trust", () => {
       }
     });
     const authClient = new AuthClient({
-      transactionStore,
-      sessionStore,
+      ...stores,
       domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -136,7 +132,12 @@ describe("BCLO Resolver-Based Trust", () => {
       fetch: getMockFetch(kp),
       discoveryCache: opts.discoveryCache ?? (await getDiscoveryCacheWithJWKS())
     });
-    return { authClient, deleteByLogoutTokenSpy, secret, sessionStore };
+    return {
+      authClient,
+      deleteByLogoutTokenSpy,
+      secret,
+      sessionStore: stores.sessionStore
+    };
   }
 
   function makeBcloRequest(logoutToken: string, host?: string): NextRequest {
@@ -244,8 +245,7 @@ describe("BCLO Resolver-Based Trust", () => {
       const kp = await getKeyPair();
       const secret = await generateSecret(32);
       const deleteByLogoutTokenSpy = vi.fn();
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatefulSessionStore({
+      const stores = createTestStores({
         secret,
         store: {
           get: vi.fn(),
@@ -258,8 +258,7 @@ describe("BCLO Resolver-Based Trust", () => {
       // Create authClient for a different domain than the token's iss
       const differentDomain = "different.auth0.com";
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: differentDomain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -380,12 +379,10 @@ describe("BCLO Resolver-Based Trust", () => {
 
     it("returns 500 when session store not configured", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const kp = await getKeyPair();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -403,8 +400,7 @@ describe("BCLO Resolver-Based Trust", () => {
 
     it("returns 500 when deleteByLogoutToken not implemented", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatefulSessionStore({
+      const stores = createTestStores({
         secret,
         store: {
           get: vi.fn(),
@@ -415,8 +411,7 @@ describe("BCLO Resolver-Based Trust", () => {
       });
       const kp = await getKeyPair();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

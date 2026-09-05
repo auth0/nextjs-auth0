@@ -1243,7 +1243,7 @@ describe("Auth0Client", () => {
       const redirect = NextResponse.redirect("https://test.auth0.com/connect");
       mockAuthClientWith(vi.fn().mockResolvedValue([null, redirect]));
       const set = vi
-        .spyOn(client["sessionStore"] as any, "set")
+        .spyOn(client as any, "writeSession")
         .mockResolvedValue(undefined);
 
       const result = await client.connectAccount({
@@ -3120,14 +3120,26 @@ describe("Auth0Client", () => {
 
     it("should return session successfully in getSession with plain Request", async () => {
       const spy = vi
-        .spyOn(client["sessionStore"], "get")
-        .mockResolvedValue(mockSession);
+        .spyOn(client["engineStateStore"], "get")
+        .mockResolvedValue({
+          user: mockSession.user,
+          tokenSets: [
+            {
+              accessToken: mockSession.tokenSet.accessToken,
+              expiresAt: mockSession.tokenSet.expiresAt,
+              audience: ""
+            }
+          ],
+          idToken: undefined,
+          refreshToken: undefined,
+          internal: mockSession.internal
+        } as any);
 
       const req = new Request("https://myapp.test/api/test", { method: "GET" });
       const result = await client.getSession(req as any);
 
       expect(spy).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(mockSession);
+      expect(result).toMatchObject({ user: mockSession.user });
     });
 
     it("should get access token for connection with plain Request", async () => {
@@ -3167,7 +3179,7 @@ describe("Auth0Client", () => {
 
     it("should update session successfully with plain Request", async () => {
       vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
-      vi.spyOn(client["sessionStore"], "set").mockResolvedValue(undefined);
+      vi.spyOn(client["engineStateStore"], "set").mockResolvedValue(undefined);
 
       const req = new Request("https://myapp.test/api/update", {
         method: "POST"
@@ -3177,15 +3189,18 @@ describe("Auth0Client", () => {
 
       await client.updateSession(req as any, res as any, updatedSession);
 
-      expect(client["sessionStore"].set).toHaveBeenCalledTimes(1);
+      expect(client["engineStateStore"].set).toHaveBeenCalledTimes(1);
     });
 
     it("should save session with plain Request and NextResponse", async () => {
-      vi.spyOn(client["sessionStore"], "set").mockImplementation(
-        async (_reqCookies, resCookies) => {
-          resCookies.set("appSession", "updated_session_value");
-        }
-      );
+      vi.spyOn(client["engineStateStore"], "set").mockImplementation((async (
+        _id: any,
+        _data: any,
+        _isNew: any,
+        ctx: any
+      ) => {
+        ctx.resCookies.set("appSession", "updated_session_value");
+      }) as any);
 
       const req = new Request("https://myapp.test/api/update", {
         method: "POST",
@@ -3278,15 +3293,18 @@ describe("Auth0Client", () => {
         // Mock getSession to return existing session
         vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
 
-        // Mock sessionStore.set to simulate setting multiple cookies
-        vi.spyOn(client["sessionStore"], "set").mockImplementation(
-          async (_reqCookies, resCookies) => {
-            // Simulate the session store setting multiple chunked cookies
-            resCookies.set("__session.0", "chunk0_value", { path: "/" });
-            resCookies.set("__session.1", "chunk1_value", { path: "/" });
-            resCookies.set("__session.2", "chunk2_value", { path: "/" });
-          }
-        );
+        // Mock engineStateStore.set to simulate setting multiple cookies
+        vi.spyOn(client["engineStateStore"], "set").mockImplementation((async (
+          _id: any,
+          _data: any,
+          _isNew: any,
+          ctx: any
+        ) => {
+          // Simulate the state store setting multiple chunked cookies
+          ctx.resCookies.set("__session.0", "chunk0_value", { path: "/" });
+          ctx.resCookies.set("__session.1", "chunk1_value", { path: "/" });
+          ctx.resCookies.set("__session.2", "chunk2_value", { path: "/" });
+        }) as any);
 
         // Create mock Pages Router request/response
         const req = {
@@ -3351,14 +3369,17 @@ describe("Auth0Client", () => {
     describe("updateSession - Pages Router", () => {
       it("should collect all Set-Cookie values and set them as array", async () => {
         vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
-        vi.spyOn(client["sessionStore"], "set").mockImplementation(
-          async (_reqCookies, resCookies) => {
-            // Simulate multiple chunked cookies
-            resCookies.set("__session.0", "chunk0", { path: "/" });
-            resCookies.set("__session.1", "chunk1", { path: "/" });
-            resCookies.set("__session.2", "chunk2", { path: "/" });
-          }
-        );
+        vi.spyOn(client["engineStateStore"], "set").mockImplementation((async (
+          _id: any,
+          _data: any,
+          _isNew: any,
+          ctx: any
+        ) => {
+          // Simulate multiple chunked cookies
+          ctx.resCookies.set("__session.0", "chunk0", { path: "/" });
+          ctx.resCookies.set("__session.1", "chunk1", { path: "/" });
+          ctx.resCookies.set("__session.2", "chunk2", { path: "/" });
+        }) as any);
 
         const req = { headers: { cookie: "" } };
         const res = {

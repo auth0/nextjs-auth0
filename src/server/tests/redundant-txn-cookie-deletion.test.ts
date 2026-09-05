@@ -17,6 +17,10 @@ import {
 
 import { InvalidStateError, MissingStateError } from "../../errors/index.js";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import {
+  createTestStores,
+  type TestStores
+} from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
 import { AuthClient, AuthClientOptions } from "../auth-client/index.js";
@@ -25,12 +29,6 @@ import {
   RequestCookies,
   ResponseCookies
 } from "../cookies/index.js";
-import {
-  AbstractSessionStore,
-  SessionStoreOptions
-} from "../session/abstract-session-store.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 // Only mock specific oauth4webapi functions that need predictable values
 vi.mock("oauth4webapi", async () => {
@@ -135,34 +133,6 @@ afterAll(() => {
   server.close();
 });
 
-class TestSessionStore extends AbstractSessionStore {
-  constructor(config: SessionStoreOptions) {
-    super(config);
-  }
-  async get(
-    _reqCookies: RequestCookies | ReadonlyRequestCookies
-  ): Promise<SessionData | null> {
-    return null;
-  }
-  async set(
-    _reqCookies: RequestCookies | ReadonlyRequestCookies,
-    _resCookies: ResponseCookies,
-    _session: SessionData,
-    _isNew?: boolean | undefined
-  ): Promise<void> {
-    // Empty implementation for testing
-  }
-  async delete(
-    _reqCookies: RequestCookies | ReadonlyRequestCookies,
-    _resCookies: ResponseCookies
-  ): Promise<void> {
-    // Empty implementation for testing
-  }
-  async deleteByReqCookies(): Promise<void> {
-    // Empty implementation for testing
-  }
-}
-
 const baseOptions: Partial<AuthClientOptions> = {
   domain,
   clientId,
@@ -196,8 +166,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
    * - Bulk cleanup on logout (clear all auth state)
    */
   let authClient: AuthClient;
-  let mockTransactionStoreInstance: TransactionStore;
-  let mockSessionStoreInstance: TestSessionStore;
+  let stores: TestStores;
   let secret: string;
 
   beforeEach(async () => {
@@ -206,32 +175,11 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
     secret = await generateSecret(32);
 
-    // Create real transaction store for integration testing
-    mockTransactionStoreInstance = new TransactionStore({
-      secret,
-      enableParallelTransactions: true
-    });
-
-    const testSessionStoreOptions: SessionStoreOptions = {
-      secret: "test-secret",
-      cookieOptions: { name: "__session", path: "/", sameSite: "lax" }
-    };
-    mockSessionStoreInstance = new TestSessionStore(testSessionStoreOptions);
-
-    // Mock session store methods for controlled testing
-    mockSessionStoreInstance.get = vi.fn().mockResolvedValue({
-      user: { sub: "user123" },
-      internal: { sid: "sid123" },
-      tokenSet: { idToken: "idtoken123" }
-    });
-    mockSessionStoreInstance.delete = vi.fn().mockResolvedValue(undefined);
-    mockSessionStoreInstance.set = vi.fn().mockResolvedValue(undefined);
-
+    stores = createTestStores({ secret });
     authClient = new AuthClient({
+      ...stores,
       ...baseOptions,
-      secret,
-      sessionStore: mockSessionStoreInstance as any,
-      transactionStore: mockTransactionStoreInstance
+      secret
     } as AuthClientOptions);
 
     // Only mock functions that need predictable values for testing
@@ -309,10 +257,11 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       req.cookies.set("__session", "session-value");
 
       // Act: Process the logout
+      const stateStoreDeleteSpy = vi.spyOn(stores.stateStore, "delete");
       const res = await authClient.handleLogout(req);
 
-      // Assert: Verify session cleanup occurred
-      expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      // Assert: Verify session cleanup occurred (engine deletes via stateStore)
+      expect(stateStoreDeleteSpy).toHaveBeenCalledTimes(1);
 
       // Check that transaction cookie cleanup was attempted (even if none exist)
       const deletedTxnCookies = res.cookies
@@ -321,7 +270,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
           (cookie) =>
             cookie.name.startsWith("__txn_") &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       // No transaction cookies to delete, but deleteAll should still be called
@@ -351,19 +300,20 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       req.cookies.set("other_cookie", "other-value"); // Non-auth cookie should be preserved
 
       // Act: Process the logout
+      const stateStoreDeleteSpy = vi.spyOn(stores.stateStore, "delete");
       const res = await authClient.handleLogout(req);
 
-      // Assert: Verify all auth-related cleanup occurred
-      expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      // Assert: Verify all auth-related cleanup occurred (engine deletes via stateStore)
+      expect(stateStoreDeleteSpy).toHaveBeenCalledTimes(1);
 
-      // Check that transaction cookies were deleted
+      // Check that transaction cookies were deleted (engine uses expires:epoch, not maxAge:0)
       const deletedTxnCookies = res.cookies
         .getAll()
         .filter(
           (cookie) =>
             cookie.name.startsWith("__txn_") &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       expect(deletedTxnCookies.length).toBeGreaterThan(0);
@@ -372,22 +322,22 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
     });
 
     it("should call deleteAll for transaction cookies even if no session exists", async () => {
-      mockSessionStoreInstance.get = vi.fn().mockResolvedValue(null);
       const req = new NextRequest("http://localhost:3000/api/auth/logout");
       req.cookies.set("__txn_state1", "txn-value1");
 
+      const stateStoreDeleteSpy = vi.spyOn(stores.stateStore, "delete");
       const res = await authClient.handleLogout(req);
 
-      expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      expect(stateStoreDeleteSpy).toHaveBeenCalledTimes(1);
 
-      // Check that transaction cookies were deleted
+      // Check that transaction cookies were deleted (engine uses expires:epoch, not maxAge:0)
       const deletedTxnCookies = res.cookies
         .getAll()
         .filter(
           (cookie) =>
             cookie.name.startsWith("__txn_") &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       expect(deletedTxnCookies.length).toBeGreaterThan(0);
@@ -397,17 +347,15 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
     it("should respect custom transaction cookie prefix when calling deleteAll", async () => {
       const customPrefix = "__my_txn_";
-      const customTxnStore = new TransactionStore({
+      const customStores = createTestStores({
         secret,
-        enableParallelTransactions: true,
-        cookieOptions: { prefix: customPrefix }
+        transactionCookieOptions: { prefix: customPrefix }
       });
 
       authClient = new AuthClient({
+        ...customStores,
         ...baseOptions,
-        secret,
-        sessionStore: mockSessionStoreInstance as any,
-        transactionStore: customTxnStore
+        secret
       } as AuthClientOptions);
 
       const req = new NextRequest("http://localhost:3000/api/auth/logout");
@@ -415,18 +363,19 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       req.cookies.set(`${customPrefix}state1`, "txn-value1");
       req.cookies.set("__txn_state2", "default-prefix-value");
 
+      const stateStoreDeleteSpy = vi.spyOn(customStores.stateStore, "delete");
       const res = await authClient.handleLogout(req);
 
-      expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      expect(stateStoreDeleteSpy).toHaveBeenCalledTimes(1);
 
-      // Should only delete cookies with the custom prefix
+      // Should only delete cookies with the custom prefix (engine uses expires:epoch)
       const deletedCustomTxnCookies = res.cookies
         .getAll()
         .filter(
           (cookie) =>
             cookie.name.startsWith(customPrefix) &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       expect(deletedCustomTxnCookies.length).toBeGreaterThan(0);
@@ -437,16 +386,13 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
   describe("handleCallback", () => {
     beforeEach(() => {
-      // Mock the transaction store get method to return valid transaction state
-      vi.spyOn(mockTransactionStoreInstance, "get").mockResolvedValue({
-        payload: {
-          state: "test-state",
-          nonce: "test-nonce",
-          codeVerifier: "cv",
-          responseType: "code",
-          returnTo: "/"
-        },
-        protectedHeader: {}
+      // Mock the engine transaction store get to return valid transaction state directly
+      vi.spyOn(stores.transactionStore, "get").mockResolvedValue({
+        state: "test-state",
+        nonce: "test-nonce",
+        codeVerifier: "cv",
+        responseType: "code",
+        returnTo: "/"
       } as any);
     });
 
@@ -485,26 +431,27 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       }
 
       // Act: Process the successful callback
+      const stateStoreSetSpy = vi.spyOn(stores.stateStore, "set");
       const res = await authClient.handleCallback(req);
 
-      // Assert: Verify transaction was retrieved and processed
-      expect(mockTransactionStoreInstance.get).toHaveBeenCalledWith(
-        req.cookies,
-        state
+      // Assert: Verify transaction was retrieved via engine store (identifier + ctx signature)
+      expect(stores.transactionStore.get).toHaveBeenCalledWith(
+        `__txn_${state}`,
+        expect.objectContaining({ reqCookies: req.cookies })
       );
 
-      // Check that the specific transaction cookie was deleted
+      // Check that the specific transaction cookie was deleted (engine uses expires:epoch)
       const deletedTxnCookies = res.cookies
         .getAll()
         .filter(
           (cookie) =>
             cookie.name === `__txn_${state}` &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       expect(deletedTxnCookies.length).toBe(1);
-      expect(mockSessionStoreInstance.set).toHaveBeenCalledTimes(1);
+      expect(stateStoreSetSpy).toHaveBeenCalledTimes(1);
       expect(res.status).toBeGreaterThanOrEqual(300);
       expect(res.status).toBeLessThan(400);
       expect(res.headers.get("location")).toBe("http://localhost:3000/");
@@ -524,18 +471,19 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
       // Arrange: Set up scenario where transaction store can't find the state
       const state = "invalid-state";
-      vi.spyOn(mockTransactionStoreInstance, "get").mockResolvedValue(null);
+      vi.spyOn(stores.transactionStore, "get").mockResolvedValue(undefined);
       const req = new NextRequest(
         `http://localhost:3000/api/auth/callback?code=auth_code&state=${state}`
       );
 
       // Act: Handle callback with invalid state
+      const stateStoreSetSpy = vi.spyOn(stores.stateStore, "set");
       const res = await authClient.handleCallback(req);
 
-      // Assert: Verify transaction store was queried but found nothing
-      expect(mockTransactionStoreInstance.get).toHaveBeenCalledWith(
-        req.cookies,
-        state
+      // Assert: Verify engine transaction store was queried (identifier + ctx signature)
+      expect(stores.transactionStore.get).toHaveBeenCalledWith(
+        `__txn_${state}`,
+        expect.objectContaining({ reqCookies: req.cookies })
       );
 
       // Check that no transaction cookies were deleted (preserve other auth flows)
@@ -545,11 +493,11 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
           (cookie) =>
             cookie.name.startsWith("__txn_") &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       expect(deletedTxnCookies.length).toBe(0);
-      expect(mockSessionStoreInstance.set).not.toHaveBeenCalled();
+      expect(stateStoreSetSpy).not.toHaveBeenCalled();
       expect(res.status).toBe(500);
       const body = await res.text();
       expect(body).toContain(new InvalidStateError().message);
@@ -574,11 +522,13 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       );
 
       // Act: Handle the malformed callback
+      const txnGetSpy = vi.spyOn(stores.transactionStore, "get");
+      const stateStoreSetSpy = vi.spyOn(stores.stateStore, "set");
       const res = await authClient.handleCallback(req);
 
       // Assert: Verify error handling behavior
       // Should not attempt to retrieve transaction since no state to look up
-      expect(mockTransactionStoreInstance.get).not.toHaveBeenCalled();
+      expect(txnGetSpy).not.toHaveBeenCalled();
 
       // Check that no transaction cookies were deleted (preserve for other auth flows)
       const deletedTxnCookies = res.cookies
@@ -587,11 +537,11 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
           (cookie) =>
             cookie.name.startsWith("__txn_") &&
             cookie.value === "" &&
-            cookie.maxAge === 0
+            new Date(cookie.expires!).getTime() === 0
         );
 
       expect(deletedTxnCookies.length).toBe(0);
-      expect(mockSessionStoreInstance.set).not.toHaveBeenCalled();
+      expect(stateStoreSetSpy).not.toHaveBeenCalled();
       expect(res.status).toBe(500);
       const body = await res.text();
       expect(body).toContain(new MissingStateError().message);
@@ -617,17 +567,12 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
      * - Add bulk cleanup methods for removing all transaction cookies when needed
      * - Support both single and parallel transaction modes
      */
-    let statelessSessionStore: StatelessSessionStore;
-
     beforeEach(async () => {
-      // Use real stateless session store for these integration tests
-      statelessSessionStore = new StatelessSessionStore({ secret });
-
+      // Re-use the stores from the outer beforeEach (stateless, same secret)
       authClient = new AuthClient({
+        ...stores,
         ...baseOptions,
-        secret,
-        sessionStore: statelessSessionStore,
-        transactionStore: mockTransactionStoreInstance
+        secret
       } as AuthClientOptions);
     });
 
@@ -683,21 +628,21 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         expect(callbackRes.status).toBeGreaterThanOrEqual(300); // Should redirect
         expect(callbackRes.status).toBeLessThan(400);
 
-        // Check that all transaction cookies are being deleted (set to empty with maxAge 0)
+        // Check that all transaction cookies are being deleted (engine uses expires:epoch)
         const deletedCookies = callbackRes.cookies
           .getAll()
           .filter(
             (cookie) =>
               cookie.name.startsWith("__txn_") &&
               cookie.value === "" &&
-              cookie.maxAge === 0
+              new Date(cookie.expires!).getTime() === 0
           );
 
         // Should have cleaned up all transaction cookies
         expect(deletedCookies.length).toBeGreaterThan(0);
 
-        // Verify a session cookie was set
-        const sessionCookie = callbackRes.cookies.get("__session");
+        // Verify a session cookie was set (engine writes chunked __session.0)
+        const sessionCookie = callbackRes.cookies.get("__session.0");
         expect(sessionCookie).toBeDefined();
         expect(sessionCookie?.value).not.toBe("");
       });
@@ -778,10 +723,13 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
         const callbackRes = await authClient.handleCallback(callbackReq);
 
-        // Check that only transaction cookies are deleted
+        // Check that only transaction cookies are deleted (engine uses expires:epoch)
         const deletedCookies = callbackRes.cookies
           .getAll()
-          .filter((cookie) => cookie.value === "" && cookie.maxAge === 0);
+          .filter(
+            (cookie) =>
+              cookie.value === "" && new Date(cookie.expires!).getTime() === 0
+          );
 
         const deletedTxnCookies = deletedCookies.filter((cookie) =>
           cookie.name.startsWith("__txn_")
@@ -801,14 +749,13 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
     describe("enableParallelTransactions: false", () => {
       it("should use single transaction cookie without state suffix", async () => {
         // Arrange: Create auth client with parallel transactions disabled
-        const singleTxnTransactionStore = new TransactionStore({
+        const singleStores = createTestStores({
           secret,
           enableParallelTransactions: false
         });
 
         const singleTxnAuthClient = new AuthClient({
-          transactionStore: singleTxnTransactionStore,
-          sessionStore: statelessSessionStore,
+          ...singleStores,
           ...baseOptions,
           secret
         } as AuthClientOptions);
@@ -832,21 +779,27 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
     describe("Transaction Store Integration", () => {
       it("should skip existence check when reqCookies is not provided in startInteractiveLogin", async () => {
         // This is an integration test to verify that startInteractiveLogin
-        // calls save() without reqCookies, thus skipping the existence check
+        // calls transactionStore.set() with an empty request-cookie jar,
+        // effectively skipping the eviction-existence check (no prior cookies).
 
-        // Arrange: Spy on the transaction store save method
-        const saveSpy = vi.spyOn(mockTransactionStoreInstance, "save");
+        // Arrange: Mock set so the jar is not mutated during the call, letting
+        // us inspect the reqCookies argument in its initial (pre-write) state.
+        const setSpy = vi
+          .spyOn(stores.transactionStore, "set")
+          .mockResolvedValue(undefined as any);
 
         // Act: Call startInteractiveLogin
         await authClient.startInteractiveLogin();
 
-        // Assert: Verify save was called with only 2 parameters (no reqCookies)
-        expect(saveSpy).toHaveBeenCalledTimes(1);
-        const [resCookies, transactionState, reqCookies] =
-          saveSpy.mock.calls[0];
-        expect(resCookies).toBeDefined();
-        expect(transactionState).toBeDefined();
-        expect(reqCookies).toBeUndefined(); // Should be undefined for performance
+        // Assert: Verify set was called once with identifier + data + ctx
+        expect(setSpy).toHaveBeenCalledTimes(1);
+        const [identifier, transactionData, _isNew, ctx] = setSpy.mock.calls[0];
+        expect(identifier).toBeDefined(); // e.g. "__txn_<state>"
+        expect(transactionData).toBeDefined();
+        // startInteractiveLogin has no incoming request, so reqCookies is an
+        // empty jar (no prior cookies → no eviction/existence check).
+        expect(ctx?.reqCookies.getAll()).toHaveLength(0);
+        expect(ctx?.resCookies).toBeDefined();
       });
     });
   });

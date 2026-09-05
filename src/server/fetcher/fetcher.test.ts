@@ -2,10 +2,9 @@ import * as oauth from "oauth4webapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 import { Fetcher } from "./fetcher.js";
 
 // Mock oauth4webapi
@@ -47,12 +46,10 @@ describe("Fetcher", () => {
     (oauth.isDPoPNonceError as any).mockReturnValue(false);
 
     // Create a basic authClient
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
 
     authClient = new AuthClient({
-      transactionStore,
-      sessionStore,
+      ...stores,
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -128,12 +125,10 @@ describe("Fetcher", () => {
   describe("DPoP functionality", () => {
     it("should use DPoP when enabled", async () => {
       // Create authClient with DPoP enabled
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const dpopAuthClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

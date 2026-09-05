@@ -18,10 +18,9 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { AuthClient } from "../auth-client/index.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 const DEFAULT = {
   domain: "auth0.local",
@@ -74,16 +73,14 @@ describe("AuthClient passkey route handlers", () => {
 
   beforeEach(async () => {
     secret = await generateSecret(32);
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
     authClient = new AuthClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
       appBaseUrl: DEFAULT.appBaseUrl,
       secret,
-      transactionStore,
-      sessionStore,
+      ...stores,
       routes: getDefaultRoutes()
     });
   });
@@ -330,7 +327,7 @@ describe("AuthClient passkey route handlers", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
-      expect(res.headers.get("set-cookie")).toMatch(/__session=/);
+      expect(res.headers.get("set-cookie")).toMatch(/__session\.0=/);
     });
 
     it("returns 400 for missing authSession", async () => {
@@ -454,8 +451,7 @@ describe("AuthClient passkey route handlers", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: freshSecret,
-        transactionStore: new TransactionStore({ secret: freshSecret }),
-        sessionStore: new StatelessSessionStore({ secret: freshSecret }),
+        ...createTestStores({ secret: freshSecret }),
         routes: getDefaultRoutes()
       });
 

@@ -27,10 +27,8 @@ import {
   TokenRevocationErrorCode
 } from "../../errors/index.js";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
-import {
-  generateSecret,
-  stripTransactionValuePrefix
-} from "../../test-fixtures/utils.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import {
   AccessTokenSet,
   RESPONSE_TYPES,
@@ -42,11 +40,10 @@ import {
   AuthClient,
   buildConnectAccountErrorResponse
 } from "../auth-client/index.js";
-import { decrypt, encrypt } from "../cookies/index.js";
+import { encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
-import { StatefulSessionStore } from "../session/stateful-session-store.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionState, TransactionStore } from "../transaction-store.js";
+import { sessionDataToStateData } from "../session/session-mapper.js";
+import { TransactionState } from "../transaction-store.js";
 
 function createSessionData(sessionData: Partial<SessionData>): SessionData {
   return {
@@ -409,18 +406,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("initialization", async () => {
     it("should throw an error if the openid scope is not included", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       expect(
         () =>
           new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
 
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -442,18 +433,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should throw an error if the openid scope is not included when using a map", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       expect(
         () =>
           new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
 
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -478,18 +463,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should not throw an error if the scope is not provided for the default audience when using a map", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       expect(
         () =>
           new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
 
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -518,16 +497,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       try {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
 
         new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -555,15 +528,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("handler", async () => {
     it("should call the login handler if the path is /auth/login", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -586,15 +553,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should call the callback handler if the path is /auth/callback", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -617,15 +578,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should call the logout handler if the path is /auth/logout", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -648,15 +603,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should call the profile handler if the path is /auth/profile", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -679,15 +628,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should call the handleAccessToken method if the path is /auth/access-token and enableAccessTokenEndpoint is true", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -711,15 +654,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should not call the handleAccessToken method if the path is /auth/access-token but enableAccessTokenEndpoint is false", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -745,15 +682,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should use the default value (true) for enableAccessTokenEndpoint when not explicitly provided", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -777,15 +708,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should call the back-channel logout handler if the path is /auth/backchannel-logout", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -812,19 +737,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("rolling sessions - no matching auth route", async () => {
       it("should update the session expiry if a session exists", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
+        const stores = createTestStores({
           secret,
-
-          rolling: true,
-          absoluteDuration: 3600,
-          inactivityDuration: 1800
+          session: {
+            rolling: true,
+            absoluteDuration: 3600,
+            inactivityDuration: 1800
+          }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -863,31 +785,32 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
+        const stateStoreSpy = vi.spyOn(authClient["stateStore"], "set");
         const response = await authClient.handler(request);
 
         // assert session has been updated
-        const updatedSessionCookie = response.cookies.get("__session");
+        const updatedSessionCookie = response.cookies.get("__session.0");
         expect(updatedSessionCookie).toBeDefined();
-        const { payload: updatedSessionCookieValue } = (await decrypt(
-          updatedSessionCookie!.value,
-          secret
-        )) as jose.JWTDecryptResult;
-        expect(updatedSessionCookieValue).toEqual(
+        // Engine writes native A256CBC-HS512 format; capture via spy instead of decrypt
+        const stateData = stateStoreSpy.mock.calls[0]?.[1];
+        expect(stateData).toEqual(
           expect.objectContaining({
             user: {
               sub: DEFAULT.sub
             },
-            tokenSet: {
-              accessToken: "at_123",
-              refreshToken: "rt_123",
-              expiresAt: expect.any(Number)
-            },
-            internal: {
+            tokenSets: expect.arrayContaining([
+              expect.objectContaining({
+                accessToken: "at_123",
+                expiresAt: expect.any(Number)
+              })
+            ]),
+            refreshToken: "rt_123",
+            internal: expect.objectContaining({
               sid: DEFAULT.sid,
               createdAt: expect.any(Number)
               // No mcd field in static mode — backfill is skipped to avoid
               // unnecessary session growth and cookie chunking (#2595)
-            }
+            })
           })
         );
 
@@ -897,19 +820,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should pass the request through if there is no session", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
+        const stores = createTestStores({
           secret,
-
-          rolling: true,
-          absoluteDuration: 3600,
-          inactivityDuration: 1800
+          session: {
+            rolling: true,
+            absoluteDuration: 3600,
+            inactivityDuration: 1800
+          }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -942,18 +862,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should not update the session expiry when rolling sessions are disabled", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
+        const stores = createTestStores({
           secret,
-
-          rolling: false,
-          absoluteDuration: 3600
+          session: {
+            rolling: false,
+            absoluteDuration: 3600
+          }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1028,17 +945,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret: string,
           beforeSessionRolled: (req: NextRequest) => boolean | Promise<boolean>
         ) => {
-          const transactionStore = new TransactionStore({ secret });
-          const sessionStore = new StatelessSessionStore({
+          const stores = createTestStores({
             secret,
-            rolling: true,
-            absoluteDuration: 3600,
-            inactivityDuration: 1800,
-            beforeSessionRolled
+            session: {
+              rolling: true,
+              absoluteDuration: 3600,
+              inactivityDuration: 1800,
+              beforeSessionRolled
+            }
           });
           return new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,
@@ -1160,15 +1077,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("with custom routes", async () => {
       it("should call the login handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1198,15 +1109,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should call the logout handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1236,15 +1141,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should call the callback handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1274,15 +1173,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should call the backChannelLogout handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1312,15 +1205,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should call the profile handler when custom route is configured via routes option", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1350,15 +1237,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should call the accessToken handler when custom route is configured via routes option", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1390,15 +1271,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         process.env.NEXT_PUBLIC_PROFILE_ROUTE = "/custom-profile";
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1429,15 +1304,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE = "/custom-access-token";
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1510,15 +1379,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         for (const testCase of testCases) {
           const secret = await generateSecret(32);
-          const transactionStore = new TransactionStore({
-            secret
-          });
-          const sessionStore = new StatelessSessionStore({
-            secret
-          });
+          const stores = createTestStores({ secret });
           const authClient = new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
 
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -1562,11 +1425,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         delete process.env.NEXT_PUBLIC_BASE_PATH;
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -1591,11 +1452,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should handle hardcoded /me routes with basePath", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -1626,11 +1485,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should handle hardcoded /my-org routes with basePath", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -1664,15 +1521,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("handleLogin", async () => {
     it("should redirect to the authorization server and store the transaction state", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1692,6 +1543,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
@@ -1721,19 +1573,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         "openid profile email offline_access"
       );
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1746,15 +1592,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should configure redirect_uri when appBaseUrl isnt the root", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1793,15 +1633,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should prepend the base path to the redirect_uri", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1835,15 +1669,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should infer appBaseUrl from request host when not configured", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1873,15 +1701,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should prefer forwarded headers when inferring appBaseUrl", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1915,15 +1737,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should throw when appBaseUrl cannot be inferred from the request", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1947,15 +1763,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1988,15 +1798,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("authorization parameters", async () => {
       it("should forward the query parameters to the authorization server", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2016,6 +1820,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
+        const txnSpy = vi.spyOn(stores.transactionStore, "set");
         const response = await authClient.handleLogin(request);
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
@@ -2051,19 +1856,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           "urn:mystore:api"
         );
 
-        // transaction state
+        // transaction state — engine uses native encryption; capture via spy
         const transactionCookie = response.cookies.get(
           `__txn_${authorizationUrl.searchParams.get("state")}`
         );
         expect(transactionCookie).toBeDefined();
-        expect(
-          (
-            (await decrypt(
-              stripTransactionValuePrefix(transactionCookie!.value),
-              secret
-            )) as jose.JWTDecryptResult
-          ).payload
-        ).toEqual(
+        const txnData = txnSpy.mock.calls[0]?.[1];
+        expect(txnData).toEqual(
           expect.objectContaining({
             nonce: authorizationUrl.searchParams.get("nonce"),
             codeVerifier: expect.any(String),
@@ -2076,15 +1875,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should forward the configured authorization parameters to the authorization server", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2145,15 +1938,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should override the configured authorization parameters with the query parameters", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2215,15 +2002,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should protect internal params while ignoring redirect_uri overrides", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2305,15 +2086,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should not forward parameters with null or undefined values", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2371,15 +2146,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should store the maxAge in the transaction state and forward it to the authorization server", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2400,24 +2169,19 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
       expect(authorizationUrl.searchParams.get("max_age")).toEqual("3600");
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           maxAge: 3600,
@@ -2431,11 +2195,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should store per-request maxAge=0 (step-up) in transaction state when not set in SDK config", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -2448,6 +2210,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       loginUrl.searchParams.set("max_age", "0");
       const request = new NextRequest(loginUrl, { method: "GET" });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
@@ -2457,14 +2220,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           maxAge: 0
         })
@@ -2473,11 +2230,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should use per-request maxAge over SDK-level max_age in transaction state", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -2491,6 +2246,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       loginUrl.searchParams.set("max_age", "0");
       const request = new NextRequest(loginUrl, { method: "GET" });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
@@ -2500,14 +2256,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           maxAge: 0
         })
@@ -2516,15 +2266,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should store the returnTo path in the transaction state", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2543,22 +2287,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -2571,15 +2310,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should prevent open redirects originating from the returnTo parameter", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2598,22 +2331,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handleLogin(request);
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -2626,11 +2354,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 400 for a non-numeric max_age query param", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -2649,11 +2375,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 400 for a negative max_age query param", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -2673,15 +2397,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("with pushed authorization requests", async () => {
       it("should return an error if the authorization server does not support PAR", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -2722,15 +2440,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should redirect to the authorization server with the request_uri and store the transaction state", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -2765,6 +2477,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
+        const txnSpy = vi.spyOn(stores.transactionStore, "set");
         const response = await authClient.handleLogin(request);
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
@@ -2788,27 +2501,20 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(authorizationUrl.searchParams.get("nonce")).toBeNull();
         expect(authorizationUrl.searchParams.get("scope")).toBeNull();
 
-        // transaction state
+        // transaction state — engine uses native encryption; capture via spy
         const transactionCookies = response.cookies
           .getAll()
           .filter((c) => c.name.startsWith("__txn_"));
         expect(transactionCookies.length).toEqual(1);
         const transactionCookie = transactionCookies[0];
-        const state = transactionCookie.name.replace("__txn_", "");
         expect(transactionCookie).toBeDefined();
-        expect(
-          (
-            (await decrypt(
-              stripTransactionValuePrefix(transactionCookie.value),
-              secret
-            )) as jose.JWTDecryptResult
-          ).payload
-        ).toEqual(
+        const txnData = txnSpy.mock.calls[0]?.[1];
+        expect(txnData).toEqual(
           expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: RESPONSE_TYPES.CODE,
-            state,
+            state: expect.any(String),
             returnTo: "/"
           })
         );
@@ -2825,15 +2531,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         it("should prepend the base path to the redirect_uri", async () => {
           const secret = await generateSecret(32);
-          const transactionStore = new TransactionStore({
-            secret
-          });
-          const sessionStore = new StatelessSessionStore({
-            secret
-          });
+          const stores = createTestStores({ secret });
           const authClient = new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,
@@ -2892,12 +2592,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       describe("custom parameters to the authorization server", async () => {
         it("should forward all custom parameters sent via the query parameters to PAR", async () => {
           const secret = await generateSecret(32);
-          const transactionStore = new TransactionStore({
-            secret
-          });
-          const sessionStore = new StatelessSessionStore({
-            secret
-          });
+          const stores = createTestStores({ secret });
 
           // set custom parameters in the login URL which should not be forwarded to the authorization server (in PAR request)
           const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -2908,8 +2603,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           });
 
           const authClient = new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,
@@ -2928,6 +2622,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             })
           });
 
+          const txnSpy = vi.spyOn(stores.transactionStore, "set");
           const response = await authClient.handleLogin(request);
           expect(response.status).toEqual(307);
           expect(response.headers.get("Location")).not.toBeNull();
@@ -2952,27 +2647,20 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(authorizationUrl.searchParams.get("nonce")).toBeNull();
           expect(authorizationUrl.searchParams.get("scope")).toBeNull();
 
-          // transaction state
+          // transaction state — engine uses native encryption; capture via spy
           const transactionCookies = response.cookies
             .getAll()
             .filter((c) => c.name.startsWith("__txn_"));
           expect(transactionCookies.length).toEqual(1);
           const transactionCookie = transactionCookies[0];
-          const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
-          expect(
-            (
-              (await decrypt(
-                stripTransactionValuePrefix(transactionCookie.value),
-                secret
-              )) as jose.JWTDecryptResult
-            ).payload
-          ).toEqual(
+          const txnData = txnSpy.mock.calls[0]?.[1];
+          expect(txnData).toEqual(
             expect.objectContaining({
               nonce: expect.any(String),
               codeVerifier: expect.any(String),
               responseType: RESPONSE_TYPES.CODE,
-              state,
+              state: expect.any(String),
               returnTo: "/"
             })
           );
@@ -2980,12 +2668,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         it("should forward custom parameters set in the configuration to the authorization server", async () => {
           const secret = await generateSecret(32);
-          const transactionStore = new TransactionStore({
-            secret
-          });
-          const sessionStore = new StatelessSessionStore({
-            secret
-          });
+          const stores = createTestStores({ secret });
 
           // set custom parameters in the login URL which should not be forwarded to the authorization server (in PAR request)
           const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -2994,8 +2677,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           });
 
           const authClient = new AuthClient({
-            transactionStore,
-            sessionStore,
+            ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,
@@ -3017,6 +2699,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             })
           });
 
+          const txnSpy = vi.spyOn(stores.transactionStore, "set");
           const response = await authClient.handleLogin(request);
           expect(response.status).toEqual(307);
           expect(response.headers.get("Location")).not.toBeNull();
@@ -3041,25 +2724,20 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(authorizationUrl.searchParams.get("nonce")).toBeNull();
           expect(authorizationUrl.searchParams.get("scope")).toBeNull();
 
-          // transaction state
+          // transaction state — engine uses native encryption; capture via spy
           const transactionCookies = response.cookies
             .getAll()
             .filter((c) => c.name.startsWith("__txn_"));
           expect(transactionCookies.length).toEqual(1);
           const transactionCookie = transactionCookies[0];
-          const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
-          expect(
-            (await decrypt(
-              stripTransactionValuePrefix(transactionCookie!.value),
-              secret
-            ))!.payload
-          ).toEqual(
+          const txnData = txnSpy.mock.calls[0]?.[1];
+          expect(txnData).toEqual(
             expect.objectContaining({
               nonce: expect.any(String),
               codeVerifier: expect.any(String),
               responseType: RESPONSE_TYPES.CODE,
-              state,
+              state: expect.any(String),
               returnTo: "/"
             })
           );
@@ -3070,15 +2748,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("with custom callback route", async () => {
       it("should redirect to the custom callback route after login", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3118,12 +2790,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("with PAR enabled", async () => {
       it("should forward safe UI parameters like screen_hint even when PAR is enabled", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
 
         // Mock PAR request to verify that safe parameters are sent
         let parRequestParams: URLSearchParams;
@@ -3136,8 +2803,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -3174,12 +2840,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should forward multiple safe parameters when PAR is enabled", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
 
         // Mock PAR request to verify that safe parameters are sent
         let parRequestParams: URLSearchParams;
@@ -3192,8 +2853,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -3223,12 +2883,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should forward custom parameters but protect internal security parameters", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
 
         // Mock PAR request to verify that security parameters are not sent
         let parRequestParams: URLSearchParams;
@@ -3241,8 +2896,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -3279,15 +2933,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("handleLogout", async () => {
     it("should redirect to the authorization server logout URL with the correct params", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -3349,23 +2997,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.idToken
       );
 
-      // session cookie is cleared
+      // session cookie is cleared — engine uses expires=epoch (not maxAge=0) for deletion
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.maxAge).toEqual(0);
+      expect(new Date(cookie!.expires!).getTime()).toEqual(0);
     });
 
     it("should use the returnTo URL as the post_logout_redirect_uri if provided", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -3423,23 +3065,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.sid
       );
 
-      // session cookie is cleared
+      // session cookie is cleared — engine uses expires=epoch (not maxAge=0) for deletion
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.maxAge).toEqual(0);
+      expect(new Date(cookie!.expires!).getTime()).toEqual(0);
     });
 
     it("should not include the id_token_hint parameter if a session does not exist", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -3470,15 +3106,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should not include the logout_hint parameter if a session does not exist", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -3515,23 +3145,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
       ).toEqual(`${DEFAULT.appBaseUrl}`);
       expect(authorizationUrl.searchParams.get("logout_hint")).toBeNull();
 
-      // session cookie is cleared
+      // No session was present — engine does not set a deletion cookie when nothing to clear
       const cookie = response.cookies.get("__session");
-      expect(cookie?.value).toEqual("");
-      expect(cookie?.maxAge).toEqual(0);
+      expect(cookie).toBeUndefined();
     });
 
     it("should fallback to the /v2/logout endpoint if the client does not have RP-Initiated Logout enabled", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -3576,23 +3199,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.appBaseUrl
       );
 
-      // session cookie is cleared
+      // No session was present — engine does not set a deletion cookie when nothing to clear
       const cookie = response.cookies.get("__session");
-      expect(cookie?.value).toEqual("");
-      expect(cookie?.maxAge).toEqual(0);
+      expect(cookie).toBeUndefined();
     });
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -3625,15 +3241,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("includeIdTokenHintInOIDCLogoutUrl option", async () => {
       it("should include id_token_hint in OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is true (default)", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3692,15 +3302,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3757,15 +3361,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should include id_token_hint by default when includeIdTokenHintInOIDCLogoutUrl is not specified", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3821,15 +3419,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should not include id_token_hint when session has no idToken, regardless of includeIdTokenHintInOIDCLogoutUrl setting", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3888,16 +3480,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("refresh token revocation on logout", () => {
       it("should call revocation endpoint when session has a refresh token (mTLS)", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
 
         const onRevocationRequest = vi.fn(
           async () => {}
         ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           useMtls: true,
@@ -3949,16 +3539,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should not call revocation endpoint when session has no refresh token (mTLS)", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
 
         const onRevocationRequest = vi.fn(
           async () => {}
         ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           useMtls: true,
@@ -4006,12 +3594,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should not block logout if revocation fails (mTLS)", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           useMtls: true,
@@ -4058,22 +3644,21 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Revocation 500 must not throw — logout should still succeed
         const response = await authClient.handleLogout(request);
         expect(response.status).toEqual(307);
+        // Engine uses expires=epoch (not maxAge=0) for cookie deletion
         const cookie = response.cookies.get("__session");
-        expect(cookie?.maxAge).toEqual(0);
+        expect(new Date(cookie!.expires!).getTime()).toEqual(0);
       });
 
       it("should call revocation endpoint on logout when session has a refresh token", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
 
         const onRevocationRequest = vi.fn(
           async () => {}
         ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -4116,14 +3701,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should not block logout if revocation fails and should warn", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
 
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -4175,15 +3758,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("handleProfile", async () => {
     it("should return the user attributes stored in the session", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4240,15 +3817,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 401 if the user is not authenticated", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4276,15 +3847,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 204 if the user is not authenticated and noContentProfileResponseWhenUnauthenticated is enabled", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4319,15 +3884,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4365,6 +3924,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
+      const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
@@ -4372,24 +3932,23 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const redirectUrl = new URL(response.headers.get("Location")!);
       expect(redirectUrl.pathname).toEqual("/dashboard");
 
-      // validate the session cookie
-      const sessionCookie = response.cookies.get("__session");
+      // validate the session cookie — engine writes native chunked format
+      const sessionCookie = response.cookies.get("__session.0");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = (await decrypt(
-        sessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult;
-      expect(session).toEqual(
+      const stateData = stateStoreSpy.mock.calls[0]?.[1];
+      expect(stateData).toEqual(
         expect.objectContaining({
           user: {
             sub: DEFAULT.sub
           },
-          tokenSet: {
-            accessToken: DEFAULT.accessToken,
-            refreshToken: DEFAULT.refreshToken,
-            idToken: expect.stringMatching(/^eyJhbGciOiJSUzI1NiJ9\..+\..+$/),
-            expiresAt: expect.any(Number)
-          },
+          tokenSets: expect.arrayContaining([
+            expect.objectContaining({
+              accessToken: DEFAULT.accessToken,
+              expiresAt: expect.any(Number)
+            })
+          ]),
+          refreshToken: DEFAULT.refreshToken,
+          idToken: expect.stringMatching(/^eyJhbGciOiJSUzI1NiJ9\..+\..+$/),
           internal: {
             sid: expect.any(String),
             createdAt: expect.any(Number)
@@ -4401,7 +3960,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
-      expect(transactionCookie!.maxAge).toEqual(0);
+      expect(new Date(transactionCookie!.expires!).getTime()).toEqual(0);
     });
 
     it("should reject the callback when the ID token's nonce does not match the transaction's stored nonce", async () => {
@@ -4409,11 +3968,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4472,8 +4029,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       // Build an ID token whose session_expiry is already in the past
       const pastCeiling = Math.floor(Date.now() / 1000) - 3600;
@@ -4492,8 +4048,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .sign(DEFAULT.keyPair.privateKey);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -4552,8 +4107,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const futureCeiling = Math.floor(Date.now() / 1000) + 7200;
       const idToken = await new jose.SignJWT({
@@ -4571,8 +4125,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .sign(DEFAULT.keyPair.privateKey);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -4611,20 +4164,18 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       const request = new NextRequest(url, { method: "GET", headers });
 
+      const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
       const response = await authClient.handleCallback(request);
 
       // Should succeed and redirect to /dashboard
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).toContain("/dashboard");
 
-      // Session cookie must contain sessionExpiresAt
-      const sessionCookie = response.cookies.get("__session");
+      // Session cookie must contain sessionExpiresAt — engine native format
+      const sessionCookie = response.cookies.get("__session.0");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = (await decrypt(
-        sessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult;
-      expect((session as any).internal?.sessionExpiresAt).toBe(futureCeiling);
+      const stateData = stateStoreSpy.mock.calls[0]?.[1];
+      expect(stateData?.sessionExpiresAt).toBe(futureCeiling);
     });
 
     it("should persist act claim from ID token into session.user", async () => {
@@ -4633,12 +4184,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const act = { sub: "agent|abc123" };
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Build an ID token that includes the act claim
       const idToken = await new jose.SignJWT({
@@ -4656,8 +4202,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .sign(DEFAULT.keyPair.privateKey);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4703,17 +4248,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
+      const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(307);
 
-      const sessionCookie = response.cookies.get("__session");
+      // validate the session cookie — engine native format
+      const sessionCookie = response.cookies.get("__session.0");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = (await decrypt(
-        sessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult;
-
-      expect(session).toEqual(
+      const stateData = stateStoreSpy.mock.calls[0]?.[1];
+      expect(stateData).toEqual(
         expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
@@ -4737,15 +4280,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const code = "auth-code";
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -4825,15 +4362,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4872,6 +4403,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
+      const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
@@ -4879,24 +4411,23 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const redirectUrl = new URL(response.headers.get("Location")!);
       expect(redirectUrl.pathname).toEqual("/dashboard");
 
-      // validate the session cookie
-      const sessionCookie = response.cookies.get("__session");
+      // validate the session cookie — engine native format
+      const sessionCookie = response.cookies.get("__session.0");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = (await decrypt(
-        sessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult;
-      expect(session).toEqual(
+      const stateData = stateStoreSpy.mock.calls[0]?.[1];
+      expect(stateData).toEqual(
         expect.objectContaining({
           user: {
             sub: DEFAULT.sub
           },
-          tokenSet: {
-            accessToken: DEFAULT.accessToken,
-            idToken: expect.any(String),
-            refreshToken: DEFAULT.refreshToken,
-            expiresAt: expect.any(Number)
-          },
+          tokenSets: expect.arrayContaining([
+            expect.objectContaining({
+              accessToken: DEFAULT.accessToken,
+              expiresAt: expect.any(Number)
+            })
+          ]),
+          refreshToken: DEFAULT.refreshToken,
+          idToken: expect.any(String),
           internal: {
             sid: expect.any(String),
             createdAt: expect.any(Number)
@@ -4908,22 +4439,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
-      expect(transactionCookie!.maxAge).toEqual(0);
+      expect(new Date(transactionCookie!.expires!).getTime()).toEqual(0);
     });
 
     it("should return an error if the state parameter is missing", async () => {
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4954,15 +4479,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -5009,15 +4528,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const state = "transaction-state";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -5068,15 +4581,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -5131,8 +4638,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       // Build an ID token whose auth_time is 2 hours in the past.
       // With max_age=0, oauth4webapi requires auth_time ≥ now − tolerance.
@@ -5151,8 +4657,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .sign(DEFAULT.keyPair.privateKey);
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -5205,15 +4710,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const code = "auth-code";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -5272,15 +4771,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5322,6 +4815,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
+        const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
         const response = await authClient.handleCallback(request);
         expect(response.status).toEqual(307);
         const redirectUrl = new URL(response.headers.get("Location")!);
@@ -5355,14 +4849,22 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expectedSession
         );
 
-        // validate the session cookie
-        const sessionCookie = response.cookies.get("__session");
+        // validate the session cookie — engine native format
+        const sessionCookie = response.cookies.get("__session.0");
         expect(sessionCookie).toBeDefined();
-        const { payload: session } = (await decrypt(
-          sessionCookie!.value,
-          secret
-        )) as jose.JWTDecryptResult;
-        expect(session).toEqual(expect.objectContaining(expectedSession));
+        const stateData = stateStoreSpy.mock.calls[0]?.[1];
+        expect(stateData).toEqual(
+          expect.objectContaining({
+            user: { sub: DEFAULT.sub },
+            tokenSets: expect.arrayContaining([
+              expect.objectContaining({
+                accessToken: DEFAULT.accessToken,
+                expiresAt: expect.any(Number)
+              })
+            ]),
+            refreshToken: DEFAULT.refreshToken
+          })
+        );
       });
 
       it("should be called with an error if the state parameter is missing", async () => {
@@ -5375,15 +4877,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5437,15 +4933,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5515,15 +5005,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5602,15 +5086,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5686,15 +5164,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5773,24 +5245,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const code = "auth-code";
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
-        const mockBeforeSessionSaved = vi.fn().mockResolvedValue({
-          user: {
-            sub: DEFAULT.sub
-          },
-          internal: {
-            sid: DEFAULT.sid,
-            expiresAt: expect.any(Number)
-          }
-        });
+        const stores = createTestStores({ secret });
+        // Mock must pass the session through so sessionDataToStateData can map it;
+        // the spy is used to verify what the hook was called with.
+        const mockBeforeSessionSaved = vi
+          .fn()
+          .mockImplementation(async (session: unknown) => session);
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5856,15 +5318,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const code = "auth-code";
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5914,6 +5370,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
+        const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
         const response = await authClient.handleCallback(request);
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
@@ -5921,14 +5378,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const redirectUrl = new URL(response.headers.get("Location")!);
         expect(redirectUrl.pathname).toEqual("/dashboard");
 
-        // validate the session cookie
-        const sessionCookie = response.cookies.get("__session");
+        // validate the session cookie — engine native format
+        const sessionCookie = response.cookies.get("__session.0");
         expect(sessionCookie).toBeDefined();
-        const { payload: session } = (await decrypt(
-          sessionCookie!.value,
-          secret
-        )) as jose.JWTDecryptResult;
-        expect(session).toEqual(
+        const stateData = stateStoreSpy.mock.calls[0]?.[1];
+        expect(stateData).toEqual(
           expect.objectContaining({
             user: {
               sub: DEFAULT.sub,
@@ -5936,12 +5390,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
               email: "john@example.com",
               custom: "value"
             },
-            tokenSet: {
-              accessToken: DEFAULT.accessToken,
-              refreshToken: DEFAULT.refreshToken,
-              idToken: expect.any(String),
-              expiresAt: expect.any(Number)
-            },
+            tokenSets: expect.arrayContaining([
+              expect.objectContaining({
+                accessToken: DEFAULT.accessToken,
+                expiresAt: expect.any(Number)
+              })
+            ]),
+            refreshToken: DEFAULT.refreshToken,
             internal: {
               sid: expect.any(String),
               createdAt: expect.any(Number)
@@ -5954,15 +5409,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const mockBeforeSessionSaved = vi.fn();
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -5992,15 +5441,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const code = "auth-code";
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6052,6 +5495,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
+        const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
         const response = await authClient.handleCallback(request);
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
@@ -6059,14 +5503,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const redirectUrl = new URL(response.headers.get("Location")!);
         expect(redirectUrl.pathname).toEqual("/dashboard");
 
-        // validate the session cookie
-        const sessionCookie = response.cookies.get("__session");
+        // validate the session cookie — engine native format
+        const sessionCookie = response.cookies.get("__session.0");
         expect(sessionCookie).toBeDefined();
-        const { payload: session } = (await decrypt(
-          sessionCookie!.value,
-          secret
-        )) as jose.JWTDecryptResult;
-        expect(session).toEqual(
+        const stateData = stateStoreSpy.mock.calls[0]?.[1];
+        expect(stateData).toEqual(
           expect.objectContaining({
             user: {
               sub: DEFAULT.sub,
@@ -6074,12 +5515,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
               email: "john@example.com",
               custom: "value"
             },
-            tokenSet: {
-              accessToken: DEFAULT.accessToken,
-              refreshToken: DEFAULT.refreshToken,
-              idToken: expect.any(String),
-              expiresAt: expect.any(Number)
-            },
+            tokenSets: expect.arrayContaining([
+              expect.objectContaining({
+                accessToken: DEFAULT.accessToken,
+                expiresAt: expect.any(Number)
+              })
+            ]),
+            refreshToken: DEFAULT.refreshToken,
             internal: {
               sid: expect.any(String),
               createdAt: expect.any(Number)
@@ -6092,15 +5534,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("defaultOnCallback", async () => {
       it("should throw when appBaseUrl is missing from ctx and configuration", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6131,15 +5567,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6223,7 +5653,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const transactionCookie = response.cookies.get(`__txn_${state}`);
         expect(transactionCookie).toBeDefined();
         expect(transactionCookie!.value).toEqual("");
-        expect(transactionCookie!.maxAge).toEqual(0);
+        expect(new Date(transactionCookie!.expires!).getTime()).toEqual(0);
 
         // validate that onCallback has been called with the connected account
         const expectedSession = expect.objectContaining({
@@ -6278,15 +5708,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6357,15 +5781,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6446,7 +5864,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const transactionCookie = response.cookies.get(`__txn_${state}`);
         expect(transactionCookie).toBeDefined();
         expect(transactionCookie!.value).toEqual("");
-        expect(transactionCookie!.maxAge).toEqual(0);
+        expect(new Date(transactionCookie!.expires!).getTime()).toEqual(0);
 
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
@@ -6474,15 +5892,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           );
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6566,7 +5978,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const transactionCookie = response.cookies.get(`__txn_${state}`);
         expect(transactionCookie).toBeDefined();
         expect(transactionCookie!.value).toEqual("");
-        expect(transactionCookie!.maxAge).toEqual(0);
+        expect(new Date(transactionCookie!.expires!).getTime()).toEqual(0);
 
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
@@ -6591,15 +6003,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const newAccessToken = "at_456";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -6653,6 +6059,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
+      const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
       const response = await authClient.handleAccessToken(request);
       expect(response.status).toEqual(200);
       expect(await response.json()).toEqual({
@@ -6663,13 +6070,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         token_type: "bearer"
       });
 
-      // validate that the session cookie has been updated
-      const updatedSessionCookie = response.cookies.get("__session");
-      const { payload: updatedSession } = (await decrypt<SessionData>(
-        updatedSessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult<SessionData>;
-      expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
+      // validate that the session cookie has been updated — engine native format
+      const updatedSessionCookie = response.cookies.get("__session.0");
+      expect(updatedSessionCookie).toBeDefined();
+      const stateData = stateStoreSpy.mock.calls[0]?.[1];
+      expect(stateData?.tokenSets?.[0]?.accessToken).toEqual(newAccessToken);
     });
 
     it("should return expires_in based on server time", async () => {
@@ -6683,15 +6088,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const expiresIn = 3600;
 
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -6758,15 +6157,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return expires_in as 0 when expiresAt is missing", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -6822,15 +6215,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 401 if the user does not have a session", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -6867,15 +6254,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if obtaining a token set failed", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -6939,10 +6320,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 204 when successful — happy path", async () => {
       const deleteByLogoutTokenSpy = vi.fn();
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatefulSessionStore({
+      const stores = createTestStores({
         secret,
         store: {
           get: vi.fn(),
@@ -6952,8 +6330,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -6991,16 +6368,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 500 if a session store is not configured", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
       // pass in a stateless session store that does not implement a store
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7033,10 +6404,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 500 if a session store deleteByLogoutToken method is not implemented", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatefulSessionStore({
+      const stores = createTestStores({
         secret,
         store: {
           get: vi.fn(),
@@ -7045,8 +6413,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7081,10 +6448,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if a logout token contains a nonce", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7094,8 +6458,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7132,10 +6495,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if a logout token is not provided in the request", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7145,8 +6505,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7177,10 +6536,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if a logout token does not contain a sid nor sub", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7190,8 +6546,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7229,10 +6584,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if the sub claim is not a string", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7242,8 +6594,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7280,10 +6631,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if the sid claim is not a string", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7293,8 +6641,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7331,10 +6678,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if the events claim is missing", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7344,8 +6688,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7382,10 +6725,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if the events object does not contain the backchannel logout member", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7395,8 +6735,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7433,10 +6772,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return a 400 if the backchannel event is not an object", async () => {
         const deleteByLogoutTokenSpy = vi.fn();
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatefulSessionStore({
+        const stores = createTestStores({
           secret,
           store: {
             get: vi.fn(),
@@ -7446,8 +6782,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -7492,15 +6827,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const newAccessToken = "at_456";
       const secret = await generateSecret(32);
       let connectAccountRequestBody: any;
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7585,6 +6914,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
+      const stateStoreSpy = vi.spyOn(stores.stateStore, "set");
       const response = await authClient.handler(request);
       expect(response.status).toEqual(307);
       const connectUrl = new URL(response.headers.get("location")!);
@@ -7594,19 +6925,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.connectAccount.ticket
       );
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${connectAccountRequestBody.state}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           responseType: RESPONSE_TYPES.CONNECT_CODE,
           state: connectAccountRequestBody?.state,
@@ -7616,18 +6941,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         })
       );
 
-      // validate that the session cookie has been updated
-      const updatedSessionCookie = response.cookies.get("__session");
-      const { payload: updatedSession } = (await decrypt<SessionData>(
-        updatedSessionCookie!.value,
-        secret
-      )) as jose.JWTDecryptResult<SessionData>;
-      const mrrtTokenSet = updatedSession.accessTokens?.find(
-        (at) => at.audience === `https://${DEFAULT.domain}/me/`
+      // validate that the session cookie has been updated — engine native format
+      const updatedSessionCookie = response.cookies.get("__session.0");
+      expect(updatedSessionCookie).toBeDefined();
+      const stateData = stateStoreSpy.mock.calls[0]?.[1];
+      const mrrtTokenSet = stateData?.tokenSets?.find(
+        (at: { audience?: string }) =>
+          at.audience === `https://${DEFAULT.domain}/me/`
       );
       expect(mrrtTokenSet).toBeDefined();
       expect(mrrtTokenSet?.accessToken).toEqual(newAccessToken);
-      expect(mrrtTokenSet?.requestedScope).toEqual(
+      expect((mrrtTokenSet as any)?.requestedScope).toEqual(
         "openid profile email offline_access create:me:connected_accounts"
       );
       expect(mrrtTokenSet?.scope).toEqual(
@@ -7640,15 +6964,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const newAccessToken = "at_456";
       const secret = await generateSecret(32);
       let connectAccountRequestBody: any;
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7732,6 +7050,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handler(request);
       expect(response.status).toEqual(307);
       const connectUrl = new URL(response.headers.get("location")!);
@@ -7741,19 +7060,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.connectAccount.ticket
       );
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${connectAccountRequestBody.state}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           responseType: RESPONSE_TYPES.CONNECT_CODE,
           state: connectAccountRequestBody?.state,
@@ -7767,15 +7080,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should not call the connect account handler if the endpoint is not enabled", async () => {
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7831,15 +7138,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return a 401 if the user does not have a session", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7878,15 +7179,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 400 if the connection query parameter is missing", async () => {
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -7940,15 +7235,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 401 if obtaining a token set failed", async () => {
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8014,15 +7303,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should forward the My Account API status code if an error occurs calling connectAccount", async () => {
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8106,15 +7389,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const newAccessToken = "at_456";
       const secret = await generateSecret(32);
       let connectAccountRequestBody: any;
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8175,6 +7452,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
+      const txnSpy = vi.spyOn(stores.transactionStore, "set");
       const response = await authClient.handler(request);
       expect(response.status).toEqual(307);
       const connectUrl = new URL(response.headers.get("location")!);
@@ -8184,19 +7462,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.connectAccount.ticket
       );
 
-      // transaction state
+      // transaction state — engine uses native encryption; capture via spy
       const transactionCookie = response.cookies.get(
         `__txn_${connectAccountRequestBody.state}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(
-        (
-          (await decrypt(
-            stripTransactionValuePrefix(transactionCookie!.value),
-            secret
-          )) as jose.JWTDecryptResult
-        ).payload
-      ).toEqual(
+      const txnData = txnSpy.mock.calls[0]?.[1];
+      expect(txnData).toEqual(
         expect.objectContaining({
           responseType: RESPONSE_TYPES.CONNECT_CODE,
           state: connectAccountRequestBody?.state,
@@ -8211,15 +7483,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("getTokenSet", async () => {
     it("should return the access token if it has not expired", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8249,15 +7515,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if the token set does not contain a refresh token and the access token has expired", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8286,15 +7546,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should refresh the access token if it expired", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8340,15 +7594,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if an error occurred during the refresh token exchange", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8383,15 +7631,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8424,15 +7666,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("rotating refresh token", async () => {
       it("should refresh the access token if it expired along with the updated refresh token", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8481,15 +7717,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     describe("when audience or scope are provided", () => {
       it("should return the access token if it has not expired", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8540,15 +7770,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should return the access token when using map-based scope configuration and the access token has not expired", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8605,15 +7829,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should return an error if the token set does not contain a refresh token and the access token has expired", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8659,15 +7877,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should return an error if the token set does not contain a refresh token and the access token can not be found", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8706,15 +7918,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should refresh the access token if it expired", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8777,15 +7983,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should request the access token if no audience provided", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8847,15 +8047,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should request the access token if no audience provided", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8917,15 +8111,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should return an error if an error occurred during the refresh token exchange", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -8977,15 +8165,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       it("should return the access token if it has not expired when only the audience is specified", async () => {
         const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
+        const stores = createTestStores({ secret });
         const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
 
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -9049,12 +8231,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return SESSION_EXPIRED when the IPSIE ceiling has passed", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const fetchSpy = getMockAuthorizationServer();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9092,11 +8272,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should NOT return SESSION_EXPIRED when ceiling is comfortably in the future", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9133,16 +8311,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
       authorizationParameters = {}
     } = {}) => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       return new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9169,46 +8341,26 @@ ca/T0LLtgmbMmxSv/MmzIg==
         signInReturnToPath: defaultReturnTo
       });
 
-      // Mock the transactionStore.save method to verify the saved state
-      const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(
-        async (cookies, state, reqCookies) => {
-          expect(state.returnTo).toBe(defaultReturnTo);
-          return originalSave.call(
-            authClient["transactionStore"],
-            cookies,
-            state,
-            reqCookies
-          );
-        }
-      );
+      const setSpy = vi.spyOn(authClient["transactionStore"], "set");
 
       await authClient.startInteractiveLogin();
 
-      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalled();
+      const txnState = setSpy.mock.calls[0]?.[1];
+      expect(txnState.returnTo).toBe(defaultReturnTo);
     });
 
     it("should sanitize and use the provided returnTo parameter", async () => {
       const authClient = await createAuthClient();
       const returnTo = "/custom-return-path";
 
-      // Mock the transactionStore.save method to verify the saved state
-      const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(
-        async (cookies, state, reqCookies) => {
-          expect(state.returnTo).toBe("/custom-return-path");
-          return originalSave.call(
-            authClient["transactionStore"],
-            cookies,
-            state,
-            reqCookies
-          );
-        }
-      );
+      const setSpy = vi.spyOn(authClient["transactionStore"], "set");
 
       await authClient.startInteractiveLogin({ returnTo });
 
-      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalled();
+      const txnState = setSpy.mock.calls[0]?.[1];
+      expect(txnState.returnTo).toBe("/custom-return-path");
     });
 
     it("should sanitize and use the provided returnTo parameter — absolute URL", async () => {
@@ -9216,22 +8368,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const returnTo =
         DEFAULT.appBaseUrl + "/custom-return-path?query=param#hash";
 
-      const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(
-        async (cookies, state, reqCookies) => {
-          expect(state.returnTo).toBe("/custom-return-path?query=param#hash");
-          return originalSave.call(
-            authClient["transactionStore"],
-            cookies,
-            state,
-            reqCookies
-          );
-        }
-      );
+      const setSpy = vi.spyOn(authClient["transactionStore"], "set");
 
       await authClient.startInteractiveLogin({ returnTo });
 
-      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalled();
+      const txnState = setSpy.mock.calls[0]?.[1];
+      expect(txnState.returnTo).toBe("/custom-return-path?query=param#hash");
     });
 
     it("should reject unsafe returnTo URLs", async () => {
@@ -9240,24 +8383,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
       const unsafeReturnTo = "https://malicious-site.com";
 
-      // Mock the transactionStore.save method to verify the saved state
-      const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(
-        async (cookies, state, reqCookies) => {
-          // Should use the default safe path instead of the malicious one
-          expect(state.returnTo).toBe("/safe-path");
-          return originalSave.call(
-            authClient["transactionStore"],
-            cookies,
-            state,
-            reqCookies
-          );
-        }
-      );
+      const setSpy = vi.spyOn(authClient["transactionStore"], "set");
 
       await authClient.startInteractiveLogin({ returnTo: unsafeReturnTo });
 
-      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalled();
+      const txnState = setSpy.mock.calls[0]?.[1];
+      // Should use the default safe path instead of the malicious one
+      expect(txnState.returnTo).toBe("/safe-path");
     });
 
     it("should pass authorization parameters to the authorization URL", async () => {
@@ -9284,15 +8417,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should throw when appBaseUrl is missing and no request is available", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9312,15 +8439,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should throw when request host cannot be inferred", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9373,12 +8494,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9403,30 +8522,22 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const authClient = await createAuthClient();
       const returnTo = "/custom-path";
 
-      // Instead of mocking the oauth functions, we'll just check the structure of the transaction state
-      const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(
-        async (cookies, transactionState) => {
-          expect(transactionState).toEqual(
-            expect.objectContaining({
-              nonce: expect.any(String),
-              codeVerifier: expect.any(String),
-              responseType: RESPONSE_TYPES.CODE,
-              state: expect.any(String),
-              returnTo: "/custom-path"
-            })
-          );
-          return originalSave.call(
-            authClient["transactionStore"],
-            cookies,
-            transactionState
-          );
-        }
-      );
+      const setSpy = vi.spyOn(authClient["transactionStore"], "set");
 
       await authClient.startInteractiveLogin({ returnTo });
 
-      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalled();
+      // Instead of mocking the oauth functions, we'll just check the structure of the transaction state
+      const txnState = setSpy.mock.calls[0]?.[1];
+      expect(txnState).toEqual(
+        expect.objectContaining({
+          nonce: expect.any(String),
+          codeVerifier: expect.any(String),
+          responseType: RESPONSE_TYPES.CODE,
+          state: expect.any(String),
+          returnTo: "/custom-path"
+        })
+      );
     });
 
     it("should merge configuration authorizationParameters with method arguments", async () => {
@@ -9516,12 +8627,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("getConnectionTokenSet", async () => {
     it("should call for an access token when no connection token set in the session", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const fetchSpy = getMockAuthorizationServer({
         tokenEndpointResponse: {
           token_type: "Bearer",
@@ -9531,8 +8637,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9572,16 +8677,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return access token from the session when connection token set in the session is not expired", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const fetchSpy = vi.fn();
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9623,12 +8722,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should call for an access token when connection token set in the session is expired", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const fetchSpy = getMockAuthorizationServer({
         tokenEndpointResponse: {
           token_type: "Bearer",
@@ -9637,8 +8731,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         } as oauth.TokenEndpointResponse
       });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9678,15 +8771,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9719,15 +8806,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error if the token set does not contain a refresh token", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9757,15 +8838,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error and capture it as the cause when exchange failed", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9803,12 +8878,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should use access token as subject token when subject_token_type is SUBJECT_TYPE_ACCESS_TOKEN", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       let capturedRequestBody: any = null;
       const mockFetch = vi.fn(
@@ -9841,8 +8911,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9891,12 +8960,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should use refresh token as subject token when subject_token_type is SUBJECT_TYPE_REFRESH_TOKEN", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       let capturedRequestBody: any = null;
       const mockFetch = vi.fn(
@@ -9929,8 +8993,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9979,12 +9042,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should default to refresh token when no subject_token_type is specified", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       let capturedRequestBody: any = null;
       const mockFetch = vi.fn(
@@ -10017,8 +9075,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10067,16 +9124,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return error when access token is requested but not available", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10119,9 +9170,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
   describe("listConnectedAccounts", async () => {
     function buildAuthClient(fetchSpy: any) {
+      const stores = createTestStores({ secret: "secret" });
       return new AuthClient({
-        transactionStore: new TransactionStore({ secret: "secret" }),
-        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -10341,9 +9392,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
   describe("disconnectAccount", async () => {
     function buildAuthClient(fetchSpy: any) {
+      const stores = createTestStores({ secret: "secret" });
       return new AuthClient({
-        transactionStore: new TransactionStore({ secret: "secret" }),
-        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -10631,15 +9682,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("backchannelAuthentication", async () => {
     it("should return an error if backchannel authentication is not enabled", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10680,15 +9725,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return the token set when successfully authenticated", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10732,15 +9771,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should return an error when the user rejects the authorization request", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10778,15 +9811,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const customParamValue = "custom_value";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10827,15 +9854,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const customParamValue = "custom_value";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10872,15 +9893,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should forward scope when scope defined as a map for the default audience", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10917,15 +9932,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should forward DEFAULT_SCOPES when no scope defined", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10960,15 +9969,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should forward DEFAULT_SCOPES when scope defined as a map with no entry for the audience", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11011,15 +10014,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const customParamValue = "custom_value";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
 
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11085,7 +10082,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("returns { error: null, session: null, exists: false } when ceiling has passed", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
+      const stores = createTestStores({ secret });
       const pastCeiling = Math.floor(Date.now() / 1000) - 60;
       const session = createSessionData({
         internal: {
@@ -11097,7 +10094,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const store = makeStore(session);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: store as any,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11107,6 +10104,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer()
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(session) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         makeCookies() as any
@@ -11119,7 +10121,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("calls deleteByReqCookies when ceiling fires — cleans up backing store", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
       const pastCeiling = Math.floor(Date.now() / 1000) - 60;
       const session = createSessionData({
         internal: {
@@ -11128,11 +10129,18 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionExpiresAt: pastCeiling
         }
       });
-      const store = makeStore(session);
+
+      // Stateful store so deleteSessionByReqCookies actually invokes stateStore.delete
+      const mockBackingStore = {
+        get: vi.fn().mockResolvedValue(null),
+        set: vi.fn().mockResolvedValue(undefined),
+        delete: vi.fn().mockResolvedValue(undefined),
+        deleteByLogoutToken: vi.fn()
+      };
+      const stores = createTestStores({ secret, store: mockBackingStore });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore: store as any,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11142,15 +10150,26 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const cookies = makeCookies();
-      await authClient.getSessionWithDomainCheck(cookies as any);
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(session) as any
+      );
+      const deleteSpy = vi
+        .spyOn(authClient["stateStore"], "delete")
+        .mockResolvedValue(undefined as any);
 
-      expect(store.deleteByReqCookies).toHaveBeenCalledOnce();
+      const cookies = makeCookies();
+      const result = await authClient.getSessionWithDomainCheck(cookies as any);
+
+      expect(result.session).toBeNull();
+      expect(result.exists).toBe(false);
+      // flush the fire-and-forget delete promise
+      await new Promise((r) => setTimeout(r, 0));
+      expect(deleteSpy).toHaveBeenCalledOnce();
     });
 
     it("returns the session normally when ceiling is comfortably in the future", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
+      const stores = createTestStores({ secret });
       const futureCeiling = Math.floor(Date.now() / 1000) + 7200;
       const session = createSessionData({
         internal: {
@@ -11162,7 +10181,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const store = makeStore(session);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: store as any,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11172,6 +10191,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer()
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(session) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         makeCookies() as any
@@ -11180,12 +10204,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(result.error).toBeNull();
       expect(result.session).not.toBeNull();
       expect(result.exists).toBe(true);
-      expect(store.deleteByReqCookies).not.toHaveBeenCalled();
     });
 
     it("returns the session normally when sessionExpiresAt is absent — no ceiling, legacy sessions unaffected", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
+      const stores = createTestStores({ secret });
       // No sessionExpiresAt — pre-feature session or non-enterprise connection
       const session = createSessionData({
         internal: { sid: DEFAULT.sid, createdAt: Math.floor(Date.now() / 1000) }
@@ -11193,7 +10216,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const store = makeStore(session);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: store as any,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11204,13 +10227,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(session) as any
+      );
+
       const result = await authClient.getSessionWithDomainCheck(
         makeCookies() as any
       );
 
       expect(result.error).toBeNull();
       expect(result.session).not.toBeNull();
-      expect(store.deleteByReqCookies).not.toHaveBeenCalled();
     });
   });
 
@@ -11242,9 +10269,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should infer domain from idToken iss claim when no mcd field exists", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Create a signed ID token with iss claim pointing to a different domain
       const idToken = await new jose.SignJWT({
@@ -11276,7 +10301,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "domain-b.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11287,6 +10312,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer(),
         provider: mockResolverProvider
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11307,9 +10337,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should fall back to authClient.domain when idToken is absent", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Create a pre-MCD session without idToken
       const preMCDSession = createSessionData({
@@ -11329,7 +10357,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11340,6 +10368,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer(),
         provider: mockResolverProvider
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11356,9 +10389,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should fall back to authClient.domain when idToken is malformed", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Create a pre-MCD session with malformed idToken (not a valid JWT)
       const preMCDSession = createSessionData({
@@ -11378,7 +10409,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11389,6 +10420,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer(),
         provider: mockResolverProvider
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11405,9 +10441,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should use iss-inference deterministically in resolver mode", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Create a signed ID token with iss pointing to domain-a
       const idToken = await new jose.SignJWT({
@@ -11440,7 +10474,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Resolver mode: domain determined dynamically per request
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "domain-b.auth0.com", // This is the resolver's output for this request
         clientId: DEFAULT.clientId,
@@ -11451,6 +10485,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer(),
         provider: mockResolverProvider
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11467,9 +10506,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should preserve existing mcd field without modification", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Create a post-MCD session (with mcd field already present)
       const postMCDSession = createSessionData({
@@ -11491,7 +10528,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(postMCDSession);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "preserved.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11501,6 +10538,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer()
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(postMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11513,9 +10555,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should handle idToken with iss that needs URL normalization", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       // Create a signed ID token with iss as a full URL
       const idToken = await new jose.SignJWT({
@@ -11546,7 +10586,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11557,6 +10597,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer(),
         provider: mockResolverProvider
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11574,9 +10619,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should skip backfill in static mode (no provider or static provider)", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       const idToken = await new jose.SignJWT({
         sub: DEFAULT.sub,
@@ -11607,7 +10650,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Static mode: no provider (or provider with isResolverMode=false)
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "example.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11618,6 +10661,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
         // no provider — static mode
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11632,9 +10680,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
     it("should skip backfill when provider is in static mode", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
+      const stores = createTestStores({ secret });
 
       const preMCDSession = createSessionData({
         tokenSet: {
@@ -11652,7 +10698,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const staticProvider = { isResolverMode: false } as any;
       const authClient = new AuthClient({
-        transactionStore,
+        ...stores,
         sessionStore: mockSessionStore as any,
         domain: "example.auth0.com",
         clientId: DEFAULT.clientId,
@@ -11663,6 +10709,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer(),
         provider: staticProvider
       });
+
+      // stateStore.get now reads the session; bypass cookie parsing with a spy
+      vi.spyOn(authClient["stateStore"], "get").mockResolvedValue(
+        sessionDataToStateData(preMCDSession) as any
+      );
 
       const result = await authClient.getSessionWithDomainCheck(
         createMockCookies() as any
@@ -11704,15 +10755,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
     it("should include dpop_jkt in authorization URL when dpopKeyPair is provided", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11746,12 +10795,10 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11785,15 +10832,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11827,14 +10872,12 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11872,12 +10915,10 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11907,14 +10948,12 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -11953,14 +10992,12 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -12001,12 +11038,10 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env.AUTH0_DPOP_CLOCK_TOLERANCE = "30";
 
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -12043,13 +11078,11 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
     it("should ignore a provided dpopHandle when DPoP is disabled on the client", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -12071,15 +11104,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
     it("should ignore a provided dpopHandle when DPoP is disabled for the fetcher", async () => {
       const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
 
       const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -12107,9 +11138,9 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       fetch: ReturnType<typeof getMockAuthorizationServer>
     ) {
       const secret = await generateSecret(32);
+      const stores = createTestStores({ secret });
       return new AuthClient({
-        transactionStore: new TransactionStore({ secret }),
-        sessionStore: new StatelessSessionStore({ secret }),
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

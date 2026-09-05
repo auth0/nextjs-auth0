@@ -3,25 +3,21 @@ import { ResponseCookies } from "@edge-runtime/cookies";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
-import {
-  generateSecret,
-  stripTransactionValuePrefix
-} from "../../test-fixtures/utils.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client/index.js";
-import { decrypt, encrypt } from "../cookies/index.js";
+import { encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 import { ServerPasswordlessClient } from "../passwordless/server-passwordless-client.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 const DEFAULT = {
   domain: "auth0.local",
@@ -92,16 +88,14 @@ describe("AuthClient passwordless methods", () => {
 
   beforeEach(async () => {
     secret = await generateSecret(32);
-    const transactionStore = new TransactionStore({ secret });
-    const sessionStore = new StatelessSessionStore({ secret });
+    const stores = createTestStores({ secret });
     authClient = new AuthClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
       appBaseUrl: DEFAULT.appBaseUrl,
       secret,
-      transactionStore,
-      sessionStore,
+      ...stores,
       routes: getDefaultRoutes()
     });
   });
@@ -258,6 +252,10 @@ describe("AuthClient passwordless methods", () => {
 
       const headers = new Headers();
       const resCookies = new ResponseCookies(headers);
+      const setSpy = vi.spyOn(
+        authClient["transactionStore" as keyof typeof authClient] as any,
+        "set"
+      );
       await authClient.passwordlessStart(
         { connection: "email", email: DEFAULT.email, send: "link" },
         resCookies
@@ -271,12 +269,8 @@ describe("AuthClient passwordless methods", () => {
       const state = authParams.state as string;
       const txnCookie = resCookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
-      const jweValue = stripTransactionValuePrefix(txnCookie!.value);
-      const { payload } = (await decrypt(
-        jweValue,
-        secret
-      )) as jose.JWTDecryptResult;
-      expect(payload.nonce).toBe(authParams.nonce);
+      const txnData = setSpy.mock.calls[0]?.[1] as any;
+      expect(txnData?.nonce).toBe(authParams.nonce);
     });
 
     it("writes a transaction cookie to resCookies after a successful start", async () => {
@@ -345,8 +339,7 @@ describe("AuthClient passwordless methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: scopedSecret,
-        transactionStore: new TransactionStore({ secret: scopedSecret }),
-        sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+        ...createTestStores({ secret: scopedSecret }),
         routes: getDefaultRoutes(),
         authorizationParameters: {
           scope: "openid profile email",
@@ -555,8 +548,7 @@ describe("AuthClient passwordless methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: freshSecret,
-        transactionStore: new TransactionStore({ secret: freshSecret }),
-        sessionStore: new StatelessSessionStore({ secret: freshSecret }),
+        ...createTestStores({ secret: freshSecret }),
         routes: getDefaultRoutes()
       });
 
@@ -658,8 +650,7 @@ describe("AuthClient passwordless methods", () => {
           clientSecret: DEFAULT.clientSecret,
           appBaseUrl: DEFAULT.appBaseUrl,
           secret: scopedSecret,
-          transactionStore: new TransactionStore({ secret: scopedSecret }),
-          sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+          ...createTestStores({ secret: scopedSecret }),
           routes: getDefaultRoutes(),
           authorizationParameters: {
             scope: "openid profile email",
@@ -1157,10 +1148,7 @@ describe("AuthClient passwordless methods", () => {
     it("retries with server-supplied nonce on use_dpop_nonce and sends DPoP proof on both attempts", async () => {
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopSecret = await generateSecret(32);
-      const dpopTransactionStore = new TransactionStore({ secret: dpopSecret });
-      const dpopSessionStore = new StatelessSessionStore({
-        secret: dpopSecret
-      });
+      const dpopStores = createTestStores({ secret: dpopSecret });
 
       const dpopClient = new AuthClient({
         domain: DEFAULT.domain,
@@ -1168,8 +1156,7 @@ describe("AuthClient passwordless methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: dpopSecret,
-        transactionStore: dpopTransactionStore,
-        sessionStore: dpopSessionStore,
+        ...dpopStores,
         routes: getDefaultRoutes(),
         useDPoP: true,
         dpopKeyPair
@@ -1269,8 +1256,7 @@ describe("AuthClient passwordless methods", () => {
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         secret: restrictedSecret,
-        transactionStore: new TransactionStore({ secret: restrictedSecret }),
-        sessionStore: new StatelessSessionStore({ secret: restrictedSecret }),
+        ...createTestStores({ secret: restrictedSecret }),
         routes: getDefaultRoutes(),
         authorizationParameters: {
           scope: "openid profile",
@@ -1408,8 +1394,7 @@ describe("AuthClient passwordless methods", () => {
             clientSecret: DEFAULT.clientSecret,
             appBaseUrl: DEFAULT.appBaseUrl,
             secret: sharedSecret,
-            transactionStore: new TransactionStore({ secret: sharedSecret }),
-            sessionStore: new StatelessSessionStore({ secret: sharedSecret }),
+            ...createTestStores({ secret: sharedSecret }),
             routes: getDefaultRoutes()
           })
       });
@@ -1484,8 +1469,7 @@ describe("AuthClient passwordless methods", () => {
             clientSecret: DEFAULT.clientSecret,
             appBaseUrl: DEFAULT.appBaseUrl,
             secret: sharedSecret,
-            transactionStore: new TransactionStore({ secret: sharedSecret }),
-            sessionStore: new StatelessSessionStore({ secret: sharedSecret }),
+            ...createTestStores({ secret: sharedSecret }),
             routes: getDefaultRoutes()
           })
       });
@@ -1503,7 +1487,7 @@ describe("AuthClient passwordless methods", () => {
         verificationCode: DEFAULT.verificationCode
       });
 
-      expect(res.cookies.get("__session")).toBeDefined();
+      expect(res.cookies.get("__session.0")).toBeDefined();
     });
 
     it("routes different host headers to different Auth0 domains", async () => {
@@ -1563,8 +1547,7 @@ describe("AuthClient passwordless methods", () => {
             clientSecret: DEFAULT.clientSecret,
             appBaseUrl: DEFAULT.appBaseUrl,
             secret: sharedSecret,
-            transactionStore: new TransactionStore({ secret: sharedSecret }),
-            sessionStore: new StatelessSessionStore({ secret: sharedSecret }),
+            ...createTestStores({ secret: sharedSecret }),
             routes: getDefaultRoutes()
           })
       });

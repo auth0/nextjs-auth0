@@ -18,13 +18,12 @@ import {
   MfaRequiredError
 } from "../../errors/index.js";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
+import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
 import { TOKEN_TYPES } from "../../types/token-vault.js";
 import { AuthClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
-import { StatelessSessionStore } from "../session/stateless-session-store.js";
-import { TransactionStore } from "../transaction-store.js";
 
 /**
  * Custom Token Exchange Test Suite
@@ -166,12 +165,10 @@ afterAll(() => {
 beforeEach(async () => {
   dpopNonceState = { requireNonce: false, nonce: "" };
 
-  const transactionStore = new TransactionStore({ secret });
-  const sessionStore = new StatelessSessionStore({ secret });
+  const stores = createTestStores({ secret });
 
   authClient = new AuthClient({
-    transactionStore,
-    sessionStore,
+    ...stores,
     domain: DEFAULT.domain,
     clientId: DEFAULT.clientId,
     clientSecret: DEFAULT.clientSecret,
@@ -789,12 +786,10 @@ describe("Custom Token Exchange", () => {
 
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
 
       dpopAuthClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -922,11 +917,9 @@ describe("Custom Token Exchange", () => {
       );
 
       // Need new client to trigger fresh discovery
-      const transactionStore = new TransactionStore({ secret });
-      const sessionStore = new StatelessSessionStore({ secret });
+      const stores = createTestStores({ secret });
       const freshClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+        ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -1735,11 +1728,9 @@ describe("Custom Token Exchange", () => {
       // not a fixed configured domain, so the STT is issued for the right domain.
       it("should build the audience from the effective request domain (MCD)", async () => {
         const otherDomain = "brand-b.custom.example.com";
-        const transactionStore = new TransactionStore({ secret });
-        const sessionStore = new StatelessSessionStore({ secret });
+        const stores = createTestStores({ secret });
         const mcdClient = new AuthClient({
-          transactionStore,
-          sessionStore,
+          ...stores,
           domain: otherDomain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
