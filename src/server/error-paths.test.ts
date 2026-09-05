@@ -595,7 +595,7 @@ describe("passwordlessDbGetToken — JWT claim mismatch errors", () => {
 // ---------------------------------------------------------------------------
 
 describe("TransactionStore.save — duplicate transaction guard", () => {
-  it("logs a warning and returns without setting a new cookie when a transaction already exists and parallel is disabled", async () => {
+  it("overwrites the single __txn_ cookie without warning when a transaction already exists and parallel is disabled", async () => {
     const secret = await generateSecret(32);
     const store = new TransactionStore({
       secret,
@@ -610,14 +610,18 @@ describe("TransactionStore.save — duplicate transaction guard", () => {
       codeVerifier: "cv"
     };
 
-    // Create a fake existing cookie in the request
+    // Create a fake existing cookie in the request under the single (bare
+    // prefix) transaction cookie name used when parallel is disabled.
     const expiration = Math.floor(Date.now() / 1000) + 3600;
     const existingJwe = await encrypt(txn, secret, expiration);
+    const existingCookie = { name: "__txn_", value: existingJwe };
 
-    // Build a minimal RequestCookies-like object
+    // Build a minimal RequestCookies-like object exposing both get() and
+    // getAll() (getAll drives the FIFO eviction accounting).
     const reqCookies = {
       get: (name: string) =>
-        name === "__txn_" ? { name: "__txn_", value: existingJwe } : undefined
+        name === "__txn_" ? existingCookie : undefined,
+      getAll: () => [existingCookie]
     } as any;
 
     const resCookies = {
@@ -628,11 +632,11 @@ describe("TransactionStore.save — duplicate transaction guard", () => {
 
     await store.save(resCookies, txn, reqCookies);
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("transaction is already in progress")
-    );
-    // No new cookie should have been written
-    expect(resCookies.set).not.toHaveBeenCalled();
+    // The "already in progress" warn-and-skip guard was removed: the single
+    // __txn_ cookie is simply overwritten in place. No warning, no accumulation.
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(resCookies.set).toHaveBeenCalledOnce();
+    expect(resCookies.set.mock.calls[0][0]).toBe("__txn_");
 
     warnSpy.mockRestore();
   });
@@ -653,7 +657,7 @@ describe("TransactionStore.save — duplicate transaction guard", () => {
     };
 
     // Empty request cookies — no existing transaction
-    const reqCookies = { get: () => undefined } as any;
+    const reqCookies = { get: () => undefined, getAll: () => [] } as any;
     const resCookies = { set: vi.fn() } as any;
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

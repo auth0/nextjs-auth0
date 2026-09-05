@@ -109,9 +109,19 @@ describe("Chunked cookie round-trip", () => {
       resCookies
     );
 
-    const resNames = [...(resCookies as any)._parsed.keys()];
+    const parsed = (resCookies as any)._parsed as Map<string, any>;
+    const resNames = [...parsed.keys()];
+    // The single cookie must be present and hold the full value.
     expect(resNames).toContain("__session");
-    expect(resNames).not.toContain("__session__0");
+    expect(parsed.get("__session").value).toBe(smallValue);
+    // setChunkedCookie now sweep-deletes stale __session__0..N chunk cookies when
+    // writing a single (non-chunked) value. Any __session__<n> present here is a
+    // deletion cookie (empty value), never a data chunk.
+    for (const name of resNames) {
+      if (name.startsWith("__session__")) {
+        expect(parsed.get(name).value).toBe("");
+      }
+    }
   });
 
   it("large payload (>3500 bytes) is split into chunks with __ separator", async () => {
@@ -190,7 +200,7 @@ describe("Transaction cookie name format", () => {
         responseType: RESPONSE_TYPES.CODE,
         codeVerifier: "cv"
       },
-      { get: () => undefined } as any
+      { get: () => undefined, getAll: () => [] } as any
     );
 
     const cookieNames = [...(resCookies as any)._parsed.keys()];
@@ -213,7 +223,7 @@ describe("Transaction cookie name format", () => {
         responseType: RESPONSE_TYPES.CODE,
         codeVerifier: "cv"
       },
-      { get: () => undefined } as any
+      { get: () => undefined, getAll: () => [] } as any
     );
 
     const cookie = (resCookies as any)._parsed.get(`__txn_${state}`);
@@ -237,7 +247,7 @@ describe("Transaction cookie name format", () => {
         responseType: RESPONSE_TYPES.CODE,
         codeVerifier: "cv"
       },
-      { get: () => undefined } as any
+      { get: () => undefined, getAll: () => [] } as any
     );
 
     // Build request cookies from the Set-Cookie header
