@@ -3,6 +3,10 @@ import type { ParsedUrlQuery } from "querystring";
 import { cookies, headers as getHeaders } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
+import {
+  ServerClient,
+  type AuthorizationParameters as EngineAuthorizationParameters
+} from "@auth0/auth0-server-js";
 
 import {
   AccessTokenError,
@@ -45,13 +49,21 @@ import {
 import { isRequest } from "../utils/request.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
+  Auth0CookieHandler,
+  type Auth0CookieContext
+} from "./auth-client/auth0-cookie-handler.js";
+import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
   Routes,
   RoutesOptions
 } from "./auth-client/index.js";
-import { RequestCookies, ResponseCookies } from "./cookies/index.js";
+import {
+  ReadonlyRequestCookies,
+  RequestCookies,
+  ResponseCookies
+} from "./cookies/index.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {
   AccessTokenFactory,
@@ -82,8 +94,16 @@ import {
   SessionConfiguration,
   SessionCookieOptions
 } from "./session/abstract-session-store.js";
+import { Auth0StatefulStateStore } from "./session/auth0-stateful-state-store.js";
+import { Auth0StatelessStateStore } from "./session/auth0-stateless-state-store.js";
+import {
+  Auth0TransactionStore,
+  DEFAULT_TRANSACTION_COOKIE_PREFIX
+} from "./session/auth0-transaction-store.js";
+import type { LegacyCookieOverrides } from "./session/legacy-cookie-compat.js";
 import { getSessionChangesAfterGetAccessToken } from "./session/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "./session/session-transfer-helpers.js";
+import { saveSessionToStateStore } from "./session/session-write.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import {
@@ -528,6 +548,21 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private provider: AuthClientProvider;
+  // --- auth0-server-js engine wiring (sub-step 5) ------------------------
+  // Constructed and held idle: no request is routed through these yet (routing
+  // switches to the engine in a later, separately gated step). They exist so
+  // the wiring compiles, the store interfaces are verified against the engine,
+  // and construction is proven to do no network I/O (lazy constructors).
+  private engineTransactionStore: Auth0TransactionStore;
+  private engineStateStore: Auth0StatelessStateStore | Auth0StatefulStateStore;
+  // One engine `ServerClient` per resolved domain, keyed by the provider's
+  // `AuthClient` for that domain so each shares the exact per-domain lifecycle
+  // and caching the provider already manages. Populated by the provider factory
+  // below; not consumed by any request path yet.
+  private engineServerClients: WeakMap<
+    AuthClient,
+    ServerClient<Auth0CookieContext>
+  >;
   private routes: Routes;
   private _mfa?: ServerMfaClient;
   private _passwordless?: ServerPasswordlessClient;
@@ -734,6 +769,109 @@ export class Auth0Client {
           cookieOptions: sessionCookieOptions
         });
 
+    // --- auth0-server-js engine wiring (sub-step 5, held idle) -------------
+    // Build the engine's transaction store, state store, and one ServerClient
+    // per resolved domain. Nothing here touches the network or is routed to by
+    // a request yet: this proves the store interfaces line up with the engine
+    // and that construction is lazy (no discovery, no throw), ahead of the
+    // separately gated step that switches request handling onto the engine.
+    //
+    // Two cookie handlers, because session and transaction cookies can be
+    // configured with independent domains:
+    //  - the session handler carries `sessionCookieOptions.domain` so the
+    //    engine's native session write/delete (whose cookie options never
+    //    include a domain) still stamps a consumer-configured domain;
+    //  - the transaction handler is a plain passthrough, because the
+    //    transaction store stamps its own `transactionCookieOptions.domain`.
+    const sessionCookieHandler = new Auth0CookieHandler(
+      sessionCookieOptions.domain
+    );
+    const transactionCookieHandler = new Auth0CookieHandler();
+
+    this.engineTransactionStore = new Auth0TransactionStore(
+      { secret },
+      transactionCookieHandler,
+      {
+        transactionCookiePrefix: transactionCookieOptions.prefix,
+        cookieOptions: {
+          secure: transactionCookieOptions.secure,
+          domain: transactionCookieOptions.domain,
+          path: transactionCookieOptions.path,
+          sameSite: transactionCookieOptions.sameSite,
+          maxAge: transactionCookieOptions.maxAge
+        }
+      }
+    );
+
+    // Legacy-cookie delete attributes (domain/path/secure/sameSite) so a
+    // domain-configured consumer's pre-migration cookies delete cleanly. The
+    // engine's `SessionCookieOptions` has no `domain`, so the domain is threaded
+    // in here for the legacy delete path.
+    const legacyCookieOverrides: LegacyCookieOverrides = {
+      domain: sessionCookieOptions.domain,
+      path: sessionCookieOptions.path,
+      secure: sessionCookieOptions.secure,
+      sameSite: sessionCookieOptions.sameSite
+    };
+
+    const engineSessionConfig: SessionConfiguration & { secret: string } = {
+      ...options.session,
+      secret,
+      cookie: sessionCookieOptions
+    };
+
+    this.engineStateStore = options.sessionStore
+      ? new Auth0StatefulStateStore(
+          { ...engineSessionConfig, store: options.sessionStore },
+          sessionCookieHandler,
+          legacyCookieOverrides
+        )
+      : new Auth0StatelessStateStore(
+          engineSessionConfig,
+          sessionCookieHandler,
+          legacyCookieOverrides
+        );
+
+    this.engineServerClients = new WeakMap<
+      AuthClient,
+      ServerClient<Auth0CookieContext>
+    >();
+
+    // Builds the engine `ServerClient` for one resolved domain. Every client
+    // shares the two engine stores above; only the domain (and its per-domain
+    // AuthClient config) differs, so each client sees a concrete, static domain
+    // (which keeps `serverClient.mfa` working in resolver mode without an engine
+    // change). Construction is lazy, so building one alongside each AuthClient is
+    // free.
+    const buildEngineServerClient = (
+      engineDomain: string
+    ): ServerClient<Auth0CookieContext> =>
+      new ServerClient<Auth0CookieContext>({
+        domain: engineDomain,
+        clientId,
+        clientSecret,
+        clientAssertionSigningKey,
+        clientAssertionSigningAlg,
+        // nextjs-auth0's `AuthorizationParameters` is a superset of the engine's
+        // (its `scope` also allows an object / null for the RAR-style shape). The
+        // extra breadth is carried through untouched; the engine only reads the
+        // string forms it declares. Cross-package structural cast, no runtime
+        // change.
+        authorizationParams: options.authorizationParameters as
+          EngineAuthorizationParameters | undefined,
+        transactionIdentifier: transactionCookieOptions.prefix,
+        stateIdentifier: sessionCookieOptions.name,
+        enableParallelTransactions: options.enableParallelTransactions ?? true,
+        customFetch: options.customFetch,
+        useMtls: options.useMtls ?? process.env.AUTH0_MTLS === "true",
+        discoveryCache: options.discoveryCache,
+        transactionStore: this.engineTransactionStore,
+        stateStore: this.engineStateStore
+        // NOTE (routing step): map `enableTelemetry` -> `telemetry` when request
+        // handling switches to the ServerClient. Idle now, so no request is made
+        // and telemetry is never sent regardless.
+      });
+
     // Create discovery cache for the provider
     const discoveryCache = new DiscoveryCache(options.discoveryCache);
 
@@ -766,9 +904,28 @@ export class Auth0Client {
       domain: domainForProvider,
       allowInsecureRequests: options.allowInsecureRequests,
       createAuthClient: (domainForClient, issuerForClient) => {
-        return new AuthClient({
-          transactionStore: this.transactionStore,
+        const authClient = new AuthClient({
+          // Storage-only cutover (slice 1): transaction cookies are now read /
+          // written through the engine store in its native format. The prefix
+          // and parallel flag mirror what `engineTransactionStore` and the
+          // engine `ServerClient` are built with, so the state-scoped cookie
+          // name (`${prefix}${state}`) matches on both sides.
+          transactionStore: this.engineTransactionStore,
+          transactionCookiePrefix:
+            transactionCookieOptions.prefix ??
+            DEFAULT_TRANSACTION_COOKIE_PREFIX,
+          enableParallelTransactions:
+            options.enableParallelTransactions ?? true,
           sessionStore: this.sessionStore,
+          // Storage-only cutover (slice 2): session reads now go through the
+          // engine state store in its native format. `stateIdentifier` is the
+          // session cookie name (same value the engine `ServerClient` gets),
+          // since the engine store is name-agnostic.
+          stateStore: this.engineStateStore,
+          // Resolved session cookie name (defaults to `__session`); this is the
+          // `identifier` the name-agnostic engine store reads under, and matches
+          // the cookie the v4 store wrote.
+          stateIdentifier: this.sessionStore.sessionCookieName,
 
           domain: domainForClient,
           issuer: issuerForClient,
@@ -809,6 +966,16 @@ export class Auth0Client {
           discoveryCache,
           provider: this.provider
         });
+
+        // sub-step 5: build the engine ServerClient for this same resolved
+        // domain and cache it keyed by the AuthClient. Held idle (no request
+        // routed through it yet); consumed by the separately gated routing step.
+        this.engineServerClients.set(
+          authClient,
+          buildEngineServerClient(domainForClient)
+        );
+
+        return authClient;
       }
     });
 
@@ -1613,7 +1780,7 @@ export class Auth0Client {
         throw new Error("The session data is missing.");
       }
 
-      await this.sessionStore.set(await cookies(), await cookies(), {
+      await this.writeSession(await cookies(), await cookies(), {
         ...updatedSession,
         internal: {
           ...existingSession.internal
@@ -1634,7 +1801,7 @@ export class Auth0Client {
           throw new Error("The user is not authenticated.");
         }
 
-        await this.sessionStore.set(req.cookies, res.cookies, {
+        await this.writeSession(req.cookies, res.cookies, {
           ...sessionData,
           internal: {
             ...existingSession.internal
@@ -1656,7 +1823,7 @@ export class Auth0Client {
         const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
         const pagesRouterRes = res as PagesRouterResponse;
 
-        await this.sessionStore.set(reqCookies, resCookies, {
+        await this.writeSession(reqCookies, resCookies, {
           ...updatedSession,
           internal: {
             ...existingSession.internal
@@ -1990,7 +2157,7 @@ export class Auth0Client {
         normalizedReq instanceof NextRequest
           ? normalizedReq.cookies
           : await cookies();
-      await this.sessionStore.set(
+      await this.writeSession(
         reqCookies,
         connectAccountResponse.cookies,
         accessToken.session
@@ -2345,6 +2512,29 @@ export class Auth0Client {
     };
   }
 
+  /**
+   * Writes a session through the engine state store in its native format
+   * (storage-only cutover, slice 3). Thin wrapper over the shared
+   * `saveSessionToStateStore` so the call sites stay one line; no wrapper class.
+   * Uses the same store instances and identifier as `AuthClient`.
+   */
+  private writeSession(
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
+    resCookies: ResponseCookies,
+    session: SessionData,
+    isNew?: boolean
+  ): Promise<void> {
+    return saveSessionToStateStore({
+      stateStore: this.engineStateStore,
+      stateIdentifier: this.sessionStore.sessionCookieName,
+      sessionStore: this.sessionStore,
+      reqCookies,
+      resCookies,
+      session,
+      isNew
+    });
+  }
+
   private async saveToSession(
     data: SessionData,
     req?: PagesRouterRequest | NextRequest,
@@ -2354,14 +2544,14 @@ export class Auth0Client {
       if (isRequest(req) && res instanceof NextResponse) {
         // middleware usage
         const nextReq = toNextRequest(req);
-        await this.sessionStore.set(nextReq.cookies, res.cookies, data);
+        await this.writeSession(nextReq.cookies, res.cookies, data);
       } else {
         // pages router usage
         const resHeaders = new Headers();
         const resCookies = new ResponseCookies(resHeaders);
         const pagesRouterRes = res as PagesRouterResponse;
 
-        await this.sessionStore.set(
+        await this.writeSession(
           this.createRequestCookies(req as PagesRouterRequest),
           resCookies,
           data
@@ -2381,7 +2571,7 @@ export class Auth0Client {
     } else {
       // app router usage: Server Components, Server Actions, Route Handlers
       try {
-        await this.sessionStore.set(await cookies(), await cookies(), data);
+        await this.writeSession(await cookies(), await cookies(), data);
       } catch (e) {
         if (process.env.NODE_ENV === "development") {
           console.warn(

@@ -19,7 +19,9 @@ import type {
   FetcherMinimalConfig
 } from "../fetcher/fetcher.js";
 import type { AbstractSessionStore } from "../session/abstract-session-store.js";
-import type { TransactionStore } from "../transaction-store.js";
+import type { Auth0StatefulStateStore } from "../session/auth0-stateful-state-store.js";
+import type { Auth0StatelessStateStore } from "../session/auth0-stateless-state-store.js";
+import type { Auth0TransactionStore } from "../session/auth0-transaction-store.js";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -86,8 +88,34 @@ export type RoutesOptions = Partial<Routes>;
  * @private
  */
 export interface AuthClientOptions {
-  transactionStore: TransactionStore;
+  transactionStore: Auth0TransactionStore;
+  /**
+   * The transaction cookie prefix (same value the engine store is built with).
+   * Used to compute the (optionally state-scoped) transaction cookie name, since
+   * the engine store is name-agnostic and this SDK drives it without a
+   * ServerClient in the storage-only cutover.
+   */
+  transactionCookiePrefix: string;
+  /**
+   * Whether parallel (multi-tab) transactions are enabled. Controls whether the
+   * transaction cookie name is state-scoped (`${prefix}${state}`) or the bare
+   * prefix. Must match the value the engine store / ServerClient is built with.
+   */
+  enableParallelTransactions: boolean;
   sessionStore: AbstractSessionStore;
+  /**
+   * The engine state store (stateful or stateless) that backs session reads in
+   * the storage-only cutover. Session reads go through this; the v4
+   * `sessionStore` above is still the writer/deleter (slices 3-4) and the
+   * stateful/stateless discriminator until the full swap.
+   */
+  stateStore: Auth0StatelessStateStore | Auth0StatefulStateStore;
+  /**
+   * The session cookie name, i.e. the `identifier` the name-agnostic engine
+   * state store expects (same value the engine `ServerClient` is built with as
+   * `stateIdentifier`).
+   */
+  stateIdentifier: string;
 
   domain: string;
   /**

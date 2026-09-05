@@ -174,13 +174,25 @@ import {
   validateVerificationCredentialAndThrow
 } from "../mfa/mfa-validation-utils.js";
 import { AbstractSessionStore } from "../session/abstract-session-store.js";
+import type { Auth0StatefulStateStore } from "../session/auth0-stateful-state-store.js";
+import type { Auth0StatelessStateStore } from "../session/auth0-stateless-state-store.js";
+import {
+  Auth0TransactionStore,
+  transactionIdentifier
+} from "../session/auth0-transaction-store.js";
+import { readConnectionTokenSetsFromCookies } from "../session/connection-token-cookies.js";
 import { getSessionChangesAfterGetAccessToken } from "../session/session-changes-helpers.js";
+import {
+  deleteSessionByReqCookies,
+  deleteSessionFromStateStore
+} from "../session/session-delete.js";
 import {
   buildSessionFromCallback,
   isSessionCeilingInPast,
   isSessionCeilingReached,
   mergePopupTokenIntoSession
 } from "../session/session-helpers.js";
+import { stateDataToSessionData } from "../session/session-mapper.js";
 import {
   buildSessionTransferAudience,
   buildSessionTransferRedirectUrl,
@@ -188,6 +200,7 @@ import {
   parseSessionTransferTokenResponse,
   resolveActorFromSession
 } from "../session/session-transfer-helpers.js";
+import { saveSessionToStateStore } from "../session/session-write.js";
 import {
   compareScopes,
   findAccessTokenSet,
@@ -200,8 +213,7 @@ import {
 import {
   clampReturnTo,
   clampTransactionField,
-  TransactionState,
-  TransactionStore
+  TransactionState
 } from "../transaction-store.js";
 import { filterDefaultIdTokenClaims } from "../user.js";
 import {
@@ -236,8 +248,12 @@ import type {
  * @private
  */
 export class AuthClient {
-  private transactionStore: TransactionStore;
+  private transactionStore: Auth0TransactionStore;
+  private transactionCookiePrefix: string;
+  private enableParallelTransactions: boolean;
   private sessionStore: AbstractSessionStore;
+  private stateStore: Auth0StatelessStateStore | Auth0StatefulStateStore;
+  private stateIdentifier: string;
 
   private clientMetadata: oauth.Client;
   private clientSecret?: string;
@@ -337,7 +353,11 @@ export class AuthClient {
 
     // stores
     this.transactionStore = options.transactionStore;
+    this.transactionCookiePrefix = options.transactionCookiePrefix;
+    this.enableParallelTransactions = options.enableParallelTransactions;
     this.sessionStore = options.sessionStore;
+    this.stateStore = options.stateStore;
+    this.stateIdentifier = options.stateIdentifier;
 
     // authorization server
     this.domain = options.domain;
@@ -654,7 +674,7 @@ export class AuthClient {
         if (!error && session) {
           // we pass the existing session (containing an `createdAt` timestamp) to the set method
           // which will update the cookie's `maxAge` property based on the `createdAt` time
-          await this.sessionStore.set(req.cookies, res.cookies, {
+          await this.saveSession(req.cookies, res.cookies, {
             ...session
           });
           addCacheControlHeadersForSession(res);
@@ -663,6 +683,96 @@ export class AuthClient {
 
       return res;
     }
+  }
+
+  /**
+   * The (optionally state-scoped) transaction cookie name for the engine store,
+   * which is name-agnostic (the ServerClient would normally compute this, but
+   * the storage-only cutover drives the store directly).
+   */
+  private txnIdentifier(state: string): string {
+    return transactionIdentifier(
+      this.transactionCookiePrefix,
+      state,
+      this.enableParallelTransactions
+    );
+  }
+
+  /**
+   * Builds the engine cookie context (`storeOptions`) for a transaction-store
+   * call. The engine reads `reqCookies` for FIFO eviction and reads; the v4
+   * store treated request cookies as optional, so an empty jar reproduces its
+   * "skip eviction when none supplied" behavior. The readonly union is safe at
+   * runtime: the shared cookie handler only mutates `reqCookies` after it has
+   * confirmed `resCookies` is present (a mutation-allowed Route Handler / Server
+   * Action / middleware context), and Next's readonly cookies are real
+   * `RequestCookies` instances underneath.
+   */
+  private txnCtx(
+    reqCookies: RequestCookies | ReadonlyRequestCookies | undefined,
+    resCookies?: ResponseCookies
+  ): { reqCookies: RequestCookies; resCookies?: ResponseCookies } {
+    return {
+      reqCookies: (reqCookies ??
+        new RequestCookies(new Headers())) as RequestCookies,
+      resCookies
+    };
+  }
+
+  /**
+   * Writes a session through the engine state store in its native format
+   * (storage-only cutover, slice 3). Thin wrapper over the shared
+   * `saveSessionToStateStore` so the call sites stay one line; no wrapper class.
+   */
+  private saveSession(
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
+    resCookies: ResponseCookies,
+    session: SessionData,
+    isNew?: boolean
+  ): Promise<void> {
+    return saveSessionToStateStore({
+      stateStore: this.stateStore,
+      stateIdentifier: this.stateIdentifier,
+      sessionStore: this.sessionStore,
+      reqCookies,
+      resCookies,
+      session,
+      isNew
+    });
+  }
+
+  /**
+   * Deletes a session through the engine state store (storage-only cutover,
+   * slice 4). Thin wrapper over the shared `deleteSessionFromStateStore` so the
+   * call sites stay one line; no wrapper class.
+   */
+  private deleteSession(
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    return deleteSessionFromStateStore({
+      stateStore: this.stateStore,
+      stateIdentifier: this.stateIdentifier,
+      sessionStore: this.sessionStore,
+      reqCookies,
+      resCookies
+    });
+  }
+
+  /**
+   * Deletes the backing-store record for the session identified by the request
+   * cookies, without a response object (IPSIE ceiling enforcement). Thin wrapper
+   * over the shared `deleteSessionByReqCookies`; stateless is a no-op.
+   */
+  private deleteSessionByReqCookies(
+    reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<void> {
+    return deleteSessionByReqCookies({
+      stateStore: this.stateStore,
+      stateIdentifier: this.stateIdentifier,
+      sessionStore: this.sessionStore,
+      reqCookies
+    });
   }
 
   async startInteractiveLogin(
@@ -831,10 +941,11 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    await this.transactionStore.save(
-      res.cookies,
+    await this.transactionStore.set(
+      this.txnIdentifier(transactionState.state),
       transactionState,
-      req?.cookies ?? reqCookies
+      false,
+      this.txnCtx(req?.cookies ?? reqCookies, res.cookies)
     );
 
     return res;
@@ -906,9 +1017,11 @@ export class AuthClient {
         }
       );
       if (!hasDomainMismatch) {
-        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        await this.deleteSession(req.cookies, errorResponse.cookies);
       }
-      await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
+      this.transactionStore.deleteAll(
+        this.txnCtx(req.cookies, errorResponse.cookies)
+      );
       return errorResponse;
     }
 
@@ -971,11 +1084,10 @@ export class AuthClient {
           }
         );
         if (!hasDomainMismatch) {
-          await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+          await this.deleteSession(req.cookies, errorResponse.cookies);
         }
-        await this.transactionStore.deleteAll(
-          req.cookies,
-          errorResponse.cookies
+        this.transactionStore.deleteAll(
+          this.txnCtx(req.cookies, errorResponse.cookies)
         );
         return errorResponse;
       }
@@ -1012,12 +1124,14 @@ export class AuthClient {
 
     // Clean up session and transaction cookies (only if session matched domain)
     if (!hasDomainMismatch) {
-      await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+      await this.deleteSession(req.cookies, logoutResponse.cookies);
     }
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
-    await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
+    this.transactionStore.deleteAll(
+      this.txnCtx(req.cookies, logoutResponse.cookies)
+    );
 
     return logoutResponse;
   }
@@ -1036,15 +1150,17 @@ export class AuthClient {
       return this.handleCallbackError(new MissingStateError(), {}, req);
     }
 
-    const transactionStateCookie = await this.transactionStore.get(
-      req.cookies,
-      state
-    );
-    if (!transactionStateCookie) {
+    // The engine store returns the decrypted transaction data directly (or
+    // `undefined`), unlike the v4 store which returned a `{ payload }` envelope.
+    // `TransactionData` is structurally the saved `TransactionState`.
+    const transactionState = (await this.transactionStore.get(
+      this.txnIdentifier(state),
+      this.txnCtx(req.cookies)
+    )) as TransactionState | undefined;
+    if (!transactionState) {
       return this.onCallback(new InvalidStateError(), {}, null);
     }
 
-    const transactionState = transactionStateCookie.payload;
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
@@ -1143,7 +1259,10 @@ export class AuthClient {
         session
       );
 
-      await this.transactionStore.delete(res.cookies, state);
+      await this.transactionStore.delete(
+        this.txnIdentifier(state),
+        this.txnCtx(req.cookies, res.cookies)
+      );
 
       return res;
     }
@@ -1319,7 +1438,10 @@ export class AuthClient {
           },
           nonce: this.cspNonce
         });
-        await this.transactionStore.delete(popupResponse.cookies, state);
+        await this.transactionStore.delete(
+          this.txnIdentifier(state),
+          this.txnCtx(req.cookies, popupResponse.cookies)
+        );
         return popupResponse;
       }
 
@@ -1346,14 +1468,17 @@ export class AuthClient {
           },
           nonce: this.cspNonce
         });
-        await this.sessionStore.set(
+        await this.saveSession(
           req.cookies,
           popupResponse.cookies,
           mergedSession,
           true
         );
         addCacheControlHeadersForSession(popupResponse);
-        await this.transactionStore.delete(popupResponse.cookies, state);
+        await this.transactionStore.delete(
+          this.txnIdentifier(state),
+          this.txnCtx(req.cookies, popupResponse.cookies)
+        );
         return popupResponse;
       } else {
         // No existing session (edge case: session expired during popup flow)
@@ -1367,7 +1492,10 @@ export class AuthClient {
             },
             nonce: this.cspNonce
           });
-          await this.transactionStore.delete(popupResponse.cookies, state);
+          await this.transactionStore.delete(
+            this.txnIdentifier(state),
+            this.txnCtx(req.cookies, popupResponse.cookies)
+          );
           return popupResponse;
         }
         const fallbackSession = buildSessionFromCallback(
@@ -1396,7 +1524,10 @@ export class AuthClient {
             },
             nonce: this.cspNonce
           });
-          await this.transactionStore.delete(popupResponse.cookies, state);
+          await this.transactionStore.delete(
+            this.txnIdentifier(state),
+            this.txnCtx(req.cookies, popupResponse.cookies)
+          );
           return popupResponse;
         }
 
@@ -1416,14 +1547,17 @@ export class AuthClient {
           },
           nonce: this.cspNonce
         });
-        await this.sessionStore.set(
+        await this.saveSession(
           req.cookies,
           popupResponse.cookies,
           mergedSession,
           true
         );
         addCacheControlHeadersForSession(popupResponse);
-        await this.transactionStore.delete(popupResponse.cookies, state);
+        await this.transactionStore.delete(
+          this.txnIdentifier(state),
+          this.txnCtx(req.cookies, popupResponse.cookies)
+        );
         return popupResponse;
       }
     }
@@ -1482,10 +1616,13 @@ export class AuthClient {
       }
     }
 
-    await this.sessionStore.set(req.cookies, res.cookies, session, true);
+    await this.saveSession(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
-    await this.transactionStore.delete(res.cookies, state);
+    await this.transactionStore.delete(
+      this.txnIdentifier(state),
+      this.txnCtx(req.cookies, res.cookies)
+    );
 
     return res;
   }
@@ -2060,7 +2197,7 @@ export class AuthClient {
       // request starts clean. For stateless sessions this is a no-op; for
       // stateful stores it removes the backing record.
       if (error.code === AccessTokenErrorCode.SESSION_EXPIRED) {
-        await this.sessionStore.delete(req.cookies, errorRes.cookies);
+        await this.deleteSession(req.cookies, errorRes.cookies);
       }
 
       return errorRes;
@@ -2158,7 +2295,9 @@ export class AuthClient {
         }
 
         // Delete session with iss included for issuer-matched filtering
-        await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
+        await (this.stateStore as Auth0StatefulStateStore).deleteByLogoutToken(
+          logoutTokenClaims
+        );
         return new NextResponse(null, { status: 204 });
       } catch (error) {
         console.error(
@@ -2194,7 +2333,9 @@ export class AuthClient {
       return bcloErrorResponse(error.message, 400);
     }
 
-    await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
+    await (this.stateStore as Auth0StatefulStateStore).deleteByLogoutToken(
+      logoutTokenClaims
+    );
 
     return new NextResponse(null, {
       status: 204
@@ -2681,7 +2822,10 @@ export class AuthClient {
 
       // Clean up the transaction cookie on error
       if (state) {
-        await this.transactionStore.delete(response.cookies, state);
+        await this.transactionStore.delete(
+          this.txnIdentifier(state),
+          this.txnCtx(req.cookies, response.cookies)
+        );
       }
 
       return response;
@@ -2691,7 +2835,10 @@ export class AuthClient {
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {
-      await this.transactionStore.delete(response.cookies, state);
+      await this.transactionStore.delete(
+        this.txnIdentifier(state),
+        this.txnCtx(req.cookies, response.cookies)
+      );
     }
 
     return response;
@@ -3064,8 +3211,34 @@ export class AuthClient {
       RequestCookies | import("../cookies/index.js").ReadonlyRequestCookies,
     { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
   ): Promise<SessionCheckResult> {
-    // Read session from store
-    const session = await this.sessionStore.get(cookies);
+    // Read session from the engine state store (storage-only cutover, slice 2).
+    // The engine returns `StateData | undefined`; map it back to `SessionData`
+    // and coalesce `undefined` -> `null` so the downstream logic below is
+    // unchanged. Native format first, then legacy v4/v3 fallback, all handled
+    // inside the engine store's `get`.
+    const state = await this.stateStore.get(this.stateIdentifier, {
+      // The engine cookie context types `reqCookies` as mutable `RequestCookies`,
+      // but reads only call `getAll`/`get`, so a `ReadonlyRequestCookies` (Server
+      // Component) is safe here. Cast mirrors the slice-1 transaction reads.
+      reqCookies: cookies as RequestCookies
+    });
+    let session = state ? (stateDataToSessionData(state) ?? null) : null;
+
+    // Re-attach connection token sets. The engine state store deliberately does
+    // not own them (connected-accounts stays in nextjs-auth0). In STATELESS mode
+    // they live in separate `__FC_*` cookies, so read + merge them here exactly
+    // as the v4 `StatelessSessionStore.get` did. In STATEFUL mode they live in
+    // the persisted row and already round-trip through the mapper, so this is
+    // skipped. `this.sessionStore.store` is set only for stateful stores.
+    if (session && !this.sessionStore.store) {
+      const connectionTokenSets = await readConnectionTokenSetsFromCookies(
+        cookies,
+        this.sessionStore.secret
+      );
+      if (connectionTokenSets) {
+        session = { ...session, connectionTokenSets };
+      }
+    }
 
     // No session found
     if (!session) {
@@ -3087,11 +3260,9 @@ export class AuthClient {
       !skipCeilingCheck &&
       isSessionCeilingReached(session.internal?.sessionExpiresAt)
     ) {
-      this.sessionStore
-        .deleteByReqCookies(cookies)
-        .catch((e) =>
-          console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
-        );
+      this.deleteSessionByReqCookies(cookies).catch((e) =>
+        console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
+      );
       return {
         error: null,
         session: null,
@@ -3982,10 +4153,11 @@ export class AuthClient {
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(
-      res.cookies,
+    await this.transactionStore.set(
+      this.txnIdentifier(transactionState.state),
       transactionState,
-      req?.cookies
+      false,
+      this.txnCtx(req?.cookies, res.cookies)
     );
 
     return [null, res];
@@ -4967,7 +5139,7 @@ export class AuthClient {
     session.accessTokens.push(newAccessTokenSet);
 
     // Persist updated session
-    await this.sessionStore.set(reqCookies, resCookies, session);
+    await this.saveSession(reqCookies, resCookies, session);
   }
 
   // ---------------------------------------------------------------------------
@@ -5284,7 +5456,7 @@ export class AuthClient {
       session,
       tokenEndpointResponse.id_token
     );
-    await this.sessionStore.set(reqCookies, resCookies, session, true);
+    await this.saveSession(reqCookies, resCookies, session, true);
   }
 
   // ---------------------------------------------------------------------------
@@ -5733,7 +5905,7 @@ export class AuthClient {
     };
 
     session = await this.finalizeSession(session, tokenResponse.id_token);
-    await this.sessionStore.set(reqCookies, resCookies, session, true);
+    await this.saveSession(reqCookies, resCookies, session, true);
   }
 
   /**
@@ -5883,10 +6055,11 @@ export class AuthClient {
             "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
         );
       }
-      await this.transactionStore.save(
-        resCookies,
+      await this.transactionStore.set(
+        this.txnIdentifier(magicLinkTransactionState.state),
         magicLinkTransactionState,
-        req?.cookies
+        false,
+        this.txnCtx(req?.cookies, resCookies)
       );
     }
   }
@@ -6465,7 +6638,7 @@ export class AuthClient {
         },
         tokenSetResponse.tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
+      await this.saveSession(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
   }
@@ -6489,7 +6662,7 @@ export class AuthClient {
     // Save session with MFA context if one exists (not applicable for passkey/passwordless
     // first-factor flows where no session exists yet at this point)
     if (session) {
-      await this.sessionStore.set(req.cookies, res.cookies, session);
+      await this.saveSession(req.cookies, res.cookies, session);
     }
     addCacheControlHeadersForSession(res);
     return res;
