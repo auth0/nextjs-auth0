@@ -619,8 +619,7 @@ describe("TransactionStore.save — duplicate transaction guard", () => {
     // Build a minimal RequestCookies-like object exposing both get() and
     // getAll() (getAll drives the FIFO eviction accounting).
     const reqCookies = {
-      get: (name: string) =>
-        name === "__txn_" ? existingCookie : undefined,
+      get: (name: string) => (name === "__txn_" ? existingCookie : undefined),
       getAll: () => [existingCookie]
     } as any;
 
