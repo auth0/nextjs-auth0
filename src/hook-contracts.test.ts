@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
-import { AuthClient } from "./server/auth-client.js";
-import { encrypt } from "./server/cookies.js";
+import { AuthClient } from "./server/auth-client/index.js";
+import { encrypt } from "./server/cookies/index.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
 import { TransactionStore } from "./server/transaction-store.js";
 import { getDefaultRoutes } from "./test-fixtures/defaults.js";

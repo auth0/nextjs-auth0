@@ -4,7 +4,10 @@ import * as oauth from "oauth4webapi";
 import { describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
-import { generateSecret, stripTransactionValuePrefix } from "../../test-fixtures/utils.js";
+import {
+  generateSecret,
+  stripTransactionValuePrefix
+} from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
 import { AuthClient } from "../auth-client/index.js";

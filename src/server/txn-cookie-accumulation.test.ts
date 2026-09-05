@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDefaultRoutes } from "../test-fixtures/defaults.js";
 import { generateSecret } from "../test-fixtures/utils.js";
 import { RESPONSE_TYPES } from "../types/connected-accounts.js";
-import { AuthClient } from "./auth-client.js";
-import { RequestCookies, ResponseCookies } from "./cookies.js";
+import { AuthClient } from "./auth-client/index.js";
+import { RequestCookies, ResponseCookies } from "./cookies/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import {
   clampReturnTo,

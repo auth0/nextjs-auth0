@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { AuthClient } from "./server/auth-client.js";
+import { AuthClient } from "./server/auth-client/index.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
 import { TransactionStore } from "./server/transaction-store.js";
 import { getDefaultRoutes } from "./test-fixtures/defaults.js";

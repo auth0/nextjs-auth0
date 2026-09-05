@@ -10,7 +10,10 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test-fixtures/defaults.js";
-import { generateSecret, stripTransactionValuePrefix } from "../../test-fixtures/utils.js";
+import {
+  generateSecret,
+  stripTransactionValuePrefix
+} from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client/index.js";

@@ -28,7 +28,10 @@ import {
   TokenRevocationErrorCode
 } from "../../errors/index.js";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
-import { generateSecret, stripTransactionValuePrefix } from "../../test-fixtures/utils.js";
+import {
+  generateSecret,
+  stripTransactionValuePrefix
+} from "../../test-fixtures/utils.js";
 import {
   AccessTokenSet,
   RESPONSE_TYPES,

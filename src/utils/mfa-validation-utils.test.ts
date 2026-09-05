@@ -10,7 +10,7 @@ import {
   validateArrayFieldAndThrow,
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
-} from "./mfa-validation-utils.js";
+} from "../server/mfa/mfa-validation-utils.js";
 
 // ─── extractBearerToken ───────────────────────────────────────────────────────
 

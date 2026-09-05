@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
-import { buildEnrollOptions } from "./mfa-server-utils.js";
+import { buildEnrollOptions } from "../server/mfa/mfa-server-utils.js";
 
 describe("buildEnrollOptions", () => {
   describe("authenticatorType: oob", () => {

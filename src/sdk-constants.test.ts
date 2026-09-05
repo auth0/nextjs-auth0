@@ -1,8 +1,8 @@
 import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import { describe, expect, it, vi } from "vitest";
 
-import { AuthClient } from "./server/auth-client.js";
-import { decrypt, encrypt } from "./server/cookies.js";
+import { AuthClient } from "./server/auth-client/index.js";
+import { decrypt, encrypt } from "./server/cookies/index.js";
 import { LEGACY_COOKIE_NAME } from "./server/session/normalize-session.js";
 import { StatefulSessionStore } from "./server/session/stateful-session-store.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
