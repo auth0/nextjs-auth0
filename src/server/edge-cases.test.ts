@@ -30,22 +30,22 @@ import {
   PasswordlessStartError,
   PasswordlessVerifyError
 } from "../errors/index.js";
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import {
   buildVerifyParams,
   getVerifyGrantType,
   transformVerifyBodyToOptions
 } from "../utils/mfa-transform-utils.js";
-import { encryptMfaToken, handleMfaError } from "../utils/mfa-utils.js";
-import { normalizeExpiresAt } from "../utils/token-set-helpers.js";
-import { AuthClient } from "./auth-client.js";
+import { AuthClient } from "./auth-client/index.js";
 import { DiscoveryCache } from "./discovery-cache.js";
+import { encryptMfaToken, handleMfaError } from "./mfa/mfa-utils.js";
 import {
   normalizeStatefulSession,
   normalizeStatelessSession
 } from "./session/normalize-session.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { normalizeExpiresAt } from "./session/token-set-helpers.js";
 import { TransactionStore } from "./transaction-store.js";
 
 // ---------------------------------------------------------------------------

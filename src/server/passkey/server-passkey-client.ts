@@ -14,7 +14,7 @@ import type {
   PasskeyRegisterResponse
 } from "../../types/index.js";
 import type { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client.js";
+import type { AuthClient } from "../auth-client/index.js";
 
 /**
  * Server-side passkey authentication API.

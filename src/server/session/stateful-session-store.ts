@@ -1,33 +1,14 @@
 import { SessionData, SessionDataStore } from "../../types/index.js";
-import * as cookies from "../cookies.js";
-import {
-  AbstractSessionStore,
-  BeforeSessionRolledHook,
-  SessionCookieOptions
-} from "./abstract-session-store.js";
+import * as cookies from "../cookies/index.js";
+import { AbstractSessionStore } from "./abstract-session-store.js";
 import {
   LEGACY_COOKIE_NAME,
   normalizeStatefulSession
 } from "./normalize-session.js";
-
-// the value of the stateful session cookie containing a unique session ID to identify
-// the current session
-interface SessionCookieValue {
-  id: string;
-}
-
-interface StatefulSessionStoreOptions {
-  secret: string;
-
-  rolling?: boolean; // defaults to true
-  beforeSessionRolled?: BeforeSessionRolledHook;
-  absoluteDuration?: number; // defaults to 3 days
-  inactivityDuration?: number; // defaults to 1 day
-
-  store: SessionDataStore;
-
-  cookieOptions?: SessionCookieOptions;
-}
+import type {
+  SessionCookieValue,
+  StatefulSessionStoreOptions
+} from "./types.js";
 
 const generateId = () => {
   const bytes = new Uint8Array(16);

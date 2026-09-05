@@ -2,15 +2,15 @@ import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import { CookieOptions, SessionData } from "../../types/index.js";
 import {
   decrypt,
   encrypt,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
-import * as cookies from "../cookies.js";
+} from "../cookies/index.js";
+import * as cookies from "../cookies/index.js";
 import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
 import { StatelessSessionStore } from "./stateless-session-store.js";
 

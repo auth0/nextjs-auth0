@@ -1,0 +1,6697 @@
+import { NextResponse, type NextRequest } from "next/server.js";
+import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
+import * as jose from "jose";
+import * as oauth from "oauth4webapi";
+import * as client from "openid-client";
+
+import packageJson from "../../../package.json" with { type: "json" };
+import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
+  AuthorizationCodeGrantError,
+  AuthorizationCodeGrantRequestError,
+  AuthorizationError,
+  BackchannelAuthenticationError,
+  BackchannelAuthenticationNotSupportedError,
+  BackchannelLogoutError,
+  ConnectAccountError,
+  ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode,
+  DiscoveryError,
+  DPoPError,
+  DPoPErrorCode,
+  InvalidConfigurationError,
+  InvalidStateError,
+  MfaChallengeError,
+  MfaEnrollmentError,
+  MfaGetAuthenticatorsError,
+  MfaNoAvailableFactorsError,
+  MfaRequiredError,
+  MfaVerifyError,
+  MissingStateError,
+  MtlsError,
+  MtlsErrorCode,
+  OAuth2Error,
+  PasskeyChallengeError,
+  PasskeyEnrollmentChallengeError,
+  PasskeyEnrollmentVerifyError,
+  PasskeyGetTokenError,
+  PasskeyRegisterError,
+  PasswordlessDbChallengeError,
+  PasswordlessDbGetTokenError,
+  PasswordlessStartError,
+  PasswordlessVerifyError,
+  SdkError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
+} from "../../errors/index.js";
+import {
+  IssuerValidationError,
+  SessionDomainMismatchError
+} from "../../errors/mcd.js";
+import {
+  CompleteConnectAccountRequest,
+  CompleteConnectAccountResponse,
+  ConnectAccountOptions,
+  ConnectAccountRequest,
+  ConnectAccountResponse,
+  ConnectedAccount
+} from "../../types/connected-accounts.js";
+import { DpopKeyPair, DpopOptions } from "../../types/dpop.js";
+import {
+  AccessTokenForConnectionOptions,
+  AccessTokenSet,
+  ActClaim,
+  AuthenticatorApiResponse,
+  AuthorizationParameters,
+  BackchannelAuthenticationOptions,
+  BackchannelAuthenticationResponse,
+  ChallengeApiResponse,
+  ConnectionTokenSet,
+  CustomTokenExchangeOptions,
+  CustomTokenExchangeResponse,
+  EnrollmentApiResponse,
+  EnrollOobOptions,
+  EnrollOtpOptions,
+  GetAccessTokenOptions,
+  GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_PASSKEY,
+  GRANT_TYPE_PASSWORDLESS_OTP,
+  LogoutStrategy,
+  LogoutToken,
+  PasskeyChallengeOptions,
+  PasskeyChallengeResponse,
+  PasskeyEnrollmentChallengeOptions,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyEnrollmentVerifyOptions,
+  PasskeyEnrollmentVerifyResponse,
+  PasskeyGetTokenOptions,
+  PasskeyRegisterOptions,
+  PasskeyRegisterResponse,
+  PasswordlessDbChallenge,
+  PasswordlessDbChallengeEmailOptions,
+  PasswordlessDbChallengePhoneOptions,
+  PasswordlessDbGetTokenOptions,
+  PasswordlessStartOptions,
+  PasswordlessVerifyOptions,
+  PasswordlessVerifyTokenResponse,
+  ProxyOptions,
+  RESPONSE_TYPES,
+  SessionData,
+  SessionTransferTokenOptions,
+  SessionTransferTokenResult,
+  StartInteractiveLoginOptions,
+  SUBJECT_TOKEN_TYPES,
+  TOKEN_TYPES,
+  TokenSet,
+  User,
+  VerifyMfaOptions
+} from "../../types/index.js";
+import type { SessionCheckResult } from "../../types/mcd.js";
+import type { MfaTokenEndpointResponse } from "../../types/mfa.js";
+import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
+import {
+  mergeAuthorizationParamsIntoSearchParams,
+  parseNonNegativeIntegerParam
+} from "../../utils/authorization-params-helpers.js";
+import {
+  DEFAULT_MFA_CONTEXT_TTL_SECONDS,
+  DEFAULT_SCOPES,
+  DEFAULT_STT_SCOPES
+} from "../../utils/constants.js";
+import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
+import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
+import {
+  buildVerifyParams,
+  getVerifyGrantType,
+  transformVerifyBodyToOptions
+} from "../../utils/mfa-transform-utils.js";
+import { normalizeDomain, normalizeIssuer } from "../../utils/normalize.js";
+import { extractOAuthErrorDetails } from "../../utils/oauth-error-utils.js";
+import { createRouteUrl, removeTrailingSlash } from "../../utils/pathUtils.js";
+import { isNonNavigationalRequest } from "../../utils/request.js";
+import {
+  ensureDefaultScope,
+  getScopeForAudience
+} from "../../utils/scope-helpers.js";
+import { isUrl, toSafeRedirect } from "../../utils/url-helpers.js";
+import type { AuthClientProvider } from "../auth-client-provider.js";
+import {
+  addCacheControlHeadersForSession,
+  type ReadonlyRequestCookies
+} from "../cookies/index.js";
+import { DiscoveryCache } from "../discovery-cache.js";
+import { withDPoPNonceRetry } from "../dpop/retry.js";
+import {
+  AccessTokenFactory,
+  Fetcher,
+  FetcherConfig,
+  FetcherHooks
+} from "../fetcher/fetcher.js";
+import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders,
+  transformTargetUrl
+} from "../fetcher/proxy.js";
+import { buildEnrollOptions } from "../mfa/mfa-server-utils.js";
+import {
+  decryptMfaToken,
+  encryptMfaToken,
+  extractMfaErrorDetails,
+  handleMfaError,
+  isMfaRequiredError
+} from "../mfa/mfa-utils.js";
+import {
+  extractMfaToken,
+  parseJsonBody,
+  validateArrayFieldAndThrow,
+  validateStringFieldAndThrow,
+  validateVerificationCredentialAndThrow
+} from "../mfa/mfa-validation-utils.js";
+import { AbstractSessionStore } from "../session/abstract-session-store.js";
+import { getSessionChangesAfterGetAccessToken } from "../session/session-changes-helpers.js";
+import {
+  buildSessionFromCallback,
+  isSessionCeilingInPast,
+  isSessionCeilingReached,
+  mergePopupTokenIntoSession
+} from "../session/session-helpers.js";
+import {
+  buildSessionTransferAudience,
+  buildSessionTransferRedirectUrl,
+  mapSttServerError,
+  parseSessionTransferTokenResponse,
+  resolveActorFromSession
+} from "../session/session-transfer-helpers.js";
+import {
+  compareScopes,
+  findAccessTokenSet,
+  isBeforeOrEqual,
+  mergeScopes,
+  normalizeExpiresAt,
+  normalizeTokenType,
+  tokenSetFromAccessTokenSet
+} from "../session/token-set-helpers.js";
+import {
+  clampReturnTo,
+  clampTransactionField,
+  TransactionState,
+  TransactionStore
+} from "../transaction-store.js";
+import { filterDefaultIdTokenClaims } from "../user.js";
+import {
+  buildConnectAccountErrorResponse,
+  buildConnectedAccountsErrorResponse
+} from "./connect-account-errors.js";
+import {
+  GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+  INTERNAL_AUTHORIZE_PARAMS,
+  REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+} from "./constants.js";
+import {
+  bcloErrorResponse,
+  encodeBase64,
+  extractIssuerDomainFromToken,
+  isDPoPError,
+  validateActorTokenType,
+  validateSubjectTokenType,
+  warnIfNotCertificateBound
+} from "./helpers.js";
+import type {
+  AuthClientOptions,
+  BeforeSessionSavedHook,
+  FetcherFactoryOptions,
+  GetTokenSetResponse,
+  OnCallbackContext,
+  OnCallbackHook,
+  Routes
+} from "./types.js";
+
+/**
+ * @private
+ */
+export class AuthClient {
+  private transactionStore: TransactionStore;
+  private sessionStore: AbstractSessionStore;
+
+  private clientMetadata: oauth.Client;
+  private clientSecret?: string;
+  private clientAssertionSigningKey?: string | jose.CryptoKey;
+  private clientAssertionSigningAlg: string;
+  readonly domain: string;
+  private readonly _issuer: string;
+  private authorizationParameters: AuthorizationParameters;
+  private pushedAuthorizationRequests: boolean;
+
+  // Normalized appBaseUrl for this client instance.
+  private appBaseUrl?: string | string[];
+  private signInReturnToPath: string;
+  private logoutStrategy: LogoutStrategy;
+  private includeIdTokenHintInOIDCLogoutUrl: boolean;
+
+  private beforeSessionSaved?: BeforeSessionSavedHook;
+  private onCallback: OnCallbackHook;
+
+  private routes: Routes;
+
+  private fetch: typeof fetch;
+  private discoveryCache: DiscoveryCache;
+  public provider?: AuthClientProvider;
+  private allowInsecureRequests: boolean;
+  private httpTimeout: number;
+  private httpOptions: () => { signal: AbortSignal; headers: Headers };
+
+  private authorizationServerMetadata?: oauth.AuthorizationServer;
+
+  private readonly enableAccessTokenEndpoint: boolean;
+  private readonly noContentProfileResponseWhenUnauthenticated: boolean;
+  private readonly enableConnectAccountEndpoint: boolean;
+  private readonly tokenRefreshBuffer: number;
+
+  private dpopOptions?: DpopOptions;
+
+  private dpopKeyPair?: DpopKeyPair;
+  private readonly useDPoP: boolean;
+  private dpopValidated = false;
+
+  private readonly useMtls: boolean;
+
+  private readonly mfaTokenTtl: number;
+  private readonly cspNonce?: string;
+
+  private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
+
+  /**
+   * Maximum allowed response body size (1 MB). Responses exceeding this limit
+   * are aborted to prevent memory exhaustion from malicious or oversized
+   * OIDC discovery documents, JWKS responses, or token endpoint payloads.
+   * @internal
+   */
+  static readonly MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
+
+  constructor(options: AuthClientOptions) {
+    // dependencies
+    this.fetch = createSizeLimitedFetch(
+      options.fetch || fetch,
+      AuthClient.MAX_RESPONSE_BODY_SIZE
+    );
+    this.discoveryCache = options.discoveryCache || new DiscoveryCache();
+    this.provider = options.provider;
+    this.allowInsecureRequests = options.allowInsecureRequests ?? false;
+    this.httpTimeout = options.httpTimeout ?? 5000;
+    this.httpOptions = () => {
+      const headers = new Headers();
+      const enableTelemetry = options.enableTelemetry ?? true;
+      if (enableTelemetry) {
+        const name = "nextjs-auth0";
+        const version = packageJson.version;
+
+        headers.set("User-Agent", `${name}/${version}`);
+        headers.set(
+          "Auth0-Client",
+          encodeBase64(
+            JSON.stringify({
+              name,
+              version
+            })
+          )
+        );
+      }
+
+      return {
+        signal: AbortSignal.timeout(this.httpTimeout),
+        headers
+      };
+    };
+
+    if (this.allowInsecureRequests && process.env.NODE_ENV === "production") {
+      console.warn(
+        "allowInsecureRequests is enabled in a production environment. This is not recommended."
+      );
+    }
+
+    // stores
+    this.transactionStore = options.transactionStore;
+    this.sessionStore = options.sessionStore;
+
+    // authorization server
+    this.domain = options.domain;
+    this._issuer = options.issuer ?? `https://${options.domain}/`;
+    this.clientMetadata = { client_id: options.clientId };
+
+    // Apply DPoP timing validation options to client metadata if provided
+    if (options.dpopOptions) {
+      if (typeof options.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
+      }
+      if (typeof options.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          options.dpopOptions.clockTolerance;
+      }
+    }
+
+    // Store dpopOptions for use in retry logic
+    this.dpopOptions = options.dpopOptions;
+    this.clientSecret = options.clientSecret;
+    this.authorizationParameters = options.authorizationParameters || {
+      scope: DEFAULT_SCOPES
+    };
+    this.pushedAuthorizationRequests =
+      options.pushedAuthorizationRequests ?? false;
+    this.clientAssertionSigningKey = options.clientAssertionSigningKey;
+    this.clientAssertionSigningAlg =
+      options.clientAssertionSigningAlg || "RS256";
+
+    this.authorizationParameters.scope = ensureDefaultScope(
+      this.authorizationParameters
+    );
+
+    const scope = getScopeForAudience(
+      this.authorizationParameters.scope,
+      this.authorizationParameters.audience
+    )
+      ?.split(" ")
+      .map((s) => s.trim());
+    if (!scope || !scope.includes("openid")) {
+      throw new Error(
+        "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"
+      );
+    }
+
+    // application
+    if (Array.isArray(options.appBaseUrl)) {
+      if (options.appBaseUrl.length === 0) {
+        throw new InvalidConfigurationError(
+          "APP_BASE_URL array configuration cannot be empty."
+        );
+      }
+      const invalidUrls = options.appBaseUrl.filter(
+        (url) => isUrl(url) === false
+      );
+      if (invalidUrls.length > 0) {
+        throw new InvalidConfigurationError(
+          `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
+        );
+      }
+    }
+
+    this.appBaseUrl = options.appBaseUrl;
+    this.signInReturnToPath = options.signInReturnToPath || "/";
+
+    // validate logout strategy
+    const validStrategies = ["auto", "oidc", "v2"] as const;
+    let logoutStrategy = options.logoutStrategy || "auto";
+    if (!validStrategies.includes(logoutStrategy)) {
+      console.error(
+        `Invalid logoutStrategy: ${logoutStrategy}. Must be one of: ${validStrategies.join(", ")}. Defaulting to "auto"`
+      );
+      logoutStrategy = "auto";
+    }
+    this.logoutStrategy = logoutStrategy;
+    this.includeIdTokenHintInOIDCLogoutUrl =
+      options.includeIdTokenHintInOIDCLogoutUrl ?? true;
+
+    // hooks
+    this.beforeSessionSaved = options.beforeSessionSaved;
+    this.onCallback = options.onCallback || this.defaultOnCallback;
+
+    // routes
+    this.routes = options.routes;
+
+    this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
+    this.noContentProfileResponseWhenUnauthenticated =
+      options.noContentProfileResponseWhenUnauthenticated ?? false;
+    this.enableConnectAccountEndpoint =
+      options.enableConnectAccountEndpoint ?? false;
+    this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 0;
+
+    this.useDPoP = options.useDPoP ?? false;
+
+    this.useMtls = options.useMtls ?? false;
+    if (this.useMtls && this.useDPoP) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls and useDPoP cannot be used together. " +
+          "When both are present, the server always issues a DPoP-bound token (cnf.jkt) " +
+          "and the certificate is ignored for token binding."
+      );
+    }
+    if (this.useMtls && !options.fetch) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
+        "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
+          "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
+          "The standard fetch global has no client certificate API. " +
+          "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
+      );
+    }
+    if (
+      this.useMtls &&
+      (options.clientSecret || options.clientAssertionSigningKey)
+    ) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_INCOMPATIBLE_CLIENT_AUTH,
+        "useMtls cannot be combined with clientSecret or clientAssertionSigningKey. " +
+          "mTLS replaces secret-based client authentication entirely."
+      );
+    }
+    if (this.useMtls) {
+      this.clientMetadata.use_mtls_endpoint_aliases = true;
+    }
+
+    // MFA token TTL for token encryption
+    this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
+
+    // CSP nonce for popup postMessage inline scripts
+    this.cspNonce = options.cspNonce;
+
+    // Store keypair if provided, but validate lazily to avoid crypto bundling
+    this.dpopKeyPair = options.dpopKeyPair;
+  }
+
+  /**
+   * Lazy validation of DPoP configuration.
+   * Validates both provided keypairs and environment variables.
+   * Only imports dpopUtils (with crypto) when actually needed.
+   */
+  private async ensureDpopValidated(): Promise<void> {
+    if (this.dpopValidated || !this.useDPoP) {
+      return;
+    }
+
+    // Dynamic import only when needed - prevents crypto from being bundled
+    const dpopModule = await import("../dpop/utils.js");
+    const dpopConfig = await dpopModule.validateDpopConfiguration({
+      useDPoP: this.useDPoP,
+      dpopKeyPair: this.dpopKeyPair, // Pass existing keypair for validation
+      dpopOptions: this.dpopOptions
+    });
+
+    if (dpopConfig.dpopKeyPair) {
+      this.dpopKeyPair = dpopConfig.dpopKeyPair;
+    }
+    if (dpopConfig.dpopOptions) {
+      this.dpopOptions = dpopConfig.dpopOptions;
+
+      // Update clientMetadata with resolved values from environment variables
+      // This ensures clockSkew/clockTolerance from env vars are applied to OAuth operations
+      if (typeof this.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = this.dpopOptions.clockSkew;
+      }
+      if (typeof this.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          this.dpopOptions.clockTolerance;
+      }
+    }
+    this.dpopValidated = true;
+  }
+
+  async handler(req: NextRequest): Promise<NextResponse> {
+    let { pathname } = req.nextUrl;
+
+    // Next.js does NOT automatically strip basePath from pathname in middleware.
+    // We must manually strip it to match against our route configurations.
+    // Example: With basePath='/app', a request to '/app/auth/login' will have
+    // pathname='/app/auth/login', but routes are configured as '/auth/login'.
+    const basePath = req.nextUrl.basePath;
+    if (basePath && pathname.startsWith(basePath)) {
+      pathname = pathname.slice(basePath.length) || "/";
+    }
+
+    const sanitizedPathname = removeTrailingSlash(pathname);
+    const method = req.method;
+
+    if (method === "GET" && sanitizedPathname === this.routes.login) {
+      if (isNonNavigationalRequest(req)) {
+        // 204 No Content signals "intentionally did nothing" for prefetch/
+        // non-navigational requests, avoiding polluting auth-failure telemetry
+        // and access logs. Next.js discards prefetch responses regardless, so
+        // behavior is unaffected.
+        // Cache-Control: no-store prevents CDNs and reverse proxies from caching
+        // this 204 — RFC 9111 makes 204 heuristically cacheable without an explicit
+        // directive, so a cached 204 would silently break real login navigations.
+        return new NextResponse(null, {
+          status: 204,
+          headers: { "Cache-Control": "no-store" }
+        });
+      }
+      return this.handleLogin(req);
+    } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
+      return this.handleLogout(req);
+    } else if (method === "GET" && sanitizedPathname === this.routes.callback) {
+      return this.handleCallback(req);
+    } else if (method === "GET" && sanitizedPathname === this.routes.profile) {
+      return this.handleProfile(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.accessToken &&
+      this.enableAccessTokenEndpoint
+    ) {
+      return this.handleAccessToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.backChannelLogout
+    ) {
+      return this.handleBackChannelLogout(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.connectAccount &&
+      this.enableConnectAccountEndpoint
+    ) {
+      return this.handleConnectAccount(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.mfaAuthenticators
+    ) {
+      return this.handleGetAuthenticators(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.mfaChallenge
+    ) {
+      return this.handleChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.mfaAssociate
+    ) {
+      return this.handleAssociate(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.mfaVerify
+    ) {
+      return this.handleVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessStart
+    ) {
+      return this.handlePasswordlessStart(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessVerify
+    ) {
+      return this.handlePasswordlessVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessDbOtpChallenge
+    ) {
+      return this.handlePasswordlessDbOtpChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessDbGetToken
+    ) {
+      return this.handlePasswordlessDbGetToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyRegister
+    ) {
+      return this.handlePasskeyRegister(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyChallenge
+    ) {
+      return this.handlePasskeyChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyGetToken
+    ) {
+      return this.handlePasskeyGetToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyEnrollmentChallenge
+    ) {
+      return this.handlePasskeyEnrollmentChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyEnrollmentVerify
+    ) {
+      return this.handlePasskeyEnrollmentVerify(req);
+    } else if (sanitizedPathname.startsWith("/me/")) {
+      return this.handleMyAccount(req);
+    } else if (sanitizedPathname.startsWith("/my-org/")) {
+      return this.handleMyOrg(req);
+    } else {
+      // no auth handler found, simply touch the sessions if rolling sessions are enabled.
+      // TODO: we should try to avoid reading from the DB (for stateful sessions) on every
+      // request if possible.
+      const res = NextResponse.next();
+
+      if (
+        this.sessionStore.isRolling &&
+        (await this.sessionStore.shouldRollSession(req))
+      ) {
+        const { error, session } = await this.getSessionWithDomainCheck(
+          req.cookies
+        );
+
+        if (error instanceof SessionDomainMismatchError) {
+          console.warn(`[nextjs-auth0] ${error.message}`);
+        }
+
+        if (!error && session) {
+          // we pass the existing session (containing an `createdAt` timestamp) to the set method
+          // which will update the cookie's `maxAge` property based on the `createdAt` time
+          await this.sessionStore.set(req.cookies, res.cookies, {
+            ...session
+          });
+          addCacheControlHeadersForSession(res);
+        }
+      }
+
+      return res;
+    }
+  }
+
+  async startInteractiveLogin(
+    options: StartInteractiveLoginOptions = {},
+    req?: NextRequest,
+    reqCookies?: RequestCookies | ReadonlyRequestCookies
+  ): Promise<NextResponse> {
+    await this.ensureDpopValidated();
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const redirectUri = createRouteUrl(
+      this.routes.callback,
+      appBaseUrl
+    ).toString(); // must be registered with the authorization server
+    let returnTo = this.signInReturnToPath;
+
+    // Validate returnTo parameter
+    if (options.returnTo) {
+      const safeBaseUrl = new URL(
+        (this.authorizationParameters.redirect_uri as string | undefined) ||
+          appBaseUrl
+      );
+      const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
+
+      if (sanitizedReturnTo) {
+        returnTo = clampReturnTo(
+          sanitizedReturnTo.pathname +
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
+      }
+    }
+
+    // Generate PKCE challenges
+    const codeChallengeMethod = "S256";
+    const codeVerifier = oauth.generateRandomCodeVerifier();
+    const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+    const state = oauth.generateRandomState();
+    const nonce = oauth.generateRandomNonce();
+
+    // Construct base authorization parameters
+    // If provided on both sides, this does not merge the scope property,
+    // instead, the scope from the right side (options) fully overrides the left side.
+    const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
+      this.authorizationParameters,
+      options.authorizationParameters,
+      INTERNAL_AUTHORIZE_PARAMS
+    );
+    authorizationParams.set("client_id", this.clientMetadata.client_id);
+    authorizationParams.set("redirect_uri", redirectUri);
+    authorizationParams.set("response_type", RESPONSE_TYPES.CODE);
+    authorizationParams.set("code_challenge", codeChallenge);
+    authorizationParams.set("code_challenge_method", codeChallengeMethod);
+    authorizationParams.set("state", state);
+    authorizationParams.set("nonce", nonce);
+
+    // Add dpop_jkt parameter if DPoP is enabled
+    if (this.dpopKeyPair) {
+      try {
+        const publicKeyJwk = await jose.exportJWK(this.dpopKeyPair.publicKey);
+        const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
+        authorizationParams.set("dpop_jkt", dpopJkt);
+      } catch (error) {
+        throw new DPoPError(
+          DPoPErrorCode.DPOP_JKT_CALCULATION_FAILED,
+          "DPoP is enabled but failed to calculate key thumbprint (dpop_jkt). " +
+            "This is required for secure DPoP binding. Please check your key configuration.",
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
+
+    // Resolve challengeMode: controls whether handleCallback returns a redirect
+    // (standard) or postMessage HTML (popup flows). Only stored in TransactionState
+    // when non-default to minimize encrypted cookie size.
+    const challengeMode = options.challengeMode || "redirect";
+
+    // Runtime guard — TypeScript enforces at compile time, but JS callers
+    // or incorrect casts could pass invalid values.
+    if (challengeMode !== "redirect" && challengeMode !== "popup") {
+      throw new InvalidConfigurationError(
+        `Invalid challengeMode: ${challengeMode}. Expected 'redirect' or 'popup'.`
+      );
+    }
+
+    // Enforce openid scope in resolver mode
+    if (this.provider?.isResolverMode) {
+      // Merge scopes from baseConfig defaults and explicit options
+      const explicitScope = options.authorizationParameters?.scope;
+      const defaultScope = this.authorizationParameters.scope || "";
+
+      // Combine scopes: base config defaults + explicit options
+      const scopeString = [defaultScope, explicitScope]
+        .filter(Boolean)
+        .join(" ");
+      const scopeSet = new Set(scopeString.split(/\s+/).filter(Boolean));
+
+      // Enforce openid scope in resolver mode
+      if (!scopeSet.has("openid")) {
+        throw new InvalidConfigurationError(
+          'The "openid" scope is required in resolver mode (DomainResolver). ' +
+            'Add "openid" to your SDK configuration or login options.'
+        );
+      }
+    }
+
+    // Prepare transaction state
+    // Read max_age from the already-merged authorizationParams (not the static SDK config)
+    // so that per-request values (e.g. max_age=0 for step-up auth) are preserved for
+    // auth_time validation at callback. Falls back to SDK-level config when absent.
+    const requestedMaxAgeStr = authorizationParams.get("max_age");
+    let resolvedMaxAge: number | undefined =
+      this.authorizationParameters.max_age;
+    if (requestedMaxAgeStr !== null) {
+      const parsed = parseNonNegativeIntegerParam(
+        "max_age",
+        requestedMaxAgeStr
+      );
+      if (parsed === null) {
+        throw new InvalidConfigurationError(
+          `Invalid max_age parameter: "${requestedMaxAgeStr}". Must be a non-negative integer.`
+        );
+      }
+      resolvedMaxAge = parsed;
+    }
+    // scope and audience come from user-controllable query params on
+    // /auth/login, so clamp each independently to keep the resulting cookie
+    // under the byte cap. A ridiculous value gets replaced with `undefined`
+    // (equivalent to not passing the field), and the authorization server
+    // will reject any invalid value at /authorize.
+    const transactionState: TransactionState = {
+      nonce,
+      maxAge: resolvedMaxAge,
+      codeVerifier,
+      responseType: RESPONSE_TYPES.CODE,
+      state,
+      returnTo,
+      scope: clampTransactionField(
+        "scope",
+        authorizationParams.get("scope") || undefined,
+        undefined
+      ),
+      audience: clampTransactionField(
+        "audience",
+        authorizationParams.get("audience") || undefined,
+        undefined
+      ),
+      challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
+      // Store origin domain and issuer for callback delegation in resolver mode
+      originDomain: this.provider?.isResolverMode ? this.domain : undefined,
+      originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
+    };
+
+    // Generate authorization URL with PAR handling
+    const [error, authorizationUrl] =
+      await this.authorizationUrl(authorizationParams);
+    if (error) {
+      return new NextResponse(
+        "An error occurred while trying to initiate the login request.",
+        {
+          status: 500
+        }
+      );
+    }
+
+    // Set response and save transaction
+    const res = NextResponse.redirect(authorizationUrl.toString());
+
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies ?? reqCookies
+    );
+
+    return res;
+  }
+
+  async handleLogin(req: NextRequest): Promise<NextResponse> {
+    const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+
+    // Extract challengeMode from URL query params.
+    // URL param takes precedence over programmatic StartInteractiveLoginOptions.challengeMode.
+    // Must be deleted before forwarding remaining params to Auth0 /authorize.
+    const queryChallengeMode = searchParams.challengeMode;
+    delete searchParams.challengeMode;
+
+    // Validate challengeMode value
+    if (
+      queryChallengeMode &&
+      queryChallengeMode !== "popup" &&
+      queryChallengeMode !== "redirect"
+    ) {
+      return new NextResponse(
+        `Invalid challengeMode query param: ${queryChallengeMode}. Expected 'redirect', 'popup', or omit.`,
+        { status: 400 }
+      );
+    }
+
+    // Validate max_age query param value
+    if (
+      searchParams.max_age !== undefined &&
+      parseNonNegativeIntegerParam("max_age", searchParams.max_age) === null
+    ) {
+      return new NextResponse(
+        `Invalid max_age query param: "${searchParams.max_age}". Must be a non-negative integer.`,
+        { status: 400 }
+      );
+    }
+
+    // do not pass returnTo as part of authorizationParameters
+    // returnTo should only be used in txn state
+    const { returnTo, ...authorizationParameters } = searchParams;
+
+    const options: StartInteractiveLoginOptions = {
+      authorizationParameters,
+      returnTo: returnTo,
+      challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
+    };
+    return this.startInteractiveLogin(options, req);
+  }
+
+  async handleLogout(req: NextRequest): Promise<NextResponse> {
+    const {
+      error: sessionError,
+      session,
+      exists: sessionExists
+    } = await this.getSessionWithDomainCheck(req.cookies);
+
+    // Propagate domain mismatch error but don't delete session on domain mismatch
+    const hasDomainMismatch = sessionError && sessionExists;
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      // Clean up session on discovery error (unless domain mismatch)
+      const errorResponse = new NextResponse(
+        "An error occurred while trying to initiate the logout request.",
+        {
+          status: 500
+        }
+      );
+      if (!hasDomainMismatch) {
+        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+      }
+      await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
+      return errorResponse;
+    }
+
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
+    const logoutState = req.nextUrl.searchParams.get("state");
+    const federated = req.nextUrl.searchParams.has("federated");
+
+    const createV2LogoutResponse = (): NextResponse => {
+      const url = new URL("/v2/logout", this.issuer);
+      url.searchParams.set("returnTo", returnTo);
+      url.searchParams.set("client_id", this.clientMetadata.client_id);
+
+      if (federated) {
+        url.searchParams.set("federated", "");
+      }
+
+      return NextResponse.redirect(url);
+    };
+
+    const createOIDCLogoutResponse = (): NextResponse => {
+      const url = new URL(authorizationServerMetadata.end_session_endpoint!);
+      url.searchParams.set("client_id", this.clientMetadata.client_id);
+      url.searchParams.set("post_logout_redirect_uri", returnTo);
+
+      if (logoutState) {
+        url.searchParams.set("state", logoutState);
+      }
+
+      if (session?.internal.sid) {
+        url.searchParams.set("logout_hint", session.internal.sid);
+      }
+
+      // Only include id_token_hint if we have a valid session (domain match)
+      if (this.includeIdTokenHintInOIDCLogoutUrl && session?.tokenSet.idToken) {
+        url.searchParams.set("id_token_hint", session.tokenSet.idToken);
+      }
+
+      if (federated) {
+        url.searchParams.set("federated", "");
+      }
+
+      return NextResponse.redirect(url);
+    };
+
+    // Determine logout strategy and create appropriate response
+    let logoutResponse: NextResponse;
+
+    if (this.logoutStrategy === "v2") {
+      // Always use v2 logout endpoint
+      logoutResponse = createV2LogoutResponse();
+    } else if (this.logoutStrategy === "oidc") {
+      // Always use OIDC RP-Initiated Logout
+      if (!authorizationServerMetadata.end_session_endpoint) {
+        // Clean up session on OIDC error (unless domain mismatch)
+        const errorResponse = new NextResponse(
+          "OIDC RP-Initiated Logout is not supported by the authorization server. Enable it or use a different logout strategy.",
+          {
+            status: 500
+          }
+        );
+        if (!hasDomainMismatch) {
+          await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        }
+        await this.transactionStore.deleteAll(
+          req.cookies,
+          errorResponse.cookies
+        );
+        return errorResponse;
+      }
+      logoutResponse = createOIDCLogoutResponse();
+    } else {
+      // Auto strategy (default): Try OIDC first, fallback to v2 if not available
+      if (!authorizationServerMetadata.end_session_endpoint) {
+        console.warn(
+          "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
+        );
+        logoutResponse = createV2LogoutResponse();
+      } else {
+        logoutResponse = createOIDCLogoutResponse();
+      }
+    }
+
+    // Revoke the refresh token before clearing the session so it cannot be
+    // replayed after logout (e.g. from a stolen session cookie). Errors are
+    // swallowed — a failed revocation must never block the logout redirect.
+    if (session?.tokenSet.refreshToken && !hasDomainMismatch) {
+      try {
+        await this.performTokenRevocation(
+          authorizationServerMetadata,
+          session.tokenSet.refreshToken,
+          "refresh_token"
+        );
+      } catch (e) {
+        console.warn(
+          "[nextjs-auth0] Failed to revoke refresh token during logout (logout will still proceed):",
+          e
+        );
+      }
+    }
+
+    // Clean up session and transaction cookies (only if session matched domain)
+    if (!hasDomainMismatch) {
+      await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    }
+    addCacheControlHeadersForSession(logoutResponse);
+
+    // Clear any orphaned transaction cookies
+    await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
+
+    return logoutResponse;
+  }
+
+  /**
+   * Handle OAuth2/OIDC callback.
+   * @internal This method is not part of the public SDK API. It is called internally
+   * during callback delegation in resolver mode to route callbacks to the correct domain.
+   * @public (explicit visibility marker for cross-instance delegation)
+   */
+  public async handleCallback(req: NextRequest): Promise<NextResponse> {
+    await this.ensureDpopValidated();
+    const state = req.nextUrl.searchParams.get("state");
+
+    if (!state) {
+      return this.handleCallbackError(new MissingStateError(), {}, req);
+    }
+
+    const transactionStateCookie = await this.transactionStore.get(
+      req.cookies,
+      state
+    );
+    if (!transactionStateCookie) {
+      return this.onCallback(new InvalidStateError(), {}, null);
+    }
+
+    const transactionState = transactionStateCookie.payload;
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const onCallbackCtx: OnCallbackContext = {
+      responseType: transactionState.responseType,
+      returnTo: transactionState.returnTo,
+      challengeMode: transactionState.challengeMode || "redirect",
+      appBaseUrl
+    };
+
+    // Callback domain delegation in resolver mode
+    if (
+      state &&
+      this.provider?.isResolverMode &&
+      (transactionState.originIssuer || transactionState.originDomain)
+    ) {
+      // Prefer originIssuer (available since MCD v4.17.x) as it preserves path-based
+      // issuers (e.g. https://myorg.okta.com/oauth2/default). Fall back to
+      // originDomain for pre-MCD transaction cookies that only stored the hostname.
+      const originKey =
+        transactionState.originIssuer ?? transactionState.originDomain!;
+      const normalizedOrigin = normalizeDomain(originKey);
+      // Delegation is needed when the origin issuer differs from the current client's
+      // issuer (covers both hostname differences and same-host path differences).
+      if (normalizedOrigin.issuer !== this.issuer) {
+        // Pass the full issuer URL so forDomainSync can look up the correct
+        // path-based cache entry (e.g. /oauth2/default vs /oauth2/custom).
+        const delegatedClient = this.provider.forDomainSync(originKey);
+        return delegatedClient.handleCallback(req);
+      }
+    }
+
+    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
+      const { error: sessionError, session } =
+        await this.getSessionWithDomainCheck(req.cookies);
+
+      if (sessionError || !session) {
+        return this.handleCallbackError(
+          sessionError ||
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.MISSING_SESSION,
+              message: "The user does not have an active session."
+            }),
+          onCallbackCtx,
+          req,
+          state,
+          transactionState
+        );
+      }
+
+      // get an access token for connected accounts
+      const [tokenSetError, tokenSetResponse] = await this.getTokenSet(
+        session,
+        {
+          audience: `${this.issuer}me/`,
+          scope: "create:me:connected_accounts"
+        }
+      );
+
+      if (tokenSetError) {
+        return this.handleCallbackError(
+          tokenSetError,
+          onCallbackCtx,
+          req,
+          state,
+          transactionState
+        );
+      }
+
+      const [completeConnectAccountError, connectedAccount] =
+        await this.completeConnectAccount({
+          tokenSet: tokenSetResponse.tokenSet,
+          authSession: transactionState.authSession!,
+          connectCode: req.nextUrl.searchParams.get("connect_code")!,
+          redirectUri: createRouteUrl(
+            this.routes.callback,
+            appBaseUrl
+          ).toString(),
+          codeVerifier: transactionState.codeVerifier
+        });
+
+      if (completeConnectAccountError) {
+        return this.handleCallbackError(
+          completeConnectAccountError,
+          onCallbackCtx,
+          req,
+          state,
+          transactionState
+        );
+      }
+
+      const res = await this.onCallback(
+        null,
+        {
+          ...onCallbackCtx,
+          connectedAccount
+        },
+        session
+      );
+
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return this.handleCallbackError(
+        discoveryError,
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+
+    let codeGrantParams: URLSearchParams;
+    try {
+      codeGrantParams = oauth.validateAuthResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        req.nextUrl.searchParams,
+        transactionState.state
+      );
+    } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
+      return this.handleCallbackError(
+        new AuthorizationError({
+          cause: new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        }),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+
+    let codeGrantResponse: Response;
+    let redirectUri: URL;
+    let authorizationCodeGrantRequestCall: () => Promise<Response>;
+
+    try {
+      redirectUri = createRouteUrl(this.routes.callback, appBaseUrl); // must be registered with the authorization server
+
+      // Create DPoP handle ONCE outside the closure so it persists across retries.
+      // This is required by RFC 9449: the handle must learn and reuse the nonce from
+      // the DPoP-Nonce header across multiple attempts.
+      const dpopHandle =
+        this.useDPoP && this.dpopKeyPair
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+          : undefined;
+
+      authorizationCodeGrantRequestCall = async () =>
+        oauth.authorizationCodeGrantRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          codeGrantParams,
+          redirectUri.toString(),
+          transactionState.codeVerifier ?? oauth.nopkce,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(dpopHandle && {
+              DPoP: dpopHandle
+            })
+          }
+        );
+
+      // NOTE: Unlike refresh token and connection token flows, the auth code flow
+      // wraps only the HTTP request (not response processing) in withDPoPNonceRetry().
+      // This is intentional: withDPoPNonceRetry() expects a Response object to inspect
+      // for nonce retries. If response processing is included in the wrapper, it returns
+      // a processed object and retry logic breaks. Response processing happens after
+      // (see line 807) to maintain compatibility with the retry mechanism.
+      codeGrantResponse = await withDPoPNonceRetry(
+        authorizationCodeGrantRequestCall,
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (e: any) {
+      return this.handleCallbackError(
+        new AuthorizationCodeGrantRequestError(e.message),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+    // Determine return strategy BEFORE processing token response
+    const challengeMode = transactionState.challengeMode || "redirect";
+
+    let oidcRes: oauth.TokenEndpointResponse;
+    try {
+      // Process the authorization code response
+      // For authorization code flows, oauth4webapi handles DPoP nonce management internally
+      // No need for manual retry since authorization codes are single-use
+      //
+      // Popup flows (postMessage): requireIdToken: false because API-only audiences
+      // may not return an ID token. If requireIdToken: true is used,
+      // processAuthorizationCodeResponse would throw AuthorizationCodeGrantError.
+      oidcRes = await oauth.processAuthorizationCodeResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        codeGrantResponse,
+        {
+          expectedNonce: transactionState.nonce,
+          maxAge: transactionState.maxAge,
+          requireIdToken: challengeMode !== "popup"
+        }
+      );
+    } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
+      return this.handleCallbackError(
+        new AuthorizationCodeGrantError({
+          cause: new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        }),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+
+    // For standard flows, idTokenClaims is always present (requireIdToken: true)
+    // For popup flows, idTokenClaims may be undefined (requireIdToken: false)
+    const idTokenClaims = oidcRes.id_token
+      ? oauth.getValidatedIdTokenClaims(oidcRes)
+      : undefined;
+
+    // Secondary issuer check for defense-in-depth (MCD)
+    if (transactionState.originIssuer && idTokenClaims) {
+      const actualIssuer = normalizeIssuer(idTokenClaims.iss);
+      const expectedIssuer = normalizeIssuer(transactionState.originIssuer);
+      if (actualIssuer !== expectedIssuer) {
+        return this.handleCallbackError(
+          new IssuerValidationError(expectedIssuer, actualIssuer),
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+    }
+
+    if (this.useMtls) {
+      warnIfNotCertificateBound(oidcRes.access_token);
+    }
+
+    // ★ POSTMESSAGE BRANCH
+    if (challengeMode === "popup") {
+      // Merge new token into existing session (do NOT create fresh session)
+      // Use getSessionWithDomainCheck to enforce MCD domain isolation
+      const { error: sessionError, session: existingSession } =
+        await this.getSessionWithDomainCheck(req.cookies);
+
+      // If domain check failed in MCD mode, return error via postMessage
+      if (sessionError) {
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: false,
+          error: {
+            code: sessionError.code || "session_domain_mismatch",
+            message: sessionError.message
+          },
+          nonce: this.cspNonce
+        });
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      }
+
+      if (existingSession) {
+        mergePopupTokenIntoSession(
+          existingSession,
+          oidcRes,
+          transactionState,
+          idTokenClaims
+        );
+        const mergedSession = await this.finalizeSession(
+          existingSession,
+          oidcRes.id_token
+        );
+
+        // Call onCallback after finalization with the actual saved session
+        await this.onCallback(null, onCallbackCtx, mergedSession);
+
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: true,
+          user: {
+            sub: mergedSession.user.sub,
+            email: mergedSession.user.email
+          },
+          nonce: this.cspNonce
+        });
+        await this.sessionStore.set(
+          req.cookies,
+          popupResponse.cookies,
+          mergedSession,
+          true
+        );
+        addCacheControlHeadersForSession(popupResponse);
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      } else {
+        // No existing session (edge case: session expired during popup flow)
+        if (!idTokenClaims) {
+          const popupResponse = createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: "session_expired",
+              message:
+                "Session expired during popup flow and no ID token available to create new session"
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+        const fallbackSession = buildSessionFromCallback(
+          idTokenClaims,
+          oidcRes,
+          transactionState
+        );
+
+        // IPSIE: reject a session whose ceiling is already in the past at login.
+        if (
+          isSessionCeilingInPast(
+            fallbackSession.internal.sessionExpiresAt,
+            idTokenClaims?.iat
+          )
+        ) {
+          const expiredError = new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          );
+          await this.onCallback(expiredError, onCallbackCtx, null);
+          const popupResponse = createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: AccessTokenErrorCode.SESSION_EXPIRED,
+              message: expiredError.message
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+
+        const mergedSession = await this.finalizeSession(
+          fallbackSession,
+          oidcRes.id_token
+        );
+
+        // Call onCallback after finalization with the actual saved session
+        await this.onCallback(null, onCallbackCtx, mergedSession);
+
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: true,
+          user: {
+            sub: mergedSession.user.sub,
+            email: mergedSession.user.email
+          },
+          nonce: this.cspNonce
+        });
+        await this.sessionStore.set(
+          req.cookies,
+          popupResponse.cookies,
+          mergedSession,
+          true
+        );
+        addCacheControlHeadersForSession(popupResponse);
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      }
+    }
+
+    // ★ STANDARD REDIRECT BRANCH (default, unchanged)
+    let session: SessionData = buildSessionFromCallback(
+      idTokenClaims!,
+      oidcRes,
+      transactionState
+    );
+
+    // IPSIE: reject a session whose ceiling is already in the past at login.
+    if (
+      isSessionCeilingInPast(
+        session.internal.sessionExpiresAt,
+        idTokenClaims?.iat
+      )
+    ) {
+      return this.handleCallbackError(
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+
+    // Add MCD metadata when in resolver mode
+    if (this.provider?.isResolverMode) {
+      session.internal = {
+        ...session.internal,
+        mcd: {
+          domain: this.domain,
+          issuer: this.issuer
+        }
+      };
+    }
+
+    const res = await this.onCallback(null, onCallbackCtx, session);
+
+    // call beforeSessionSaved callback if present
+    // if not then filter id_token claims with default rules
+    session = await this.finalizeSession(session, oidcRes.id_token);
+
+    // Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
+    if (this.provider?.isResolverMode) {
+      if (!session.internal?.mcd) {
+        throw new InvalidConfigurationError(
+          "beforeSessionSaved hook must not remove the internal.mcd field in resolver mode. " +
+            "The internal.mcd object is required for multi-custom-domain session isolation. " +
+            "If you need to modify session.internal, preserve the .mcd field."
+        );
+      }
+    }
+
+    await this.sessionStore.set(req.cookies, res.cookies, session, true);
+    addCacheControlHeadersForSession(res);
+
+    await this.transactionStore.delete(res.cookies, state);
+
+    return res;
+  }
+
+  async handleProfile(req: NextRequest): Promise<NextResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
+
+    if (sessionError || !session) {
+      if (this.noContentProfileResponseWhenUnauthenticated) {
+        return new NextResponse(null, {
+          status: 204
+        });
+      }
+
+      return new NextResponse(null, {
+        status: 401
+      });
+    }
+    const res = NextResponse.json(session?.user);
+    addCacheControlHeadersForSession(res);
+    return res;
+  }
+
+  /**
+   * Route: GET /auth/mfa/authenticators
+   * Lists enrolled MFA authenticators.
+   *
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
+   *
+   * Response: 200 + snake_case AuthenticatorApiResponse[]
+   * Error: 400/401 + {error, error_description}
+   *
+   */
+  async handleGetAuthenticators(req: NextRequest): Promise<NextResponse> {
+    try {
+      const mfaToken = extractMfaToken(req);
+      const authenticators = await this.mfaGetAuthenticators(mfaToken);
+      return NextResponse.json(authenticators);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/mfa/challenge
+   * Initiates an MFA challenge.
+   *
+   * Body: {mfa_token, challenge_type, authenticator_id?}
+   *
+   * Response: 200 + snake_case ChallengeApiResponse
+   * Error: 400 + {error, error_description}
+   *
+   * mfa_token in body (NOT Authorization header, matching Auth0 API contract).
+   */
+  async handleChallenge(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const mfaToken = validateStringFieldAndThrow(
+        bodyRecord.mfa_token,
+        "mfa_token"
+      );
+      const challengeType = validateStringFieldAndThrow(
+        bodyRecord.challenge_type,
+        "challenge_type"
+      );
+      const authenticatorId = bodyRecord.authenticator_id
+        ? validateStringFieldAndThrow(
+            bodyRecord.authenticator_id,
+            "authenticator_id"
+          )
+        : undefined;
+      const result = await this.mfaChallenge(
+        mfaToken,
+        challengeType,
+        authenticatorId
+      );
+      return NextResponse.json(result);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/mfa/associate
+   * Enrolls a new MFA authenticator.
+   *
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
+   *
+   * Body: {authenticator_types, oob_channels?, phone_number?, email?}
+   *
+   * Response: 200 + snake_case EnrollmentApiResponse
+   * Error: 400 + {error, error_description}
+   *
+   * snake_case body fields ONLY. No camelCase fallback.
+   */
+  async handleAssociate(req: NextRequest): Promise<NextResponse> {
+    try {
+      const mfaToken = extractMfaToken(req);
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const authenticatorTypes = validateArrayFieldAndThrow(
+        bodyRecord.authenticator_types,
+        "authenticator_types"
+      );
+
+      const authenticatorType = authenticatorTypes[0];
+      const [enrollOptions, errorResponse] = buildEnrollOptions(
+        body,
+        authenticatorType
+      );
+      if (errorResponse) return errorResponse;
+
+      const result = await this.mfaAssociate(mfaToken, enrollOptions!);
+      return NextResponse.json(result);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/mfa/verify
+   * Verifies MFA code and returns tokens.
+   *
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
+   *
+   * Body: {otp | oob_code+binding_code | recovery_code}
+   *
+   * Response: 200 + TokenResponse + Set-Cookie
+   * Error: 400 + {error, error_description, mfa_token?}
+
+   * snake_case credential fields ONLY (oob_code, binding_code, recovery_code).
+   */
+  async handleVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const mfaToken = extractMfaToken(req);
+      const body = await parseJsonBody(req);
+      validateVerificationCredentialAndThrow(body);
+      const credentialOptions = transformVerifyBodyToOptions(
+        body as Record<string, any>
+      );
+      const verifyOptions = {
+        mfaToken,
+        ...credentialOptions
+      } as VerifyMfaOptions;
+
+      // Verify MFA and get tokens
+      const result = await this.mfaVerify(verifyOptions);
+
+      const { error: sessionError, session } =
+        await this.getSessionWithDomainCheck(req.cookies);
+
+      const successBody = {
+        success: true as const,
+        ...(result.recovery_code !== undefined && {
+          recovery_code: result.recovery_code
+        })
+      };
+
+      if (!sessionError && session) {
+        // Step-up MFA: session exists — cache new token and return success.
+        // Tokens are stored in the session cookie; the body must not expose them.
+        const res = NextResponse.json(successBody);
+        await this.cacheTokenFromMfaVerify(
+          result,
+          mfaToken,
+          req.cookies,
+          res.cookies
+        );
+        return res;
+      } else if (result.id_token) {
+        // First-factor MFA (e.g. passkey + MFA): no session yet — create one from
+        // the token response. Return { success: true } only; tokens stay in the
+        // session cookie and must not be exposed in the response body.
+        const res = NextResponse.json(successBody);
+        await this.createSessionFromPasswordlessVerify(
+          result as PasswordlessVerifyTokenResponse,
+          req.cookies,
+          res.cookies
+        );
+        addCacheControlHeadersForSession(res);
+        return res;
+      }
+
+      // mfaVerify succeeded but no id_token and no existing session —
+      // malformed Auth0 response; returning success here would leave the user
+      // authenticated in their mind but with no session cookie.
+      throw new MfaVerifyError(
+        "missing_session",
+        "MFA verification succeeded but no session could be established. Ensure 'openid' scope is requested."
+      );
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/start
+   * Initiates a passwordless authentication flow.
+   *
+   * Body: { connection: "email", email, send: "code" | "link" }
+   *       { connection: "sms", phoneNumber }
+   *
+   * Response: 204 No Content
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessStart(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      const res = new NextResponse(null, { status: 204 });
+
+      const language =
+        typeof bodyRecord.language === "string" && bodyRecord.language
+          ? bodyRecord.language
+          : undefined;
+
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
+          "code" | "link";
+
+        await this.passwordlessStart(
+          { connection: "email", email, send, language },
+          res.cookies,
+          req
+        );
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        await this.passwordlessStart({
+          connection: "sms",
+          phoneNumber,
+          language
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      return res;
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/verify
+   * Verifies a passwordless OTP and establishes a session.
+   *
+   * Body: { connection: "email", email, verificationCode }
+   *       { connection: "sms", phoneNumber, verificationCode }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403 + { error, error_description }
+   */
+  async handlePasswordlessVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+      const verificationCode = validateStringFieldAndThrow(
+        bodyRecord.verificationCode,
+        "verificationCode"
+      );
+
+      let options: PasswordlessVerifyOptions;
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        options = { connection: "email", email, verificationCode };
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        options = { connection: "sms", phoneNumber, verificationCode };
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      const tokenResponse = await this.passwordlessVerify(options);
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
+      if (e instanceof PasswordlessVerifyError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/otp/challenge
+   * Requests an OTP challenge against a database connection via /otp/challenge.
+   *
+   * Body: { email, connection, allowSignup? }
+   *       { phoneNumber, connection, deliveryMethod?, allowSignup? }
+   *
+   * Response: 200 { authSession: "<opaque>" }
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessDbOtpChallenge(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      const allowSignup =
+        typeof bodyRecord.allowSignup === "boolean"
+          ? bodyRecord.allowSignup
+          : false;
+
+      let challenge: PasswordlessDbChallenge;
+
+      if (typeof bodyRecord.email === "string" && bodyRecord.email) {
+        challenge = await this.passwordlessDbOtpChallenge({
+          email: bodyRecord.email,
+          connection,
+          allowSignup
+        });
+      } else if (
+        typeof bodyRecord.phoneNumber === "string" &&
+        bodyRecord.phoneNumber
+      ) {
+        const deliveryMethod =
+          bodyRecord.deliveryMethod === "voice" ||
+          bodyRecord.deliveryMethod === "text"
+            ? bodyRecord.deliveryMethod
+            : undefined;
+        challenge = await this.passwordlessDbOtpChallenge({
+          phoneNumber: bodyRecord.phoneNumber,
+          connection,
+          allowSignup,
+          ...(deliveryMethod && { deliveryMethod })
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "missing_identifier",
+            error_description: "Either email or phoneNumber is required"
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ authSession: challenge.authSession });
+    } catch (e) {
+      if (e instanceof PasswordlessDbChallengeError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/otp/token
+   * Exchanges an auth_session + OTP for tokens and establishes a session.
+   *
+   * Body: { authSession, otp }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403/500 + { error, error_description }
+   */
+  async handlePasswordlessDbGetToken(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      const otp = validateStringFieldAndThrow(bodyRecord.otp, "otp");
+
+      const tokenResponse = await this.passwordlessDbGetToken({
+        authSession,
+        otp
+      });
+
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
+      if (e instanceof PasswordlessDbGetTokenError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handleAccessToken(req: NextRequest): Promise<NextResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
+    const audience = req.nextUrl.searchParams.get("audience");
+    const scope = req.nextUrl.searchParams.get("scope");
+    const mergeScopesParam = req.nextUrl.searchParams.get("mergeScopes");
+
+    if (sessionError || !session) {
+      return NextResponse.json(
+        {
+          error: {
+            message: sessionError
+              ? sessionError.message
+              : "The user does not have an active session.",
+            code: sessionError?.code ?? AccessTokenErrorCode.MISSING_SESSION
+          }
+        },
+        {
+          status: 401
+        }
+      );
+    }
+
+    const [error, getTokenSetResponse] = await this.getTokenSet(session, {
+      scope,
+      audience,
+      // Only set mergeScopes when explicitly passed as "false"
+      // Absence of param = default behavior (true)
+      mergeScopes: mergeScopesParam === "false" ? false : undefined
+    });
+
+    if (error) {
+      // Handle MFA required - return 403 with encrypted mfa_token
+      if (error instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, error);
+      }
+
+      const errorRes = NextResponse.json(
+        {
+          error: {
+            message: error.message,
+            code: error.code
+          }
+        },
+        {
+          status: 401
+        }
+      );
+
+      // IPSIE: when the ceiling fired, clean up the stored session so the next
+      // request starts clean. For stateless sessions this is a no-op; for
+      // stateful stores it removes the backing record.
+      if (error.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+        await this.sessionStore.delete(req.cookies, errorRes.cookies);
+      }
+
+      return errorRes;
+    }
+
+    const { tokenSet: updatedTokenSet } = getTokenSetResponse;
+
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt =
+      typeof updatedTokenSet.expiresAt === "number"
+        ? updatedTokenSet.expiresAt
+        : 0;
+    const expiresIn = Math.max(0, expiresAt - now);
+
+    const res = NextResponse.json({
+      token: updatedTokenSet.accessToken,
+      scope: updatedTokenSet.scope,
+      expires_at: expiresAt,
+      expires_in: expiresIn,
+      ...(updatedTokenSet.token_type && {
+        token_type: updatedTokenSet.token_type
+      })
+    });
+
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      res,
+      session,
+      getTokenSetResponse
+    );
+
+    return res;
+  }
+
+  async handleBackChannelLogout(req: NextRequest): Promise<NextResponse> {
+    if (!this.sessionStore.store) {
+      return new NextResponse("A session data store is not configured.", {
+        status: 500
+      });
+    }
+
+    if (!this.sessionStore.store.deleteByLogoutToken) {
+      return new NextResponse(
+        "Back-channel logout is not supported by the session data store.",
+        {
+          status: 500
+        }
+      );
+    }
+
+    const body = new URLSearchParams(await req.text());
+    const logoutToken = body.get("logout_token");
+
+    if (!logoutToken) {
+      return new NextResponse("Missing `logout_token` in the request body.", {
+        status: 400
+      });
+    }
+
+    // Resolver mode: use request context as trust anchor.
+    // Wrapped in try/catch because forRequest() can throw (DomainResolutionError
+    // from user-provided resolver) and normalizeDomain can throw on malformed iss.
+    if (this.provider?.isResolverMode) {
+      try {
+        // SECURITY: Extract iss from unverified token for comparison only.
+        // The unverified iss does NOT determine which JWKS to use — the resolved
+        // domain (from request context) determines the verification source.
+        const [extractErr, issuerInfo] =
+          extractIssuerDomainFromToken(logoutToken);
+        if (extractErr) {
+          return bcloErrorResponse("Missing 'iss' claim in logout token.", 400);
+        }
+
+        // Resolve domain from request context (Host header → domain resolver)
+        const resolvedClient = await this.provider.forRequest(
+          req.headers,
+          req.nextUrl
+        );
+
+        // Trust anchor: resolved domain must match token's issuer domain.
+        // Both sides are pre-normalized (issuerInfo.domain by extractIssuerDomainFromToken,
+        // resolvedClient.domain by AuthClientProvider.resolveDomain) — direct comparison.
+        if (issuerInfo.domain !== resolvedClient.domain) {
+          return bcloErrorResponse(
+            "Logout token issuer does not match the resolved domain.",
+            403
+          );
+        }
+
+        // Verify token with resolved domain's JWKS
+        const [error, logoutTokenClaims] =
+          await resolvedClient.verifyLogoutToken(logoutToken);
+        if (error) {
+          return bcloErrorResponse(error.message, 400);
+        }
+
+        // Delete session with iss included for issuer-matched filtering
+        await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
+        return new NextResponse(null, { status: 204 });
+      } catch (error) {
+        console.error(
+          `Unexpected error in backchannel logout: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        return bcloErrorResponse("Failed to process logout token.", 400);
+      }
+    }
+
+    // Static mode: defense-in-depth iss pre-check.
+    // Custom domains on same tenant share signing keys, so a token from domain-a
+    // would pass JWKS verification using domain-b's keys. This pre-check catches that.
+    // If extraction fails (missing iss, non-normalizable issuer like IP/localhost),
+    // skip pre-check for backward compatibility and let verifyLogoutToken handle validation.
+    //
+    // No try/catch here: extractIssuerDomainFromToken returns a tuple (never throws),
+    // verifyLogoutToken returns a tuple (never throws), and deleteByLogoutToken is
+    // user-provided store code — if it throws, that's the caller's responsibility.
+    const [, issuerInfo] = extractIssuerDomainFromToken(logoutToken);
+    if (issuerInfo && issuerInfo.domain !== this.domain) {
+      return bcloErrorResponse(
+        "Logout token issuer does not match the configured domain.",
+        403
+      );
+    }
+
+    // Static mode: verify with configured domain
+    const [error, logoutTokenClaims] =
+      await this.verifyLogoutToken(logoutToken);
+    if (error) {
+      return bcloErrorResponse(error.message, 400);
+    }
+
+    await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
+
+    return new NextResponse(null, {
+      status: 204
+    });
+  }
+
+  async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
+
+    // pass all query params except `connection`, `returnTo`, `scopes` as authorization params
+    const connection = req.nextUrl.searchParams.get("connection");
+    const returnTo = req.nextUrl.searchParams.get("returnTo") ?? undefined;
+    const scopes = req.nextUrl.searchParams.getAll("scopes");
+    const authorizationParams = Object.fromEntries(
+      [...req.nextUrl.searchParams.entries()].filter(
+        ([key]) =>
+          key !== "connection" && key !== "returnTo" && key !== "scopes"
+      )
+    );
+
+    if (!connection) {
+      return new NextResponse("A connection is required.", {
+        status: 400
+      });
+    }
+
+    if (sessionError || !session) {
+      return new NextResponse(
+        sessionError?.message ?? "The user does not have an active session.",
+        {
+          status: 401
+        }
+      );
+    }
+
+    const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
+      session,
+      {
+        scope: "create:me:connected_accounts",
+        audience: `${this.issuer}me/`
+      }
+    );
+
+    if (getTokenSetError) {
+      // Handle MFA required - return 403 with encrypted mfa_token
+      if (getTokenSetError instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, getTokenSetError);
+      }
+
+      return new NextResponse(
+        "Failed to retrieve a connected account access token.",
+        {
+          status: 401
+        }
+      );
+    }
+
+    const { tokenSet } = getTokenSetResponse;
+    const connectAccountParams: ConnectAccountOptions = {
+      connection,
+      authorizationParams,
+      returnTo
+    };
+
+    if (scopes.length > 0) {
+      connectAccountParams.scopes = scopes;
+    }
+
+    const [connectAccountError, connectAccountResponse] =
+      await this.connectAccount({ tokenSet, ...connectAccountParams }, req);
+
+    if (connectAccountError) {
+      return new NextResponse(connectAccountError.message, {
+        status: connectAccountError.cause?.status ?? 500
+      });
+    }
+
+    // update the session with the new token set, if necessary
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      connectAccountResponse,
+      session,
+      getTokenSetResponse
+    );
+
+    return connectAccountResponse;
+  }
+
+  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/me",
+      targetBaseUrl: `${this.issuer}me/v1`,
+      audience: `${this.issuer}me/`,
+      scope: req.headers.get("scope")
+    });
+  }
+
+  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/my-org",
+      targetBaseUrl: `${this.issuer}my-org`,
+      audience: `${this.issuer}my-org/`,
+      scope: req.headers.get("scope")
+    });
+  }
+
+  /**
+   * Retrieves the token set from the session data, considering optional audience and scope parameters.
+   * When audience and scope are provided, it checks if they match the global ones defined in the authorization parameters.
+   * If they match, it returns the top-level token set from the session data.
+   * If they don't match, it searches for a corresponding access token in the session's `accessTokens` array.
+   * @param sessionData The session data containing the token sets.
+   * @param options Optional parameters for audience and scope to filter the token set.
+   * @returns A partial token set that matches the provided audience and scope, or the top-level token set if they match the global ones.
+   */
+  #getTokenSetFromSession(
+    session: SessionData,
+    options: { scope: string; audience?: string | null }
+  ): Partial<TokenSet> {
+    const tokenSet: Partial<TokenSet> = session.tokenSet;
+    const audience = options.audience;
+    const scope = options.scope;
+
+    // When audience and scope are provided, we need to compare them with the original ones provided in either the `SessionData.tokenSet` itself, or the Auth0Client constructor.
+    // When they are identical, we should read from the top-level `SessionData.tokenSet`.
+    // If not, we should look for the corresponding access token in `SessionData.accessTokens`
+    const isAudienceTheGlobalAudience =
+      !audience ||
+      audience === (tokenSet.audience || this.authorizationParameters.audience);
+
+    const isScopeTheGlobalScope =
+      !scope ||
+      compareScopes(
+        tokenSet.requestedScope ||
+          getScopeForAudience(this.authorizationParameters.scope, audience),
+        scope
+      );
+
+    if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
+      return tokenSet;
+    }
+
+    let accessTokenSet: AccessTokenSet | undefined;
+
+    // If there is an audience, we can search for the correct access token in the array
+    // If there is no audience, we cannot find the correct access token in the array
+    if (audience) {
+      accessTokenSet = findAccessTokenSet(session, { scope, audience });
+    }
+
+    // Convert the Access Token Set to a Token Set, which mostly ensures the Id Token and RefreshToken are also available,
+    // But the access token, expiresAt, audience and scope are taken from the Access Token Set.
+    // When no audience was found, we will return an empty Token Set with only the Id Token and Refresh Token
+    return tokenSetFromAccessTokenSet(accessTokenSet, tokenSet);
+  }
+  /**
+   * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
+   *
+   * @returns A tuple containing either:
+   *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
+   *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
+   *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
+   */
+  async getTokenSet(
+    sessionData: SessionData,
+    options: GetAccessTokenOptions = {}
+  ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    // IPSIE: hard pre-check before any cached-token serve or refresh attempt.
+    // Once the upstream IdP-asserted ceiling passes, refresh must not be attempted.
+    if (isSessionCeilingReached(sessionData.internal?.sessionExpiresAt)) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // Scope resolution:
+    // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
+    // When mergeScopes === false: use ONLY options.scope (no global merge)
+    // This is critical for challengeWithPopup() which needs isolated scope to prevent
+    // refresh token grants requesting scopes beyond what the step-up flow needs.
+    const shouldMerge = options.mergeScopes !== false;
+    const scope = shouldMerge
+      ? mergeScopes(
+          getScopeForAudience(
+            this.authorizationParameters.scope,
+            options.audience ?? this.authorizationParameters.audience
+          ),
+          options.scope
+        )
+      : options.scope || "";
+
+    const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
+      sessionData,
+      {
+        scope: scope,
+        audience: options.audience ?? this.authorizationParameters.audience
+      }
+    );
+    const now = Date.now() / 1000;
+
+    const expiresAt = normalizeExpiresAt(tokenSet.expiresAt);
+    const isExpired = isBeforeOrEqual(tokenSet.expiresAt, now);
+    const shouldRefresh = isBeforeOrEqual(
+      tokenSet.expiresAt,
+      now + this.tokenRefreshBuffer
+    );
+
+    // no access token was found that matches the, optional, provided audience and scope
+    if (!tokenSet.refreshToken && !tokenSet.accessToken) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "No access token found and a refresh token was not provided. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // the access token was found, but it has expired and we do not have a refresh token
+    if (!tokenSet.refreshToken && tokenSet.accessToken && isExpired) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "The access token has expired and a refresh token was not provided. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    if (tokenSet.refreshToken) {
+      // either the access token has expired or we are forcing a refresh
+      if (options.refresh || expiresAt === undefined || shouldRefresh) {
+        const [error, response] = await this.#refreshTokenSet(tokenSet, {
+          audience: options.audience,
+          scope: options.scope ? scope : undefined,
+          requestedScope: scope
+        });
+
+        if (error) {
+          // MFA context is now embedded in the encrypted token itself
+          // No session mutation needed
+          return [error, null];
+        }
+
+        return [
+          null,
+          {
+            tokenSet: response.updatedTokenSet,
+            idTokenClaims: response.idTokenClaims
+          }
+        ];
+      }
+    }
+
+    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
+  }
+
+  async backchannelAuthentication(
+    options: BackchannelAuthenticationOptions
+  ): Promise<[null, BackchannelAuthenticationResponse] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    if (!authorizationServerMetadata.backchannel_authentication_endpoint) {
+      return [new BackchannelAuthenticationNotSupportedError(), null];
+    }
+
+    // If provided on both sides, this does not merge the scope property,
+    // instead, the scope from the right side (options) fully overrides the left side.
+    const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
+      this.authorizationParameters,
+      options.authorizationParams,
+      INTERNAL_AUTHORIZE_PARAMS
+    );
+
+    if (!authorizationParams.get("scope")) {
+      authorizationParams.set("scope", DEFAULT_SCOPES);
+    }
+
+    authorizationParams.set("client_id", this.clientMetadata.client_id);
+    authorizationParams.set("binding_message", options.bindingMessage);
+    authorizationParams.set(
+      "login_hint",
+      JSON.stringify({
+        format: "iss_sub",
+        iss: authorizationServerMetadata.issuer,
+        sub: options.loginHint.sub
+      })
+    );
+
+    if (options.requestedExpiry) {
+      authorizationParams.append(
+        "requested_expiry",
+        options.requestedExpiry.toString()
+      );
+    }
+
+    if (options.authorizationDetails) {
+      authorizationParams.append(
+        "authorization_details",
+        JSON.stringify(options.authorizationDetails)
+      );
+    }
+
+    const [openIdClientConfigError, openidClientConfig] =
+      await this.getOpenIdClientConfig();
+
+    if (openIdClientConfigError) {
+      return [openIdClientConfigError, null];
+    }
+
+    try {
+      const backchannelAuthenticationResponse =
+        await client.initiateBackchannelAuthentication(
+          openidClientConfig,
+          authorizationParams
+        );
+
+      const tokenEndpointResponse =
+        await client.pollBackchannelAuthenticationGrant(
+          openidClientConfig,
+          backchannelAuthenticationResponse
+        );
+
+      const accessTokenExpiresAt =
+        Math.floor(Date.now() / 1000) +
+        Number(tokenEndpointResponse.expires_in);
+
+      return [
+        null,
+        {
+          tokenSet: {
+            accessToken: tokenEndpointResponse.access_token,
+            idToken: tokenEndpointResponse.id_token,
+            scope: tokenEndpointResponse.scope,
+            refreshToken: tokenEndpointResponse.refresh_token,
+            expiresAt: accessTokenExpiresAt
+          },
+          idTokenClaims: tokenEndpointResponse.claims(),
+          authorizationDetails: tokenEndpointResponse.authorization_details
+        }
+      ];
+    } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
+      return [
+        new BackchannelAuthenticationError({
+          cause: new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        }),
+        null
+      ];
+    }
+  }
+
+  private async discoverAuthorizationServerMetadata(): Promise<
+    [null, oauth.AuthorizationServer] | [SdkError, null]
+  > {
+    if (this.authorizationServerMetadata) {
+      return [null, this.authorizationServerMetadata];
+    }
+
+    const issuer = new URL(this.issuer);
+
+    try {
+      const authorizationServerMetadata = await this.discoveryCache.get(
+        this.issuer,
+        async () => {
+          return await oauth
+            .discoveryRequest(issuer, {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests
+            })
+            .then((response) =>
+              oauth.processDiscoveryResponse(issuer, response)
+            );
+        }
+      );
+
+      if (
+        this.useMtls &&
+        !authorizationServerMetadata.mtls_endpoint_aliases?.token_endpoint
+      ) {
+        return [
+          new MtlsError(
+            MtlsErrorCode.MTLS_ENDPOINT_ALIASES_MISSING,
+            "useMtls is enabled but the authorization server discovery document does not advertise " +
+              "mtls_endpoint_aliases.token_endpoint. Ensure mTLS is enabled on your Auth0 tenant and that requests " +
+              "are routed through your custom domain."
+          ),
+          null
+        ];
+      }
+
+      this.authorizationServerMetadata = authorizationServerMetadata;
+
+      return [null, authorizationServerMetadata];
+    } catch (e) {
+      console.error(
+        `An error occurred while performing the discovery request. issuer=${issuer.toString()}, error:`,
+        e
+      );
+      return [
+        new DiscoveryError(
+          "Discovery failed for the OpenID Connect configuration."
+        ),
+        null
+      ];
+    }
+  }
+
+  private async defaultOnCallback(
+    error: SdkError | null,
+    ctx: OnCallbackContext
+  ) {
+    if (error) {
+      return new NextResponse(error.message, {
+        status: 500
+      });
+    }
+
+    const appBaseUrl = ctx.appBaseUrl;
+
+    if (!appBaseUrl) {
+      throw new InvalidConfigurationError(
+        "appBaseUrl could not be resolved for the callback redirect."
+      );
+    }
+
+    const res = NextResponse.redirect(
+      createRouteUrl(ctx.returnTo || "/", appBaseUrl).toString()
+    );
+
+    return res;
+  }
+
+  /**
+   * Handle errors during the OAuth callback flow.
+   *
+   * For popup flows (`challengeMode: 'popup'`): returns error details
+   * as a postMessage HTML page instead of redirecting. The parent window
+   * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
+   * and the promise returned by `challengeWithPopup()` rejects with a typed error.
+   *
+   * For standard flows (`challengeMode: 'redirect'`): delegates to the
+   * `onCallback` hook, which returns a redirect or error response.
+   *
+   * @param error - The SDK error that occurred during callback processing
+   * @param ctx - Callback context (responseType, returnTo, challengeMode)
+   * @param req - The incoming callback request
+   * @param state - OAuth state parameter (for transaction cookie cleanup)
+   * @param transactionState - Loaded transaction state (provides challengeMode)
+   */
+  private async handleCallbackError(
+    error: SdkError,
+    ctx: OnCallbackContext,
+    req: NextRequest,
+    state?: string,
+    transactionState?: TransactionState
+  ): Promise<NextResponse> {
+    // PostMessage branch: return error as postMessage HTML instead of redirect
+    if (transactionState?.challengeMode === "popup") {
+      // Call onCallback for error observability, matching standard flow behavior
+      await this.onCallback(error, ctx, null);
+
+      const response = createAuthCompletePostMessageResponse({
+        success: false,
+        error: {
+          code: error.code || "callback_error",
+          message: error.message
+        },
+        nonce: this.cspNonce
+      });
+
+      // Clean up the transaction cookie on error
+      if (state) {
+        await this.transactionStore.delete(response.cookies, state);
+      }
+
+      return response;
+    }
+
+    const response = await this.onCallback(error, ctx, null);
+
+    // Clean up the transaction cookie on error to prevent accumulation
+    if (state) {
+      await this.transactionStore.delete(response.cookies, state);
+    }
+
+    return response;
+  }
+
+  async verifyLogoutToken(
+    logoutToken: string
+  ): Promise<[null, LogoutToken] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    // only `RS256` is supported for logout tokens
+    const ID_TOKEN_SIGNING_ALG = "RS256";
+
+    const keyInput = jose.createRemoteJWKSet(
+      new URL(authorizationServerMetadata.jwks_uri!),
+      {
+        [jose.jwksCache]: this.discoveryCache.getJwksCacheForUri(
+          authorizationServerMetadata.jwks_uri!
+        ),
+        timeoutDuration: this.httpTimeout,
+        [jose.customFetch]: this.fetch
+      }
+    );
+
+    const { payload } = await jose.jwtVerify(logoutToken, keyInput, {
+      issuer: authorizationServerMetadata.issuer,
+      audience: this.clientMetadata.client_id,
+      algorithms: [ID_TOKEN_SIGNING_ALG],
+      requiredClaims: ["iat"]
+    });
+
+    if (!("sid" in payload) && !("sub" in payload)) {
+      return [
+        new BackchannelLogoutError(
+          'either "sid" or "sub" (or both) claims must be present'
+        ),
+        null
+      ];
+    }
+
+    if ("sid" in payload && typeof payload.sid !== "string") {
+      return [new BackchannelLogoutError('"sid" claim must be a string'), null];
+    }
+
+    if ("sub" in payload && typeof payload.sub !== "string") {
+      return [new BackchannelLogoutError('"sub" claim must be a string'), null];
+    }
+
+    if ("nonce" in payload) {
+      return [new BackchannelLogoutError('"nonce" claim is prohibited'), null];
+    }
+
+    if (!("events" in payload)) {
+      return [new BackchannelLogoutError('"events" claim is missing'), null];
+    }
+
+    if (typeof payload.events !== "object" || payload.events === null) {
+      return [
+        new BackchannelLogoutError('"events" claim must be an object'),
+        null
+      ];
+    }
+
+    if (
+      !("http://schemas.openid.net/event/backchannel-logout" in payload.events)
+    ) {
+      return [
+        new BackchannelLogoutError(
+          '"http://schemas.openid.net/event/backchannel-logout" member is missing in the "events" claim'
+        ),
+        null
+      ];
+    }
+
+    if (
+      typeof payload.events[
+        "http://schemas.openid.net/event/backchannel-logout"
+      ] !== "object"
+    ) {
+      return [
+        new BackchannelLogoutError(
+          '"http://schemas.openid.net/event/backchannel-logout" member in the "events" claim must be an object'
+        ),
+        null
+      ];
+    }
+
+    // Extract issuer from verified token payload
+    const issuer = payload.iss as string | undefined;
+
+    return [
+      null,
+      {
+        sid: payload.sid as string,
+        sub: payload.sub,
+        iss: issuer // include issuer for issuer-matched deletion
+      }
+    ];
+  }
+
+  private async authorizationUrl(
+    params: URLSearchParams
+  ): Promise<[null, URL] | [Error, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    if (
+      this.pushedAuthorizationRequests &&
+      !authorizationServerMetadata.pushed_authorization_request_endpoint
+    ) {
+      console.error(
+        "The Auth0 tenant does not have pushed authorization requests enabled. Learn how to enable it here: https://auth0.com/docs/get-started/applications/configure-par"
+      );
+      return [
+        new Error(
+          "The authorization server does not support pushed authorization requests."
+        ),
+        null
+      ];
+    }
+
+    const authorizationUrl = new URL(
+      authorizationServerMetadata.authorization_endpoint!
+    );
+
+    if (this.pushedAuthorizationRequests) {
+      // push the request params to the authorization server
+      const response = await oauth.pushedAuthorizationRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        params,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        }
+      );
+
+      let parRes: oauth.PushedAuthorizationResponse;
+      try {
+        parRes = await oauth.processPushedAuthorizationResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          response
+        );
+      } catch (e: any) {
+        const oauthErr = await extractOAuthErrorDetails(e);
+        return [
+          new AuthorizationError({
+            cause: new OAuth2Error({
+              code: oauthErr.error ?? "unknown_error",
+              message: oauthErr.error_description
+            }),
+            message:
+              "An error occurred while pushing the authorization request."
+          }),
+          null
+        ];
+      }
+
+      authorizationUrl.searchParams.set("request_uri", parRes.request_uri);
+      authorizationUrl.searchParams.set(
+        "client_id",
+        this.clientMetadata.client_id
+      );
+
+      return [null, authorizationUrl];
+    }
+
+    // append the query parameters to the authorization URL for the normal flow
+    authorizationUrl.search = params.toString();
+
+    return [null, authorizationUrl];
+  }
+
+  private withMtlsEndpoint(
+    as: oauth.AuthorizationServer
+  ): oauth.AuthorizationServer {
+    if (this.useMtls && as.mtls_endpoint_aliases?.token_endpoint) {
+      return { ...as, token_endpoint: as.mtls_endpoint_aliases.token_endpoint };
+    }
+    return as;
+  }
+
+  /**
+   * Low-level revocation call against the authorization server's
+   * `/oauth/revoke` endpoint. Callers must supply the discovered metadata.
+   *
+   * @param as The discovered authorization server metadata.
+   * @param token The token to revoke.
+   * @param tokenTypeHint Optional `token_type_hint` per RFC 7009.
+   */
+  private async performTokenRevocation(
+    as: oauth.AuthorizationServer,
+    token: string,
+    tokenTypeHint?: "refresh_token" | "access_token"
+  ): Promise<void> {
+    const clientAuth = await this.getClientAuth();
+    const response = await oauth.revocationRequest(
+      as,
+      this.clientMetadata,
+      clientAuth,
+      token,
+      {
+        [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+        ...this.httpOptions(),
+        ...(tokenTypeHint
+          ? { additionalParameters: { token_type_hint: tokenTypeHint } }
+          : {})
+      }
+    );
+    await oauth.processRevocationResponse(response);
+  }
+
+  /**
+   * Revokes a token at the Auth0 `/oauth/revoke` endpoint (RFC 7009).
+   *
+   * Per RFC 7009, revoking a refresh token also invalidates the other tokens
+   * issued under the same authorization grant. Client authentication
+   * (`client_secret`, Private Key JWT, or mTLS) is applied automatically based
+   * on the configured client credentials.
+   *
+   * @param token The token to revoke.
+   * @param tokenTypeHint Optional `token_type_hint` (`refresh_token` or `access_token`).
+   * @returns A tuple of `[error, null]` on failure or `[null, undefined]` on success.
+   */
+  async revokeToken(
+    token: string,
+    tokenTypeHint?: "refresh_token" | "access_token"
+  ): Promise<[SdkError, null] | [null, undefined]> {
+    if (!token || token.trim() === "") {
+      return [
+        new TokenRevocationError(
+          TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
+          "A token is required to perform revocation."
+        ),
+        null
+      ];
+    }
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    try {
+      await this.performTokenRevocation(
+        authorizationServerMetadata,
+        token,
+        tokenTypeHint
+      );
+    } catch (e) {
+      return [
+        new TokenRevocationError(
+          TokenRevocationErrorCode.FAILED_TO_REVOKE,
+          "An error occurred while trying to revoke the token.",
+          new OAuth2Error({
+            code:
+              e instanceof oauth.ResponseBodyError ? e.error : "revoke_failed",
+            message: e instanceof Error ? e.message : String(e)
+          })
+        ),
+        null
+      ];
+    }
+
+    return [null, undefined];
+  }
+
+  private async getClientAuth(): Promise<oauth.ClientAuth> {
+    if (this.useMtls) {
+      return oauth.TlsClientAuth();
+    }
+
+    if (!this.clientSecret && !this.clientAssertionSigningKey) {
+      throw new Error(
+        "The client secret or client assertion signing key must be provided."
+      );
+    }
+
+    let clientPrivateKey: jose.CryptoKey | undefined = this
+      .clientAssertionSigningKey as jose.CryptoKey | undefined;
+
+    if (clientPrivateKey && typeof clientPrivateKey === "string") {
+      clientPrivateKey = await jose.importPKCS8(
+        clientPrivateKey,
+        this.clientAssertionSigningAlg
+      );
+    }
+
+    return clientPrivateKey
+      ? oauth.PrivateKeyJwt(clientPrivateKey as CryptoKey)
+      : oauth.ClientSecretPost(this.clientSecret!);
+  }
+
+  // Detects mfa_required in a token endpoint error, encrypts the raw mfa_token,
+  // and throws MfaRequiredError. Used by credential exchange grants (passkey,
+  // passwordless) that can trigger MFA step-up. Throws only when mfa_token is
+  // present — otherwise falls through so the caller can throw its own typed error.
+  async #throwIfMfaRequired(
+    err: any,
+    oauthErr: { error?: string; error_description?: string },
+    audience?: string,
+    scope?: string
+  ): Promise<void> {
+    if (isMfaRequiredError(err)) {
+      const { mfa_token, error_description, mfa_requirements } =
+        extractMfaErrorDetails(err);
+      if (mfa_token) {
+        const encryptedToken = await encryptMfaToken(
+          mfa_token,
+          audience ?? (this.authorizationParameters.audience as string) ?? "",
+          scope ??
+            (this.authorizationParameters.scope as string) ??
+            DEFAULT_SCOPES,
+          mfa_requirements,
+          this.sessionStore.secret,
+          this.mfaTokenTtl
+        );
+        throw new MfaRequiredError(
+          error_description ?? "Multi-factor authentication is required.",
+          encryptedToken,
+          mfa_requirements,
+          new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        );
+      }
+    }
+  }
+
+  /** @internal */
+  get issuer(): string {
+    return this._issuer;
+  }
+
+  /**
+   * Gets the session with domain validation in MCD mode.
+   *
+   * In resolver mode, sessions are tagged with the domain they were created for.
+   * This method checks that the session domain matches the current request domain,
+   * and backlills pre-MCD sessions atomically.
+   *
+   *
+   * @param cookies - Request cookies containing session information
+   * @returns A SessionCheckResult object with the following properties:
+   *   - `error: null | SessionDomainMismatchError` — null if session is valid for current domain, or SessionDomainMismatchError if domain mismatch
+   *   - `session: null | SessionData` — the session object if valid, null otherwise
+   *   - `exists: boolean` — true if a session was found (regardless of domain match), false if no session
+   *
+   * @note SessionCheckResult is an internal contract used for session validation. Not part of public API.
+   *
+   * @internal
+   */
+  async getSessionWithDomainCheck(
+    cookies:
+      RequestCookies | import("../cookies/index.js").ReadonlyRequestCookies,
+    { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
+  ): Promise<SessionCheckResult> {
+    // Read session from store
+    const session = await this.sessionStore.get(cookies);
+
+    // No session found
+    if (!session) {
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // IPSIE: treat as no session once the upstream IdP-asserted ceiling passes.
+    // Returns the same shape as "no session" so existing redirect-to-login paths
+    // fire transparently. For stateful stores, delete the backing record so the
+    // store stays clean; stateless sessions are self-contained in the cookie and
+    // will be orphaned (ceiling check fires on every subsequent read).
+    // skipCeilingCheck is used by getAccessTokenForConnection — connection tokens
+    // follow the upstream IdP's own TTLs, not the IPSIE session ceiling.
+    if (
+      !skipCeilingCheck &&
+      isSessionCeilingReached(session.internal?.sessionExpiresAt)
+    ) {
+      this.sessionStore
+        .deleteByReqCookies(cookies)
+        .catch((e) =>
+          console.warn("[auth0] Failed to delete session on ceiling expiry:", e)
+        );
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // Session has domain metadata: check for match
+    if (session.internal?.mcd) {
+      // Compare session domain with current domain
+      if (session.internal.mcd.domain !== this.domain) {
+        // Domain mismatch - session was created for a different domain
+        return {
+          error: new SessionDomainMismatchError(
+            `Session was created for domain '${session.internal.mcd.domain}' but the current request is for domain '${this.domain}'. ` +
+              `This may indicate a cross-domain session reuse attempt.`
+          ),
+          session: null,
+          exists: true
+        };
+      }
+      // Domain matches - return session
+      return {
+        error: null,
+        session,
+        exists: true
+      };
+    }
+
+    // Static mode: skip backfill entirely. There is only one domain, so
+    // internal.mcd provides no value and adding it grows the session cookie
+    // (~140 bytes), which can push sessions over the MAX_CHUNK_SIZE boundary
+    // and trigger unnecessary chunking. This preserves DD-2 (zero-overhead
+    // static mode). See: https://github.com/auth0/nextjs-auth0/issues/2595
+    if (!this.provider?.isResolverMode) {
+      return {
+        error: null,
+        session,
+        exists: true
+      };
+    }
+
+    // Resolver mode: pre-MCD session (no mcd field) — infer domain from ID
+    // token's iss claim. This is deterministic — the same session always yields
+    // the same domain, eliminating the race condition where the first resolver
+    // output claims it.
+    let inferredDomain: string | undefined;
+
+    if (session.tokenSet.idToken) {
+      try {
+        const { iss } = jose.decodeJwt(session.tokenSet.idToken);
+        if (typeof iss === "string") {
+          inferredDomain = normalizeDomain(iss).domain;
+        }
+      } catch {
+        // Malformed JWT — fall through to fallback
+      }
+    }
+
+    // Fallback: use current AuthClient's domain (last resort if idToken absent)
+    const domain = inferredDomain ?? this.domain;
+
+    session.internal = session.internal || {};
+    session.internal.mcd = {
+      domain,
+      issuer: `https://${domain}/`
+    };
+
+    // Backfill is in-memory only. Persistence is deferred to the next session
+    // touch/save operation (e.g., middleware handler's default case) where
+    // sessionStore.set() is called with actual response cookies attached to
+    // the HTTP response. This avoids creating orphaned ResponseCookies that
+    // would never be sent to the client in stateless (cookie-based) sessions.
+
+    return {
+      error: null,
+      session,
+      exists: true
+    };
+  }
+
+  /**
+   * Exchanges a refresh token for an access token for a connection.
+   *
+   * This method performs a token exchange using the provided refresh token and connection details.
+   * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
+   * Then, it constructs the necessary parameters for the token exchange request and performs
+   * the request to the authorization server's token endpoint.
+   *
+   * @returns {Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]>} A promise that resolves to a tuple.
+   *          The first element is either an `AccessTokenForConnectionError` if an error occurred, or `null` if the request was successful.
+   *          The second element is either `null` if an error occurred, or a `ConnectionTokenSet` object
+   *          containing the access token, expiration time, and scope if the request was successful.
+   *
+   * @throws {AccessTokenForConnectionError} If the refresh token is missing or if there is an error during the token exchange process.
+   */
+  async getConnectionTokenSet(
+    tokenSet: TokenSet,
+    connectionTokenSet: ConnectionTokenSet | undefined,
+    options: AccessTokenForConnectionOptions
+  ): Promise<
+    [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
+  > {
+    await this.ensureDpopValidated();
+    // If we do not have a refresh token
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // there is nothing to retrieve and we return an error.
+    if (
+      !tokenSet.refreshToken &&
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      return [
+        new AccessTokenForConnectionError(
+          AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // If we do have a refresh token,
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // we need to exchange the refresh token for a connection access token.
+    if (
+      tokenSet.refreshToken &&
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      const params = new URLSearchParams();
+
+      params.append("connection", options.connection);
+
+      const subjectTokenType =
+        options.subject_token_type ??
+        SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+
+      const subjectToken =
+        subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+          ? tokenSet.accessToken
+          : tokenSet.refreshToken;
+
+      params.append("subject_token_type", subjectTokenType);
+      params.append("subject_token", subjectToken);
+
+      params.append(
+        "requested_token_type",
+        REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+      );
+
+      if (options.login_hint) {
+        params.append("login_hint", options.login_hint);
+      }
+
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata();
+
+      if (discoveryError) {
+        return [discoveryError, null];
+      }
+
+      // Create DPoP handle ONCE outside the closure so it persists across retries.
+      // This is required by RFC 9449: the handle must learn and reuse the nonce from
+      // the DPoP-Nonce header across multiple attempts.
+      const dpopHandle =
+        this.useDPoP && this.dpopKeyPair
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+          : undefined;
+
+      // When useMtls=true, use the mTLS alias so the edge proxy forwards the
+      // Client-Certificate header. CNF is not issued for this grant type (auth-server behavior).
+      const connectionTokenMetadata = this.withMtlsEndpoint(
+        authorizationServerMetadata
+      );
+
+      const genericTokenEndpointRequestCall = async () =>
+        oauth.genericTokenEndpointRequest(
+          connectionTokenMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+          params,
+          {
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(dpopHandle && {
+              DPoP: dpopHandle
+            })
+          }
+        );
+
+      const processGenericTokenEndpointResponseCall = async () => {
+        const httpResponse = await genericTokenEndpointRequestCall();
+        return oauth.processGenericTokenEndpointResponse(
+          connectionTokenMetadata,
+          this.clientMetadata,
+          httpResponse
+        );
+      };
+
+      let tokenEndpointResponse: oauth.TokenEndpointResponse;
+      try {
+        tokenEndpointResponse = await withDPoPNonceRetry(
+          processGenericTokenEndpointResponseCall,
+          {
+            isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+            ...this.dpopOptions?.retry
+          }
+        );
+      } catch (err: any) {
+        const oauthErr = await extractOAuthErrorDetails(err);
+        return [
+          new AccessTokenForConnectionError(
+            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a connection access token.",
+            new OAuth2Error({
+              code: oauthErr.error ?? "unknown_error",
+              message: oauthErr.error_description
+            })
+          ),
+          null
+        ];
+      }
+
+      return [
+        null,
+        {
+          accessToken: tokenEndpointResponse.access_token,
+          expiresAt:
+            Math.floor(Date.now() / 1000) +
+            Number(tokenEndpointResponse.expires_in),
+          scope: tokenEndpointResponse.scope,
+          connection: options.connection,
+          ...(options.login_hint ? { loginHint: options.login_hint } : {})
+        }
+      ];
+    }
+
+    return [null, connectionTokenSet] as [null, ConnectionTokenSet];
+  }
+
+  /**
+   * Exchanges an external token for Auth0 tokens via Custom Token Exchange (RFC 8693).
+   *
+   * This method allows you to exchange a token from an external identity provider
+   * for Auth0 tokens without a browser redirect. The external token is validated
+   * by your Auth0 Action with the Custom Token Exchange trigger.
+   *
+   * **Note**: CTE tokens are not cached per RWA SDK spec. The caller is responsible
+   * for token storage if needed.
+   *
+   * @param options - The custom token exchange options
+   * @returns A tuple of [error, null] or [null, response]
+   *
+   * @example
+   * ```typescript
+   * const [error, response] = await authClient.customTokenExchange({
+   *   subjectToken: legacyIdToken,
+   *   subjectTokenType: 'urn:acme:legacy-token',
+   *   audience: 'https://api.example.com',
+   *   scope: 'read:data'
+   * });
+   * ```
+   *
+   * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 CTE Documentation}
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8693 RFC 8693 Token Exchange}
+   */
+  async customTokenExchange(
+    options: CustomTokenExchangeOptions
+  ): Promise<
+    [CustomTokenExchangeError, null] | [null, CustomTokenExchangeResponse]
+  > {
+    await this.ensureDpopValidated();
+    // Note: CTE tokens are not cached per RWA SDK spec.
+    // Caller is responsible for token storage if needed.
+
+    // Validate subjectToken is non-empty
+    if (!options.subjectToken || options.subjectToken.trim() === "") {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN,
+          "The subject_token is required and cannot be empty."
+        ),
+        null
+      ];
+    }
+
+    // Validate subjectTokenType
+    const tokenTypeError = validateSubjectTokenType(options.subjectTokenType);
+    if (tokenTypeError) {
+      return [tokenTypeError, null];
+    }
+
+    // Validate actor token pair (RFC 8693: actor_token requires actor_token_type)
+    if (options.actorToken && !options.actorTokenType) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE,
+          "The actor_token_type is required when actor_token is provided."
+        ),
+        null
+      ];
+    }
+
+    // Validate actorTokenType is a valid URI (RFC 8693 §3)
+    if (options.actorToken && options.actorTokenType) {
+      const actorTokenTypeError = validateActorTokenType(
+        options.actorTokenType
+      );
+      if (actorTokenTypeError) {
+        return [actorTokenTypeError, null];
+      }
+    }
+
+    // Discover authorization server metadata
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "Failed to discover authorization server metadata.",
+          new OAuth2Error({
+            code: "discovery_error",
+            message: discoveryError.message
+          })
+        ),
+        null
+      ];
+    }
+
+    // Merge scopes: user-provided + SDK defaults
+    const finalScope = mergeScopes(DEFAULT_SCOPES, options.scope);
+
+    // Build request params
+    const params = new URLSearchParams();
+    params.append("subject_token", options.subjectToken);
+    params.append("subject_token_type", options.subjectTokenType);
+    params.append("scope", finalScope);
+
+    if (options.audience) {
+      params.append("audience", options.audience);
+    }
+
+    if (options.organization) {
+      params.append("organization", options.organization);
+    }
+
+    // Add actor token if provided (both must be present due to validation above)
+    if (options.actorToken && options.actorTokenType) {
+      params.append("actor_token", options.actorToken);
+      params.append("actor_token_type", options.actorTokenType);
+    }
+
+    // Add additionalParameters if present
+    if (options.additionalParameters) {
+      for (const [key, value] of Object.entries(options.additionalParameters)) {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      }
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    // Execute token exchange with DPoP retry support
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+    const processTokenExchange = async () => {
+      const httpResponse = await oauth.genericTokenEndpointRequest(
+        tokenExchangeMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          ...(dpopHandle && { DPoP: dpopHandle })
+        }
+      );
+      return oauth.processGenericTokenEndpointResponse(
+        tokenExchangeMetadata,
+        this.clientMetadata,
+        httpResponse
+      );
+    };
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let act: ActClaim | undefined;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(processTokenExchange, {
+        isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+        ...this.dpopOptions?.retry
+      });
+      // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
+      act = tokenEndpointResponse.id_token
+        ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
+            ActClaim | undefined)
+        : undefined;
+    } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "There was an error trying to exchange the token.",
+          new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description ?? err.message
+          })
+        ),
+        null
+      ];
+    }
+
+    // Map response: snake_case → camelCase
+    return [
+      null,
+      {
+        accessToken: tokenEndpointResponse.access_token,
+        idToken: tokenEndpointResponse.id_token,
+        refreshToken: tokenEndpointResponse.refresh_token,
+        tokenType: tokenEndpointResponse.token_type ?? "Bearer",
+        expiresIn: Number(tokenEndpointResponse.expires_in),
+        scope: tokenEndpointResponse.scope,
+        act
+      }
+    ];
+  }
+
+  /**
+   * Requests a Session Transfer Token (STT) via Custom Token Exchange.
+   *
+   * The STT is a one-shot, ~60s token that lets an authenticated agent establish
+   * a web session **as the customer** in a target app — without the customer's password.
+   * Pass the result to `buildSessionTransferRedirect` to start the redirect.
+   *
+   * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`.
+   * The actor is sourced from the agent session's ID token. The token must be an
+   * unexpired, asymmetrically-signed (RS256/PS256) JWT — the server rejects HS256
+   * or expired actor tokens. If the session ID token is expired and a refresh token
+   * is present the SDK silently refreshes it first; if no refresh token is available
+   * the exchange fails client-side with `ACTOR_UNAVAILABLE`. If that refresh itself
+   * requires MFA step-up, the error is `[MfaRequiredError, null, null]` — same as any
+   * other refresh-triggered step-up — rather than being collapsed into `ACTOR_UNAVAILABLE`.
+   * On Multiple Custom Domains (MCD) tenants, a session created for a different domain than
+   * the current request is never used as the actor source (`ACTOR_UNAVAILABLE`) — this holds
+   * even if the caller bypasses `Auth0Client`'s own domain check on session read.
+   * Precedence: explicit `options.actor` → session ID token (refreshed if stale) → throws `ACTOR_UNAVAILABLE`.
+   *
+   * **The STT is never cached.** Use it immediately with `buildSessionTransferRedirect`.
+   *
+   * @param options - STT exchange options
+   * @param session - The agent's current session, used to source the actor token
+   * @returns A tuple of `[error, null, null]` or `[null, SessionTransferTokenResult, updatedSession]`.
+   * `updatedSession` is non-null only when the agent's ID token was refreshed to resolve the
+   * actor — the caller (`Auth0Client.requestSessionTransferToken`) MUST persist it back to the
+   * session store, or the agent's session cookie will hold a stale refresh token once refresh
+   * token rotation consumes it.
+   *
+   * @example
+   * ```typescript
+   * const session = await this.getSession();
+   * const [error, result, updatedSession] = await authClient.requestSessionTransferToken(
+   *   { subjectToken, subjectTokenType: "urn:acme:subject" },
+   *   session
+   * );
+   * ```
+   */
+  async requestSessionTransferToken(
+    options: SessionTransferTokenOptions,
+    session: SessionData | null
+  ): Promise<
+    | [CustomTokenExchangeError | MfaRequiredError, null, null]
+    | [null, SessionTransferTokenResult, SessionData | null]
+  > {
+    await this.ensureDpopValidated();
+
+    // Validate subjectToken
+    if (!options.subjectToken || options.subjectToken.trim() === "") {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN,
+          "The subject_token is required and cannot be empty."
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Validate subjectTokenType
+    const tokenTypeError = validateSubjectTokenType(options.subjectTokenType);
+    if (tokenTypeError) {
+      return [tokenTypeError, null, null];
+    }
+
+    // MCD defense-in-depth: refuse to source the actor from a session created for a
+    // different domain than the current request. `Auth0Client.requestSessionTransferToken`
+    // already enforces this via `getSession()` → `getSessionWithDomainCheck`, but this method
+    // can also be called directly with a session read some other way, so the guard is
+    // duplicated here rather than relied on solely at the caller. Only applies when the actor
+    // is sourced from the session — an explicit `actor` bypasses the session entirely.
+    if (
+      !options.actor &&
+      session?.internal?.mcd &&
+      session.internal.mcd.domain !== this.domain
+    ) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
+          `No usable actor token: the agent session was created for domain '${session.internal.mcd.domain}' ` +
+            `but the current request is for domain '${this.domain}'.`
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Resolve actor — must come before any network call (client-side guard).
+    // If the session ID token is expired but a refresh token is available, attempt a
+    // silent refresh to get a fresh ID token before giving up with ACTOR_UNAVAILABLE.
+    // `refreshedSession`, once set, is returned to the caller so it can persist the new
+    // refresh token — #refreshTokenSet only returns the new token set, it does not save it,
+    // and refresh token rotation invalidates the old one still sitting in the session cookie.
+    //
+    // Only attempt this when no explicit `actor` was passed: `resolveActorFromSession` returns
+    // the same ACTOR_UNAVAILABLE code whether the cause is a blank explicit actor or a stale
+    // session ID token, so we can't distinguish them from the error alone. Gating on
+    // `!options.actor` ensures a bad explicit actor never triggers a wasted refresh (or a
+    // confusing MfaRequiredError) for a problem refreshing the session can't fix.
+    let [actorError, actor] = resolveActorFromSession(session, options.actor);
+    let refreshedSession: SessionData | null = null;
+    if (!options.actor && actorError && session?.tokenSet?.refreshToken) {
+      const [refreshError, refreshed] = await this.#refreshTokenSet(
+        session.tokenSet,
+        { requestedScope: DEFAULT_SCOPES }
+      );
+      // A step-up challenge on the refresh is a distinct, recoverable case from "no usable
+      // actor" — surface it to the caller instead of silently falling through to
+      // ACTOR_UNAVAILABLE, which would give the agent no path to complete MFA and retry.
+      if (refreshError instanceof MfaRequiredError) {
+        return [refreshError, null, null];
+      }
+      if (!refreshError && refreshed?.updatedTokenSet?.idToken) {
+        refreshedSession = {
+          ...session,
+          user: refreshed.idTokenClaims
+            ? (refreshed.idTokenClaims as User)
+            : session.user,
+          tokenSet: refreshed.updatedTokenSet
+        };
+        [actorError, actor] = resolveActorFromSession(
+          refreshedSession,
+          options.actor
+        );
+      }
+    }
+    if (actorError) {
+      return [actorError, null, null];
+    }
+
+    // Discover authorization server metadata
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "Failed to discover authorization server metadata.",
+          new OAuth2Error({
+            code: "discovery_error",
+            message: discoveryError.message
+          })
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Build the STT-specific audience: urn:{domain}:session_transfer
+    // Use this.domain (the effective domain for this request) so MCD tenants
+    // get the correct per-domain audience.
+    const audience = buildSessionTransferAudience(this.domain);
+
+    // Merge scopes. offline_access is excluded from the STT default scopes — Auth0
+    // silently suppresses it for impersonation sessions, so requesting it here would
+    // just be a scope the server ignores.
+    const finalScope = mergeScopes(DEFAULT_STT_SCOPES, options.scope);
+
+    const params = new URLSearchParams();
+    params.append("subject_token", options.subjectToken);
+    params.append("subject_token_type", options.subjectTokenType);
+    params.append("audience", audience);
+    params.append("scope", finalScope);
+    params.append("actor_token", actor!.token);
+    params.append("actor_token_type", actor!.type);
+
+    if (options.organization) {
+      params.append("organization", options.organization);
+    }
+    if (options.reason) {
+      params.append("reason", options.reason);
+    }
+    if (options.additionalParameters) {
+      // Guard against callers overriding parameters the SDK manages — silently
+      // shadowing e.g. audience or actor_token would break the STT contract, and
+      // organization/reason are already appended above so re-appending them here
+      // would produce a duplicate (and ambiguous) query param.
+      const reservedParams = new Set([
+        "subject_token",
+        "subject_token_type",
+        "audience",
+        "scope",
+        "actor_token",
+        "actor_token_type",
+        "grant_type",
+        "organization",
+        "reason"
+      ]);
+      for (const [key, value] of Object.entries(options.additionalParameters)) {
+        if (reservedParams.has(key)) {
+          continue;
+        }
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      }
+    }
+
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const tokenExchangeMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+
+    // STT responses carry `token_type: "N_A"` which oauth4webapi's
+    // processGenericTokenEndpointResponse rejects. We send the request via
+    // genericTokenEndpointRequest and parse the body ourselves.
+    const sendExchange = async (): Promise<Response> => {
+      return oauth.genericTokenEndpointRequest(
+        tokenExchangeMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          ...(dpopHandle && { DPoP: dpopHandle })
+        }
+      );
+    };
+
+    // DPoP nonce handling via the shared retry helper (Path 1: it inspects the
+    // returned Response for a `use_dpop_nonce` 400 and retries once). The DPoP
+    // handle learns the nonce from the `DPoP-Nonce` header automatically, so the
+    // resent request carries a valid proof. When DPoP is disabled this is a
+    // single pass-through call.
+    let httpResponse: Response;
+    try {
+      httpResponse = await withDPoPNonceRetry(sendExchange, {
+        isDPoPEnabled: !!(this.useDPoP && dpopHandle),
+        ...this.dpopOptions?.retry
+      });
+    } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+      const errorCode = oauthErr.error ?? "unknown_error";
+      const sttCode = mapSttServerError(errorCode);
+      return [
+        new CustomTokenExchangeError(
+          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          oauthErr.error_description ??
+            "There was an error trying to exchange the token for a Session Transfer Token.",
+          new OAuth2Error({
+            code: errorCode,
+            message: oauthErr.error_description ?? err.message
+          })
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Parse the raw JSON response ourselves — bypasses oauth4webapi's
+    // token_type allowlist which blocks "N_A".
+    // Fall back to text() when the body is not JSON (e.g. plain-text gateway errors)
+    // so the status code and raw message are preserved in the error.
+    let rawBody: any;
+    try {
+      rawBody = await httpResponse.json();
+    } catch {
+      let rawText = "";
+      try {
+        rawText = await httpResponse.text();
+      } catch {
+        // ignore — body already consumed or unreadable
+      }
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          `Failed to parse the Session Transfer Token response body (HTTP ${httpResponse.status}).${rawText ? " " + rawText : ""}`
+        ),
+        null,
+        null
+      ];
+    }
+
+    // Surface server-side errors (4xx/5xx with error field)
+    if (!httpResponse.ok || rawBody?.error) {
+      const errorCode = rawBody?.error ?? "unknown_error";
+      const sttCode = mapSttServerError(errorCode);
+      return [
+        new CustomTokenExchangeError(
+          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          rawBody?.error_description ??
+            "There was an error trying to exchange the token for a Session Transfer Token.",
+          new OAuth2Error({
+            code: errorCode,
+            message: rawBody?.error_description ?? errorCode
+          })
+        ),
+        null,
+        null
+      ];
+    }
+
+    // The spec requires branching on issued_token_type to identify an STT.
+    // Reject any response where it is missing or not the STT URN — a plain Bearer
+    // access-token response must never be mistaken for a session transfer token.
+    if (rawBody.issued_token_type !== TOKEN_TYPES.SESSION_TRANSFER_TOKEN) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          `Unexpected issued_token_type: "${rawBody.issued_token_type ?? "(missing)"}". Expected "${TOKEN_TYPES.SESSION_TRANSFER_TOKEN}".`
+        ),
+        null,
+        null
+      ];
+    }
+
+    // STT never decoded, never cached — treat as opaque handle
+    return [
+      null,
+      parseSessionTransferTokenResponse({
+        access_token: rawBody.access_token,
+        issued_token_type: rawBody.issued_token_type,
+        expires_in: rawBody.expires_in,
+        token_type: rawBody.token_type
+      }),
+      refreshedSession
+    ];
+  }
+
+  /**
+   * Builds the redirect URL that carries the STT to the target app's login route.
+   *
+   * Returns a `NextResponse` redirect to
+   * `targetLoginUrl?session_transfer_token=<encoded>(&organization=…)`.
+   *
+   * This is a pure URL builder — no network call, nothing written to session.
+   * The STT is one-shot; use this immediately after `requestSessionTransferToken`.
+   *
+   * @param targetLoginUrl - The target app's login URL (e.g. `https://app.example.com/auth/login`).
+   *   Must be a trusted, app-controlled value. Never derive this from untrusted input.
+   * @param result - The `SessionTransferTokenResult` from `requestSessionTransferToken`
+   * @param opts - Optional overrides
+   * @param opts.organization - Org ID/name to append; use the same value passed to `requestSessionTransferToken`
+   *
+   * @example
+   * ```typescript
+   * const redirect = authClient.buildSessionTransferRedirect(
+   *   "https://app.example.com/auth/login",
+   *   result,
+   *   { organization: "org_abc123" }
+   * );
+   * return redirect;
+   * ```
+   */
+  buildSessionTransferRedirect(
+    targetLoginUrl: string,
+    result: SessionTransferTokenResult,
+    opts?: { organization?: string }
+  ): NextResponse {
+    const url = buildSessionTransferRedirectUrl(
+      targetLoginUrl,
+      result.sessionTransferToken,
+      opts
+    );
+    return NextResponse.redirect(url);
+  }
+
+  /**
+   * Filters and processes ID token claims for a session.
+   *
+   * If a `beforeSessionSaved` callback is configured, it will be invoked to allow
+   * custom processing of the session and ID token. Otherwise, default filtering
+   * will be applied to remove standard ID token claims from the user object.
+   */
+  async finalizeSession(
+    session: SessionData,
+    idToken?: string
+  ): Promise<SessionData> {
+    if (this.beforeSessionSaved) {
+      const updatedSession = await this.beforeSessionSaved(
+        session,
+        idToken ?? null
+      );
+      session = {
+        ...updatedSession,
+        internal: session.internal
+      };
+    } else {
+      session.user = filterDefaultIdTokenClaims(session.user);
+    }
+    return session;
+  }
+
+  /**
+   * Initiates the connect account flow for linking a third-party account to the user's profile.
+   * The user will be redirected to authorize the connection.
+   */
+  async connectAccount(
+    options: ConnectAccountOptions & { tokenSet: TokenSet },
+    req?: NextRequest
+  ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const redirectUri = createRouteUrl(
+      this.routes.callback,
+      appBaseUrl
+    ).toString();
+    let returnTo = this.signInReturnToPath;
+
+    // Validate returnTo parameter
+    if (options.returnTo) {
+      const safeBaseUrl = new URL(appBaseUrl);
+      const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
+
+      if (sanitizedReturnTo) {
+        returnTo = clampReturnTo(
+          sanitizedReturnTo.pathname +
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
+      }
+    }
+
+    // Generate PKCE challenges
+    const codeChallengeMethod = "S256";
+    const codeVerifier = oauth.generateRandomCodeVerifier();
+    const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+    const state = oauth.generateRandomState();
+
+    const [error, connectAccountResponse] =
+      await this.createConnectAccountTicket({
+        tokenSet: options.tokenSet,
+        connection: options.connection,
+        redirectUri,
+        state,
+        codeChallenge,
+        codeChallengeMethod,
+        scopes: options.scopes,
+        authorizationParams: options.authorizationParams
+      });
+
+    if (error) {
+      return [error, null];
+    }
+
+    const transactionState: TransactionState = {
+      codeVerifier,
+      responseType: RESPONSE_TYPES.CONNECT_CODE,
+      state,
+      returnTo,
+      authSession: connectAccountResponse.authSession
+    };
+
+    const res = NextResponse.redirect(
+      `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
+    );
+
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
+
+    return [null, res];
+  }
+
+  private async createConnectAccountTicket(
+    options: ConnectAccountRequest
+  ): Promise<[null, ConnectAccountResponse] | [ConnectAccountError, null]> {
+    try {
+      const connectAccountUrl = new URL(
+        "/me/v1/connected-accounts/connect",
+        this.issuer
+      );
+
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: options.tokenSet.accessToken,
+          expiresAt: options.tokenSet.expiresAt || 0,
+          scope: options.tokenSet.scope,
+          token_type: options.tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const httpOptions = this.httpOptions();
+      const headers = new Headers(httpOptions.headers);
+      headers.set("Content-Type", "application/json");
+
+      const requestBody = {
+        connection: options.connection,
+        redirect_uri: options.redirectUri,
+        state: options.state,
+        code_challenge: options.codeChallenge,
+        code_challenge_method: options.codeChallengeMethod,
+        scopes: options.scopes,
+        authorization_params: options.authorizationParams
+      };
+
+      const res = await fetcher.fetchWithAuth(connectAccountUrl.toString(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!res.ok) {
+        return buildConnectAccountErrorResponse(
+          res,
+          ConnectAccountErrorCodes.FAILED_TO_INITIATE
+        );
+      }
+
+      const { connect_uri, connect_params, auth_session, expires_in } =
+        await res.json();
+
+      return [
+        null,
+        {
+          connectUri: connect_uri,
+          connectParams: connect_params,
+          authSession: auth_session,
+          expiresIn: expires_in
+        }
+      ];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to initiate the connect account flow.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+          message: message
+        }),
+        null
+      ];
+    }
+  }
+
+  private async completeConnectAccount(
+    options: CompleteConnectAccountRequest
+  ): Promise<[null, CompleteConnectAccountResponse] | [SdkError, null]> {
+    const completeConnectAccountUrl = new URL(
+      "/me/v1/connected-accounts/complete",
+      this.issuer
+    );
+
+    try {
+      const httpOptions = this.httpOptions();
+      const headers = new Headers(httpOptions.headers);
+      headers.set("Content-Type", "application/json");
+
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: options.tokenSet.accessToken,
+          expiresAt: options.tokenSet.expiresAt || 0,
+          scope: options.tokenSet.scope,
+          token_type: options.tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const requestBody = {
+        auth_session: options.authSession,
+        connect_code: options.connectCode,
+        redirect_uri: options.redirectUri,
+        code_verifier: options.codeVerifier
+      };
+
+      const res = await fetcher.fetchWithAuth(completeConnectAccountUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!res.ok) {
+        return buildConnectAccountErrorResponse(
+          res,
+          ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+        );
+      }
+
+      const { id, connection, access_type, scopes, created_at, expires_at } =
+        await res.json();
+
+      return [
+        null,
+        {
+          id,
+          connection,
+          accessType: access_type,
+          scopes,
+          createdAt: created_at,
+          expiresAt: expires_at
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+          message:
+            "An unexpected error occurred while trying to complete the connect account flow."
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Lists the connected accounts for the current user via the My Account API.
+   *
+   * Handles pagination transparently (the endpoint returns at most 20 accounts
+   * per page and an optional `next` token) so the full set is always returned.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+   */
+  async listConnectedAccounts(
+    tokenSet: TokenSet
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    try {
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt || 0,
+          scope: tokenSet.scope,
+          token_type: tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const accounts: ConnectedAccount[] = [];
+      let next: string | undefined;
+      // `next` is server-controlled. Guard against a server that echoes the same
+      // token or cycles, which would otherwise loop and grow `accounts` without
+      // bound on the request thread.
+      const seenNext = new Set<string>();
+      const MAX_PAGES = 100;
+      let pages = 0;
+
+      do {
+        if (++pages > MAX_PAGES || (next && seenNext.has(next))) {
+          // The server returned a non-terminating cursor (page cap exceeded or
+          // a repeated `next` token). Returning the partial list as success is
+          // unsafe: callers reconcile against it destructively (pruning cached
+          // tokens for omitted accounts, and disconnectAccount would leave
+          // additional matching accounts linked). Fail loudly instead.
+          return [
+            new ConnectedAccountsError({
+              code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+              message: "Connected-account pagination did not terminate safely."
+            }),
+            null
+          ];
+        }
+        if (next) {
+          seenNext.add(next);
+        }
+        const url = new URL("/me/v1/connected-accounts/accounts", this.issuer);
+        if (next) {
+          url.searchParams.set("next", next);
+        }
+
+        const res = await fetcher.fetchWithAuth(url.toString(), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          return buildConnectedAccountsErrorResponse(
+            res,
+            ConnectedAccountsErrorCodes.FAILED_TO_LIST
+          );
+        }
+
+        const body = await res.json();
+        for (const account of body.accounts ?? []) {
+          accounts.push({
+            id: account.id,
+            connection: account.connection,
+            accessType: account.access_type,
+            scopes: account.scopes,
+            createdAt: account.created_at,
+            expiresAt: account.expires_at,
+            orgId: account.org_id
+          });
+        }
+        next = body.next;
+      } while (next);
+
+      return [null, accounts];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to list the connected accounts.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Deletes a single connected account by its id via the My Account API.
+   *
+   * Accepts a pre-built fetcher so callers (e.g. `disconnectAccount`) can reuse
+   * a single fetcher across multiple deletes. With DPoP enabled, a new fetcher
+   * starts without a nonce and pays a `use_dpop_nonce` rejection + retry on the
+   * first request; reusing the fetcher amortises that to one round-trip total
+   * instead of one per account.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+   */
+  private async deleteConnectedAccount(
+    fetcher: Fetcher<Response>,
+    id: string
+  ): Promise<[null, null] | [ConnectedAccountsError, null]> {
+    try {
+      const url = new URL(
+        `/me/v1/connected-accounts/accounts/${encodeURIComponent(id)}`,
+        this.issuer
+      );
+
+      const res = await fetcher.fetchWithAuth(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!res.ok) {
+        return buildConnectedAccountsErrorResponse(
+          res,
+          ConnectedAccountsErrorCodes.FAILED_TO_DELETE
+        );
+      }
+
+      return [null, null];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to delete the connected account.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_DELETE,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Disconnects all connected accounts for the given connection.
+   *
+   * Resolves the connection name to the connected-account id(s) via the list
+   * endpoint (the delete endpoint is keyed by id), then deletes each. The
+   * operation is idempotent: if the server reports no accounts for the
+   * connection, it returns the empty list without error so callers can still
+   * reconcile local state.
+   */
+  async disconnectAccount(
+    tokenSet: TokenSet,
+    connection: string
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    const [listError, accounts] = await this.listConnectedAccounts(tokenSet);
+    if (listError) {
+      return [listError, null];
+    }
+
+    const matching = accounts.filter(
+      (account) => account.connection === connection
+    );
+
+    if (matching.length === 0) {
+      return [null, []];
+    }
+
+    // Build the fetcher once and reuse it across every DELETE. With DPoP
+    // enabled, per-account fetchers would each start with an empty nonce cache
+    // and pay a `use_dpop_nonce` rejection + retry — turning N deletes into 2N
+    // requests. `listConnectedAccounts` already does this for pagination.
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      getAccessToken: async () => ({
+        accessToken: tokenSet.accessToken,
+        expiresAt: tokenSet.expiresAt || 0,
+        scope: tokenSet.scope,
+        token_type: tokenSet.token_type
+      }),
+      fetch: this.fetch
+    });
+
+    const removed: ConnectedAccount[] = [];
+    for (const account of matching) {
+      const [deleteError] = await this.deleteConnectedAccount(
+        fetcher,
+        account.id
+      );
+      if (deleteError) {
+        return [deleteError, null];
+      }
+      removed.push(account);
+    }
+
+    return [null, removed];
+  }
+
+  private async getOpenIdClientConfig(): Promise<
+    [null, client.Configuration] | [SdkError, null]
+  > {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const openidClientConfig = new client.Configuration(
+      authorizationServerMetadata,
+      this.clientMetadata.client_id,
+      { use_mtls_endpoint_aliases: this.useMtls },
+      await this.getClientAuth()
+    );
+    const httpOpts = this.httpOptions();
+    const telemetryHeaders = new Headers(httpOpts.headers);
+
+    openidClientConfig[client.customFetch] = (...args) => {
+      const headers = new Headers(args[1].headers);
+      return this.fetch(args[0], {
+        ...args[1],
+        body: args[1].body as BodyInit | null | undefined,
+        headers: new Headers([...telemetryHeaders, ...headers])
+      });
+    };
+
+    openidClientConfig.timeout = this.httpTimeout;
+
+    if (this.allowInsecureRequests) {
+      client.allowInsecureRequests(openidClientConfig);
+    }
+
+    return [null, openidClientConfig];
+  }
+
+  /**
+   * Creates a new Fetcher instance with DPoP support and authentication capabilities.
+   *
+   * This method creates fetcher-scoped DPoP handles via `oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)`.
+   * Each fetcher instance maintains its own DPoP nonce state for isolation and security.
+   * It is recommended to create fetchers at module level and reuse them across requests
+   *
+   * @example Recommended fetcher reuse pattern
+   * ```typescript
+   * const managementApi = await auth0.fetcherFactory({
+   *   baseUrl: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
+   *   session: await getSession(req, res)
+   * });
+   *
+   * // Use the same fetcher for multiple requests
+   * const users = await managementApi.get('users');
+   * const roles = await managementApi.get('roles');
+   * ```
+   *
+   * **DPoP Nonce Management:**
+   * - Each fetcher learns and caches nonces from the authorization server
+   * - Failed nonce validation triggers automatic retry with updated nonce
+   * - Nonce state is isolated between fetcher instances for security
+   *
+   * @param options Configuration options for the fetcher
+   * @returns Promise resolving to a configured Fetcher instance
+   * @throws {DPoPError} When DPoP is enabled but no keypair is configured
+   */
+  async fetcherFactory<TOutput extends Response>(
+    options: FetcherFactoryOptions<TOutput>
+  ): Promise<Fetcher<TOutput>> {
+    await this.ensureDpopValidated();
+    if (this.useDPoP && !this.dpopKeyPair) {
+      throw new DPoPError(
+        DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+        "DPoP is enabled but no keypair is configured."
+      );
+    }
+
+    // Ensure authorization server metadata is available for oauth4webapi
+    const [discoveryError, _authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw discoveryError;
+    }
+
+    const shouldUseDpop = this.useDPoP && (options.useDPoP ?? true);
+
+    const fetcherConfig: FetcherConfig<TOutput> = {
+      // Fetcher-scoped DPoP handle and nonce management
+      dpopHandle: shouldUseDpop
+        ? (options.dpopHandle ??
+          oauth.DPoP(this.clientMetadata, this.dpopKeyPair!))
+        : undefined,
+      httpOptions: this.httpOptions,
+      allowInsecureRequests: this.allowInsecureRequests,
+      retryConfig: this.dpopOptions?.retry,
+      fetch: options.fetch,
+      getAccessToken: options.getAccessToken,
+      baseUrl: options.baseUrl
+    };
+
+    const fetcherHooks: FetcherHooks = {
+      getAccessToken: options.getAccessToken,
+      isDpopEnabled: () => shouldUseDpop
+    };
+
+    return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
+  }
+
+  /**
+   * Handles CORS preflight requests without authentication headers.
+   *
+   * Special-cases the OPTIONS method to forward preflight requests directly WITHOUT
+   * calling `fetcher.fetchWithAuth()`, which would incorrectly inject DPoP/auth headers
+   * on the preflight request.
+   *
+   * The browser never sends auth headers on preflight requests, and we should not either.
+   * Authorization checks must not be performed on preflight requests according to RFC 7231.
+   * Additionally, DPoP proofs are bound to HTTP requests, not to preflights (RFC 9449).
+   *
+   * @param req The incoming CORS preflight OPTIONS request.
+   * @param options Configuration options for the proxy including target base URL, audience, and scope.
+   * @returns A NextResponse containing the preflight response from the target server, or a 500 error if the preflight fails.
+   *
+   * @see RFC 7231 Section 4.3.1 - Authorization checks must not be performed on preflight requests
+   * @see RFC 9449 Section 4.1 - DPoP proofs are bound to HTTP requests, not to preflights
+   */
+  async #handlePreflight(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const headers = buildForwardedRequestHeaders(req);
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    try {
+      // Forward preflight directly WITHOUT DPoP/auth headers
+      const preflightResponse = await this.fetch(targetUrl.toString(), {
+        method: "OPTIONS",
+        headers
+      });
+
+      // Forward CORS headers from upstream
+      return new NextResponse(null, {
+        status: preflightResponse.status,
+        headers: buildForwardedResponseHeaders(preflightResponse)
+      });
+    } catch (error: any) {
+      // If preflight fails, return 500
+      return new NextResponse(
+        error.cause || error.message || "Preflight request failed",
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * List enrolled MFA authenticators, filtered by allowed challenge types.
+   *
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
+   * @returns Array of authenticators (snake_case ApiResponse format) filtered by mfa_requirements
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired (>5 min)
+   * @throws {MfaGetAuthenticatorsError} On Auth0 API failure
+   */
+  async mfaGetAuthenticators(
+    encryptedToken: string
+  ): Promise<AuthenticatorApiResponse[]> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
+    const endpoint = new URL("/mfa/authenticators", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
+
+    try {
+      const response = await this.fetch(endpoint, {
+        method: "GET",
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to retrieve authenticators"
+        }));
+        throw new MfaGetAuthenticatorsError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to retrieve authenticators",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const authenticators: AuthenticatorApiResponse[] = await response.json();
+
+      // Filter by allowed challenge types from mfa_requirements
+      const allowedTypes = new Set(
+        (context.mfaRequirements?.challenge ?? []).map((c) =>
+          c.type.toLowerCase()
+        )
+      );
+
+      // If no challenge types specified, return all (no filtering)
+      if (allowedTypes.size === 0) {
+        return authenticators;
+      }
+
+      // Filter authenticators by type field
+      return authenticators.filter(
+        (auth) => auth.type && allowedTypes.has(auth.type.toLowerCase())
+      );
+    } catch (e) {
+      if (e instanceof MfaGetAuthenticatorsError) throw e;
+      throw new MfaGetAuthenticatorsError(
+        "unexpected_error",
+        "Unexpected error during authenticator retrieval",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Initiate an MFA challenge.
+   *
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
+   * @param challengeType - Challenge type (otp, oob)
+   * @param authenticatorId - Optional authenticator ID
+   * @returns Challenge response (snake_case ApiResponse format)
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired
+   * @throws {MfaNoAvailableFactorsError} If no challenge types available
+   * @throws {MfaChallengeError} On Auth0 API failure
+   */
+  async mfaChallenge(
+    encryptedToken: string,
+    challengeType: string,
+    authenticatorId?: string
+  ): Promise<ChallengeApiResponse> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Validate mfaRequirements has challenge types only when requirements are present.
+    // When mfa_requirements is absent (e.g. webauthn grant), all challenge types are allowed.
+    if (context.mfaRequirements?.challenge) {
+      const allowedTypes = new Set(
+        context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
+      );
+
+      if (allowedTypes.size === 0) {
+        throw new MfaNoAvailableFactorsError(
+          "No MFA challenge types available in mfa_requirements"
+        );
+      }
+      if (!allowedTypes.has(challengeType.toLowerCase())) {
+        throw new MfaNoAvailableFactorsError(
+          `Challenge type "${challengeType}" is not allowed by mfa_requirements. Allowed: ${[...allowedTypes].join(", ")}`
+        );
+      }
+    }
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
+    const endpoint = new URL("/mfa/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    try {
+      const body: any = {
+        client_id: this.clientMetadata.client_id,
+        challenge_type: challengeType,
+        mfa_token: mfaToken
+      };
+
+      if (this.clientSecret) {
+        body.client_secret = this.clientSecret;
+      }
+
+      if (authenticatorId) {
+        body.authenticator_id = authenticatorId;
+      }
+
+      const response = await this.fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to initiate MFA challenge"
+        }));
+        throw new MfaChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to initiate MFA challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result: ChallengeApiResponse = await response.json();
+      return result;
+    } catch (e) {
+      if (e instanceof MfaChallengeError) throw e;
+      throw new MfaChallengeError(
+        "unexpected_error",
+        "Unexpected error during MFA challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Enroll a new MFA authenticator during initial MFA setup.
+   * First-time enrollment only (requires mfa_token, not access token).
+   *
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
+   * @param options - Enrollment options (otp | oob | email)
+   * @returns Enrollment response (snake_case ApiResponse format) with authenticator details and optional recovery codes
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired
+   * @throws {MfaEnrollmentError} On Auth0 API failure
+   */
+  async mfaAssociate(
+    encryptedToken: string,
+    options: Omit<EnrollOobOptions | EnrollOtpOptions, "mfaToken">
+  ): Promise<EnrollmentApiResponse> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
+    const endpoint = new URL(`/mfa/associate`, this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    // Build request body based on enrollment type
+    const body: Record<string, any> = {
+      authenticator_types: options.authenticatorTypes
+    };
+
+    // Add type-specific fields with type narrowing
+    if ("oobChannels" in options) {
+      const oobOptions = options as EnrollOobOptions;
+      body.oob_channels = oobOptions.oobChannels;
+      if (oobOptions.phoneNumber) {
+        body.phone_number = oobOptions.phoneNumber;
+      }
+      if (oobOptions.email) {
+        body.email = oobOptions.email;
+      }
+    }
+
+    try {
+      const response = await this.fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to enroll authenticator"
+        }));
+        throw new MfaEnrollmentError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to enroll authenticator",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result: EnrollmentApiResponse = await response.json();
+      return result;
+    } catch (e) {
+      if (e instanceof MfaEnrollmentError) throw e;
+      throw new MfaEnrollmentError(
+        "unexpected_error",
+        "Unexpected error during MFA enrollment",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Verify MFA code and complete authentication.
+   * Returns tokens without session persistence.
+   *
+   * @param options - Verification options (otp | oobCode+bindingCode | recoveryCode)
+   * @returns Token response
+   * @throws {MfaVerifyError} On API failure
+   * @throws {MfaRequiredError} For chained MFA (with encrypted token)
+   */
+  async mfaVerify(
+    options: VerifyMfaOptions
+  ): Promise<MfaTokenEndpointResponse> {
+    await this.ensureDpopValidated();
+    // Decrypt token to extract context
+    const { mfaToken, audience, scope } = await decryptMfaToken(
+      options.mfaToken,
+      this.sessionStore.secret
+    );
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new MfaVerifyError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const verifyParams = buildVerifyParams(options, mfaToken, audience, scope);
+    const verifyGrantType = getVerifyGrantType(verifyParams);
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    // Execute MFA token exchange with DPoP retry support
+    const mfaVerifyMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            mfaVerifyMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            verifyGrantType,
+            verifyParams,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && {
+                DPoP: dpopHandle
+              })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            mfaVerifyMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+
+      // Handle chained MFA (subsequent mfa_required response)
+      if (oauthErr.error === "mfa_required" || err.error === "mfa_required") {
+        // Extract error body from cause for oauth4webapi wrapped errors
+        // ResponseBodyError wraps actual error in cause property
+        const errorBody =
+          err.cause &&
+          typeof err.cause === "object" &&
+          !(err.cause instanceof Response)
+            ? (err.cause as any)
+            : err;
+
+        // Re-encrypt the new mfaToken for client use
+        const encryptedToken = await encryptMfaToken(
+          errorBody.mfa_token,
+          audience,
+          scope,
+          errorBody.mfa_requirements,
+          this.sessionStore.secret,
+          DEFAULT_MFA_CONTEXT_TTL_SECONDS
+        );
+        throw new MfaRequiredError(
+          oauthErr.error_description ||
+            errorBody.error_description ||
+            "Additional MFA factor required",
+          encryptedToken,
+          errorBody.mfa_requirements,
+          new OAuth2Error({
+            code: "mfa_required",
+            message: oauthErr.error_description || errorBody.error_description
+          })
+        );
+      }
+
+      throw new MfaVerifyError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description || err.message || "MFA verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    const result = {
+      ...tokenEndpointResponse,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type)
+    } as MfaTokenEndpointResponse;
+
+    return result;
+  }
+
+  /**
+   * Cache access token from MFA verification in session.
+   *
+   * @param tokenResponse - Token response from mfaVerify
+   * @param encryptedMfaToken - Encrypted MFA token containing context
+   * @param reqCookies - Request cookies for session retrieval
+   * @param resCookies - Response cookies for session persistence
+   * @throws {MfaVerifyError} If session not found
+   */
+  async cacheTokenFromMfaVerify(
+    tokenResponse: MfaTokenEndpointResponse,
+    encryptedMfaToken: string,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
+      throw new MfaVerifyError(
+        sessionError?.code ?? AccessTokenErrorCode.MISSING_SESSION,
+        sessionError?.message ?? "The user does not have an active session."
+      );
+    }
+
+    // Decrypt token to extract audience and the requested scope
+    const { audience, scope: requestedScope } = await decryptMfaToken(
+      encryptedMfaToken,
+      this.sessionStore.secret
+    );
+
+    session.accessTokens = session.accessTokens || [];
+
+    const newAccessTokenSet = {
+      accessToken: tokenResponse.access_token,
+      scope: tokenResponse.scope,
+      requestedScope,
+      // oauth4webapi TokenEndpointResponse does NOT include audience field
+      audience: audience || "",
+      expiresAt:
+        Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
+      token_type: tokenResponse.token_type
+    };
+
+    // Replace an existing token for the same audience AND scope, or append a
+    // new one. Without this, each MFA step-up appends another full token set —
+    // growing the session cookie unbounded (and eventually a 431). The key is
+    // audience + normalized scope (not audience alone), so a differently-scoped
+    // step-up for the same audience does not evict a still-useful entry.
+    //
+    // The match is exact normalized-set equality on requestedScope (with a
+    // fallback to granted `scope` for legacy entries). `findAccessTokenSet`
+    // does a looser superset match via `compareScopes`; the two rules do NOT
+    // agree. Consequences of the divergence:
+    // - `findAccessTokenSet` may return a wider entry to satisfy a narrower
+    //   request (superset match on read), while this dedup keeps them as
+    //   separate entries (exact match on write).
+    // - Per audience, the session can accumulate up to one entry per distinct
+    //   normalized-scope set. Bounded per session, but looser than
+    //   `findAccessTokenSet` would suggest.
+    // Aligning to `compareScopes` here would be a behaviour change (wide
+    // entries would evict narrower ones), which is out of scope for this fix.
+    // See also `mergePopupTokenIntoSession` (session-helpers.ts) which uses a
+    // third rule — keyed on audience alone — pre-existing on main.
+    //
+    // Key on the requested scope (always present, with a fallback to the
+    // granted scope for legacy entries): the granted `scope` may be reduced or
+    // omitted by the server, which would otherwise collide distinct requests.
+    const normalizeScope = (scope?: string) =>
+      (scope ?? "").trim().split(/\s+/).filter(Boolean).sort().join(" ");
+    const newScope = normalizeScope(
+      newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
+    );
+    // Remove ALL existing entries for this audience + scope (not just the first)
+    // so sessions that accumulated duplicates before this fix deployed are
+    // compacted on the next step-up. Best-effort for legacy entries: those have
+    // no `requestedScope` and fall back to the granted `scope`, so if the server
+    // reduced scope, a legacy entry's fallback key may not match a new request's
+    // requestedScope key and it will be retained alongside the new entry.
+    session.accessTokens = session.accessTokens.filter(
+      (t) =>
+        !(
+          t.audience === newAccessTokenSet.audience &&
+          normalizeScope(t.requestedScope ?? t.scope) === newScope
+        )
+    );
+    session.accessTokens.push(newAccessTokenSet);
+
+    // Persist updated session
+    await this.sessionStore.set(reqCookies, resCookies, session);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey core methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Request a WebAuthn credential creation challenge for new user signup.
+   * Calls Auth0 POST /passkey/register.
+   */
+  async passkeyRegister(
+    options?: PasskeyRegisterOptions
+  ): Promise<PasskeyRegisterResponse> {
+    const url = new URL("/passkey/register", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    // Build user_profile from provided identity fields
+    const userProfile: Record<string, unknown> = {};
+    if (options?.name) userProfile.name = options.name;
+    if (options?.email) userProfile.email = options.email;
+    if (options?.username) userProfile.username = options.username;
+    if (options?.phoneNumber) userProfile.phone_number = options.phoneNumber;
+    if (options?.givenName) userProfile.given_name = options.givenName;
+    if (options?.familyName) userProfile.family_name = options.familyName;
+    if (options?.nickname) userProfile.nickname = options.nickname;
+    if (options?.picture) userProfile.picture = options.picture;
+    body.user_profile = userProfile;
+
+    if (options?.userMetadata) body.user_metadata = options.userMetadata;
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to get passkey signup challenge"
+        }));
+        throw new PasskeyRegisterError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey signup challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return {
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyRegisterError) throw e;
+      throw new PasskeyRegisterError(
+        "unexpected_error",
+        "Unexpected error during passkey signup challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Request a WebAuthn credential assertion challenge for login.
+   * Calls Auth0 POST /passkey/challenge.
+   */
+  async passkeyChallenge(
+    options?: PasskeyChallengeOptions
+  ): Promise<PasskeyChallengeResponse> {
+    const url = new URL("/passkey/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to get passkey login challenge"
+        }));
+        throw new PasskeyChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey login challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return {
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyChallengeError) throw e;
+      throw new PasskeyChallengeError(
+        "unexpected_error",
+        "Unexpected error during passkey login challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Complete a passkey signup or login by exchanging the WebAuthn assertion for a session.
+   * Calls Auth0 POST /oauth/token with the WebAuthn grant type.
+   */
+  async passkeyGetToken(
+    options: PasskeyGetTokenOptions,
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasskeyGetTokenError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+
+    // Auth0's passkey token endpoint requires a JSON body because authn_response
+    // is a nested object — URLSearchParams would stringify it, causing a 400.
+    // This means we cannot use oauth.genericTokenEndpointRequest (which only
+    // sends URLSearchParams), so DPoP must be attached manually via the handle's
+    // internal addProof method.
+    const passkeyTokenMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+    const tokenUrl =
+      passkeyTokenMetadata.token_endpoint ??
+      new URL("/oauth/token", this.issuer).toString();
+
+    const jsonBody: Record<string, unknown> = {
+      grant_type: GRANT_TYPE_PASSKEY,
+      client_id: this.clientMetadata.client_id,
+      auth_session: options.authSession,
+      authn_response: options.authResponse,
+      scope
+    };
+
+    if (this.clientSecret) jsonBody.client_secret = this.clientSecret;
+    if (this.authorizationParameters.audience)
+      jsonBody.audience = this.authorizationParameters.audience;
+    if (options.connection) jsonBody.realm = options.connection;
+    if (options.organization) jsonBody.organization = options.organization;
+
+    // Create DPoP handle once outside the retry closure so the handle can
+    // learn and reuse the server-issued nonce across attempts (RFC 9449).
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpOptions = this.httpOptions();
+          httpOptions.headers.set("Content-Type", "application/json");
+
+          const url = new URL(tokenUrl);
+
+          // oauth4webapi does not expose addProof/cacheNonce publicly, but they
+          // are the only way to attach a DPoP proof to a manually-built JSON
+          // request (genericTokenEndpointRequest only sends URLSearchParams).
+          if (dpopHandle) {
+            await (dpopHandle as any).addProof(
+              url,
+              httpOptions.headers,
+              "POST"
+            );
+          }
+
+          const httpResponse = await this.fetch(tokenUrl, {
+            method: "POST",
+            body: JSON.stringify(jsonBody),
+            ...httpOptions
+          });
+
+          // Let the handle learn the server-issued nonce from the response so
+          // it can be included in the next attempt's proof (RFC 9449 §8).
+          // Must happen before processGenericTokenEndpointResponse consumes
+          // the body, and before the retry check so the nonce is available on
+          // the next attempt even when the response is an error.
+          if (dpopHandle) {
+            (dpopHandle as any).cacheNonce(httpResponse, url);
+          }
+
+          // Let oauth4webapi process the response — this throws a
+          // ResponseBodyError for error responses (including use_dpop_nonce),
+          // which withDPoPNonceRetry can detect and retry on.
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasskeyGetTokenError(
+            "invalid_issuer",
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+          );
+        }
+        if (claim === "aud") {
+          throw new PasskeyGetTokenError(
+            "invalid_audience",
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
+      throw new PasskeyGetTokenError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passkey verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    if (!tokenEndpointResponse.id_token) {
+      throw new PasskeyGetTokenError(
+        "missing_id_token",
+        "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenEndpointResponse.access_token,
+        idToken: tokenEndpointResponse.id_token,
+        scope: tokenEndpointResponse.scope,
+        refreshToken: tokenEndpointResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) +
+          Number(tokenEndpointResponse.expires_in),
+        token_type: normalizeTokenType(tokenEndpointResponse.token_type)
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
+      }
+    };
+
+    session = await this.finalizeSession(
+      session,
+      tokenEndpointResponse.id_token
+    );
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey route handlers
+  // ---------------------------------------------------------------------------
+
+  async handlePasskeyRegister(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyRegisterOptions = {};
+      if (bodyRecord.email) options.email = bodyRecord.email;
+      if (bodyRecord.username) options.username = bodyRecord.username;
+      if (bodyRecord.phoneNumber) options.phoneNumber = bodyRecord.phoneNumber;
+      if (bodyRecord.name) options.name = bodyRecord.name;
+      if (bodyRecord.givenName) options.givenName = bodyRecord.givenName;
+      if (bodyRecord.familyName) options.familyName = bodyRecord.familyName;
+      if (bodyRecord.nickname) options.nickname = bodyRecord.nickname;
+      if (bodyRecord.picture) options.picture = bodyRecord.picture;
+      if (bodyRecord.userMetadata)
+        options.userMetadata = bodyRecord.userMetadata;
+      if (bodyRecord.connection) options.connection = bodyRecord.connection;
+      if (bodyRecord.organization)
+        options.organization = bodyRecord.organization;
+      const challenge = await this.passkeyRegister(options);
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyRegisterError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyChallenge(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyChallengeOptions = {};
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
+      const challenge = await this.passkeyChallenge(options);
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyChallengeError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyGetToken(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      if (
+        !bodyRecord.authResponse ||
+        typeof bodyRecord.authResponse !== "object"
+      ) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "authResponse is required"
+          },
+          { status: 400 }
+        );
+      }
+
+      const options: PasskeyGetTokenOptions = {
+        authSession,
+        authResponse: bodyRecord.authResponse
+      };
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
+
+      const res = NextResponse.json({ success: true });
+      await this.passkeyGetToken(options, req.cookies, res.cookies);
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, null, e);
+      }
+      if (e instanceof PasskeyGetTokenError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey enrollment route handlers
+  // ---------------------------------------------------------------------------
+
+  async handlePasskeyEnrollmentChallenge(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyEnrollmentChallengeOptions = {};
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.userIdentityId === "string")
+        options.userIdentityId = bodyRecord.userIdentityId;
+      const challenge = await this.passkeyEnrollmentChallenge(
+        req.cookies,
+        options
+      );
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentChallengeError) {
+        if (e.error === "not_authenticated" || e.error === "token_error") {
+          return NextResponse.json(e.toJSON(), { status: 401 });
+        }
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyEnrollmentVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const authenticationMethodId = validateStringFieldAndThrow(
+        bodyRecord.authenticationMethodId,
+        "authenticationMethodId"
+      );
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      if (
+        !bodyRecord.authResponse ||
+        typeof bodyRecord.authResponse !== "object"
+      ) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "authResponse is required"
+          },
+          { status: 400 }
+        );
+      }
+      const options: PasskeyEnrollmentVerifyOptions = {
+        authenticationMethodId,
+        authSession,
+        authResponse: bodyRecord.authResponse
+      };
+      const result = await this.passkeyEnrollmentVerify(options, req.cookies);
+      return NextResponse.json(result);
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentVerifyError) {
+        if (e.error === "not_authenticated" || e.error === "token_error") {
+          return NextResponse.json(e.toJSON(), { status: 401 });
+        }
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey enrollment core methods (MyAccount)
+  // ---------------------------------------------------------------------------
+
+  async passkeyEnrollmentChallenge(
+    reqCookies: RequestCookies,
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
+      throw new PasskeyEnrollmentChallengeError(
+        "not_authenticated",
+        sessionError?.message ?? "The user does not have an active session."
+      );
+    }
+    const [tokenSetError, tokenSetResponse] = await this.getTokenSet(session, {
+      audience: `${this.issuer}me/`,
+      scope: "create:me:authentication_methods"
+    });
+    if (tokenSetError) {
+      throw new PasskeyEnrollmentChallengeError(
+        "token_error",
+        "Failed to retrieve MyAccount access token."
+      );
+    }
+    const { tokenSet } = tokenSetResponse;
+    const url = new URL(
+      "/me/v1/authentication-methods",
+      this.issuer
+    ).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+    httpOptions.headers.set("Authorization", `Bearer ${tokenSet.accessToken}`);
+    const body: Record<string, unknown> = { type: "passkey" };
+    if (options?.connection) body.connection = options.connection;
+    if (options?.userIdentityId) body.identity = options.userIdentityId;
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error_description: "Failed to get passkey enrollment challenge"
+        }));
+        throw new PasskeyEnrollmentChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey enrollment challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+      const locationHeader = response.headers.get("Location") ?? "";
+      const authenticationMethodId = locationHeader.split("/").pop() ?? "";
+      if (!authenticationMethodId) {
+        throw new PasskeyEnrollmentChallengeError(
+          "unexpected_error",
+          "No authentication method ID in Location header."
+        );
+      }
+      const result = await response.json();
+      return {
+        authenticationMethodId,
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentChallengeError) throw e;
+      throw new PasskeyEnrollmentChallengeError(
+        "unexpected_error",
+        "Unexpected error during passkey enrollment challenge."
+      );
+    }
+  }
+
+  async passkeyEnrollmentVerify(
+    options: PasskeyEnrollmentVerifyOptions,
+    reqCookies: RequestCookies
+  ): Promise<PasskeyEnrollmentVerifyResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
+      throw new PasskeyEnrollmentVerifyError(
+        "not_authenticated",
+        sessionError?.message ?? "The user does not have an active session."
+      );
+    }
+    const [tokenSetError, tokenSetResponse] = await this.getTokenSet(session, {
+      audience: `${this.issuer}me/`,
+      scope: "create:me:authentication_methods"
+    });
+    if (tokenSetError) {
+      throw new PasskeyEnrollmentVerifyError(
+        "token_error",
+        "Failed to retrieve MyAccount access token."
+      );
+    }
+    const { tokenSet } = tokenSetResponse;
+    const url = new URL(
+      `/me/v1/authentication-methods/${options.authenticationMethodId}/verify`,
+      this.issuer
+    ).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+    httpOptions.headers.set("Authorization", `Bearer ${tokenSet.accessToken}`);
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify({
+          auth_session: options.authSession,
+          authn_response: options.authResponse
+        }),
+        ...httpOptions
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error_description: "Failed to verify passkey enrollment"
+        }));
+        throw new PasskeyEnrollmentVerifyError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to verify passkey enrollment",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+      return (await response.json()) as PasskeyEnrollmentVerifyResponse;
+    } catch (e) {
+      if (e instanceof PasskeyEnrollmentVerifyError) throw e;
+      throw new PasskeyEnrollmentVerifyError(
+        "unexpected_error",
+        "Unexpected error during passkey enrollment verification."
+      );
+    }
+  }
+
+  /**
+   * Creates a new session from a passwordless verify token response.
+   * Decodes the id_token to extract user claims, builds SessionData,
+   * runs the beforeSessionSaved hook, and persists the session.
+   *
+   * @param tokenResponse - Token response from passwordlessVerify
+   * @param reqCookies - Request cookies for session association
+   * @param resCookies - Response cookies for session persistence
+   * @throws {PasswordlessVerifyError} If id_token is absent from the response
+   */
+  async createSessionFromPasswordlessVerify(
+    tokenResponse: PasswordlessVerifyTokenResponse,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    if (!tokenResponse.id_token) {
+      throw new PasswordlessVerifyError(
+        "missing_id_token",
+        "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    const claims = jose.decodeJwt(tokenResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenResponse.access_token,
+        idToken: tokenResponse.id_token,
+        scope: tokenResponse.scope,
+        refreshToken: tokenResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
+        token_type: tokenResponse.token_type
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
+      }
+    };
+
+    session = await this.finalizeSession(session, tokenResponse.id_token);
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
+  }
+
+  /**
+   * Initiates a passwordless authentication flow by POSTing to `/passwordless/start`.
+   * Auth0 sends an OTP code or magic link to the user's email or phone number.
+   *
+   * When `options.send === 'link'` (magic link), `resCookies` must be provided so
+   * the transaction state can be persisted for the callback to resolve. `req` is
+   * optional and used for MCD domain resolution and appBaseUrl inference.
+   *
+   * @param options - Connection type, user identifier, and (for email) delivery method.
+   * @param resCookies - Response cookies to write the transaction cookie into (magic link only).
+   * @param req - Optional NextRequest for MCD domain resolution and appBaseUrl inference.
+   * @throws {PasswordlessStartError} On Auth0 API failure.
+   */
+  async passwordlessStart(
+    options: PasswordlessStartOptions,
+    resCookies?: ResponseCookies,
+    req?: NextRequest
+  ): Promise<void> {
+    // Magic link flow: build authParams (state, redirect_uri, etc.) and save
+    // a transaction cookie so /auth/callback can complete the code exchange.
+    let magicLinkTransactionState: TransactionState | undefined;
+    if (
+      options.connection === "email" &&
+      "send" in options &&
+      options.send === "link"
+    ) {
+      const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+      const redirectUri = createRouteUrl(
+        this.routes.callback,
+        appBaseUrl
+      ).toString();
+      const state = oauth.generateRandomState();
+      const nonce = oauth.generateRandomNonce();
+
+      // Preserve tenant-level authorizationParameters (org, acr_values, etc.)
+      // but exclude PKCE and fields we set explicitly.
+      const MAGIC_LINK_EXCLUDED_PARAMS = [
+        "client_id",
+        "redirect_uri",
+        "response_type",
+        "state",
+        "nonce",
+        "code_challenge",
+        "code_challenge_method"
+      ];
+      const baseParams = mergeAuthorizationParamsIntoSearchParams(
+        this.authorizationParameters,
+        undefined,
+        MAGIC_LINK_EXCLUDED_PARAMS
+      );
+
+      const audience = this.authorizationParameters.audience as
+        string | undefined;
+      const scope =
+        getScopeForAudience(this.authorizationParameters.scope, audience) ||
+        "openid email profile";
+
+      options = {
+        ...options,
+        authParams: {
+          ...Object.fromEntries(baseParams),
+          redirect_uri: redirectUri,
+          response_type: RESPONSE_TYPES.CODE,
+          scope,
+          state,
+          nonce,
+          ...(audience && { audience })
+        }
+      };
+
+      magicLinkTransactionState = {
+        responseType: RESPONSE_TYPES.CODE,
+        state,
+        nonce,
+        returnTo: this.signInReturnToPath,
+        scope,
+        audience: this.authorizationParameters.audience as string | undefined,
+        originDomain: this.provider?.isResolverMode ? this.domain : undefined,
+        originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
+      };
+    }
+
+    const url = new URL("/passwordless/start", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    // Forward locale preference for Auth0 email template localization.
+    // Auth0's /passwordless/start respects x-request-language to select the
+    // correct email template language when multiple are configured.
+    if (options.language) {
+      httpOptions.headers.set("x-request-language", options.language);
+    }
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options.connection === "email") {
+      body.email = options.email;
+      body.send = options.send;
+    } else {
+      body.phone_number = options.phoneNumber;
+    }
+
+    if (options.authParams) {
+      body.authParams = options.authParams;
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to start passwordless flow"
+        }));
+        throw new PasswordlessStartError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to start passwordless flow",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) throw e;
+      throw new PasswordlessStartError(
+        "unexpected_error",
+        "Unexpected error during passwordless start",
+        undefined
+      );
+    }
+
+    if (magicLinkTransactionState) {
+      if (!resCookies) {
+        throw new InvalidConfigurationError(
+          "Magic link requires a response cookies object to persist the transaction state. " +
+            "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
+        );
+      }
+      await this.transactionStore.save(
+        resCookies,
+        magicLinkTransactionState,
+        req?.cookies
+      );
+    }
+  }
+
+  /**
+   * Verifies a passwordless OTP and exchanges it for tokens via the OAuth token endpoint.
+   * Returns raw tokens — the caller (route handler) is responsible for creating the session.
+   *
+   * Uses `grant_type=http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - Connection type, user identifier, and verification code.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessVerifyError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessVerify(
+    options: PasswordlessVerifyOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessVerifyError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const params = new URLSearchParams();
+    params.append("realm", options.connection);
+    params.append("otp", options.verificationCode);
+
+    if (options.connection === "email") {
+      params.append("username", options.email);
+    } else {
+      params.append("username", options.phoneNumber);
+    }
+
+    // Resolve scope and audience from global authorizationParameters
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+    params.append("scope", scope);
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const passwordlessMetadata = this.withMtlsEndpoint(
+      authorizationServerMetadata
+    );
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            passwordlessMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            passwordlessMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      // oauth4webapi validates the id_token (iss, aud, signature) inside
+      // processGenericTokenEndpointResponse and throws with code
+      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
+      // Surface those as specific PasswordlessVerifyErrors so callers can
+      // distinguish misconfiguration from a bad grant.
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessVerifyError(
+            "invalid_issuer",
+            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessVerifyError(
+            "invalid_audience",
+            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
+      throw new PasswordlessVerifyError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
+  }
+
+  /**
+   * Requests an OTP challenge for a database connection via `POST /otp/challenge`.
+   *
+   * The challenge always returns 200 regardless of whether the user exists
+   * (user-enumeration prevention). If the user is blocked or signup is disabled
+   * for a non-existent user, the returned auth_session will be non-functional
+   * and passwordlessDbGetToken will fail with invalid_request.
+   *
+   * @param options - Email or phone challenge options including connection name.
+   * @returns Opaque PasswordlessDbChallenge containing auth_session.
+   * @throws {PasswordlessDbChallengeError} On Auth0 API failure.
+   */
+  async passwordlessDbOtpChallenge(
+    options:
+      PasswordlessDbChallengeEmailOptions | PasswordlessDbChallengePhoneOptions
+  ): Promise<PasswordlessDbChallenge> {
+    const url = new URL("/otp/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection,
+      allow_signup: options.allowSignup ?? false
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if ("email" in options) {
+      body.email = options.email;
+    } else {
+      body.phone_number = options.phoneNumber;
+      if (options.deliveryMethod) {
+        body.delivery_method = options.deliveryMethod;
+      }
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to request OTP challenge"
+        }));
+        throw new PasswordlessDbChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to request OTP challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const data = await response.json();
+      return { authSession: data.auth_session };
+    } catch (e) {
+      if (e instanceof PasswordlessDbChallengeError) throw e;
+      throw new PasswordlessDbChallengeError(
+        "unexpected_error",
+        "Unexpected error during OTP challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Exchanges an auth_session and OTP for tokens via `POST /oauth/token`.
+   * Uses grant type `http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - The opaque auth_session and user-entered OTP.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessDbGetTokenError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessDbGetToken(
+    options: PasswordlessDbGetTokenOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessDbGetTokenError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+
+    const params = new URLSearchParams();
+    params.append("auth_session", options.authSession);
+    params.append("otp", options.otp);
+    params.append("scope", scope);
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const tokenMetadata = this.withMtlsEndpoint(authorizationServerMetadata);
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            tokenMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            tokenMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessDbGetTokenError(
+            "invalid_issuer",
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessDbGetTokenError(
+            "invalid_audience",
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      await this.#throwIfMfaRequired(
+        err,
+        oauthErr,
+        this.authorizationParameters.audience as string | undefined,
+        scope
+      );
+      throw new PasswordlessDbGetTokenError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless DB token exchange failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
+  }
+
+  /**
+   * Handles proxying requests to a target URL with authentication.
+   *
+   * This method retrieves the user's session, constructs the target URL,
+   * and forwards the request with appropriate authentication headers.
+   * It also manages token retrieval and session updates as needed.
+   * @param req The incoming Next.js request to be proxied.
+   * @param options Configuration options for the proxying behavior.
+   * @returns A Next.js response containing the proxied request's response.
+   */
+  async #handleProxy(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
+    if (sessionError || !session) {
+      return new NextResponse(
+        sessionError?.message ?? "The user does not have an active session.",
+        {
+          status: 401
+        }
+      );
+    }
+
+    // handle preflight requests
+    if (
+      req.method === "OPTIONS" &&
+      req.headers.has("access-control-request-method")
+    ) {
+      return this.#handlePreflight(req, options);
+    }
+
+    const headers = buildForwardedRequestHeaders(req);
+
+    // Clone the request to preserve body for DPoP nonce retry
+    // WHATWG Streams Spec: ReadableStream is single-consume (can only be read once).
+    // When oauth4webapi's protectedResourceRequest encounters a DPoP nonce error,
+    // it triggers a retry. Without cloning, the body stream will be exhausted on the first attempt,
+    // causing the retry to fail with "stream already disturbed" or empty body.
+    // To support retry, we buffer the body so it can be reused on retry.
+    // This retry will not happen with bearer auth so no need to clone if DPoP is false.
+    const clonedReq = this.useDPoP ? req.clone() : req;
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    // Buffer the body to allow retry on DPoP nonce errors
+    // ReadableStreams can only be consumed once, so we need to buffer for retry
+    const bodyBuffer = clonedReq.body
+      ? await clonedReq.arrayBuffer()
+      : undefined;
+
+    // Keep an isolated, request-local session snapshot so retries within this
+    // proxy request can observe token refreshes immediately without writing the
+    // session cookie until the proxy response succeeds.
+    const requestSession = structuredClone(session);
+    const tokenSetResponsesByRequest = new Map<string, GetTokenSetResponse>();
+    const applyTokenSetResponseToRequestSession = (
+      tokenSetResponse: GetTokenSetResponse
+    ) => {
+      const sessionChanges = getSessionChangesAfterGetAccessToken(
+        requestSession,
+        tokenSetResponse.tokenSet,
+        {
+          scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+          audience: this.authorizationParameters?.audience
+        }
+      );
+
+      if (sessionChanges) {
+        Object.assign(requestSession, sessionChanges);
+      }
+
+      if (tokenSetResponse.idTokenClaims) {
+        requestSession.user = tokenSetResponse.idTokenClaims as User;
+      }
+    };
+
+    let tokenSetSideEffect!: GetTokenSetResponse;
+
+    const getAccessToken: AccessTokenFactory = async (authParams) => {
+      const cacheKey = JSON.stringify([
+        authParams.refresh ?? false,
+        authParams.audience ?? null,
+        authParams.scope ?? null
+      ]);
+      const cachedTokenSetResponse = tokenSetResponsesByRequest.get(cacheKey);
+
+      if (cachedTokenSetResponse) {
+        tokenSetSideEffect = cachedTokenSetResponse;
+        return cachedTokenSetResponse.tokenSet;
+      }
+
+      const [error, tokenSetResponse] = await this.getTokenSet(requestSession, {
+        audience: authParams.audience,
+        scope: authParams.scope
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      applyTokenSetResponseToRequestSession(tokenSetResponse);
+      tokenSetResponsesByRequest.set(cacheKey, tokenSetResponse);
+
+      // Tracking the last used token set response for session updates later as a side effect.
+      // This relies on the fact that `getAccessToken` is called before the actual fetch.
+      // Not ideal, but works because of that order of execution.
+      // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+      // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+      // so we can not update the session directly from the fetcher.
+      tokenSetSideEffect = tokenSetResponse;
+
+      return tokenSetResponse.tokenSet;
+    };
+
+    // Cache only the DPoP handle so nonce state is shared across proxied
+    // requests for the same audience on this AuthClient instance. Always create
+    // a fresh request-bound fetcher so token resolution remains scoped to the
+    // current session instead of being shared or mutated.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? (this.proxyDpopHandles[options.audience] ??= oauth.DPoP(
+            this.clientMetadata,
+            this.dpopKeyPair
+          ))
+        : undefined;
+
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      fetch: this.fetch,
+      getAccessToken,
+      dpopHandle
+    });
+
+    try {
+      const response = await fetcher.fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: clonedReq.method,
+          headers,
+          body: bodyBuffer
+        },
+        { scope: options.scope, audience: options.audience }
+      );
+
+      const res = new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: buildForwardedResponseHeaders(response)
+      });
+
+      // Using the last used token set response to determine if we need to update the session
+      // This is not ideal, as this kind of relies on the order of execution.
+      // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+      // we know it should always be defined when we reach this point.
+      if (tokenSetSideEffect) {
+        await this.#updateSessionAfterTokenRetrieval(
+          req,
+          res,
+          session,
+          tokenSetSideEffect
+        );
+      }
+
+      return res;
+    } catch (e: any) {
+      // Handle MFA required error - return 403 with MFA context.
+      // The request-local session snapshot was passed to getTokenSet().
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, requestSession, e);
+      }
+
+      // Return 401 for missing refresh token (cannot refresh expired token)
+      if (
+        e instanceof AccessTokenError &&
+        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      ) {
+        return new NextResponse(e.message, { status: 401 });
+      }
+
+      // Generic error handling for other errors
+      return new NextResponse(
+        e.cause || e.message || "An error occurred while proxying the request.",
+        {
+          status: 500
+        }
+      );
+    }
+  }
+
+  /**
+   * Updates the session after token retrieval if there are changes.
+   *
+   * This method:
+   * 1. Checks if the session needs to be updated based on token changes
+   * 2. Updates the user claims if new ID token claims are provided
+   * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
+   * 4. Persists the updated session to the session store
+   * 5. Adds cache control headers to the response
+   *
+   * @note This method mutates the `res` parameter by:
+   * - Setting session cookies via `res.cookies`
+   * - Adding cache control headers to the response
+   */
+  async #updateSessionAfterTokenRetrieval(
+    req: NextRequest,
+    res: NextResponse,
+    session: SessionData,
+    tokenSetResponse: GetTokenSetResponse
+  ): Promise<void> {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSetResponse.tokenSet,
+      {
+        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (tokenSetResponse.idTokenClaims) {
+        session.user = tokenSetResponse.idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        {
+          ...session,
+          ...sessionChanges
+        },
+        tokenSetResponse.tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
+      addCacheControlHeadersForSession(res);
+    }
+  }
+
+  /**
+   * Create HTTP response for MFA required error.
+   * Saves session with MFA context and returns 403 response with error details.
+   *
+   * @param req - The incoming request (for reading cookies)
+   * @param session - Session data (already mutated with MFA context by getTokenSet)
+   * @param error - The MfaRequiredError from getTokenSet
+   * @returns NextResponse with 403 status and MFA error JSON body
+   */
+  async #createMfaRequiredResponse(
+    req: NextRequest,
+    session: SessionData | null,
+    error: MfaRequiredError
+  ): Promise<NextResponse> {
+    // Use toJSON() for consistent REST API response format
+    const res = NextResponse.json(error.toJSON(), { status: 403 });
+    // Save session with MFA context if one exists (not applicable for passkey/passwordless
+    // first-factor flows where no session exists yet at this point)
+    if (session) {
+      await this.sessionStore.set(req.cookies, res.cookies, session);
+    }
+    addCacheControlHeadersForSession(res);
+    return res;
+  }
+
+  /**
+   * Refreshes the token set using the provided refresh token.
+   * @param tokenSet The current token set containing the refresh token.
+   * @param options Options for the refresh operation, including scope and audience.
+   * @returns A tuple containing either:
+   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]` if the token was successfully refreshed, containing the updated token set and ID token claims.
+   *   - `[SdkError, null]` if an error occurred during the refresh process.
+   */
+  async #refreshTokenSet(
+    tokenSet: Partial<TokenSet>,
+    options: {
+      scope?: string;
+      audience?: string | null;
+      requestedScope: string;
+    }
+  ): Promise<
+    | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
+    | [SdkError, null]
+  > {
+    await this.ensureDpopValidated();
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const additionalParameters = new URLSearchParams();
+
+    if (options.scope) {
+      additionalParameters.append("scope", options.scope);
+    }
+
+    if (options.audience) {
+      additionalParameters.append("audience", options.audience);
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const refreshTokenGrantRequestCall = async () =>
+      oauth.refreshTokenGrantRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        tokenSet.refreshToken!,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          additionalParameters,
+          ...(dpopHandle && {
+            DPoP: dpopHandle
+          })
+        }
+      );
+
+    const processRefreshTokenResponseCall = (response: Response) =>
+      oauth.processRefreshTokenResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        response
+      );
+
+    let oauthRes: oauth.TokenEndpointResponse;
+    try {
+      oauthRes = await withDPoPNonceRetry(
+        async () => {
+          const refreshTokenRes = await refreshTokenGrantRequestCall();
+          return await processRefreshTokenResponseCall(refreshTokenRes);
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
+
+      // Check if this is an MFA required error
+      if (isMfaRequiredError(e)) {
+        const { mfa_token, error_description, mfa_requirements } =
+          extractMfaErrorDetails(e);
+
+        if (mfa_token) {
+          // Encrypt token with full context before exposing to application
+          const encryptedToken = await encryptMfaToken(
+            mfa_token,
+            options.audience || "",
+            options.requestedScope,
+            mfa_requirements,
+            this.sessionStore.secret,
+            this.mfaTokenTtl
+          );
+
+          // Return MFA required error with self-contained encrypted token
+          return [
+            new MfaRequiredError(
+              error_description ?? "Multi-factor authentication is required.",
+              encryptedToken,
+              mfa_requirements,
+              new OAuth2Error({
+                code: oauthErr.error ?? "unknown_error",
+                message: oauthErr.error_description
+              })
+            ),
+            null
+          ];
+        } else {
+          // MFA required but no mfa_token provided
+          // This typically happens when:
+          // 1. The refresh token was issued before MFA was enrolled
+          // 2. The API doesn't support step-up (no authorization policies)
+          // User needs to re-authenticate to get a new session with MFA
+          console.error(
+            "MFA required but no mfa_token - user needs to re-authenticate"
+          );
+          return [
+            new MfaRequiredError(
+              error_description ??
+                "Multi-factor authentication is required. Please log in again.",
+              "", // Empty token - signals re-auth needed
+              mfa_requirements,
+              new OAuth2Error({
+                code: oauthErr.error ?? "unknown_error",
+                message: oauthErr.error_description
+              })
+            ),
+            null
+          ];
+        }
+      }
+
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+          "The access token has expired and there was an error while trying to refresh it.",
+          new OAuth2Error({
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
+          })
+        ),
+        null
+      ];
+    }
+
+    if (this.useMtls) {
+      warnIfNotCertificateBound(oauthRes.access_token);
+    }
+
+    const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
+    const accessTokenExpiresAt =
+      Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+    const updatedTokenSet = {
+      ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+      accessToken: oauthRes.access_token,
+      idToken: oauthRes.id_token,
+      // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
+      // The server may return less scopes than requested.
+      // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
+      //
+      // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
+      // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+      // - If we only store the requested scopes, we lose track of the actual scopes granted.
+      //
+      // Scopes actually granted by the server
+      scope: oauthRes.scope,
+      // Scopes requested by the client
+      requestedScope: options.requestedScope,
+      expiresAt: accessTokenExpiresAt,
+      // Keep the audience if it exists, otherwise use the one from the options.
+      // If not provided, use `undefined`.
+      audience: tokenSet.audience || options.audience || undefined,
+      // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+      ...(oauthRes.token_type && { token_type: oauthRes.token_type })
+    };
+
+    if (oauthRes.refresh_token) {
+      // refresh token rotation is enabled, persist the new refresh token from the response
+      updatedTokenSet.refreshToken = oauthRes.refresh_token;
+    } else {
+      // we did not get a refresh token back, keep the current long-lived refresh token around
+      updatedTokenSet.refreshToken = tokenSet.refreshToken;
+    }
+
+    return [
+      null,
+      {
+        updatedTokenSet,
+        idTokenClaims
+      }
+    ];
+  }
+}

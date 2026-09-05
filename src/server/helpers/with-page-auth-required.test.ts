@@ -5,9 +5,9 @@ import { redirect } from "next/navigation.js";
 import ReactDOMServer from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils.js";
+import { generateSecret } from "../../test-fixtures/utils.js";
 import { Auth0Client } from "../client.js";
-import { RequestCookies } from "../cookies.js";
+import { RequestCookies } from "../cookies/index.js";
 import {
   appRouteHandlerFactory,
   pageRouteHandlerFactory

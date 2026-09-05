@@ -1,15 +1,15 @@
 import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import { describe, expect, it, vi } from "vitest";
 
-import { AuthClient } from "./server/auth-client.js";
-import { decrypt, encrypt } from "./server/cookies.js";
+import { AuthClient } from "./server/auth-client/index.js";
+import { decrypt, encrypt } from "./server/cookies/index.js";
 import { LEGACY_COOKIE_NAME } from "./server/session/normalize-session.js";
 import { StatefulSessionStore } from "./server/session/stateful-session-store.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
 import { TransactionStore } from "./server/transaction-store.js";
 import { DEFAULT_ID_TOKEN_CLAIMS } from "./server/user.js";
-import { getDefaultRoutes } from "./test/defaults.js";
-import { generateSecret } from "./test/utils.js";
+import { getDefaultRoutes } from "./test-fixtures/defaults.js";
+import { generateSecret } from "./test-fixtures/utils.js";
 import { RESPONSE_TYPES } from "./types/index.js";
 import {
   DEFAULT_DPOP_CLOCK_SKEW,

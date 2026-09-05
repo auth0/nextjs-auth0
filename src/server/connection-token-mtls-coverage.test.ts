@@ -13,9 +13,9 @@ import {
   MtlsError,
   MtlsErrorCode
 } from "../errors/index.js";
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
-import { AuthClient } from "./auth-client.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
+import { AuthClient } from "./auth-client/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
 

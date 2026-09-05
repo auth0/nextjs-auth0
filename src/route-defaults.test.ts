@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AuthClient } from "./server/auth-client.js";
+import { AuthClient } from "./server/auth-client/index.js";
 import { Auth0Client } from "./server/client.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
 import { TransactionStore } from "./server/transaction-store.js";
-import { getDefaultRoutes } from "./test/defaults.js";
-import { generateSecret } from "./test/utils.js";
+import { getDefaultRoutes } from "./test-fixtures/defaults.js";
+import { generateSecret } from "./test-fixtures/utils.js";
 
 vi.mock("next/headers.js", async () => {
-  const { createNextHeadersMock } = await import("./test/mocks.js");
+  const { createNextHeadersMock } = await import("./test-fixtures/mocks.js");
   return createNextHeadersMock();
 });
 

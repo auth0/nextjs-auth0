@@ -25,12 +25,12 @@ import {
   PasskeyEnrollmentVerifyError,
   PasskeyRegisterError
 } from "../errors/index.js";
-import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { getDefaultRoutes } from "../test-fixtures/defaults.js";
+import { generateSecret } from "../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../types/index.js";
-import { encryptMfaToken } from "../utils/mfa-utils.js";
-import { AuthClient } from "./auth-client.js";
-import { encrypt } from "./cookies.js";
+import { AuthClient } from "./auth-client/index.js";
+import { encrypt } from "./cookies/index.js";
+import { encryptMfaToken } from "./mfa/mfa-utils.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 

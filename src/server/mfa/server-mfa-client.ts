@@ -17,7 +17,7 @@ import {
   normalizeEnrollOptions
 } from "../../utils/mfa-transform-utils.js";
 import type { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client.js";
+import type { AuthClient } from "../auth-client/index.js";
 
 /**
  * Server-side MFA API.

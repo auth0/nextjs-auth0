@@ -11,7 +11,7 @@ import {
 import {
   validateDpopConfiguration,
   validateKeyPairCompatibility
-} from "./dpopUtils.js";
+} from "../server/dpop/utils.js";
 
 // A real P-256 key pair in PEM format for tests that load from env vars
 const VALID_EC_PRIVATE_PEM = `-----BEGIN PRIVATE KEY-----

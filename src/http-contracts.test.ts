@@ -2,14 +2,14 @@ import { NextRequest } from "next/server.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { MfaRequiredError } from "./errors/index.js";
-import { AuthClient } from "./server/auth-client.js";
-import { decrypt, encrypt } from "./server/cookies.js";
+import { AuthClient } from "./server/auth-client/index.js";
+import { decrypt, encrypt } from "./server/cookies/index.js";
+import { encryptMfaToken } from "./server/mfa/mfa-utils.js";
 import { StatefulSessionStore } from "./server/session/stateful-session-store.js";
 import { StatelessSessionStore } from "./server/session/stateless-session-store.js";
 import { TransactionStore } from "./server/transaction-store.js";
-import { getDefaultRoutes } from "./test/defaults.js";
-import { generateSecret } from "./test/utils.js";
-import { encryptMfaToken } from "./utils/mfa-utils.js";
+import { getDefaultRoutes } from "./test-fixtures/defaults.js";
+import { generateSecret } from "./test-fixtures/utils.js";
 
 const DOMAIN = "test.auth0.com";
 const CLIENT_ID = "client_id";

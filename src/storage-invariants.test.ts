@@ -15,7 +15,7 @@ import {
   encrypt,
   getChunkedCookie,
   setChunkedCookie
-} from "./server/cookies.js";
+} from "./server/cookies/index.js";
 
 // ---------------------------------------------------------------------------
 // Shared constants that reflect the CURRENT wire format.

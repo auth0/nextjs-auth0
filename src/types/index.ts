@@ -132,7 +132,7 @@ export type {
   RoutesOptions,
   OnCallbackContext,
   Routes
-} from "../server/auth-client.js";
+} from "../server/auth-client/index.js";
 
 export type { TransactionCookieOptions } from "../server/transaction-store.js";
 
@@ -146,7 +146,7 @@ export type {
 export type {
   CookieOptions,
   ReadonlyRequestCookies
-} from "../server/cookies.js";
+} from "../server/cookies/index.js";
 
 export type {
   TransactionStoreOptions,

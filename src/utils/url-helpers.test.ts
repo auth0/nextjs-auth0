@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import payloads from "../test/fixtures/open-redirect-payloads.json" with { type: "json" };
+import payloads from "../test-fixtures/fixtures/open-redirect-payloads.json" with { type: "json" };
 import { isUrl, toSafeRedirect } from "./url-helpers.js";
 
 describe("url-helpers", () => {

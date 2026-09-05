@@ -9,14 +9,14 @@ import {
   createAuthorizationServerMetadata,
   getDefaultRoutes,
   setupMswLifecycle
-} from "../../test/defaults.js";
+} from "../../test-fixtures/defaults.js";
 import type { SessionData } from "../../types/index.js";
-import { encryptMfaToken } from "../../utils/mfa-utils.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client.js";
-import { encrypt } from "../cookies.js";
+import { AuthClient } from "../auth-client/index.js";
+import { encrypt } from "../cookies/index.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
+import { encryptMfaToken } from "./mfa-utils.js";
 import { ServerMfaClient } from "./server-mfa-client.js";
 
 // ─── Module-level next/headers mock ────────────────────────────────────────
