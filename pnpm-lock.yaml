@@ -16,7 +16,7 @@ importers:
         version: 1.2.1
       jose:
         specifier: ^6.0.11
-        version: 6.2.10
+        version: 6.2.12
       oauth4webapi:
         specifier: ^3.8.2
         version: 3.8.7
@@ -1912,8 +1912,8 @@ packages:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
 
-  jose@6.2.10:
-    resolution: {integrity: sha512-iiW7J9qRFlGxvCOIBDBDxFePQSn7ZMAnrYGhrrOo6siO/MIqwfyilLR27pkfDgUk+raLuzADS8A3S/KLBisc0g==}
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -4706,7 +4706,7 @@ snapshots:
   jiti@1.21.7:
     optional: true
 
-  jose@6.2.10: {}
+  jose@6.2.12: {}
 
   js-tokens@4.0.0: {}
 
@@ -4951,7 +4951,7 @@ snapshots:
 
   openid-client@6.8.7:
     dependencies:
-      jose: 6.2.10
+      jose: 6.2.12
       oauth4webapi: 3.8.7
 
   optionator@0.9.4:
