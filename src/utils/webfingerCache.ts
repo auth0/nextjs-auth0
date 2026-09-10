@@ -41,6 +41,13 @@ function setCacheEntry(key: string, result: boolean, ttlMs: number): void {
   _cache.set(key, { result, expiresAt: Date.now() + ttlMs });
 }
 
+export interface IsFederatedDomainOptions {
+  /** Override the fetch implementation (e.g. to apply proxy config or telemetry headers). */
+  customFetch?: typeof fetch;
+  /** WebFinger request timeout in milliseconds. Defaults to 5000. */
+  timeoutMs?: number;
+}
+
 /**
  * Checks whether an email domain is managed for enterprise SSO on an Auth0 tenant.
  *
@@ -53,6 +60,7 @@ function setCacheEntry(key: string, result: boolean, ttlMs: number): void {
  * @param auth0Domain Your Auth0 tenant domain, e.g. `your-tenant.auth0.com`.
  * @param emailDomain The domain part of the user's email, e.g. `acmecorp.com`.
  *   Case-insensitive.
+ * @param options Optional `customFetch` and `timeoutMs` overrides.
  * @returns `true` only when Auth0 has an enterprise connection or organization
  *   domain-discovery record for the domain. Returns `false` on any error, so a
  *   WebFinger outage degrades to your existing login flow rather than blocking it.
@@ -70,8 +78,9 @@ function setCacheEntry(key: string, result: boolean, ttlMs: number): void {
 export async function isFederatedDomain(
   auth0Domain: string,
   emailDomain: string,
-  timeoutMs = 5000
+  options?: IsFederatedDomainOptions
 ): Promise<boolean> {
+  const { customFetch = fetch, timeoutMs = 5000 } = options ?? {};
   // The server lowercases the domain before lookup, so normalize here too —
   // otherwise "Acme.com" and "acme.com" would occupy separate cache entries
   // for what is a single server-side result.
@@ -87,7 +96,7 @@ export async function isFederatedDomain(
   }
 
   try {
-    const res = await fetch(
+    const res = await customFetch(
       `https://${auth0Domain}/.well-known/webfinger` +
         `?resource=urn:auth0:discovery:domain:${encodeURIComponent(normalizedDomain)}` +
         `&rel=${OIDC_REL}`,
@@ -95,19 +104,8 @@ export async function isFederatedDomain(
     );
 
     if (res.ok) {
-      const body = await res.json();
-      const managed =
-        Array.isArray(body?.links) &&
-        body.links.some((link: { rel?: string }) => link?.rel === OIDC_REL);
-
-      if (managed) {
-        setCacheEntry(key, true, TTL_TRUE_MS);
-        return true;
-      }
-
-      // 200 with no matching rel is ambiguous — the tenant may be mid-configuration.
-      // Not cached, so the next attempt re-checks.
-      return false;
+      setCacheEntry(key, true, TTL_TRUE_MS);
+      return true;
     }
 
     if (res.status === 404) {

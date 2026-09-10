@@ -813,6 +813,23 @@ export class AuthClient {
     }
   }
 
+  /**
+   * Returns a fetch function pre-loaded with the SDK telemetry headers and the
+   * configured size-limited fetch. Used by isFederatedDomain so WebFinger calls
+   * share the same fetch pipeline (proxy, size limit, telemetry) as all other
+   * Auth0 requests.
+   *
+   * @internal
+   */
+  createWebFingerFetch(): typeof fetch {
+    return (url, init) => {
+      const { headers } = this.httpOptions();
+      const merged = new Headers(headers);
+      for (const [k, v] of new Headers(init?.headers ?? {})) merged.set(k, v);
+      return this.fetch(url as string, { ...init, headers: merged });
+    };
+  }
+
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest
@@ -1044,7 +1061,11 @@ export class AuthClient {
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const logoutState = req.nextUrl.searchParams.get("state");
-    const federated = req.nextUrl.searchParams.has("federated");
+    const federatedParam = req.nextUrl.searchParams.get("federated");
+    const federated =
+      federatedParam === "false"
+        ? false
+        : req.nextUrl.searchParams.has("federated") || !!this.enterpriseConnect;
 
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
@@ -1673,7 +1694,9 @@ export class AuthClient {
     }
 
     const emailDomain = email.split("@")[1].toLowerCase();
-    const isFederated = await isFederatedDomain(this.domain, emailDomain);
+    const isFederated = await isFederatedDomain(this.domain, emailDomain, {
+      customFetch: this.createWebFingerFetch()
+    });
 
     return NextResponse.json({ isFederated });
   }

@@ -6341,6 +6341,8 @@ if (session) {
 
 ## Enterprise Connect (B2B Integration)
 
+> **Note:** Enterprise Connect is in Early Access. Please contact Auth0 Support to get it enabled for your tenant.
+
 Enterprise Connect lets a B2B SaaS application layer enterprise SSO on top of its own auth server without replacing it. Auth0 acts as a pure SSO relay — it federates to the customer's enterprise IdP (Okta, Azure AD, SAML, etc.) and returns an ID token. The SaaS app's own auth server remains the session authority.
 
 Set `enterpriseConnect: true` to put the SDK into this mode.
@@ -6359,48 +6361,81 @@ Set `enterpriseConnect: true` to put the SDK into this mode.
 ```ts
 // lib/auth0.ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
+const enc = new TextEncoder();
+const key = () =>
+  crypto.subtle.importKey(
+    "raw",
+    enc.encode(process.env.AUTH0_SECRET!),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
 
 export const auth0 = new Auth0Client({
   enterpriseConnect: true,
   authorizationParameters: {
-    scope: "openid profile email",  // no offline_access — EC has no refresh token
-    // Do not set a static organization — it is resolved per login via HRD
+    scope: "openid profile email", // no offline_access, no static organization
   },
   async onCallback(error, ctx, session) {
     if (error) throw error;
-    if (!session?.user) throw new Error("No session on Enterprise Connect callback");
+    if (!session?.user) {
+      return NextResponse.redirect(
+        new URL("/login?error=no-session", process.env.APP_BASE_URL)
+      );
+    }
 
-    const orgId = session.user["org_id"] as string;
+    const user = session.user;
+    const orgId = user["org_id"] as string;
 
-    // Optional: you can validate your session's org_id against your own records here.
-    // For example:
-    //   const isKnownOrg = await db.organizations.exists(orgId);
-    //   if (!isKnownOrg) throw new Error(`Unknown org: ${orgId}`);
+    // Optional: validate orgId against your approved-org list.
+    // if (!(await myDb.isKnownOrg(orgId))) throw new Error("Organization mismatch");
 
-    // Write your own session. Auth0 does not manage it.
-    // In production use a signed/encrypted cookie or a server-side session store —
-    // plain base64 JSON is forgeable and unsuitable for production.
-    const encoded = Buffer.from(JSON.stringify({
-      sub: session.user.sub,
-      email: session.user.email,
-      orgId,
-    })).toString("base64");
+    // session.user holds the OIDC claims; keep only the fields you need.
+    const appSession = { sub: user.sub, email: user.email, orgId };
 
-    const res = NextResponse.redirect(
-      new URL(ctx.returnTo ?? "/dashboard", process.env.APP_BASE_URL)
-    );
-    res.cookies.set("app_session", encoded, {
+    // Sign the payload so the cookie can't be forged: "<body>.<signature>".
+    const body = Buffer.from(JSON.stringify(appSession)).toString("base64url");
+    const signature = Buffer.from(
+      await crypto.subtle.sign("HMAC", await key(), enc.encode(body))
+    ).toString("base64url");
+
+    const returnTo = ctx.returnTo ?? "/dashboard";
+    const res = NextResponse.redirect(new URL(returnTo, process.env.APP_BASE_URL));
+    res.cookies.set("app_session", `${body}.${signature}`, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
     });
     return res;
-  }
+  },
 });
+
+export async function getAppSession() {
+  const raw = (await cookies()).get("app_session")?.value;
+  if (!raw) return null;
+  const [body, signature] = raw.split(".");
+  if (!body || !signature) return null;
+  try {
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      await key(),
+      Buffer.from(signature, "base64url"),
+      enc.encode(body)
+    );
+    return valid ? JSON.parse(Buffer.from(body, "base64url").toString()) : null;
+  } catch {
+    return null;
+  }
+}
 ```
 
 `session.user` in `onCallback` contains all raw ID token claims unfiltered, including `org_id`, any UAP-mapped enterprise IdP claims (`department`, `employee_id`, etc.), and OIDC protocol claims (`iss`, `aud`, `exp`). Persist only the claims you need.
+
+The access token issued in EC mode expires (Auth0 default: 24 hours) and cannot be renewed — there is no refresh token, and `getAccessToken()` throws in EC mode. Use the ID token claims from `session.user` for user identity. For downstream API calls, issue your own app tokens rather than forwarding the Auth0 access token.
 
 ### Login form
 
@@ -6490,10 +6525,9 @@ export default async function Dashboard() {
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  // The /auth/logout route forwards returnTo to Auth0 as-is (this is not
-  // EC-specific), so it must be an absolute URL registered as an Allowed
-  // Logout URL. A relative path would be rejected by Auth0.
-  const logoutUrl = new URL("/auth/logout?federated", process.env.APP_BASE_URL);
+  // In EC mode, federated logout is the default — no need to pass ?federated.
+  // Pass ?federated explicitly to override on a non-EC client.
+  const logoutUrl = new URL("/auth/logout", process.env.APP_BASE_URL);
   logoutUrl.searchParams.set("returnTo", new URL("/login", process.env.APP_BASE_URL).toString());
 
   const res = NextResponse.redirect(logoutUrl);
@@ -6508,8 +6542,10 @@ For SAML IdPs, ensure the IdP application has `logout.callback` configured in th
 
 ### Unavailable methods
 
-The following throw `InvalidConfigurationError` in EC mode because they require an Auth0-managed session or refresh token that EC does not create:
+The following throw `EnterpriseConnectError` (a subclass of `InvalidConfigurationError`, code `enterprise_connect_not_supported`) in EC mode because they require an Auth0-managed session or refresh token that EC does not create:
 
-`getSession`, `getAccessToken`, `getAccessTokenForConnection`, `revokeRefreshToken`, `requestSessionTransferToken`, `updateSession`, `connectAccount`, `createFetcher`, `buildSessionTransferRedirect`, `getTokenByBackchannelAuth`, `passwordless`, `passkey`, `mfa`
+`getSession`, `getAccessToken`, `getAccessTokenForConnection`, `revokeRefreshToken`, `requestSessionTransferToken`, `updateSession`, `connectAccount`, `createFetcher`, `buildSessionTransferRedirect`, `getTokenByBackchannelAuth`, `withPageAuthRequired`, `withApiAuthRequired`, `passwordless`, `passkey`, `mfa`
+
+Use your own session guard (e.g. `getAppSession()` from your app's session store) in place of `withPageAuthRequired` and `withApiAuthRequired`.
 
 See `examples/with-enterprise-connect` for a working end-to-end example.

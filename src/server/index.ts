@@ -10,7 +10,10 @@ export { filterDefaultIdTokenClaims, DEFAULT_ID_TOKEN_CLAIMS } from "./user.js";
 export { generateDpopKeyPair } from "../utils/dpopRetry.js";
 
 // Enterprise Connect domain discovery (server-side only)
-export { isFederatedDomain } from "../utils/webfingerCache.js";
+export {
+  isFederatedDomain,
+  type IsFederatedDomainOptions
+} from "../utils/webfingerCache.js";
 
 // MFA error classes for handling MFA step-up authentication
 export {
@@ -61,3 +64,5 @@ export {
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode
 } from "../errors/oauth-errors.js";
+
+export { EnterpriseConnectError } from "../errors/oauth-errors.js";

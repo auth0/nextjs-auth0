@@ -9,6 +9,7 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   DomainResolutionError,
+  EnterpriseConnectError,
   InvalidConfigurationError,
   TokenRevocationError,
   TokenRevocationErrorCode
@@ -3501,7 +3502,7 @@ describe("Auth0Client", () => {
           promise = client.getSession();
         }).not.toThrow();
 
-        return expect(promise!).rejects.toThrow(InvalidConfigurationError);
+        return expect(promise!).rejects.toThrow(EnterpriseConnectError);
       });
 
       it("carries method-specific guidance, not just a generic refusal", async () => {
@@ -3538,7 +3539,7 @@ describe("Auth0Client", () => {
           const client = ecClient() as unknown as Record<string, unknown>;
 
           // Getters throw on access: there is no sub-client to hand back.
-          expect(() => client[member]).toThrow(InvalidConfigurationError);
+          expect(() => client[member]).toThrow(EnterpriseConnectError);
           expect(() => client[member]).toThrow(
             new RegExp(`${member} is not available when enterpriseConnect`)
           );
@@ -3546,7 +3547,7 @@ describe("Auth0Client", () => {
       );
 
       it("throws on mfa access, since MFA requires Auth0 session state EC does not create", () => {
-        expect(() => ecClient().mfa).toThrow(InvalidConfigurationError);
+        expect(() => ecClient().mfa).toThrow(EnterpriseConnectError);
         expect(() => ecClient().mfa).toThrow(
           /mfa is not available when enterpriseConnect/
         );
@@ -3585,7 +3586,7 @@ describe("Auth0Client", () => {
           caught = e;
         }
 
-        expect(caught).toBeInstanceOf(InvalidConfigurationError);
+        expect(caught).toBeInstanceOf(EnterpriseConnectError);
         expect((caught as Error).message).toMatch(
           /buildSessionTransferRedirect\(\) is not available when enterpriseConnect/
         );
@@ -3758,7 +3759,11 @@ describe("Auth0Client", () => {
       domain: string,
       startInteractiveLogin = vi.fn()
     ) {
-      const mockAuthClient = { domain, startInteractiveLogin };
+      const mockAuthClient = {
+        domain,
+        startInteractiveLogin,
+        createWebFingerFetch: vi.fn().mockReturnValue(globalThis.fetch)
+      };
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
         mockAuthClient
       );
@@ -3784,7 +3789,8 @@ describe("Auth0Client", () => {
 
       expect(isFederatedDomain).toHaveBeenCalledWith(
         "test.auth0.com",
-        "acme.com"
+        "acme.com",
+        expect.any(Object)
       );
       expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
         authorizationParameters: { login_hint: "jane@acme.com" },
@@ -3876,7 +3882,8 @@ describe("Auth0Client", () => {
 
       expect(isFederatedDomain).toHaveBeenCalledWith(
         "test.auth0.com",
-        "acme.com"
+        "acme.com",
+        expect.any(Object)
       );
     });
 
@@ -3900,7 +3907,8 @@ describe("Auth0Client", () => {
       // Discovery used the resolved custom domain, NOT process.env AUTH0_DOMAIN.
       expect(isFederatedDomain).toHaveBeenCalledWith(
         "tenant-a.custom.example",
-        "acme.com"
+        "acme.com",
+        expect.any(Object)
       );
       expect(resolved.startInteractiveLogin).toHaveBeenCalled();
       expect(res).toBe(redirect);

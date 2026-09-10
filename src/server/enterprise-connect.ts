@@ -1,4 +1,4 @@
-import { InvalidConfigurationError } from "../errors/index.js";
+import { EnterpriseConnectError } from "../errors/index.js";
 
 /**
  * Methods on {@link Auth0Client} that remain available when
@@ -6,7 +6,7 @@ import { InvalidConfigurationError } from "../errors/index.js";
  *
  * Adding a new method that should work in EC mode means adding it here.
  */
-export const EC_ALLOWED_METHODS = new Set([
+export const EC_ALLOWED_METHODS: ReadonlySet<string> = new Set([
   "middleware",
   "startInteractiveLogin",
   "startEnterpriseLogin",
@@ -70,11 +70,13 @@ export const EC_MEMBER_GUIDANCE: Record<string, string> = {
  * Methods that are synchronous (non-Promise return type) and must throw rather
  * than reject — rejecting would contradict the signature and escape try/catch.
  */
-export const EC_SYNC_METHODS = new Set(["buildSessionTransferRedirect"]);
+export const EC_SYNC_METHODS: ReadonlySet<string> = new Set([
+  "buildSessionTransferRedirect"
+]);
 
 /**
  * Walks the prototype of `instance` and replaces every method and getter NOT in
- * the allowlist with one that throws {@link InvalidConfigurationError}.
+ * the allowlist with one that throws {@link EnterpriseConnectError}.
  *
  * Note: because the replacements are own properties on the instance, they shadow
  * internal `this.<member>()` calls. A member that stays available must not read
@@ -97,7 +99,7 @@ export function applyEnterpriseConnectRestrictions(instance: object): void {
           configurable: true,
           enumerable: false,
           get: () => {
-            throw new InvalidConfigurationError(
+            throw new EnterpriseConnectError(
               `${name} is not available when enterpriseConnect is true.${suffix}`
             );
           }
@@ -107,7 +109,7 @@ export function applyEnterpriseConnectRestrictions(instance: object): void {
       if (!EC_ALLOWED_METHODS.has(name)) {
         const label = `${name}()`;
         const error = () =>
-          new InvalidConfigurationError(
+          new EnterpriseConnectError(
             `${label} is not available when enterpriseConnect is true.${suffix}`
           );
         Object.defineProperty(instance, name, {

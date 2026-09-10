@@ -10,7 +10,8 @@ import {
 
 import {
   _clearWebFingerCacheForTesting,
-  isFederatedDomain
+  isFederatedDomain,
+  type IsFederatedDomainOptions
 } from "./webfingerCache.js";
 
 const AUTH0_DOMAIN = "test-tenant.auth0.com";
@@ -88,32 +89,6 @@ describe("isFederatedDomain", () => {
       );
     });
 
-    it("returns false for a 200 whose links lack the OIDC rel", async () => {
-      fetchSpy.mockResolvedValue(
-        jsonResponse(200, { links: [{ rel: "http://example.com/other" }] })
-      );
-
-      await expect(
-        isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com")
-      ).resolves.toBe(false);
-    });
-
-    it("returns false for a 200 with an empty links array", async () => {
-      fetchSpy.mockResolvedValue(jsonResponse(200, { links: [] }));
-
-      await expect(
-        isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com")
-      ).resolves.toBe(false);
-    });
-
-    it("returns false for a 200 with no links property at all", async () => {
-      fetchSpy.mockResolvedValue(jsonResponse(200, { subject: "urn:x" }));
-
-      await expect(
-        isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com")
-      ).resolves.toBe(false);
-    });
-
     it("returns false for a 403 (endpoint disabled on the tenant)", async () => {
       fetchSpy.mockResolvedValue(jsonResponse(403, {}));
 
@@ -144,20 +119,6 @@ describe("isFederatedDomain", () => {
 
     it("returns false when fetch rejects", async () => {
       fetchSpy.mockRejectedValue(new TypeError("network failure"));
-
-      await expect(
-        isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com")
-      ).resolves.toBe(false);
-    });
-
-    it("returns false when the body is not valid JSON", async () => {
-      fetchSpy.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => {
-          throw new SyntaxError("Unexpected token");
-        }
-      } as unknown as Response);
 
       await expect(
         isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com")
@@ -223,15 +184,6 @@ describe("isFederatedDomain", () => {
       await expect(
         isFederatedDomain(AUTH0_DOMAIN, "newcustomer.com")
       ).resolves.toBe(true);
-    });
-
-    it("does not cache an ambiguous 200, so the next call re-checks", async () => {
-      fetchSpy.mockResolvedValue(jsonResponse(200, { links: [] }));
-
-      await isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com");
-      await isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com");
-
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
     it("does not cache a 403, so enabling the endpoint takes effect immediately", async () => {
@@ -307,6 +259,37 @@ describe("isFederatedDomain", () => {
         isFederatedDomain("tenant-b.auth0.com", "acmecorp.com")
       ).resolves.toBe(false);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("options", () => {
+    it("uses customFetch instead of global fetch when provided", async () => {
+      const customFetch = vi
+        .fn()
+        .mockResolvedValue(jsonResponse(200, managedBody()));
+      const opts: IsFederatedDomainOptions = { customFetch };
+
+      await expect(
+        isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com", opts)
+      ).resolves.toBe(true);
+
+      expect(customFetch).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("forwards the WebFinger URL to customFetch unchanged", async () => {
+      const customFetch = vi
+        .fn()
+        .mockResolvedValue(jsonResponse(200, managedBody()));
+
+      await isFederatedDomain(AUTH0_DOMAIN, "acmecorp.com", { customFetch });
+
+      const url = customFetch.mock.calls[0][0] as string;
+      expect(url).toBe(
+        `https://${AUTH0_DOMAIN}/.well-known/webfinger` +
+          `?resource=urn:auth0:discovery:domain:acmecorp.com` +
+          `&rel=${OIDC_REL}`
+      );
     });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
+import { EnterpriseConnectError } from "../errors/index.js";
 import {
   applyEnterpriseConnectRestrictions,
   EC_ALLOWED_GETTERS,
@@ -49,9 +49,10 @@ describe("applyEnterpriseConnectRestrictions", () => {
         }
       }
 
-      const allowedBackup = new Set(EC_ALLOWED_METHODS);
-      EC_ALLOWED_METHODS.clear();
-      EC_ALLOWED_METHODS.add("allowed");
+      const mutableAllowed = EC_ALLOWED_METHODS as Set<string>;
+      const allowedBackup = new Set(mutableAllowed);
+      mutableAllowed.clear();
+      mutableAllowed.add("allowed");
 
       const instance = new FakeClient();
       applyEnterpriseConnectRestrictions(instance);
@@ -63,10 +64,10 @@ describe("applyEnterpriseConnectRestrictions", () => {
         (
           instance as unknown as Record<string, () => Promise<unknown>>
         ).blocked()
-      ).rejects.toThrow(InvalidConfigurationError);
+      ).rejects.toThrow(EnterpriseConnectError);
 
-      EC_ALLOWED_METHODS.clear();
-      allowedBackup.forEach((m) => EC_ALLOWED_METHODS.add(m));
+      mutableAllowed.clear();
+      allowedBackup.forEach((m) => mutableAllowed.add(m));
     });
 
     it("includes the method name in the blocked error message", async () => {
@@ -76,7 +77,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
         }
       }
 
-      EC_ALLOWED_METHODS.delete("doSomething");
+      (EC_ALLOWED_METHODS as Set<string>).delete("doSomething");
       const instance = new FakeClient();
       applyEnterpriseConnectRestrictions(instance);
 
@@ -88,7 +89,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
         /doSomething\(\) is not available when enterpriseConnect is true/
       );
 
-      EC_ALLOWED_METHODS.add("doSomething"); // restore is harmless since it wasn't there before
+      (EC_ALLOWED_METHODS as Set<string>).add("doSomething"); // restore is harmless since it wasn't there before
     });
 
     it("async blocked methods return a rejected promise, not a synchronous throw", () => {
@@ -98,7 +99,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
         }
       }
 
-      EC_ALLOWED_METHODS.delete("asyncBlocked");
+      (EC_ALLOWED_METHODS as Set<string>).delete("asyncBlocked");
       const instance = new FakeClient();
       applyEnterpriseConnectRestrictions(instance);
 
@@ -109,7 +110,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
         ).asyncBlocked();
       }).not.toThrow();
 
-      return expect(result).rejects.toThrow(InvalidConfigurationError);
+      return expect(result).rejects.toThrow(EnterpriseConnectError);
     });
 
     it("sync methods listed in EC_SYNC_METHODS throw synchronously", () => {
@@ -119,16 +120,16 @@ describe("applyEnterpriseConnectRestrictions", () => {
         }
       }
 
-      EC_ALLOWED_METHODS.delete("syncMethod");
-      EC_SYNC_METHODS.add("syncMethod");
+      (EC_ALLOWED_METHODS as Set<string>).delete("syncMethod");
+      (EC_SYNC_METHODS as Set<string>).add("syncMethod");
       const instance = new FakeClient();
       applyEnterpriseConnectRestrictions(instance);
 
       expect(() =>
         (instance as unknown as Record<string, () => unknown>).syncMethod()
-      ).toThrow(InvalidConfigurationError);
+      ).toThrow(EnterpriseConnectError);
 
-      EC_SYNC_METHODS.delete("syncMethod");
+      (EC_SYNC_METHODS as Set<string>).delete("syncMethod");
     });
 
     it("does not override the constructor", () => {
@@ -175,7 +176,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
 
       expect(
         () => (instance as unknown as Record<string, unknown>).blockedGetter
-      ).toThrow(InvalidConfigurationError);
+      ).toThrow(EnterpriseConnectError);
     });
 
     it("includes the getter name in the blocked error message", () => {
@@ -203,7 +204,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
         }
       }
 
-      EC_ALLOWED_METHODS.delete("getSession");
+      (EC_ALLOWED_METHODS as Set<string>).delete("getSession");
       const instance = new FakeClient();
       applyEnterpriseConnectRestrictions(instance);
 
@@ -223,7 +224,7 @@ describe("applyEnterpriseConnectRestrictions", () => {
         }
       }
 
-      EC_ALLOWED_METHODS.delete("unknownMethod");
+      (EC_ALLOWED_METHODS as Set<string>).delete("unknownMethod");
       const instance = new FakeClient();
       applyEnterpriseConnectRestrictions(instance);
 

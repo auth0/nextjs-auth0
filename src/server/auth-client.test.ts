@@ -5963,6 +5963,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return {
           ok: true,
           status: 200,
+          headers: new Headers(),
+          body: null,
           json: async () => ({ links: [{ rel: OIDC_REL }] })
         } as unknown as Response;
       }
@@ -5972,12 +5974,26 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return {
           ok: false,
           status: 404,
+          headers: new Headers(),
+          body: null,
           json: async () => ({})
         } as unknown as Response;
       }
 
       async function buildClient() {
         const secret = await generateSecret(32);
+        const authServerFetch = getMockAuthorizationServer();
+        // Route WebFinger calls to global.fetch so the spy intercepts them;
+        // all other URLs stay on the authorization-server mock.
+        const fetch = vi.fn(
+          (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            const href = input instanceof Request ? input.url : String(input);
+            if (new URL(href).pathname.startsWith("/.well-known/webfinger")) {
+              return globalThis.fetch(input, init);
+            }
+            return authServerFetch(input, init);
+          }
+        );
         return new AuthClient({
           transactionStore: new TransactionStore({ secret }),
           sessionStore: new StatelessSessionStore({ secret }),
@@ -5987,7 +6003,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
-          fetch: getMockAuthorizationServer()
+          fetch
         });
       }
 
@@ -6004,8 +6020,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       beforeEach(() => {
         _clearWebFingerCacheForTesting();
-        // handleFederatedDomain -> isFederatedDomain hits WebFinger via global
-        // fetch (NOT the injected authorization-server fetch), so spy on global.
+        // WebFinger calls are routed to global.fetch by the buildClient() wrapper
+        // above, so spying on global.fetch still intercepts them.
         fetchSpy = vi.spyOn(global, "fetch");
       });
 
