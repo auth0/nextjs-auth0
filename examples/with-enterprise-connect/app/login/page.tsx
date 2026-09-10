@@ -11,7 +11,7 @@
 export default function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; hint?: string }>;
 }) {
   return (
     <LoginForm searchParams={searchParams} />
@@ -21,9 +21,9 @@ export default function LoginPage({
 async function LoginForm({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; hint?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, hint } = await searchParams;
 
   return (
     <main style={{ maxWidth: 400, margin: "100px auto", fontFamily: "sans-serif" }}>
@@ -52,7 +52,7 @@ async function LoginForm({
         </button>
       </form>
 
-      {error === "not-federated" && (
+      {hint === "not-federated" && (
         <p style={{ marginTop: 16, color: "#b60", fontSize: 14 }}>
           That domain is not an enterprise SSO domain. In a real app this would route to your existing login.
         </p>
