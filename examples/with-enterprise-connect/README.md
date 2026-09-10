@@ -1,5 +1,7 @@
 # with-enterprise-connect
 
+> **Note:** Enterprise Connect is in Early Access. Please contact Auth0 Support to get it enabled for your tenant.
+
 A Next.js App Router example demonstrating Enterprise Connect (B2B Integration) using [`@auth0/nextjs-auth0`](https://github.com/auth0/nextjs-auth0). Shows the app-embedded integration pattern: the SaaS app owns its own login UI and session, while Auth0 handles only the enterprise SSO federation.
 
 ## What this example covers

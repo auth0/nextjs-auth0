@@ -42,8 +42,9 @@ export async function POST(req: NextRequest) {
     return redirect;
   }
 
-  // Not federated — redirect back to login with a query param for the error
+  // Not federated — redirect back to login so the app can route to its own login flow.
+  // Use a neutral "hint" param, not "error": non-federated is not an error condition.
   const loginUrl = new URL("/login", req.url);
-  loginUrl.searchParams.set("error", "not-federated");
+  loginUrl.searchParams.set("hint", "not-federated");
   return NextResponse.redirect(loginUrl);
 }
