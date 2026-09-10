@@ -3246,6 +3246,24 @@ describe("Auth0Client", () => {
       expect(handlerSpy).toHaveBeenCalledTimes(1);
       expect(result).toBeInstanceOf(NextResponse);
     });
+
+    it("should not throw when middleware is detached from the Auth0Client instance (e.g. `export default auth0.middleware` in proxy.ts/middleware.ts)", async () => {
+      const authClient = await client["provider"].forRequest(new Headers());
+      const handlerSpy = vi
+        .spyOn(authClient, "handler")
+        .mockResolvedValue(NextResponse.next());
+
+      // Simulate Next.js 16's `proxy.ts` convention of re-exporting the method
+      // directly as the default export, e.g. `export default auth0.middleware;`,
+      // which detaches it from the `client` instance.
+      const detachedMiddleware = client.middleware;
+
+      const req = new Request("https://myapp.test/", { method: "GET" });
+      const result = await detachedMiddleware(req as any);
+
+      expect(handlerSpy).toHaveBeenCalledTimes(1);
+      expect(result).toBeInstanceOf(NextResponse);
+    });
   });
 
   describe("Pages Router Set-Cookie header handling", () => {

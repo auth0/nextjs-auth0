@@ -815,6 +815,16 @@ export class Auth0Client {
     if (staticClient) {
       staticClient.provider = this.provider;
     }
+
+    // Next.js 16's `proxy.ts` convention (and some `middleware.ts` setups) commonly
+    // re-export this method directly, e.g. `export default auth0.middleware;`, rather
+    // than wrapping it in a closure like `(req) => auth0.middleware(req)`. When the
+    // method is invoked that way, it is detached from the `Auth0Client` instance, so
+    // `this` is `undefined` inside the method body (per JS strict-mode semantics for
+    // unbound method calls), causing a `TypeError: Cannot read properties of
+    // undefined (reading 'provider')` on every request. Binding here makes
+    // `auth0.middleware` safe to pass around as a plain function reference.
+    this.middleware = this.middleware.bind(this);
   }
 
   /**
