@@ -1,5 +1,5 @@
-<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>CustomTokenExchangeOptions | @auth0/nextjs-auth0 - v4.27.0</title><meta name="description" content="Documentation for @auth0/nextjs-auth0"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
-<div class="tsd-toolbar-contents container"><a href="../index.html" class="title">@auth0/nextjs-auth0 - v4.27.0</a>
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>CustomTokenExchangeOptions | @auth0/nextjs-auth0 - v4.28.0</title><meta name="description" content="Documentation for @auth0/nextjs-auth0"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
+<div class="tsd-toolbar-contents container"><a href="../index.html" class="title">@auth0/nextjs-auth0 - v4.28.0</a>
 <div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/>
 <ul role="listbox" id="tsd-search-results"></ul>
 <div id="tsd-search-status" aria-live="polite" aria-atomic="true">
@@ -23,7 +23,7 @@ with the Custom Token Exchange trigger.</p>
 </div></div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">CustomTokenExchangeOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#actortoken">actorToken</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#actortokentype">actorTokenType</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#additionalparameters">additionalParameters</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">unknown</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#audience">audience</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#organization">organization</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#scope">scope</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#subjecttoken">subjectToken</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#subjecttokentype">subjectTokenType</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L93">src/types/token-vault.ts:93</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L96">src/types/token-vault.ts:96</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -51,14 +51,14 @@ Represents the identity of the acting party.</p>
 <p>If provided, <code>actorTokenType</code> is required.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L141">src/types/token-vault.ts:141</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L144">src/types/token-vault.ts:144</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="actortokentype"><code class="tsd-tag">Optional</code><span>actor<wbr/>Token<wbr/>Type</span><a href="#actortokentype" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">actorTokenType</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Actor token type URI (required if actorToken is provided).</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L146">src/types/token-vault.ts:146</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L149">src/types/token-vault.ts:149</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="additionalparameters"><code class="tsd-tag">Optional</code><span>additional<wbr/>Parameters</span><a href="#additionalparameters" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">additionalParameters</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">unknown</span><span class="tsd-signature-symbol">&gt;</span></div>
@@ -67,14 +67,14 @@ Accessible in Auth0 Action via <code>event.request.body</code>.</p>
 <p>Use this for custom parameters instead of index signature to avoid TypeScript issues.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L154">src/types/token-vault.ts:154</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L157">src/types/token-vault.ts:157</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="audience"><code class="tsd-tag">Optional</code><span>audience</span><a href="#audience" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">audience</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>The unique identifier of the target API.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L119">src/types/token-vault.ts:119</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L122">src/types/token-vault.ts:122</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="organization"><code class="tsd-tag">Optional</code><span>organization</span><a href="#organization" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">organization</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -82,7 +82,7 @@ Accessible in Auth0 Action via <code>event.request.body</code>.</p>
 The organization ID will be present in the resulting access token claims.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L133">src/types/token-vault.ts:133</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L136">src/types/token-vault.ts:136</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="scope"><code class="tsd-tag">Optional</code><span>scope</span><a href="#scope" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">scope</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -91,7 +91,7 @@ The organization ID will be present in the resulting access token claims.</p>
 (openid profile email offline_access). Duplicates are removed.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L127">src/types/token-vault.ts:127</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L130">src/types/token-vault.ts:130</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="subjecttoken"><span>subject<wbr/>Token</span><a href="#subjecttoken" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">subjectToken</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
@@ -100,7 +100,7 @@ This will be validated by your Auth0 Action with the Custom Token Exchange trigg
 <p><strong>Validation</strong>: Must be a non-empty string.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L100">src/types/token-vault.ts:100</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L103">src/types/token-vault.ts:103</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="subjecttokentype"><span>subject<wbr/>Token<wbr/>Type</span><a href="#subjecttokentype" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">subjectTokenType</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
@@ -124,7 +124,7 @@ This will be validated by your Auth0 Action with the Custom Token Exchange trigg
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af5efd8ec1c6ea3a30da35c9ada2ede54854071c/src/types/token-vault.ts#L114">src/types/token-vault.ts:114</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/f838be2baac9c66b9206713a24d1d7513870516b/src/types/token-vault.ts#L117">src/types/token-vault.ts:117</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -142,7 +142,7 @@ This will be validated by your Auth0 Action with the Custom Token Exchange trigg
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
 <div><a href="#actortoken"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>actor<wbr/>Token</span></a><a href="#actortokentype"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>actor<wbr/>Token<wbr/>Type</span></a><a href="#additionalparameters"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>additional<wbr/>Parameters</span></a><a href="#audience"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>audience</span></a><a href="#organization"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>organization</span></a><a href="#scope"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>scope</span></a><a href="#subjecttoken"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>subject<wbr/>Token</span></a><a href="#subjecttokentype"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>subject<wbr/>Token<wbr/>Type</span></a></div></details></div></details></div>
 <div class="site-menu">
-<nav class="tsd-navigation"><a href="../modules.html">@auth0/nextjs-auth0 - v4.27.0</a>
+<nav class="tsd-navigation"><a href="../modules.html">@auth0/nextjs-auth0 - v4.28.0</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
 <li>Loading...</li></ul></nav></div></div></div><footer></footer>
 <div class="overlay"></div></body></html>

@@ -191,7 +191,7 @@ export default async function Home() {
 ```
 
 > [!IMPORTANT]  
-> You must use `<a>` tags instead of the `<Link>` component to ensure that the routing is not done client-side as that may result in some unexpected behavior.
+> A default `<Link href="/auth/login">` is safe — the SDK detects the AUTO prefetch header and returns `204 No Content` without writing a transaction cookie. Avoid `<Link href="/auth/login" prefetch={true}>` (FULL prefetch): it sends no detectable prefetch header, so the SDK cannot distinguish it from a real navigation and will start a login flow. Use a plain `<a>` tag or `<Link prefetch={false}>` if you need to be safe across all prefetch modes. See [Preventing "431 Request Header Fields Too Large" Errors](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#preventing-431-request-header-fields-too-large-errors) for details.
 
 ## Customizing the client
 

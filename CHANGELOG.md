@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.28.0](https://github.com/auth0/nextjs-auth0/tree/v4.28.0) (2026-08-28)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.27.0...v4.28.0)
+
+**Added**
+-  feat: add connected-accounts disconnect and listing with orphan cookie cleanup [\#2784](https://github.com/auth0/nextjs-auth0/pull/2784) ([Piyush-85](https://github.com/Piyush-85))
+
+**Security**
+- fix: bump next.js to patched versions (15.5.24, 16.3.3) addressing cr… [\#2824](https://github.com/auth0/nextjs-auth0/pull/2824) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.27.0](https://github.com/auth0/nextjs-auth0/tree/v4.27.0) (2026-08-18)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.26.0...v4.27.0)
 
