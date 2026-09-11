@@ -1655,6 +1655,14 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
+    if (!res && this.enterpriseConnect) {
+      console.warn(
+        "[nextjs-auth0] onCallback returned a falsy value in Enterprise Connect mode. " +
+          "Ensure your hook returns a NextResponse on all code paths — the response is the " +
+          "only way a session cookie reaches the browser in this mode."
+      );
+    }
+
     // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
     // cookie is written and beforeSessionSaved is not run. The hook's response is
     // the only way a cookie reaches the browser on the callback, so the app is

@@ -12051,11 +12051,11 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     };
 
     afterEach(() => {
-      // Clean up environment variables after each test
       delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
       delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
       delete process.env.AUTH0_DPOP_CLOCK_SKEW;
       delete process.env.AUTH0_DPOP_CLOCK_TOLERANCE;
+      vi.restoreAllMocks();
     });
 
     it("should include dpop_jkt in authorization URL when dpopKeyPair is provided", async () => {
@@ -12219,8 +12219,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "Failed to load DPoP keypair from environment variables"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should not include dpop_jkt when useDPoP is false", async () => {
@@ -12300,8 +12298,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should fall back to bearer auth when only private key is in environment variables", async () => {
@@ -12346,8 +12342,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should update clientMetadata with clockSkew and clockTolerance from environment variables", async () => {
