@@ -34,6 +34,7 @@ import {
   SessionDataStore,
   SessionTransferTokenOptions,
   SessionTransferTokenResult,
+  StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -45,6 +46,7 @@ import {
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -55,6 +57,7 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
+import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
@@ -214,6 +217,19 @@ export interface Auth0ClientOptions {
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
+
+  /**
+   * Enable Enterprise Connect mode.
+   *
+   * Set to `true` when Auth0 acts as a pure SSO relay and your application owns
+   * the session. `onCallback` must persist identity and return a `NextResponse`
+   * with your session cookie. Session-backed methods (`getSession`, `getAccessToken`,
+   * etc.) throw rather than returning `null`. Incompatible config (`offline_access`
+   * scope, static `organization`) is reported at initialization.
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for additional details
+   */
+  enterpriseConnect?: true;
 
   // provide a session store to persist sessions in your own data store
   /**
@@ -671,6 +687,9 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      federatedDomain:
+        process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+        "/auth/federated-domain",
       connectAccount: "/auth/connect",
       mfaAuthenticators:
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
@@ -755,6 +774,34 @@ export class Auth0Client {
         return runtimeDomain;
       });
 
+    if (options.enterpriseConnect) {
+      this.disableSessionMembersForEnterpriseConnect();
+
+      const scope = options.authorizationParameters?.scope ?? DEFAULT_SCOPES;
+
+      if (
+        typeof scope === "string" &&
+        scope.split(/\s+/).includes("offline_access")
+      ) {
+        console.warn(
+          "WARNING: 'offline_access' is in scope but Enterprise Connect clients are not " +
+            "issued refresh tokens. Set authorizationParameters.scope to " +
+            "'openid profile email' to drop it — the default scope includes offline_access."
+        );
+      }
+
+      if (options.authorizationParameters?.organization) {
+        console.warn(
+          "WARNING: enterpriseConnect is true but a static 'organization' is set in " +
+            "authorizationParameters. In Enterprise Connect the organization is resolved " +
+            "per login by Home Realm Discovery from the login_hint email domain. A static " +
+            "value routes every enterprise customer to the same organization, breaking " +
+            "multi-customer deployments. Leave 'organization' unset unless this client " +
+            "serves exactly one organization."
+        );
+      }
+    }
+
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
@@ -784,6 +831,7 @@ export class Auth0Client {
 
           beforeSessionSaved: options.beforeSessionSaved,
           onCallback: options.onCallback,
+          enterpriseConnect: options.enterpriseConnect,
 
           routes: this.routes,
 
@@ -1692,6 +1740,11 @@ export class Auth0Client {
     return new RequestCookies(toHeadersFromIncomingMessage(req));
   }
 
+  /** @see applyEnterpriseConnectRestrictions */
+  private disableSessionMembersForEnterpriseConnect(): void {
+    applyEnterpriseConnectRestrictions(this);
+  }
+
   /**
    * Resolves request context from any Next.js server context into a uniform shape.
    *
@@ -1842,6 +1895,65 @@ export class Auth0Client {
       undefined,
       await cookies()
     );
+  }
+
+  /**
+   * Login entry point for {@link Auth0Client.enterpriseConnect} mode.
+   *
+   * Runs Home Realm Discovery on the email domain. Returns a `NextResponse`
+   * redirect (with `login_hint` set) when the domain is federated, or `null`
+   * when it is not — allowing the caller to fall back to its own login.
+   *
+   * Must be called from a Route Handler (not a Server Action) so the transaction
+   * cookie is returned to the browser.
+   *
+   * @param options - `email` is required; `authorizationParameters`, `returnTo`,
+   *   and `challengeMode` are forwarded to the underlying login.
+   * @returns Redirect response for a federated domain, or `null`.
+   *
+   * @example
+   * ```ts
+   * // app/api/login/route.ts
+   * export async function POST(req: NextRequest) {
+   *   const email = String((await req.formData()).get("email") ?? "");
+   *   const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
+   *   if (res) {
+   *     const redirect = NextResponse.redirect(res.headers.get("location")!, 303);
+   *     for (const c of res.cookies.getAll()) redirect.cookies.set(c);
+   *     return redirect;
+   *   }
+   *   return NextResponse.redirect(new URL("/existing-login", req.url));
+   * }
+   * ```
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
+   */
+  async startEnterpriseLogin(
+    options: StartEnterpriseLoginOptions
+  ): Promise<NextResponse | null> {
+    const emailDomain = options.email.split("@")[1]?.toLowerCase();
+    if (!emailDomain) {
+      return null;
+    }
+
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const federated = await isFederatedDomain(authClient.domain, emailDomain, {
+      customFetch: authClient.createWebFingerFetch()
+    });
+    if (!federated) {
+      return null;
+    }
+
+    const { email, authorizationParameters, ...rest } = options;
+    return authClient.startInteractiveLogin({
+      ...rest,
+      authorizationParameters: {
+        ...authorizationParameters,
+        login_hint: email
+      }
+    });
   }
 
   /**

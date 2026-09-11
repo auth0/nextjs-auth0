@@ -17,6 +17,7 @@ const defaultRoutes = {
   callback: "/auth/callback",
   profile: "/auth/profile",
   accessToken: "/auth/access-token",
+  federatedDomain: "/auth/federated-domain",
   backChannelLogout: "/auth/backchannel-logout",
   connectAccount: "/auth/connect",
   mfaAuthenticators: "/auth/mfa/authenticators",

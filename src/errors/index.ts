@@ -6,6 +6,7 @@ export {
   MissingStateError,
   InvalidStateError,
   InvalidConfigurationError,
+  EnterpriseConnectError,
   AuthorizationError,
   AuthorizationCodeGrantRequestError,
   AuthorizationCodeGrantError,

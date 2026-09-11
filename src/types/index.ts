@@ -228,6 +228,7 @@ export type ProxyOptions = {
 
 export {
   AuthorizationParameters,
+  StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions
 } from "./authorize.js";
 export {
