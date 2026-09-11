@@ -46,6 +46,55 @@ describe("next-compat", () => {
       expect(parsed).toEqual({ foo: "bar" });
     });
 
+    it("should not throw when the input body is already used", async () => {
+      const plainReq = new Request("https://example.com/api/data", {
+        method: "POST",
+        body: JSON.stringify({ foo: "bar" })
+      });
+
+      await plainReq.text(); // consume body
+
+      const nextReq = toNextRequest(plainReq);
+      expect(nextReq).toBeInstanceOf(NextRequest);
+      expect(nextReq.method).toBe("POST");
+    });
+
+    it("should handle a Request instance without a clone function", () => {
+      const req = new Request("https://example.com/no-clone", {
+        method: "GET"
+      });
+      Object.defineProperty(req, "clone", { value: undefined });
+
+      const nextReq = toNextRequest(req);
+      expect(nextReq).toBeInstanceOf(NextRequest);
+      expect(nextReq.url).toBe("https://example.com/no-clone");
+    });
+
+    it("should tolerate inputs without a body property", () => {
+      const fakeReq: any = {
+        url: "https://example.com/no-body",
+        method: "GET",
+        headers: new Headers()
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+      expect(nextReq).toBeInstanceOf(NextRequest);
+      expect(nextReq.url).toBe("https://example.com/no-body");
+    });
+
+    it("should skip locked bodies when rebuilding requests", () => {
+      const fakeReq: any = {
+        url: "https://example.com/locked-body",
+        method: "POST",
+        headers: new Headers(),
+        body: { locked: true }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+      expect(nextReq).toBeInstanceOf(NextRequest);
+      expect(nextReq.url).toBe("https://example.com/locked-body");
+    });
+
     it("should set duplex to 'half' if not provided", () => {
       const req = new Request("https://example.com", { method: "GET" });
       const nextReq = toNextRequest(req);
