@@ -1734,11 +1734,17 @@ export class AuthClient {
       );
     }
 
-    if (typeof email !== "string" || !email.includes("@")) {
+    if (
+      typeof email !== "string" ||
+      /\s/.test(email) ||
+      email.indexOf("@") <= 0 ||
+      email.indexOf("@") !== email.lastIndexOf("@") ||
+      email.endsWith("@")
+    ) {
       return NextResponse.json({ error: "invalid email" }, { status: 400 });
     }
 
-    const emailDomain = email.split("@")[1].toLowerCase();
+    const emailDomain = email.slice(email.lastIndexOf("@") + 1).toLowerCase();
     const isFederated = await isFederatedDomain(this.domain, emailDomain, {
       customFetch: this.createWebFingerFetch()
     });

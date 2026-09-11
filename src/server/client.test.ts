@@ -3736,6 +3736,7 @@ describe("Auth0Client", () => {
 
   describe("startEnterpriseLogin", () => {
     beforeEach(() => {
+      vi.clearAllMocks();
       process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
       process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
       process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
