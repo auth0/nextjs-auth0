@@ -2137,6 +2137,95 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       });
 
+      it("should include experiment override params on the authorize url", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+        const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+        loginUrl.searchParams.set("experiment_id", "exp_passkeys_onboarding");
+        loginUrl.searchParams.set("variation_id", "var_passkey_enabled");
+        loginUrl.searchParams.set("segment_id", "seg_enterprise");
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        const response = await authClient.handleLogin(request);
+        expect(response.status).toEqual(307);
+
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+        expect(authorizationUrl.searchParams.get("experiment_id")).toEqual(
+          "exp_passkeys_onboarding"
+        );
+        expect(authorizationUrl.searchParams.get("variation_id")).toEqual(
+          "var_passkey_enabled"
+        );
+        expect(authorizationUrl.searchParams.get("segment_id")).toEqual(
+          "seg_enterprise"
+        );
+      });
+
+      it("should include experiment override params without segment_id on the authorize url", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+        const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+        loginUrl.searchParams.set("experiment_id", "exp_passkeys_onboarding");
+        loginUrl.searchParams.set("variation_id", "var_passkey_enabled");
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        const response = await authClient.handleLogin(request);
+        expect(response.status).toEqual(307);
+
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+        expect(authorizationUrl.searchParams.get("experiment_id")).toEqual(
+          "exp_passkeys_onboarding"
+        );
+        expect(authorizationUrl.searchParams.get("variation_id")).toEqual(
+          "var_passkey_enabled"
+        );
+        expect(authorizationUrl.searchParams.has("segment_id")).toBe(false);
+      });
+
       it("should override the configured authorization parameters with the query parameters", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({

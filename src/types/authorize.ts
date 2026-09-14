@@ -105,6 +105,41 @@ export interface AuthorizationParameters {
    */
   display?: "page" | "popup" | "touch" | "wap" | (string & {});
   /**
+   * Forces a specific Experiment Center variant for this `/authorize` request
+   * instead of letting Auth0 assign one via its hash. Use together with
+   * `variation_id`.
+   *
+   * Pass per-call (on `handleLogin`) rather than at client construction time
+   * so the override does not bleed into silent `prompt=none` token-renewal
+   * calls, where Experiment Center does not run.
+   *
+   * **Testing:** drive from test automation (e.g. Cypress/Playwright) with IDs
+   * from a CI environment variable against a staging tenant. Do not hard-code
+   * this in shipped app code.
+   *
+   * **Production:** pass the variant decision from a feature-flag tool
+   * (e.g. LaunchDarkly) that has already decided which variant the user should
+   * see for this request.
+   *
+   * @see https://auth0.com/docs/customize/experiment-center/overview
+   */
+  experiment_id?: string;
+
+  /**
+   * The variation to force within the experiment identified by `experiment_id`.
+   * Auth0 uses this value instead of computing an assignment for the current
+   * request. The override applies to this request only; the next login without
+   * these params reverts to normal server-side assignment.
+   */
+  variation_id?: string;
+
+  /**
+   * An optional segment identifier to pass alongside `experiment_id` and
+   * `variation_id` when forcing a variant for segment-targeted experiments.
+   */
+  segment_id?: string;
+
+  /**
    * Additional authorization parameters.
    */
   [key: string]: unknown;
