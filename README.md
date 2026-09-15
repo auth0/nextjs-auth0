@@ -501,15 +501,12 @@ For more details, see [Session Expiry from the Upstream IdP](https://github.com/
 > [!NOTE]
 > Experiment Center support via SDKs is currently in Early Access. To request access to this feature, contact your Auth0 representative.
 
-[Experiment Center](https://auth0.com/docs/customize/experiment-center/overview) lets you A/B test your login flow. Force a specific variant by passing `experiment_id` and `variation_id` per-call on `handleLogin`:
+[Experiment Center](https://auth0.com/docs/customize/experiment-center/overview) lets you A/B test your login flow. Force a specific variant by passing `experiment_id` and `variation_id` per-login, either as query params on `/auth/login` or via `startInteractiveLogin`:
 
-```ts
-export const GET = auth0.handleLogin({
-  authorizationParameters: {
-    experiment_id: "<EXPERIMENT_ID>",
-    variation_id: "<VARIATION_ID>"
-  }
-});
+```html
+<a href="/auth/login?experiment_id=<EXPERIMENT_ID>&variation_id=<VARIATION_ID>">
+  Log in
+</a>
 ```
 
 For usage guidance, segment targeting, and testing patterns, see [Experiment Center in guides/experiment-center.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/experiment-center.md).
