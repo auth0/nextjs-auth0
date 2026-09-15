@@ -133,6 +133,126 @@ describe("Stateless Session Store", async () => {
     });
   });
 
+  describe("shouldRollSession with rollingThreshold", async () => {
+    const buildRequest = () =>
+      new NextRequest("https://example.com/dashboard", { method: "GET" });
+
+    const buildRequestWithSessionExpiringIn = (
+      cookieValue: string
+    ): NextRequest => {
+      const headers = new Headers();
+      headers.append("cookie", `__session=${cookieValue}`);
+      return new NextRequest("https://example.com/dashboard", {
+        method: "GET",
+        headers
+      });
+    };
+
+    const encryptWithExp = async (secret: string, expiresInSeconds: number) =>
+      encrypt(
+        {
+          user: { sub: "user_123" },
+          tokenSet: { accessToken: "at_123", expiresAt: 123456 },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        } as unknown as SessionData,
+        secret,
+        Math.floor(Date.now() / 1000) + expiresInSeconds
+      );
+
+    it("should not roll when the session was rolled well within the threshold", async () => {
+      const secret = await generateSecret(32);
+      const inactivityDuration = 60 * 60 * 24; // 1 day
+      // Rolled ~5s ago: remaining is only slightly below a full inactivityDuration.
+      const cookieValue = await encryptWithExp(secret, inactivityDuration - 5);
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        inactivityDuration,
+        rollingThreshold: 60
+      });
+
+      expect(
+        await sessionStore.shouldRollSession(
+          buildRequestWithSessionExpiringIn(cookieValue)
+        )
+      ).toBe(false);
+    });
+
+    it("should roll when the threshold has elapsed since the session was last rolled", async () => {
+      const secret = await generateSecret(32);
+      const inactivityDuration = 60 * 60 * 24; // 1 day
+      // Rolled 120s ago: past the 60s threshold.
+      const cookieValue = await encryptWithExp(
+        secret,
+        inactivityDuration - 120
+      );
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        inactivityDuration,
+        rollingThreshold: 60
+      });
+
+      expect(
+        await sessionStore.shouldRollSession(
+          buildRequestWithSessionExpiringIn(cookieValue)
+        )
+      ).toBe(true);
+    });
+
+    it("should roll when there is no existing session cookie to compare against", async () => {
+      const secret = await generateSecret(32);
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        rollingThreshold: 60
+      });
+
+      expect(await sessionStore.shouldRollSession(buildRequest())).toBe(true);
+    });
+
+    it("should skip consulting beforeSessionRolled when still within the threshold", async () => {
+      const secret = await generateSecret(32);
+      const inactivityDuration = 60 * 60 * 24;
+      const cookieValue = await encryptWithExp(secret, inactivityDuration - 5);
+      const beforeSessionRolled = vi.fn().mockReturnValue(true);
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        inactivityDuration,
+        rollingThreshold: 60,
+        beforeSessionRolled
+      });
+
+      expect(
+        await sessionStore.shouldRollSession(
+          buildRequestWithSessionExpiringIn(cookieValue)
+        )
+      ).toBe(false);
+      expect(beforeSessionRolled).not.toHaveBeenCalled();
+    });
+
+    it("should still defer to beforeSessionRolled once the threshold has elapsed", async () => {
+      const secret = await generateSecret(32);
+      const inactivityDuration = 60 * 60 * 24;
+      const cookieValue = await encryptWithExp(
+        secret,
+        inactivityDuration - 120
+      );
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        inactivityDuration,
+        rollingThreshold: 60,
+        beforeSessionRolled: () => false
+      });
+
+      expect(
+        await sessionStore.shouldRollSession(
+          buildRequestWithSessionExpiringIn(cookieValue)
+        )
+      ).toBe(false);
+    });
+  });
+
   describe("get", async () => {
     it("should return the decrypted session cookie if it exists", async () => {
       const secret = await generateSecret(32);
