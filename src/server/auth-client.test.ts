@@ -5,11 +5,13 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
   vi,
-  type MockedFunction
+  type MockedFunction,
+  type MockInstance
 } from "vitest";
 
 import {
@@ -35,7 +37,12 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient, buildConnectAccountErrorResponse } from "./auth-client.js";
+import { _clearWebFingerCacheForTesting } from "../utils/webfingerCache.js";
+import {
+  AuthClient,
+  buildConnectAccountErrorResponse,
+  type AuthClientOptions
+} from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -5758,6 +5765,361 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie has not been set
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeUndefined();
+      });
+    });
+
+    describe("stateless passthrough (Enterprise Connect)", async () => {
+      /**
+       * Drives a successful callback and returns the response, so each test can
+       * assert on cookies and redirect target.
+       */
+      async function runCallback({
+        onCallback,
+        enterpriseConnect,
+        returnTo = "/dashboard"
+      }: {
+        onCallback: AuthClientOptions["onCallback"];
+        enterpriseConnect?: true;
+        returnTo?: string;
+      }) {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          onCallback,
+          enterpriseConnect
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 60 * 60);
+
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+
+        return authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+      }
+
+      it("uses the hook's NextResponse and writes no __session when enterpriseConnect is true", async () => {
+        const onCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
+
+        const response = await runCallback({
+          onCallback,
+          enterpriseConnect: true
+        });
+
+        // The hook still receives the session so it can persist identity itself.
+        // Claims are unfiltered here: beforeSessionSaved and the default claim
+        // filter both belong to the session-write path, which EC skips.
+        expect(onCallback).toHaveBeenCalledWith(
+          null,
+          expect.objectContaining({ returnTo: "/dashboard" }),
+          expect.objectContaining({
+            user: expect.objectContaining({ sub: DEFAULT.sub })
+          })
+        );
+
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("honours a response returned by the hook", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/welcome", DEFAULT.appBaseUrl))
+            ),
+          enterpriseConnect: true,
+          returnTo: "/dashboard"
+        });
+
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/welcome"
+        );
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("clears the transaction cookie on the EC path", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            ),
+          enterpriseConnect: true
+        });
+
+        const txnCookie = response.cookies.get("__txn_transaction-state");
+        expect(txnCookie?.value).toEqual("");
+        expect(txnCookie?.maxAge).toEqual(0);
+      });
+
+      it("still writes the session cookie when enterpriseConnect is not set", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
+        });
+
+        expect(response.cookies.get("__session")).toBeDefined();
+      });
+
+      it("does not run beforeSessionSaved on the passthrough path", async () => {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const beforeSessionSaved = vi.fn();
+
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          enterpriseConnect: true,
+          beforeSessionSaved,
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(
+            {
+              nonce: "nonce-value",
+              maxAge: 3600,
+              codeVerifier: "code-verifier",
+              responseType: RESPONSE_TYPES.CODE,
+              state,
+              returnTo: "/dashboard"
+            } satisfies TransactionState,
+            secret,
+            Math.floor(Date.now() / 1000 + 60 * 60)
+          )}`
+        );
+
+        await authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+
+        expect(beforeSessionSaved).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("handleFederatedDomain route (POST /auth/federated-domain)", async () => {
+      const OIDC_REL = "http://openid.net/specs/connect/1.0/issuer";
+      let fetchSpy: MockInstance<typeof fetch>;
+
+      /** A WebFinger 200 body advertising the OIDC issuer link (managed domain). */
+      function managedWebFingerResponse() {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          body: null,
+          json: async () => ({ links: [{ rel: OIDC_REL }] })
+        } as unknown as Response;
+      }
+
+      /** A WebFinger 404 (domain not managed for enterprise SSO). */
+      function unmanagedWebFingerResponse() {
+        return {
+          ok: false,
+          status: 404,
+          headers: new Headers(),
+          body: null,
+          json: async () => ({})
+        } as unknown as Response;
+      }
+
+      async function buildClient() {
+        const secret = await generateSecret(32);
+        const authServerFetch = getMockAuthorizationServer();
+        // Route WebFinger calls to global.fetch so the spy intercepts them;
+        // all other URLs stay on the authorization-server mock.
+        const fetch = vi.fn(
+          (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            const href = input instanceof Request ? input.url : String(input);
+            if (new URL(href).pathname.startsWith("/.well-known/webfinger")) {
+              return globalThis.fetch(input, init);
+            }
+            return authServerFetch(input, init);
+          }
+        );
+        return new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch
+        });
+      }
+
+      function post(body: string) {
+        return new NextRequest(
+          new URL("/auth/federated-domain", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body
+          }
+        );
+      }
+
+      beforeEach(() => {
+        _clearWebFingerCacheForTesting();
+        // WebFinger calls are routed to global.fetch by the buildClient() wrapper
+        // above, so spying on global.fetch still intercepts them.
+        fetchSpy = vi.spyOn(global, "fetch");
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+        _clearWebFingerCacheForTesting();
+      });
+
+      it("returns { isFederated: true } and queries WebFinger against the email domain", async () => {
+        fetchSpy.mockResolvedValue(managedWebFingerResponse());
+        const authClient = await buildClient();
+
+        const response = await authClient.handler(
+          post(JSON.stringify({ email: "jane@acme.com" }))
+        );
+
+        expect(response.status).toEqual(200);
+        await expect(response.json()).resolves.toEqual({ isFederated: true });
+
+        const webfingerUrl = fetchSpy.mock.calls[0][0] as string;
+        expect(webfingerUrl).toContain(
+          `https://${DEFAULT.domain}/.well-known/webfinger`
+        );
+        expect(webfingerUrl).toContain("urn:auth0:discovery:domain:acme.com");
+      });
+
+      it("returns { isFederated: false } for an unmanaged domain", async () => {
+        fetchSpy.mockResolvedValue(unmanagedWebFingerResponse());
+        const authClient = await buildClient();
+
+        const response = await authClient.handler(
+          post(JSON.stringify({ email: "jane@gmail.com" }))
+        );
+
+        expect(response.status).toEqual(200);
+        await expect(response.json()).resolves.toEqual({ isFederated: false });
+      });
+
+      it("lowercases the email domain before discovery", async () => {
+        fetchSpy.mockResolvedValue(unmanagedWebFingerResponse());
+        const authClient = await buildClient();
+
+        await authClient.handler(
+          post(JSON.stringify({ email: "Jane@ACME.com" }))
+        );
+
+        const webfingerUrl = fetchSpy.mock.calls[0][0] as string;
+        expect(webfingerUrl).toContain("urn:auth0:discovery:domain:acme.com");
+      });
+
+      it("returns 400 on a malformed JSON body without calling WebFinger", async () => {
+        const authClient = await buildClient();
+
+        const response = await authClient.handler(post("not-json"));
+
+        expect(response.status).toEqual(400);
+        await expect(response.json()).resolves.toEqual({
+          error: "invalid request body"
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when the email is missing or not an email", async () => {
+        const authClient = await buildClient();
+
+        const missing = await authClient.handler(post(JSON.stringify({})));
+        expect(missing.status).toEqual(400);
+        await expect(missing.json()).resolves.toEqual({
+          error: "invalid email"
+        });
+
+        const notEmail = await authClient.handler(
+          post(JSON.stringify({ email: "not-an-email" }))
+        );
+        expect(notEmail.status).toEqual(400);
+        await expect(notEmail.json()).resolves.toEqual({
+          error: "invalid email"
+        });
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("only dispatches on POST: a GET does not run discovery", async () => {
+        const authClient = await buildClient();
+
+        await authClient.handler(
+          new NextRequest(
+            new URL("/auth/federated-domain", DEFAULT.appBaseUrl),
+            { method: "GET" }
+          )
+        );
+
+        // The route is POST-only, so a GET falls through to the default handler
+        // and never reaches handleFederatedDomain / WebFinger.
+        expect(fetchSpy).not.toHaveBeenCalled();
       });
     });
 
@@ -11689,11 +12051,11 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     };
 
     afterEach(() => {
-      // Clean up environment variables after each test
       delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
       delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
       delete process.env.AUTH0_DPOP_CLOCK_SKEW;
       delete process.env.AUTH0_DPOP_CLOCK_TOLERANCE;
+      vi.restoreAllMocks();
     });
 
     it("should include dpop_jkt in authorization URL when dpopKeyPair is provided", async () => {
@@ -11857,8 +12219,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "Failed to load DPoP keypair from environment variables"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should not include dpop_jkt when useDPoP is false", async () => {
@@ -11938,8 +12298,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should fall back to bearer auth when only private key is in environment variables", async () => {
@@ -11984,8 +12342,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should update clientMetadata with clockSkew and clockTolerance from environment variables", async () => {

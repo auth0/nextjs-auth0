@@ -185,6 +185,7 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
@@ -281,6 +282,7 @@ export interface Routes {
   callback: string;
   profile: string;
   accessToken: string;
+  federatedDomain: string;
   backChannelLogout: string;
   connectAccount: string;
   mfaAuthenticators: string;
@@ -332,6 +334,8 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
+
+  enterpriseConnect?: true;
 
   routes: Routes;
 
@@ -410,6 +414,8 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
+
+  private enterpriseConnect?: true;
 
   private routes: Routes;
 
@@ -574,6 +580,8 @@ export class AuthClient {
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
+    this.enterpriseConnect = options.enterpriseConnect;
+
     // routes
     this.routes = options.routes;
 
@@ -709,6 +717,11 @@ export class AuthClient {
       return this.handleAccessToken(req);
     } else if (
       method === "POST" &&
+      sanitizedPathname === this.routes.federatedDomain
+    ) {
+      return this.handleFederatedDomain(req);
+    } else if (
+      method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
@@ -817,6 +830,23 @@ export class AuthClient {
 
       return res;
     }
+  }
+
+  /**
+   * Returns a fetch function pre-loaded with the SDK telemetry headers and the
+   * configured size-limited fetch. Used by isFederatedDomain so WebFinger calls
+   * share the same fetch pipeline (proxy, size limit, telemetry) as all other
+   * Auth0 requests.
+   *
+   * @internal
+   */
+  createWebFingerFetch(): typeof fetch {
+    return (url, init) => {
+      const { headers } = this.httpOptions();
+      const merged = new Headers(headers);
+      for (const [k, v] of new Headers(init?.headers ?? {})) merged.set(k, v);
+      return this.fetch(url as string, { ...init, headers: merged });
+    };
   }
 
   async startInteractiveLogin(
@@ -1069,7 +1099,11 @@ export class AuthClient {
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const logoutState = req.nextUrl.searchParams.get("state");
-    const federated = req.nextUrl.searchParams.has("federated");
+    const federatedParam = req.nextUrl.searchParams.get("federated");
+    const federated =
+      federatedParam === "false"
+        ? false
+        : req.nextUrl.searchParams.has("federated") || !!this.enterpriseConnect;
 
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
@@ -1621,6 +1655,24 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
+    if (!res && this.enterpriseConnect) {
+      console.warn(
+        "[nextjs-auth0] onCallback returned a falsy value in Enterprise Connect mode. " +
+          "Ensure your hook returns a NextResponse on all code paths — the response is the " +
+          "only way a session cookie reaches the browser in this mode."
+      );
+    }
+
+    // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
+    // cookie is written and beforeSessionSaved is not run. The hook's response is
+    // the only way a cookie reaches the browser on the callback, so the app is
+    // expected to attach its own session cookie to it.
+    if (this.enterpriseConnect) {
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
+
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
@@ -1662,6 +1714,42 @@ export class AuthClient {
     const res = NextResponse.json(session?.user);
     addCacheControlHeadersForSession(res);
     return res;
+  }
+
+  /**
+   * Route: POST /auth/federated-domain
+   * Server-side Home Realm Discovery for Enterprise Connect. Reads `{ email }`
+   * from the request body and returns `{ isFederated }`. Backs the client-side
+   * `startEnterpriseLogin` helper so the browser never calls WebFinger directly
+   * (which would expose the tenant's customer domains to enumeration).
+   */
+  async handleFederatedDomain(req: NextRequest): Promise<NextResponse> {
+    let email: unknown;
+    try {
+      ({ email } = await req.json());
+    } catch {
+      return NextResponse.json(
+        { error: "invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof email !== "string" ||
+      /\s/.test(email) ||
+      email.indexOf("@") <= 0 ||
+      email.indexOf("@") !== email.lastIndexOf("@") ||
+      email.endsWith("@")
+    ) {
+      return NextResponse.json({ error: "invalid email" }, { status: 400 });
+    }
+
+    const emailDomain = email.slice(email.lastIndexOf("@") + 1).toLowerCase();
+    const isFederated = await isFederatedDomain(this.domain, emailDomain, {
+      customFetch: this.createWebFingerFetch()
+    });
+
+    return NextResponse.json({ isFederated });
   }
 
   /**

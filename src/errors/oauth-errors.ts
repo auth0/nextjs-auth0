@@ -53,6 +53,17 @@ export class InvalidConfigurationError extends SdkError {
   }
 }
 
+export class EnterpriseConnectError extends InvalidConfigurationError {
+  public override code: string = "enterprise_connect_not_supported";
+
+  constructor(message?: string) {
+    super(
+      message ?? "This method is not available in Enterprise Connect mode."
+    );
+    this.name = "EnterpriseConnectError";
+  }
+}
+
 export class AuthorizationError extends SdkError {
   public code: string = "authorization_error";
   public cause: OAuth2Error;
