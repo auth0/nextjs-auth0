@@ -2,7 +2,7 @@
  * Tests for the AuthClientProvider class
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { InvalidConfigurationError } from "../errors/index.js";
 import { DomainResolutionError } from "../errors/mcd.js";
@@ -11,12 +11,16 @@ import type { AuthClient } from "./auth-client.js";
 
 describe("AuthClientProvider", () => {
   let mockAuthClient: AuthClient;
-  let createAuthClientMock: ReturnType<typeof vi.fn>;
+  let createAuthClientMock: Mock<
+    (domain: string, issuer: string) => AuthClient
+  >;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthClient = {} as AuthClient;
-    createAuthClientMock = vi.fn().mockReturnValue(mockAuthClient);
+    createAuthClientMock = vi
+      .fn<(domain: string, issuer: string) => AuthClient>()
+      .mockReturnValue(mockAuthClient);
   });
 
   describe("constructor - static mode", () => {
