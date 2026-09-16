@@ -3847,6 +3847,7 @@ export const auth0 = new Auth0Client({
 | Option             | Type      | Description                                                                                                                                                                                                                                   |
 | ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
+| rollingThreshold   | `number`  | Minimum number of seconds that must elapse between rolling-session cookie writes. When set, a request that arrives before the threshold has elapsed since the session was last rolled skips the `Set-Cookie` write entirely, instead of rolling on every eligible request. Useful to avoid re-issuing the session cookie (and invalidating the Next.js Router Cache) when several Server Actions fire in quick succession. The value must be specified in seconds. Default: `0` (no threshold). |
 | absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
 | inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
@@ -3884,6 +3885,38 @@ export const config = {
 
 > [!WARNING]
 > Disabling rolling sessions changes the user experience significantly. Users will be logged out after the absolute duration regardless of their activity level, requiring manual re-authentication.
+
+### Reducing rolling-session `Set-Cookie` frequency
+
+Because rolling sessions extend the cookie's lifetime on every eligible request, `auth0.middleware()` sends a `Set-Cookie` header on every request that isn't otherwise handled — including Server Action invocations. A `Set-Cookie` on a Server Action response makes Next.js invalidate the Router Cache and re-fetch RSC data, which can look like the page reloading itself on every action call (or even loop, if the action is triggered from a `useEffect`).
+
+Two options let you cut down on these redundant cookie writes without disabling rolling sessions entirely:
+
+- **`session.rollingThreshold`** — skips the roll (and the `Set-Cookie` write) if the session was already rolled within the last `N` seconds, regardless of route. This is the simplest fix for bursts of Server Action calls happening close together:
+
+  ```ts
+  export const auth0 = new Auth0Client({
+    session: {
+      rollingThreshold: 60 // don't re-roll more than once per minute
+    }
+  });
+  ```
+
+- **`session.beforeSessionRolled`** — a predicate you control per request, useful when you only want to skip rolling for a specific route:
+
+  ```ts
+  export const auth0 = new Auth0Client({
+    session: {
+      beforeSessionRolled: async (req) => {
+        const isServerAction = req.headers.get("Next-Action") !== null;
+        const isAffectedPage = req.nextUrl.pathname === "/your-page";
+        return !(isServerAction && isAffectedPage);
+      }
+    }
+  });
+  ```
+
+Both options are safe from a security standpoint: `getSession()` and all access-control checks are unaffected — you are only choosing not to extend the cookie's expiry on every single request. See [#2124](https://github.com/auth0/nextjs-auth0/issues/2124) for the full discussion.
 
 ## Cookie Configuration
 
