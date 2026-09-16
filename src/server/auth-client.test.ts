@@ -9639,6 +9639,49 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
 
+    it("should forward Experiment Center override params to the authorization URL", async () => {
+      const authClient = await createAuthClient();
+
+      const response = await authClient.startInteractiveLogin({
+        authorizationParameters: {
+          experiment_id: "exp_passkeys_onboarding",
+          variation_id: "var_passkey_enabled",
+          segment_id: "seg_enterprise"
+        }
+      });
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.searchParams.get("experiment_id")).toBe(
+        "exp_passkeys_onboarding"
+      );
+      expect(authorizationUrl.searchParams.get("variation_id")).toBe(
+        "var_passkey_enabled"
+      );
+      expect(authorizationUrl.searchParams.get("segment_id")).toBe(
+        "seg_enterprise"
+      );
+    });
+
+    it("should not add segment_id when only experiment_id and variation_id are provided", async () => {
+      const authClient = await createAuthClient();
+
+      const response = await authClient.startInteractiveLogin({
+        authorizationParameters: {
+          experiment_id: "exp_passkeys_onboarding",
+          variation_id: "var_passkey_enabled"
+        }
+      });
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.searchParams.get("experiment_id")).toBe(
+        "exp_passkeys_onboarding"
+      );
+      expect(authorizationUrl.searchParams.get("variation_id")).toBe(
+        "var_passkey_enabled"
+      );
+      expect(authorizationUrl.searchParams.has("segment_id")).toBe(false);
+    });
+
     it("should throw when appBaseUrl is missing and no request is available", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
