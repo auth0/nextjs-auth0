@@ -128,6 +128,46 @@ export interface AuthorizationParameters {
    */
   display?: "page" | "popup" | "touch" | "wap" | (string & {});
   /**
+   * Forces a specific Experiment Center variant for this login instead of
+   * letting Auth0 assign one server-side. Use together with `variation_id`.
+   *
+   * Pass this per-login (as a query param on `/auth/login` or via
+   * `startInteractiveLogin`) rather than at client construction time. Setting
+   * it on the client applies the override to every login the SDK starts, which
+   * defeats the A/B test by pinning all users to the same variant.
+   *
+   * **Testing:** drive from test automation (e.g. Cypress/Playwright) with IDs
+   * from a CI environment variable against a staging tenant. Do not hard-code
+   * this in shipped app code.
+   *
+   * **Production:** pass the variant decision from a feature-flag tool
+   * (e.g. LaunchDarkly) that has already decided which variant the user should
+   * see for this login.
+   *
+   * @see https://auth0.com/docs/customize/experiment-center/overview
+   */
+  experiment_id?: string;
+
+  /**
+   * The variation to force within the experiment identified by `experiment_id`.
+   * Auth0 uses this value instead of computing an assignment for the current
+   * login. The override applies to this login only; the next login without
+   * these params reverts to normal server-side assignment.
+   */
+  variation_id?: string;
+
+  /**
+   * Identifies the audience segment the forced variant belongs to, for
+   * experiments that target different variations to different segments.
+   *
+   * `variation_id` selects the variation; `segment_id` tells Auth0 which
+   * segment that variation was defined under so the correct one is applied.
+   * Only pass this for segment-targeted experiments -- for a non-segmented
+   * experiment, `experiment_id` and `variation_id` alone are sufficient.
+   */
+  segment_id?: string;
+
+  /**
    * Additional authorization parameters.
    */
   [key: string]: unknown;

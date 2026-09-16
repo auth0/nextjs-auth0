@@ -45,6 +45,7 @@
     - [Usage Example](#usage-example)
     - [Token Management Best Practices](#token-management-best-practices)
   - [Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations)
+- [Experiment Center](guides/experiment-center.md)
 - [Multi-Factor Authentication (MFA)](guides/mfa.md)
 - [Passwordless Authentication](#passwordless-authentication)
   - [Auth0 Setup](#auth0-setup)
