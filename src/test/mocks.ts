@@ -64,7 +64,7 @@ export async function createOAuth4WebapiDPopMock() {
     processDiscoveryResponse: vi.fn(),
     customFetch: Symbol("customFetch"),
     allowInsecureRequests: Symbol("allowInsecureRequests")
-  };
+  } as unknown as typeof oauth;
 }
 
 /**
@@ -86,5 +86,5 @@ export async function createOAuth4WebapiMock() {
     protectedResourceRequest: vi.fn(),
     isDPoPNonceError: vi.fn(),
     DPoP: vi.fn()
-  };
+  } as unknown as typeof oauth;
 }
