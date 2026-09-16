@@ -5,7 +5,7 @@
 
 **Added**
 - feat: add typed Experiment Center override params  [\#2852](https://github.com/auth0/nextjs-auth0/pull/2852) ([Piyush-85](https://github.com/Piyush-85))
-- feat: Enterprise connect [\#2799](https://github.com/auth0/nextjs-auth0/pull/2799) ([Piyush-85](https://github.com/Piyush-85))
+- feat: Enterprise connect implementation [\#2799](https://github.com/auth0/nextjs-auth0/pull/2799) ([Piyush-85](https://github.com/Piyush-85))
 
 **Fixed**
 - fix: bind middleware to the Auth0Client instance [\#2840](https://github.com/auth0/nextjs-auth0/pull/2840) ([sleitor](https://github.com/sleitor))
