@@ -6024,6 +6024,8 @@ export async function GET() {
 
 Clear your own session cookie, then redirect to the SDK's shared `/auth/logout` route. It logs the user out of Auth0 through the OIDC `end_session_endpoint`, and the `federated` flag terminates the enterprise IdP session (via SAML SLO for SAML connections). There is no EC-specific logout path: EC simply has no Auth0 session cookie for the shared route to clear.
 
+> **Note:** You can suppress the automatic federated logout by passing `?federated=false` to `/auth/logout`. This leaves the enterprise IdP session alive, so the next login will silently reuse the previous user's session. Only use this if you have a specific reason to skip IdP logout.
+
 For SAML IdPs, ensure the IdP application has `logout.callback` configured in the SAML addon settings, otherwise the IdP session persists after logout and the next login reuses the previous user's session.
 
 ### Unavailable methods
@@ -6033,5 +6035,7 @@ The following throw `EnterpriseConnectError` (a subclass of `InvalidConfiguratio
 `getSession`, `getAccessToken`, `getAccessTokenForConnection`, `revokeRefreshToken`, `requestSessionTransferToken`, `updateSession`, `connectAccount`, `createFetcher`, `buildSessionTransferRedirect`, `getTokenByBackchannelAuth`, `withPageAuthRequired`, `withApiAuthRequired`, `passwordless`, `passkey`, `mfa`
 
 Use your own session guard (e.g. `getAppSession()` from your app's session store) in place of `withPageAuthRequired` and `withApiAuthRequired`.
+
+`challengeMode: "popup"` is not supported in EC mode. The popup callback must return a `postMessage` HTML page to the opener window, but EC mode's `onCallback` returns a `NextResponse` to the browser directly, so the popup never receives the signal to close. Passing `challengeMode: "popup"` to `startEnterpriseLogin` is a TypeScript compile error; sending `?challengeMode=popup` to `/auth/login` returns `400`.
 
 See `examples/with-enterprise-connect` for a working end-to-end example.

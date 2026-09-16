@@ -6006,6 +6006,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
           routes: getDefaultRoutes(),
+          enterpriseConnect: true,
           fetch
         });
       }

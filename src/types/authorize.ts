@@ -19,11 +19,16 @@ export interface StartInteractiveLoginOptions {
  * Options for {@link Auth0Client.startEnterpriseLogin}.
  *
  * Mirrors {@link StartInteractiveLoginOptions} (so `authorizationParameters`,
- * `returnTo`, and `challengeMode` are all supported as passthrough) and adds the
- * required `email`. Callers may optionally forward `organization`, `connection`,
- * or any other authorization parameter exactly as on a normal interactive login.
+ * `returnTo` are all supported as passthrough) and adds the required `email`.
+ * Callers may optionally forward `organization`, `connection`, or any other
+ * authorization parameter exactly as on a normal interactive login.
+ * `challengeMode` is excluded — popup mode is not supported in EC mode because
+ * the popup callback response never reaches the main window's cookie jar.
  */
-export interface StartEnterpriseLoginOptions extends StartInteractiveLoginOptions {
+export interface StartEnterpriseLoginOptions extends Omit<
+  StartInteractiveLoginOptions,
+  "challengeMode"
+> {
   /**
    * The user's email address. Its domain is used for Home Realm Discovery to
    * decide whether to route through Auth0, and is passed as `login_hint` so Auth0

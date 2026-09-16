@@ -717,7 +717,8 @@ export class AuthClient {
       return this.handleAccessToken(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === this.routes.federatedDomain
+      sanitizedPathname === this.routes.federatedDomain &&
+      this.enterpriseConnect
     ) {
       return this.handleFederatedDomain(req);
     } else if (
@@ -1041,6 +1042,16 @@ export class AuthClient {
     ) {
       return new NextResponse(
         `Invalid challengeMode query param: ${queryChallengeMode}. Expected 'redirect', 'popup', or omit.`,
+        { status: 400 }
+      );
+    }
+
+    // Popup mode is not supported in Enterprise Connect mode: the callback
+    // returns the app's own session cookie via onCallback, not postMessage HTML,
+    // so the popup never closes and the parent window never receives the result.
+    if (this.enterpriseConnect && queryChallengeMode === "popup") {
+      return new NextResponse(
+        "challengeMode=popup is not supported in Enterprise Connect mode.",
         { status: 400 }
       );
     }
@@ -1655,20 +1666,20 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
-    if (!res && this.enterpriseConnect) {
-      console.warn(
-        "[nextjs-auth0] onCallback returned a falsy value in Enterprise Connect mode. " +
-          "Ensure your hook returns a NextResponse on all code paths — the response is the " +
-          "only way a session cookie reaches the browser in this mode."
-      );
-    }
-
     // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
     // cookie is written and beforeSessionSaved is not run. The hook's response is
     // the only way a cookie reaches the browser on the callback, so the app is
     // expected to attach its own session cookie to it.
     if (this.enterpriseConnect) {
-      await this.transactionStore.delete(res.cookies, state);
+      if (!res) {
+        console.warn(
+          "[nextjs-auth0] onCallback returned a falsy value in Enterprise Connect mode. " +
+            "Ensure your hook returns a NextResponse on all code paths — the response is the " +
+            "only way a session cookie reaches the browser in this mode."
+        );
+      } else {
+        await this.transactionStore.delete(res.cookies, state);
+      }
 
       return res;
     }

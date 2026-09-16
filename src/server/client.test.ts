@@ -3836,7 +3836,6 @@ describe("Auth0Client", () => {
           organization: "org_123",
           connection: "acme-saml"
         },
-        challengeMode: "popup",
         returnTo: "/dashboard"
       });
 
@@ -3846,7 +3845,6 @@ describe("Auth0Client", () => {
           connection: "acme-saml",
           login_hint: "jane@acme.com"
         },
-        challengeMode: "popup",
         returnTo: "/dashboard"
       });
     });

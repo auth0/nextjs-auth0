@@ -109,11 +109,13 @@ export async function isFederatedDomain(
     }
 
     if (res.status === 404) {
+      res.body?.cancel();
       setCacheEntry(key, false, TTL_FALSE_MS);
       return false;
     }
 
     if (res.status === 429) {
+      res.body?.cancel();
       // Rate limited. Not cached — caching would extend the outage past the
       // limit window. The TTLs above are the primary defense against this;
       // hitting 429 means the cache missed (cold start, or many distinct
@@ -128,6 +130,7 @@ export async function isFederatedDomain(
 
     // 403 means the endpoint is disabled for the tenant; 5xx is a server fault.
     // Neither is cached — both can be fixed without a client deploy.
+    res.body?.cancel();
   } catch {
     // Network failure or malformed JSON. Never cached.
   }
