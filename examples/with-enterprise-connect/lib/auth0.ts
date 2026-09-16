@@ -9,6 +9,17 @@ export interface AppSession {
   name?: string;
 }
 
+// The signed payload carries an absolute expiry (`exp`, epoch seconds) on top of
+// the session fields. EC has no refresh token, so the session lives for a fixed
+// window and the user re-authenticates when it lapses.
+interface SignedSession extends AppSession {
+  exp: number;
+}
+
+// Session lifetime. Kept in one place so the cookie maxAge and the server-side
+// `exp` check stay in sync.
+const SESSION_TTL_SECONDS = 60 * 60 * 24; // 24h
+
 // This is a minimal, secure default. In production, replace this with whatever session mechanism your app already has.
 // Signs the cookie with the native Web Crypto API (no extra package) so the payload can't be forged.
 const enc = new TextEncoder();
@@ -34,7 +45,16 @@ export async function getAppSession(): Promise<AppSession | null> {
       Buffer.from(signature, "base64url"),
       enc.encode(body)
     );
-    return valid ? (JSON.parse(Buffer.from(body, "base64url").toString()) as AppSession) : null;
+    if (!valid) return null;
+
+    // Signature is authentic; now enforce expiry. A valid signature alone would
+    // let a leaked cookie replay forever, so a server-checked `exp` bounds it.
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as SignedSession;
+    if (typeof payload.exp !== "number" || Date.now() >= payload.exp * 1000) {
+      return null;
+    }
+    const { exp: _exp, ...session } = payload;
+    return session;
   } catch {
     return null;
   }
@@ -64,15 +84,17 @@ export const auth0 = new Auth0Client({
     }
 
     // session.user holds the OIDC claims; keep only the fields you need.
-    const appSession: AppSession = {
+    // `exp` bounds the session server-side; the cookie maxAge below mirrors it.
+    const signedSession: SignedSession = {
       sub: user.sub,
       email: user.email as string,
       orgId,
-      name: user.name as string | undefined
+      name: user.name as string | undefined,
+      exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
     };
 
     // Sign the payload so the cookie can't be forged: "<body>.<signature>".
-    const body = Buffer.from(JSON.stringify(appSession)).toString("base64url");
+    const body = Buffer.from(JSON.stringify(signedSession)).toString("base64url");
     const signature = Buffer.from(
       await crypto.subtle.sign("HMAC", await key(), enc.encode(body))
     ).toString("base64url");
@@ -83,7 +105,10 @@ export const auth0 = new Auth0Client({
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/"
+      path: "/",
+      // Mirror the signed `exp`: expire the cookie client-side too, so the
+      // browser stops sending it once the session lapses.
+      maxAge: SESSION_TTL_SECONDS
     });
     return res;
   }

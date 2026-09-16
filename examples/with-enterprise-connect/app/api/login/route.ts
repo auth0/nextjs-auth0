@@ -17,7 +17,9 @@ export async function POST(req: NextRequest) {
   const email = String(formData.get("email") ?? "");
 
   if (!email || !email.includes("@")) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    // 303 See Other: this handler is reached via a form POST, so a default 307
+    // would re-POST to /login (a GET-only page route). Force a GET.
+    return NextResponse.redirect(new URL("/login", req.url), 303);
   }
 
   const res = await auth0.startEnterpriseLogin({
@@ -46,5 +48,6 @@ export async function POST(req: NextRequest) {
   // Use a neutral "hint" param, not "error": non-federated is not an error condition.
   const loginUrl = new URL("/login", req.url);
   loginUrl.searchParams.set("hint", "not-federated");
-  return NextResponse.redirect(loginUrl);
+  // 303 See Other: switch the form POST to a GET for the /login page route.
+  return NextResponse.redirect(loginUrl, 303);
 }
