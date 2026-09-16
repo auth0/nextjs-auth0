@@ -88,7 +88,7 @@ Either way, `startEnterpriseLogin` runs domain discovery and, for a federated do
 
 ### Logout
 
-`GET /api/logout` clears the `app_session` cookie and delegates to `/auth/logout?federated=true`. The SDK builds the `/oidc/logout` URL and forwards `federated`, terminating the enterprise IdP session. `returnTo` becomes the OIDC `post_logout_redirect_uri`, which Auth0 requires to be an absolute URL registered as an Allowed Logout URL.
+`POST /api/logout` clears the `app_session` cookie and delegates to `/auth/logout?federated=true`. It is a POST (submitted from a form button on the dashboard, not a link) and verifies the `Origin` header so it cannot be triggered by a cross-site GET (logout CSRF). The SDK builds the `/oidc/logout` URL and forwards `federated`, terminating the enterprise IdP session. `returnTo` becomes the OIDC `post_logout_redirect_uri`, which Auth0 requires to be an absolute URL registered as an Allowed Logout URL.
 
 ## Project Structure
 

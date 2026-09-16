@@ -34,12 +34,22 @@ export default async function Dashboard() {
       </table>
 
       <div style={{ marginTop: 32 }}>
-        <a
-          href="/api/logout"
-          style={{ color: "#635DFF", textDecoration: "none", fontSize: 14 }}
-        >
-          Sign out (clears the app session and the enterprise IdP session)
-        </a>
+        {/* Logout is a POST so it cannot be triggered by a cross-site GET (CSRF). */}
+        <form action="/api/logout" method="post">
+          <button
+            type="submit"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#635DFF",
+              cursor: "pointer",
+              fontSize: 14
+            }}
+          >
+            Sign out (clears the app session and the enterprise IdP session)
+          </button>
+        </form>
       </div>
 
       <details style={{ marginTop: 32, fontSize: 13, color: "#666" }}>
