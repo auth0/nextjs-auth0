@@ -1,5 +1,15 @@
 # Change Log
 
+## [v4.30.0](https://github.com/auth0/nextjs-auth0/tree/v4.30.0) (2026-09-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.29.0...v4.30.0)
+
+**Added**
+- feat: add typed Experiment Center override params  [\#2852](https://github.com/auth0/nextjs-auth0/pull/2852) ([Piyush-85](https://github.com/Piyush-85))
+- feat: Enterprise connect [\#2799](https://github.com/auth0/nextjs-auth0/pull/2799) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: bind middleware to the Auth0Client instance [\#2840](https://github.com/auth0/nextjs-auth0/pull/2840) ([sleitor](https://github.com/sleitor))
+
 ## [v4.29.0](https://github.com/auth0/nextjs-auth0/tree/v4.29.0) (2026-09-04)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.28.0...v4.29.0)
 
