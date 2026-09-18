@@ -110,22 +110,6 @@ export function validateVerificationCredentialAndThrow(
 }
 
 /**
- * Extracts path parameter from URL pathname.
- *
- * @param pathname - Request URL pathname
- * @param paramName - Parameter name for error messages
- * @returns Extracted parameter value
- * @throws {InvalidRequestError} If parameter is missing
- */
-export function extractPathParam(pathname: string, paramName: string): string {
-  const value = pathname.split("/").pop();
-  if (!value || value === "") {
-    throw new InvalidRequestError(`Missing ${paramName} in URL`);
-  }
-  return value;
-}
-
-/**
  * Parses JSON from request body with error handling.
  *
  * @param req - NextRequest to parse

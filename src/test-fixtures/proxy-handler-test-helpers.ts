@@ -1,7 +1,7 @@
 /**
  * Test Helpers for Proxy Handler Tests
  *
- * Shared utilities for testing AuthClient proxy functionality with MSW mocking.
+ * Shared utilities for testing Auth0ServerClient proxy functionality with MSW mocking.
  * These helpers support Bearer/DPoP authentication, session management, and
  * DPoP nonce retry validation.
  */

@@ -76,21 +76,6 @@ export interface EnrollmentApiResponse {
 }
 
 /**
- * Request body for verify endpoint (pre-validation).
- * Contains at least one verification credential.
- */
-export interface VerifyCredentialBody {
-  /** OTP code (6 digits) */
-  otp?: string;
-  /** OOB code from challenge */
-  oobCode?: string;
-  /** Binding code for OOB */
-  bindingCode?: string;
-  /** Recovery code */
-  recoveryCode?: string;
-}
-
-/**
  * Grant type for MFA token exchange.
  * Used in token endpoint requests to exchange an mfa_token for access/refresh tokens.
  *

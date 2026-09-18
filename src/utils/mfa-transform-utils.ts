@@ -1,4 +1,4 @@
-import { InvalidRequestError, MfaVerifyError } from "../errors/mfa-errors.js";
+import { InvalidRequestError } from "../errors/mfa-errors.js";
 import type {
   Authenticator,
   ChallengeResponse,
@@ -8,9 +8,6 @@ import type {
   EnrollOtpOptions
 } from "../types/index.js";
 import {
-  GRANT_TYPE_MFA_OOB,
-  GRANT_TYPE_MFA_OTP,
-  GRANT_TYPE_MFA_RECOVERY_CODE,
   VerifyMfaOptions,
   type AuthenticatorApiResponse,
   type ChallengeApiResponse,
@@ -116,54 +113,6 @@ export function transformVerifyBodyToOptions(
   }
   throw new InvalidRequestError("Missing verification credential");
 }
-
-export const buildVerifyParams = (
-  options: VerifyMfaOptions,
-  mfaToken: string,
-  audience?: string,
-  scope?: string
-): URLSearchParams => {
-  const params = new URLSearchParams();
-  params.append("mfa_token", mfaToken);
-  if (audience) params.append("audience", audience);
-  if (scope) params.append("scope", scope);
-
-  if ("otp" in options && options.otp) {
-    params.append("otp", options.otp);
-  } else if (
-    "oobCode" in options &&
-    "bindingCode" in options &&
-    options.oobCode &&
-    options.bindingCode
-  ) {
-    params.append("oob_code", options.oobCode);
-    params.append("binding_code", options.bindingCode);
-  } else if ("recoveryCode" in options && options.recoveryCode) {
-    params.append("recovery_code", options.recoveryCode);
-  } else {
-    throw new MfaVerifyError(
-      "invalid_request",
-      "At least one verification credential required (otp, oobCode+bindingCode, or recoveryCode)"
-    );
-  }
-
-  return params;
-};
-
-export const getVerifyGrantType = (params: URLSearchParams) => {
-  if (params.has("otp")) {
-    return GRANT_TYPE_MFA_OTP;
-  } else if (params.has("oob_code") && params.has("binding_code")) {
-    return GRANT_TYPE_MFA_OOB;
-  } else if (params.has("recovery_code")) {
-    return GRANT_TYPE_MFA_RECOVERY_CODE;
-  } else {
-    throw new MfaVerifyError(
-      "invalid_request",
-      "No verification credential provided"
-    );
-  }
-};
 
 /**
  * Maps factor types to authenticator types and OOB channels.

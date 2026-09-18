@@ -11,11 +11,11 @@ import type {
   PasswordlessVerifyOptions
 } from "../../types/index.js";
 import type { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client/index.js";
+import type { Auth0ServerClient } from "../auth-client/index.js";
 
 /**
  * Server-side passwordless authentication API.
- * Delegates all operations to AuthClient business logic.
+ * Delegates all operations to Auth0ServerClient business logic.
  * Provides overload support for App Router and Pages Router.
  *
  * @example App Router — OTP start
@@ -55,7 +55,7 @@ import type { AuthClient } from "../auth-client/index.js";
 export class ServerPasswordlessClient implements PasswordlessClient {
   constructor(private provider: AuthClientProvider) {}
 
-  private async getAuthClient(req?: NextRequest): Promise<AuthClient> {
+  private async getAuthClient(req?: NextRequest): Promise<Auth0ServerClient> {
     const { headers } = await import("next/headers.js");
     const reqHeaders = req ? req.headers : await headers();
     const url = req?.nextUrl;

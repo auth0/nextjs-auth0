@@ -8,13 +8,6 @@ export type ResponseHeaders =
   | [string, string][]
   | { get(name: string): string | null | undefined };
 
-// Custom init type for this fetcher
-export type FetcherInit = {
-  method?: string;
-  headers?: HeadersInit;
-  body?: BodyInit;
-};
-
 /**
  * Custom fetch implementation that returns a Response-like type.
  * Used for dependency injection to work well with oauth4webapi's protectedResourceRequest.
@@ -38,11 +31,6 @@ export type CustomFetchImpl<TOutput extends Response> = (
 export type AccessTokenFactory = (
   getAccessTokenOptions: GetAccessTokenOptions
 ) => Promise<string | TokenSet>;
-
-// Aliased unused exports with underscore prefix to avoid lint errors in importing files
-export type _CustomFetchImpl<TOutput extends Response> =
-  CustomFetchImpl<TOutput>;
-export type _AccessTokenFactory = AccessTokenFactory;
 
 /**
  * Configuration properties specific to the Auth0 client for DPoP and HTTP operations.

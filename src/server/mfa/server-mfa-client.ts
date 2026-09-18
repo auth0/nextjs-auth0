@@ -17,11 +17,11 @@ import {
   normalizeEnrollOptions
 } from "../../utils/mfa-transform-utils.js";
 import type { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client/index.js";
+import type { Auth0ServerClient } from "../auth-client/index.js";
 
 /**
  * Server-side MFA API.
- * Delegates all operations to AuthClient business logic.
+ * Delegates all operations to Auth0ServerClient business logic.
  * Provides overload support for App Router and Pages Router.
  *
  * @example App Router
@@ -53,7 +53,7 @@ import type { AuthClient } from "../auth-client/index.js";
 export class ServerMfaClient implements MfaClient {
   constructor(private provider: AuthClientProvider) {}
 
-  private async getAuthClient(req?: NextRequest): Promise<AuthClient> {
+  private async getAuthClient(req?: NextRequest): Promise<Auth0ServerClient> {
     const reqHeaders = req ? req.headers : await getHeaders();
     const url = req?.nextUrl;
     return this.provider.forRequest(reqHeaders, url);
@@ -206,7 +206,7 @@ export class ServerMfaClient implements MfaClient {
 
   /**
    * Implementation with overload resolution.
-   * Resolves cookies and delegates to AuthClient for business logic + session management.
+   * Resolves cookies and delegates to Auth0ServerClient for business logic + session management.
    */
   async verify(
     arg1: VerifyMfaOptions | NextRequest,

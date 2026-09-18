@@ -52,8 +52,8 @@ export interface CreateTestStoresOptions {
 }
 
 /**
- * The store bundle `AuthClient` requires after the storage-only cutover
- * (slices 1-4). Spread directly into `new AuthClient({ ...stores, ... })`.
+ * The store bundle `Auth0ServerClient` requires after the storage-only cutover
+ * (slices 1-4). Spread directly into `new Auth0ServerClient({ ...stores, ... })`.
  */
 export interface TestStores {
   transactionStore: Auth0TransactionStore;
@@ -66,7 +66,7 @@ export interface TestStores {
 
 /**
  * Constructs the engine-backed store bundle the same way `Auth0Client` does in
- * `client.ts`, so unit tests can wire an `AuthClient` without duplicating the
+ * `client.ts`, so unit tests can wire an `Auth0ServerClient` without duplicating the
  * cookie-option computation and store construction. This is a transitional test
  * aid: it exists to migrate the existing harness off the pre-cutover v4-store
  * construction, and is not part of the shipped SDK surface.
