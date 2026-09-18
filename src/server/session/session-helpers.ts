@@ -1,9 +1,86 @@
-import * as oauth from "oauth4webapi";
+import type { StateData, TokenResponse } from "@auth0/auth0-server-js";
 
 import type { AccessTokenSet, SessionData } from "../../types/index.js";
 import { TransactionState } from "../transaction-store.js";
+import { filterDefaultIdTokenClaims } from "../user.js";
+import {
+  sessionDataToStateData,
+  stateDataToSessionData
+} from "./session-mapper.js";
 
 const SESSION_EXPIRY_LEEWAY_SECONDS = 30;
+
+/**
+ * The validated ID token claims carried on the engine's {@link TokenResponse}
+ * (`session_expiry` and the standard OIDC claims). Referenced structurally so
+ * the session layer does not import a claims type the engine does not export.
+ */
+type IdTokenClaims = NonNullable<TokenResponse["claims"]>;
+
+/**
+ * The finalize hook shape shared by the handler-level `finalizeSession` and the
+ * engine store's in-`set()` finalize. Structurally identical to
+ * `BeforeSessionSavedHook`; declared here so the session layer does not import
+ * from the auth-client layer.
+ */
+export type SessionFinalizeHook = (
+  session: SessionData,
+  idToken: string | null
+) => Promise<SessionData>;
+
+/**
+ * The single session-finalization step. Runs the consumer's
+ * `beforeSessionSaved` hook when configured (preserving `session.internal` so a
+ * hook cannot drop it), otherwise reduces `session.user` to the default ID
+ * token claims. `Auth0ServerClient.finalizeSession` and the engine store's
+ * `set()` both delegate here so the two can never diverge.
+ */
+export async function finalizeSessionData(
+  session: SessionData,
+  idToken: string | null,
+  beforeSessionSaved?: SessionFinalizeHook
+): Promise<SessionData> {
+  if (beforeSessionSaved) {
+    const updatedSession = await beforeSessionSaved(session, idToken);
+    return { ...updatedSession, internal: session.internal };
+  }
+  session.user = filterDefaultIdTokenClaims(session.user);
+  return session;
+}
+
+/**
+ * The engine store's `set()` is handed engine `StateData`, but
+ * `beforeSessionSaved` operates on nextjs-auth0 `SessionData`. When (and only
+ * when) the per-request cookie context opts in via `runBeforeSessionSaved`, map
+ * the outgoing `StateData` to `SessionData`, run {@link finalizeSessionData},
+ * and map back, so the engine's own single write persists the transformed
+ * session. The `idToken` the hook receives is the one already carried on the
+ * session (`session.tokenSet.idToken`); at every finalize site today that value
+ * equals the id_token being written.
+ *
+ * A no-op (returns the input unchanged) when the marker is absent, so the
+ * session writes that bypass the hook today keep bypassing it, and returns the
+ * input unchanged for a `StateData` that has no representable session.
+ */
+export async function finalizeStateData(
+  stateData: StateData,
+  runBeforeSessionSaved: boolean | undefined,
+  beforeSessionSaved?: SessionFinalizeHook
+): Promise<StateData> {
+  if (!runBeforeSessionSaved) {
+    return stateData;
+  }
+  const session = stateDataToSessionData(stateData);
+  if (!session) {
+    return stateData;
+  }
+  const finalized = await finalizeSessionData(
+    session,
+    session.tokenSet.idToken ?? null,
+    beforeSessionSaved
+  );
+  return sessionDataToStateData(finalized);
+}
 
 /**
  * Returns true when the IPSIE session ceiling has been reached.
@@ -83,19 +160,21 @@ export function isSessionCeilingInPast(
  */
 export function mergePopupTokenIntoSession(
   session: SessionData,
-  oidcRes: oauth.TokenEndpointResponse,
+  tokenResponse: TokenResponse,
   transactionState: TransactionState,
-  idTokenClaims?: oauth.IDToken
+  idTokenClaims?: IdTokenClaims
 ): void {
   session.accessTokens = session.accessTokens || [];
 
   const newAccessTokenSet: AccessTokenSet = {
-    accessToken: oidcRes.access_token,
-    scope: oidcRes.scope,
+    accessToken: tokenResponse.accessToken,
+    scope: tokenResponse.scope,
     requestedScope: transactionState.scope,
     audience: transactionState.audience || "",
-    expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in),
-    token_type: oidcRes.token_type
+    // The engine's `expiresAt` is already an absolute Unix timestamp (seconds),
+    // so no `Date.now() + expires_in` computation is needed here.
+    expiresAt: tokenResponse.expiresAt,
+    token_type: tokenResponse.tokenType
   };
 
   // Replace existing token for same audience, or append new one.
@@ -116,13 +195,13 @@ export function mergePopupTokenIntoSession(
   }
 
   // Update refresh token if a new one was issued
-  if (oidcRes.refresh_token) {
-    session.tokenSet.refreshToken = oidcRes.refresh_token;
+  if (tokenResponse.refreshToken) {
+    session.tokenSet.refreshToken = tokenResponse.refreshToken;
   }
 
   // Update id token and user claims if new ones were issued
-  if (oidcRes.id_token) {
-    session.tokenSet.idToken = oidcRes.id_token;
+  if (tokenResponse.idToken) {
+    session.tokenSet.idToken = tokenResponse.idToken;
     if (idTokenClaims) {
       session.user = { ...session.user, ...idTokenClaims };
     }
@@ -135,17 +214,17 @@ export function mergePopupTokenIntoSession(
  * redirect branch to avoid duplicating the same construction logic.
  *
  * @param idTokenClaims - Validated ID token claims (must be present)
- * @param oidcRes - OAuth token endpoint response
+ * @param tokenResponse - The engine's token response for the code exchange
  * @param transactionState - Transaction state with audience/scope
  * @returns A new SessionData object
  */
 export function buildSessionFromCallback(
-  idTokenClaims: oauth.IDToken,
-  oidcRes: oauth.TokenEndpointResponse,
+  idTokenClaims: IdTokenClaims,
+  tokenResponse: TokenResponse,
   transactionState: TransactionState
 ): SessionData {
   // Reject non-positive values (0, negatives), millisecond timestamps (13+ digits),
-  // NaN, Infinity, and non-numbers — all fall open to "no ceiling."
+  // NaN, Infinity, and non-numbers, all fall open to "no ceiling."
   const rawExpiry = idTokenClaims.session_expiry;
   const sessionExpiresAt =
     typeof rawExpiry === "number" && rawExpiry > 0 && rawExpiry < 10_000_000_000
@@ -155,13 +234,14 @@ export function buildSessionFromCallback(
   return {
     user: idTokenClaims,
     tokenSet: {
-      accessToken: oidcRes.access_token,
-      idToken: oidcRes.id_token,
-      scope: oidcRes.scope,
+      accessToken: tokenResponse.accessToken,
+      idToken: tokenResponse.idToken,
+      scope: tokenResponse.scope,
       requestedScope: transactionState.scope,
       audience: transactionState.audience,
-      refreshToken: oidcRes.refresh_token,
-      expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
+      refreshToken: tokenResponse.refreshToken,
+      // The engine's `expiresAt` is already an absolute Unix timestamp (seconds).
+      expiresAt: tokenResponse.expiresAt
     },
     internal: {
       sid: idTokenClaims.sid as string,

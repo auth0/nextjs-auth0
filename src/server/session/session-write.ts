@@ -31,7 +31,7 @@ export interface SaveSessionParams {
 /**
  * Writes a session through the engine state store in its native format,
  * reproducing the v4 session-store write behavior during the storage-only
- * cutover. Shared by `AuthClient` and `Auth0Client` (both hold the same store
+ * cutover. Shared by `Auth0ServerClient` and `Auth0Client` (both hold the same store
  * instances). Pure function, no wrapper class.
  *
  * - Stateful: the engine store persists the mapped row; `connectionTokenSets`

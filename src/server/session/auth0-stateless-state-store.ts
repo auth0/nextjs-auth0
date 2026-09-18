@@ -15,6 +15,7 @@ import {
   LegacyCookieOverrides,
   readLegacyStatelessStateData
 } from "./legacy-cookie-compat.js";
+import { finalizeStateData, SessionFinalizeHook } from "./session-helpers.js";
 
 // Total encoded session-cookie size (across all native `__session.N` chunks)
 // above which we warn. Matches the threshold and rationale of the warning in
@@ -55,13 +56,19 @@ function escapeRegExp(value: string): string {
  */
 export class Auth0StatelessStateStore extends StatelessStateStore<Auth0CookieContext> {
   readonly #legacyDeleteOptions: LegacyCookieDeleteOptions;
+  // Consumer's `beforeSessionSaved` hook, run inside `set()` only when the
+  // per-request context opts in (see `finalizeStateData`). Undefined when not
+  // configured; the finalize step then applies the default claim filter.
+  readonly #beforeSessionSaved?: SessionFinalizeHook;
 
   constructor(
-    options: SessionConfiguration & EncryptedStoreOptions,
+    options: SessionConfiguration &
+      EncryptedStoreOptions & { beforeSessionSaved?: SessionFinalizeHook },
     cookieHandler: CookieHandler<Auth0CookieContext>,
     legacyCookieOptions?: LegacyCookieOverrides
   ) {
     super(options, cookieHandler);
+    this.#beforeSessionSaved = options.beforeSessionSaved;
     this.#legacyDeleteOptions = buildLegacyDeleteOptions(
       options.cookie,
       legacyCookieOptions
@@ -101,11 +108,20 @@ export class Auth0StatelessStateStore extends StatelessStateStore<Auth0CookieCon
     removeIfExists?: boolean,
     options?: Auth0CookieContext
   ): Promise<void> {
+    // When the context opts in, run `beforeSessionSaved` (or the default claim
+    // filter) on the outgoing session before it is encrypted, so this single
+    // write is hook-correct. No-op otherwise.
+    const finalizedStateData = await finalizeStateData(
+      stateData,
+      options?.runBeforeSessionSaved,
+      this.#beforeSessionSaved
+    );
+
     // Native write + engine cleanup: the engine chunks `${identifier}.N` and
     // removes any existing cookie whose name `startsWith(identifier)` and is not
     // one of the new chunks — that clears the bare v4 `__session` and the v4
     // `__session__N` chunks in place.
-    await super.set(identifier, stateData, removeIfExists, options);
+    await super.set(identifier, finalizedStateData, removeIfExists, options);
 
     const reqCookies = options?.reqCookies;
     const resCookies = options?.resCookies;

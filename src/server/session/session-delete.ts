@@ -25,7 +25,7 @@ export interface DeleteSessionParams {
 /**
  * Deletes a session through the engine state store, reproducing the v4
  * session-store `delete` behavior during the storage-only cutover. Shared by
- * `AuthClient` (both classes hold the same store instances). Pure function, no
+ * `Auth0ServerClient` (both classes hold the same store instances). Pure function, no
  * wrapper class.
  *
  * - Stateful: the engine store resolves the `sid` (native, v4, or v3) and drops

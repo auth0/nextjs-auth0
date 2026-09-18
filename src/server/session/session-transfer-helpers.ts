@@ -98,7 +98,7 @@ export function resolveActorFromSession(
  * Throws `CustomTokenExchangeError(EXCHANGE_FAILED)` if `targetLoginUrl` is not a
  * valid absolute `http`/`https` URL. `targetLoginUrl` must be a trusted, app-controlled value.
  *
- * Shared by both the core `AuthClient` and the `Auth0Client` wrapper (including its
+ * Shared by both the core `Auth0ServerClient` and the `Auth0Client` wrapper (including its
  * resolver-mode fallback) so the STT query-param logic and URL guard live in one place.
  */
 export function buildSessionTransferRedirectUrl(

@@ -25,6 +25,7 @@ import {
   LEGACY_COOKIE_NAME,
   normalizeStatefulSession
 } from "./normalize-session.js";
+import { finalizeStateData, SessionFinalizeHook } from "./session-helpers.js";
 import {
   sessionDataToStateData,
   stateDataToSessionData
@@ -46,6 +47,11 @@ export interface Auth0StatefulStateStoreOptions
    * class maps `StateData` <-> `SessionData` around it.
    */
   store: SessionDataStore;
+  /**
+   * Consumer's `beforeSessionSaved` hook, run inside `set()` only when the
+   * per-request context opts in (see `finalizeStateData`).
+   */
+  beforeSessionSaved?: SessionFinalizeHook;
 }
 
 /**
@@ -74,6 +80,7 @@ export class Auth0StatefulStateStore extends StatefulStateStore<Auth0CookieConte
   // `StateData`). We map at every boundary below.
   readonly #store: SessionDataStore;
   readonly #legacyDeleteOptions: LegacyCookieDeleteOptions;
+  readonly #beforeSessionSaved?: SessionFinalizeHook;
 
   constructor(
     options: Auth0StatefulStateStoreOptions,
@@ -93,6 +100,7 @@ export class Auth0StatefulStateStore extends StatefulStateStore<Auth0CookieConte
       cookieHandler
     );
     this.#store = options.store;
+    this.#beforeSessionSaved = options.beforeSessionSaved;
     this.#legacyDeleteOptions = buildLegacyDeleteOptions(
       options.cookie,
       legacyCookieOptions
@@ -137,6 +145,15 @@ export class Auth0StatefulStateStore extends StatefulStateStore<Auth0CookieConte
     const reqCookies = options?.reqCookies;
     const resCookies = options?.resCookies;
 
+    // When the context opts in, run `beforeSessionSaved` (or the default claim
+    // filter) on the outgoing session before it is persisted, so this single
+    // write is hook-correct. No-op otherwise.
+    const finalizedStateData = await finalizeStateData(
+      stateData,
+      options?.runBeforeSessionSaved,
+      this.#beforeSessionSaved
+    );
+
     // Reuse an existing session ID (native, v4, or v3-signed) so a migrating
     // user keeps their store row and session-fixation continuity; otherwise mint
     // a fresh one.
@@ -158,7 +175,7 @@ export class Auth0StatefulStateStore extends StatefulStateStore<Auth0CookieConte
     // `SessionData`. Map before writing so stored rows keep the exact shape the
     // v4 `StatefulSessionStore` produced. A `StateData` with no user/token set
     // cannot be represented as a `SessionData` and is nothing worth persisting.
-    const sessionData = stateDataToSessionData(stateData);
+    const sessionData = stateDataToSessionData(finalizedStateData);
     if (!sessionData) {
       return;
     }
@@ -194,8 +211,8 @@ export class Auth0StatefulStateStore extends StatefulStateStore<Auth0CookieConte
     }
 
     const maxAge = this.calculateMaxAge(
-      stateData.internal.createdAt,
-      stateData.sessionExpiresAt
+      finalizedStateData.internal.createdAt,
+      finalizedStateData.sessionExpiresAt
     );
     const expiration = Math.floor(Date.now() / 1000) + maxAge;
     const encrypted = await this.encrypt<{ id: string }>(
