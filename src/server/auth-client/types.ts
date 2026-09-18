@@ -1,4 +1,5 @@
 import type { NextResponse } from "next/server.js";
+import type { ServerClient } from "@auth0/auth0-server-js";
 import type * as jose from "jose";
 import type * as oauth from "oauth4webapi";
 
@@ -22,6 +23,7 @@ import type { AbstractSessionStore } from "../session/abstract-session-store.js"
 import type { Auth0StatefulStateStore } from "../session/auth0-stateful-state-store.js";
 import type { Auth0StatelessStateStore } from "../session/auth0-stateless-state-store.js";
 import type { Auth0TransactionStore } from "../session/auth0-transaction-store.js";
+import type { Auth0CookieContext } from "./auth0-cookie-handler.js";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -116,6 +118,16 @@ export interface AuthClientOptions {
    * `stateIdentifier`).
    */
   stateIdentifier: string;
+  /**
+   * The per-domain engine `ServerClient` for this same resolved domain, built
+   * alongside this client in `client.ts` (one per resolved domain, sharing the
+   * same engine stores). Injected so request-facing OIDC (Step 5 full swap)
+   * delegates directly to the engine's own methods (`getAccessToken`,
+   * `getAccessTokenForConnection`, ...) rather than re-implementing them here.
+   * Optional so direct constructions that never exercise the engine paths keep
+   * working; the engine-delegating methods assert its presence.
+   */
+  engineServerClient?: ServerClient<Auth0CookieContext>;
 
   domain: string;
   /**
@@ -134,7 +146,7 @@ export interface AuthClientOptions {
   secret: string;
   /**
    * Normalized appBaseUrl. When omitted, the SDK infers the base URL from the request.
-   * If you construct AuthClient directly, normalize the value first.
+   * If you construct Auth0ServerClient directly, normalize the value first.
    */
   appBaseUrl?: string | string[];
   signInReturnToPath?: string;

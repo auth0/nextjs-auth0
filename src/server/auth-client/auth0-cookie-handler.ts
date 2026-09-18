@@ -7,6 +7,17 @@ import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 export type Auth0CookieContext = {
   reqCookies: RequestCookies;
   resCookies?: ResponseCookies;
+  /**
+   * When `true`, the engine state store runs `beforeSessionSaved` (or the
+   * default ID token claim filter) inside its own `set()`, so the engine's
+   * single write is hook-correct. Set only on the writes that run the hook
+   * today (login / callback / token refresh / passkey / passwordless /
+   * session-transfer); never on the writes that deliberately bypass it
+   * (rolling `maxAge` touch, MFA context, connection-token updates,
+   * connected-accounts reconcile). Absent by default, so the store's in-`set()`
+   * hook is inert until a handler opts in.
+   */
+  runBeforeSessionSaved?: boolean;
 };
 
 export class Auth0CookieHandler implements CookieHandler<Auth0CookieContext> {

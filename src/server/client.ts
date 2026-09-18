@@ -53,7 +53,7 @@ import {
   type Auth0CookieContext
 } from "./auth-client/auth0-cookie-handler.js";
 import {
-  AuthClient,
+  Auth0ServerClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
   Routes,
@@ -556,11 +556,11 @@ export class Auth0Client {
   private engineTransactionStore: Auth0TransactionStore;
   private engineStateStore: Auth0StatelessStateStore | Auth0StatefulStateStore;
   // One engine `ServerClient` per resolved domain, keyed by the provider's
-  // `AuthClient` for that domain so each shares the exact per-domain lifecycle
+  // `Auth0ServerClient` for that domain so each shares the exact per-domain lifecycle
   // and caching the provider already manages. Populated by the provider factory
   // below; not consumed by any request path yet.
   private engineServerClients: WeakMap<
-    AuthClient,
+    Auth0ServerClient,
     ServerClient<Auth0CookieContext>
   >;
   private routes: Routes;
@@ -814,10 +814,17 @@ export class Auth0Client {
       sameSite: sessionCookieOptions.sameSite
     };
 
-    const engineSessionConfig: SessionConfiguration & { secret: string } = {
+    const engineSessionConfig: SessionConfiguration & {
+      secret: string;
+      beforeSessionSaved?: BeforeSessionSavedHook;
+    } = {
       ...options.session,
       secret,
-      cookie: sessionCookieOptions
+      cookie: sessionCookieOptions,
+      // Injected so the engine store can run the hook inside its own `set()`
+      // when a handler opts in (per-request `runBeforeSessionSaved`). Inert
+      // until then; the handler-level `finalizeSession` still applies it today.
+      beforeSessionSaved: options.beforeSessionSaved
     };
 
     this.engineStateStore = options.sessionStore
@@ -833,15 +840,15 @@ export class Auth0Client {
         );
 
     this.engineServerClients = new WeakMap<
-      AuthClient,
+      Auth0ServerClient,
       ServerClient<Auth0CookieContext>
     >();
 
     // Builds the engine `ServerClient` for one resolved domain. Every client
     // shares the two engine stores above; only the domain (and its per-domain
-    // AuthClient config) differs, so each client sees a concrete, static domain
+    // Auth0ServerClient config) differs, so each client sees a concrete, static domain
     // (which keeps `serverClient.mfa` working in resolver mode without an engine
-    // change). Construction is lazy, so building one alongside each AuthClient is
+    // change). Construction is lazy, so building one alongside each Auth0ServerClient is
     // free.
     const buildEngineServerClient = (
       engineDomain: string
@@ -897,14 +904,18 @@ export class Auth0Client {
         return runtimeDomain;
       });
 
-    // Create provider that manages AuthClient instances
+    // Create provider that manages Auth0ServerClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
     this.provider = new AuthClientProvider({
       domain: domainForProvider,
       allowInsecureRequests: options.allowInsecureRequests,
       createAuthClient: (domainForClient, issuerForClient) => {
-        const authClient = new AuthClient({
+        // Step 5 full swap: build the per-domain engine `ServerClient` first so
+        // it can be injected into the Auth0ServerClient below (request-facing
+        // OIDC delegates to it). Same instance is also cached in the WeakMap.
+        const engineServerClient = buildEngineServerClient(domainForClient);
+        const authClient = new Auth0ServerClient({
           // Storage-only cutover (slice 1): transaction cookies are now read /
           // written through the engine store in its native format. The prefix
           // and parallel flag mirror what `engineTransactionStore` and the
@@ -964,16 +975,15 @@ export class Auth0Client {
           mfaTokenTtl,
           cspNonce: options.cspNonce,
           discoveryCache,
-          provider: this.provider
+          provider: this.provider,
+          engineServerClient
         });
 
-        // sub-step 5: build the engine ServerClient for this same resolved
-        // domain and cache it keyed by the AuthClient. Held idle (no request
-        // routed through it yet); consumed by the separately gated routing step.
-        this.engineServerClients.set(
-          authClient,
-          buildEngineServerClient(domainForClient)
-        );
+        // Cache the engine ServerClient keyed by the Auth0ServerClient too, so
+        // client.ts-level handlers that resolve via `provider.forRequest` can
+        // reach the same instance. The Auth0ServerClient also holds it directly
+        // (injected above) for its own engine-delegating methods.
+        this.engineServerClients.set(authClient, engineServerClient);
 
         return authClient;
       }
@@ -1043,11 +1053,11 @@ export class Auth0Client {
   }
 
   /**
-   * Fetches session using an already-resolved AuthClient, avoiding double resolver invocation.
+   * Fetches session using an already-resolved Auth0ServerClient, avoiding double resolver invocation.
    * @internal
    */
   private async getSessionFromAuthClient(
-    authClient: AuthClient,
+    authClient: Auth0ServerClient,
     req?: PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     let reqCookies:
@@ -1639,7 +1649,7 @@ export class Auth0Client {
     opts?: { organization?: string }
   ): NextResponse {
     // buildSessionTransferRedirect is a pure URL builder — delegate directly
-    // to any AuthClient instance since it uses no per-request state.
+    // to any Auth0ServerClient instance since it uses no per-request state.
     const staticClient = this.provider.getAuthClientForStaticMode();
     if (staticClient) {
       return staticClient.buildSessionTransferRedirect(
@@ -1649,7 +1659,7 @@ export class Auth0Client {
       );
     }
     // Fallback for resolver mode with no static client. Uses the same shared
-    // URL builder (with the same absolute-URL guard) as the core AuthClient,
+    // URL builder (with the same absolute-URL guard) as the core Auth0ServerClient,
     // so behaviour is identical on both paths.
     const url = buildSessionTransferRedirectUrl(
       targetLoginUrl,
@@ -1881,7 +1891,7 @@ export class Auth0Client {
   private async resolveRequestContext(
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<{
-    authClient: AuthClient;
+    authClient: Auth0ServerClient;
     normalizedReq?: NextRequest | PagesRouterRequest;
   }> {
     if (req) {
@@ -2516,7 +2526,7 @@ export class Auth0Client {
    * Writes a session through the engine state store in its native format
    * (storage-only cutover, slice 3). Thin wrapper over the shared
    * `saveSessionToStateStore` so the call sites stay one line; no wrapper class.
-   * Uses the same store instances and identifier as `AuthClient`.
+   * Uses the same store instances and identifier as `Auth0ServerClient`.
    */
   private writeSession(
     reqCookies: RequestCookies | ReadonlyRequestCookies,

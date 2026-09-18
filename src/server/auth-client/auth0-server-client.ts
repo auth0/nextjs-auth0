@@ -1,4 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server.js";
+import {
+  ServerClient as EngineServerClient,
+  type AuthorizationParameters as EngineAuthorizationParameters,
+  type MfaVerifyOptions as EngineMfaVerifyOptions,
+  type TokenResponse as EngineTokenResponse
+} from "@auth0/auth0-server-js";
 import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
@@ -11,7 +17,6 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
-  AuthorizationCodeGrantRequestError,
   AuthorizationError,
   BackchannelAuthenticationError,
   BackchannelAuthenticationNotSupportedError,
@@ -79,9 +84,6 @@ import {
   EnrollOobOptions,
   EnrollOtpOptions,
   GetAccessTokenOptions,
-  GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
-  GRANT_TYPE_PASSKEY,
-  GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
   PasskeyChallengeOptions,
@@ -126,11 +128,7 @@ import {
 } from "../../utils/constants.js";
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
-import {
-  buildVerifyParams,
-  getVerifyGrantType,
-  transformVerifyBodyToOptions
-} from "../../utils/mfa-transform-utils.js";
+import { transformVerifyBodyToOptions } from "../../utils/mfa-transform-utils.js";
 import { normalizeDomain, normalizeIssuer } from "../../utils/normalize.js";
 import { extractOAuthErrorDetails } from "../../utils/oauth-error-utils.js";
 import { createRouteUrl, removeTrailingSlash } from "../../utils/pathUtils.js";
@@ -146,7 +144,6 @@ import {
   type ReadonlyRequestCookies
 } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
-import { withDPoPNonceRetry } from "../dpop/retry.js";
 import {
   AccessTokenFactory,
   Fetcher,
@@ -188,6 +185,7 @@ import {
 } from "../session/session-delete.js";
 import {
   buildSessionFromCallback,
+  finalizeSessionData,
   isSessionCeilingInPast,
   isSessionCeilingReached,
   mergePopupTokenIntoSession
@@ -215,16 +213,12 @@ import {
   clampTransactionField,
   TransactionState
 } from "../transaction-store.js";
-import { filterDefaultIdTokenClaims } from "../user.js";
+import type { Auth0CookieContext } from "./auth0-cookie-handler.js";
 import {
   buildConnectAccountErrorResponse,
   buildConnectedAccountsErrorResponse
 } from "./connect-account-errors.js";
-import {
-  GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-  INTERNAL_AUTHORIZE_PARAMS,
-  REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
-} from "./constants.js";
+import { INTERNAL_AUTHORIZE_PARAMS } from "./constants.js";
 import {
   bcloErrorResponse,
   encodeBase64,
@@ -247,13 +241,18 @@ import type {
 /**
  * @private
  */
-export class AuthClient {
+export class Auth0ServerClient {
   private transactionStore: Auth0TransactionStore;
   private transactionCookiePrefix: string;
   private enableParallelTransactions: boolean;
   private sessionStore: AbstractSessionStore;
   private stateStore: Auth0StatelessStateStore | Auth0StatefulStateStore;
   private stateIdentifier: string;
+
+  // Per-domain engine `ServerClient` (Step 5 full swap). All request-facing OIDC
+  // delegates to its methods directly. Provider construction always injects it;
+  // the constructor rejects a missing client.
+  private readonly engineServerClient: EngineServerClient<Auth0CookieContext>;
 
   private clientMetadata: oauth.Client;
   private clientSecret?: string;
@@ -314,7 +313,7 @@ export class AuthClient {
     // dependencies
     this.fetch = createSizeLimitedFetch(
       options.fetch || fetch,
-      AuthClient.MAX_RESPONSE_BODY_SIZE
+      Auth0ServerClient.MAX_RESPONSE_BODY_SIZE
     );
     this.discoveryCache = options.discoveryCache || new DiscoveryCache();
     this.provider = options.provider;
@@ -358,6 +357,12 @@ export class AuthClient {
     this.sessionStore = options.sessionStore;
     this.stateStore = options.stateStore;
     this.stateIdentifier = options.stateIdentifier;
+    if (!options.engineServerClient) {
+      throw new InvalidConfigurationError(
+        "Auth0ServerClient requires an engine ServerClient (engineServerClient)."
+      );
+    }
+    this.engineServerClient = options.engineServerClient;
 
     // authorization server
     this.domain = options.domain;
@@ -464,7 +469,7 @@ export class AuthClient {
     if (this.useMtls && !options.fetch) {
       throw new MtlsError(
         MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
-        "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
+        "useMtls requires the customFetch option (Auth0Client) or the fetch option (Auth0ServerClient) " +
           "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
           "The standard fetch global has no client certificate API. " +
           "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
@@ -806,12 +811,15 @@ export class AuthClient {
       }
     }
 
-    // Generate PKCE challenges
-    const codeChallengeMethod = "S256";
-    const codeVerifier = oauth.generateRandomCodeVerifier();
-    const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+    // The engine's `buildAuthorizationUrl` generates the PKCE code_verifier and
+    // code_challenge and returns the verifier (persisted in the transaction
+    // below), so they are no longer generated here. `state` is still generated
+    // here because it is the transaction cookie key; it is handed to the engine
+    // via `options.state` to embed on the authorize request and is validated on
+    // callback via `expectedState`. `nonce` is dropped: this is a back-channel
+    // code+PKCE flow with no front-channel ID token to bind, so PKCE subsumes the
+    // anti-forgery role nonce used to serve (OAuth 2.1 / RFC 9700).
     const state = oauth.generateRandomState();
-    const nonce = oauth.generateRandomNonce();
 
     // Construct base authorization parameters
     // If provided on both sides, this does not merge the scope property,
@@ -821,13 +829,12 @@ export class AuthClient {
       options.authorizationParameters,
       INTERNAL_AUTHORIZE_PARAMS
     );
-    authorizationParams.set("client_id", this.clientMetadata.client_id);
+    // `client_id` and the PKCE `code_challenge`/`code_challenge_method` are set by
+    // the engine's `buildAuthorizationUrl`. `state` is passed to it via
+    // `options.state`. `nonce` is dropped (see above). Only the params the engine
+    // does not own are set here.
     authorizationParams.set("redirect_uri", redirectUri);
     authorizationParams.set("response_type", RESPONSE_TYPES.CODE);
-    authorizationParams.set("code_challenge", codeChallenge);
-    authorizationParams.set("code_challenge_method", codeChallengeMethod);
-    authorizationParams.set("state", state);
-    authorizationParams.set("nonce", nonce);
 
     // Add dpop_jkt parameter if DPoP is enabled
     if (this.dpopKeyPair) {
@@ -898,13 +905,39 @@ export class AuthClient {
       }
       resolvedMaxAge = parsed;
     }
+    // Delegate PKCE generation and authorization-URL construction (including PAR)
+    // to the engine's low-level primitive. It returns the generated `codeVerifier`
+    // (persisted in the transaction below) and the ready-to-redirect URL. `state`
+    // is embedded via `options.state`; PAR is toggled by the same SDK flag as
+    // before, and the engine throws when the tenant does not support it.
+    let authorizationUrl: URL;
+    let codeVerifier: string;
+    try {
+      ({ authorizationUrl, codeVerifier } =
+        await this.engineServerClient.authClient.buildAuthorizationUrl({
+          authorizationParams: Object.fromEntries(
+            authorizationParams
+          ) as EngineAuthorizationParameters,
+          state,
+          pushedAuthorizationRequests: this.pushedAuthorizationRequests
+        }));
+    } catch (error) {
+      console.error(error);
+      return new NextResponse(
+        "An error occurred while trying to initiate the login request.",
+        {
+          status: 500
+        }
+      );
+    }
+
+    // Prepare transaction state.
     // scope and audience come from user-controllable query params on
     // /auth/login, so clamp each independently to keep the resulting cookie
     // under the byte cap. A ridiculous value gets replaced with `undefined`
     // (equivalent to not passing the field), and the authorization server
     // will reject any invalid value at /authorize.
     const transactionState: TransactionState = {
-      nonce,
       maxAge: resolvedMaxAge,
       codeVerifier,
       responseType: RESPONSE_TYPES.CODE,
@@ -925,18 +958,6 @@ export class AuthClient {
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
       originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
     };
-
-    // Generate authorization URL with PAR handling
-    const [error, authorizationUrl] =
-      await this.authorizationUrl(authorizationParams);
-    if (error) {
-      return new NextResponse(
-        "An error occurred while trying to initiate the login request.",
-        {
-          status: 500
-        }
-      );
-    }
 
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
@@ -1109,11 +1130,10 @@ export class AuthClient {
     // swallowed — a failed revocation must never block the logout redirect.
     if (session?.tokenSet.refreshToken && !hasDomainMismatch) {
       try {
-        await this.performTokenRevocation(
-          authorizationServerMetadata,
-          session.tokenSet.refreshToken,
-          "refresh_token"
-        );
+        await this.engineServerClient.authClient.revokeToken({
+          token: session.tokenSet.refreshToken,
+          tokenTypeHint: "refresh_token"
+        });
       } catch (e) {
         console.warn(
           "[nextjs-auth0] Failed to revoke refresh token during logout (logout will still proceed):",
@@ -1280,9 +1300,14 @@ export class AuthClient {
       );
     }
 
-    let codeGrantParams: URLSearchParams;
+    // Validate the authorization response (state binding + a surfaced `?error=`
+    // param) up front so those failures keep surfacing as `AuthorizationError`,
+    // exactly as before. The engine's `getTokenByCode` re-validates state via
+    // `expectedState`; this pre-check exists only to preserve the error-type
+    // contract, which the engine (it collapses every phase into one error type)
+    // cannot reproduce. Discovery is cached, so this adds no network round-trip.
     try {
-      codeGrantParams = oauth.validateAuthResponse(
+      oauth.validateAuthResponse(
         authorizationServerMetadata,
         this.clientMetadata,
         req.nextUrl.searchParams,
@@ -1304,84 +1329,44 @@ export class AuthClient {
       );
     }
 
-    let codeGrantResponse: Response;
-    let redirectUri: URL;
-    let authorizationCodeGrantRequestCall: () => Promise<Response>;
-
-    try {
-      redirectUri = createRouteUrl(this.routes.callback, appBaseUrl); // must be registered with the authorization server
-
-      // Create DPoP handle ONCE outside the closure so it persists across retries.
-      // This is required by RFC 9449: the handle must learn and reuse the nonce from
-      // the DPoP-Nonce header across multiple attempts.
-      const dpopHandle =
-        this.useDPoP && this.dpopKeyPair
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-          : undefined;
-
-      authorizationCodeGrantRequestCall = async () =>
-        oauth.authorizationCodeGrantRequest(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          await this.getClientAuth(),
-          codeGrantParams,
-          redirectUri.toString(),
-          transactionState.codeVerifier ?? oauth.nopkce,
-          {
-            ...this.httpOptions(),
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(dpopHandle && {
-              DPoP: dpopHandle
-            })
-          }
-        );
-
-      // NOTE: Unlike refresh token and connection token flows, the auth code flow
-      // wraps only the HTTP request (not response processing) in withDPoPNonceRetry().
-      // This is intentional: withDPoPNonceRetry() expects a Response object to inspect
-      // for nonce retries. If response processing is included in the wrapper, it returns
-      // a processed object and retry logic breaks. Response processing happens after
-      // (see line 807) to maintain compatibility with the retry mechanism.
-      codeGrantResponse = await withDPoPNonceRetry(
-        authorizationCodeGrantRequestCall,
-        {
-          isDPoPEnabled: !!dpopHandle,
-          ...this.dpopOptions?.retry
-        }
-      );
-    } catch (e: any) {
-      return this.handleCallbackError(
-        new AuthorizationCodeGrantRequestError(e.message),
-        onCallbackCtx,
-        req,
-        state,
-        transactionState
-      );
-    }
-    // Determine return strategy BEFORE processing token response
+    // Determine return strategy BEFORE the exchange.
     const challengeMode = transactionState.challengeMode || "redirect";
 
-    let oidcRes: oauth.TokenEndpointResponse;
+    // Exchange the authorization code via the engine's low-level primitive. It
+    // performs the token request (including the DPoP proof and DPoP-Nonce retry,
+    // RFC 9449) and validates the ID token when one is present. `expectedState`
+    // re-checks the state binding. `nonce` is dropped (PKCE subsumes it). The
+    // engine does not enforce `max_age` (openid-client only checks `auth_time`
+    // when `maxAge` is passed, which the engine does not thread through), so that
+    // check is re-applied below. An absent ID token is allowed here, matching the
+    // prior `requireIdToken: challengeMode !== "popup"`: openid-client validates
+    // an ID token when present but does not require one unless asked.
+    let tokenResponse: EngineTokenResponse;
     try {
-      // Process the authorization code response
-      // For authorization code flows, oauth4webapi handles DPoP nonce management internally
-      // No need for manual retry since authorization codes are single-use
-      //
-      // Popup flows (postMessage): requireIdToken: false because API-only audiences
-      // may not return an ID token. If requireIdToken: true is used,
-      // processAuthorizationCodeResponse would throw AuthorizationCodeGrantError.
-      oidcRes = await oauth.processAuthorizationCodeResponse(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        codeGrantResponse,
+      // The engine's `getTokenByCode` (openid-client under the hood) requires a
+      // native `URL` or `Request`; `req.nextUrl` is Next's `NextURL`, which is
+      // not an `instanceof URL`, so pass a real `URL` built from its href
+      // (preserves the `code`/`state` query the exchange reads).
+      tokenResponse = await this.engineServerClient.authClient.getTokenByCode(
+        new URL(req.nextUrl.href),
         {
-          expectedNonce: transactionState.nonce,
-          maxAge: transactionState.maxAge,
-          requireIdToken: challengeMode !== "popup"
-        }
+          codeVerifier: transactionState.codeVerifier ?? "",
+          expectedState: transactionState.state
+        },
+        // Preserve DPoP on the authorization_code exchange. The engine binds a
+        // DPoP handle only from `requestOptions.dpopKeyPair` and drives the
+        // `use_dpop_nonce` retry internally, so pass the session keypair here
+        // (same gating as `#refreshTokenSetViaEngine` and the pre-migration
+        // `oauth.DPoP(...)` handle the code grant used). Omitting it would send a
+        // bearer-style token request for `useDPoP` clients (a regression).
+        this.useDPoP && this.dpopKeyPair
+          ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
+          : undefined
       );
     } catch (e: any) {
+      // The engine collapses the token request and response processing into a
+      // single `TokenByCodeError`; map it to `AuthorizationCodeGrantError` (the
+      // response-processing error type), preserving the `cause` OAuth2Error shape.
       const oauthErr = await extractOAuthErrorDetails(e);
       return this.handleCallbackError(
         new AuthorizationCodeGrantError({
@@ -1397,11 +1382,50 @@ export class AuthClient {
       );
     }
 
-    // For standard flows, idTokenClaims is always present (requireIdToken: true)
-    // For popup flows, idTokenClaims may be undefined (requireIdToken: false)
-    const idTokenClaims = oidcRes.id_token
-      ? oauth.getValidatedIdTokenClaims(oidcRes)
-      : undefined;
+    // The engine's TokenResponse already carries the validated ID token claims
+    // (undefined for API-only / popup responses that return no ID token).
+    const idTokenClaims = tokenResponse.claims;
+
+    // Re-apply the `max_age` / `auth_time` check that openid-client would run if
+    // `maxAge` were threaded through the engine. When a `max_age` was requested,
+    // an ID token with a numeric `auth_time` is required, and authentication must
+    // be recent enough. This mirrors oauth4webapi's rule exactly, including its
+    // default 30s clock tolerance (skew 0), so behavior is unchanged.
+    if (transactionState.maxAge !== undefined) {
+      const MAX_AGE_CLOCK_TOLERANCE = 30; // seconds; oauth4webapi default
+      const authTime = idTokenClaims?.auth_time;
+      if (typeof authTime !== "number") {
+        return this.handleCallbackError(
+          new AuthorizationCodeGrantError({
+            cause: new OAuth2Error({
+              code: "invalid_token",
+              message:
+                'ID Token "auth_time" (authentication time) claim is required when max_age is requested.'
+            })
+          }),
+          onCallbackCtx,
+          req,
+          state,
+          transactionState
+        );
+      }
+      const now = Math.floor(Date.now() / 1000);
+      if (authTime + transactionState.maxAge < now - MAX_AGE_CLOCK_TOLERANCE) {
+        return this.handleCallbackError(
+          new AuthorizationCodeGrantError({
+            cause: new OAuth2Error({
+              code: "invalid_token",
+              message:
+                "too much time has elapsed since the last End-User authentication"
+            })
+          }),
+          onCallbackCtx,
+          req,
+          state,
+          transactionState
+        );
+      }
+    }
 
     // Secondary issuer check for defense-in-depth (MCD)
     if (transactionState.originIssuer && idTokenClaims) {
@@ -1418,7 +1442,7 @@ export class AuthClient {
     }
 
     if (this.useMtls) {
-      warnIfNotCertificateBound(oidcRes.access_token);
+      warnIfNotCertificateBound(tokenResponse.accessToken);
     }
 
     // ★ POSTMESSAGE BRANCH
@@ -1448,13 +1472,13 @@ export class AuthClient {
       if (existingSession) {
         mergePopupTokenIntoSession(
           existingSession,
-          oidcRes,
+          tokenResponse,
           transactionState,
           idTokenClaims
         );
         const mergedSession = await this.finalizeSession(
           existingSession,
-          oidcRes.id_token
+          tokenResponse.idToken
         );
 
         // Call onCallback after finalization with the actual saved session
@@ -1500,7 +1524,7 @@ export class AuthClient {
         }
         const fallbackSession = buildSessionFromCallback(
           idTokenClaims,
-          oidcRes,
+          tokenResponse,
           transactionState
         );
 
@@ -1533,7 +1557,7 @@ export class AuthClient {
 
         const mergedSession = await this.finalizeSession(
           fallbackSession,
-          oidcRes.id_token
+          tokenResponse.idToken
         );
 
         // Call onCallback after finalization with the actual saved session
@@ -1565,7 +1589,7 @@ export class AuthClient {
     // ★ STANDARD REDIRECT BRANCH (default, unchanged)
     let session: SessionData = buildSessionFromCallback(
       idTokenClaims!,
-      oidcRes,
+      tokenResponse,
       transactionState
     );
 
@@ -1603,7 +1627,7 @@ export class AuthClient {
 
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
-    session = await this.finalizeSession(session, oidcRes.id_token);
+    session = await this.finalizeSession(session, tokenResponse.idToken);
 
     // Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
     if (this.provider?.isResolverMode) {
@@ -2847,220 +2871,42 @@ export class AuthClient {
   async verifyLogoutToken(
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-
-    if (discoveryError) {
-      return [discoveryError, null];
-    }
-
-    // only `RS256` is supported for logout tokens
-    const ID_TOKEN_SIGNING_ALG = "RS256";
-
-    const keyInput = jose.createRemoteJWKSet(
-      new URL(authorizationServerMetadata.jwks_uri!),
-      {
-        [jose.jwksCache]: this.discoveryCache.getJwksCacheForUri(
-          authorizationServerMetadata.jwks_uri!
-        ),
-        timeoutDuration: this.httpTimeout,
-        [jose.customFetch]: this.fetch
-      }
-    );
-
-    const { payload } = await jose.jwtVerify(logoutToken, keyInput, {
-      issuer: authorizationServerMetadata.issuer,
-      audience: this.clientMetadata.client_id,
-      algorithms: [ID_TOKEN_SIGNING_ALG],
-      requiredClaims: ["iat"]
-    });
-
-    if (!("sid" in payload) && !("sub" in payload)) {
-      return [
-        new BackchannelLogoutError(
-          'either "sid" or "sub" (or both) claims must be present'
-        ),
-        null
-      ];
-    }
-
-    if ("sid" in payload && typeof payload.sid !== "string") {
-      return [new BackchannelLogoutError('"sid" claim must be a string'), null];
-    }
-
-    if ("sub" in payload && typeof payload.sub !== "string") {
-      return [new BackchannelLogoutError('"sub" claim must be a string'), null];
-    }
-
-    if ("nonce" in payload) {
-      return [new BackchannelLogoutError('"nonce" claim is prohibited'), null];
-    }
-
-    if (!("events" in payload)) {
-      return [new BackchannelLogoutError('"events" claim is missing'), null];
-    }
-
-    if (typeof payload.events !== "object" || payload.events === null) {
-      return [
-        new BackchannelLogoutError('"events" claim must be an object'),
-        null
-      ];
-    }
-
-    if (
-      !("http://schemas.openid.net/event/backchannel-logout" in payload.events)
-    ) {
-      return [
-        new BackchannelLogoutError(
-          '"http://schemas.openid.net/event/backchannel-logout" member is missing in the "events" claim'
-        ),
-        null
-      ];
-    }
-
-    if (
-      typeof payload.events[
-        "http://schemas.openid.net/event/backchannel-logout"
-      ] !== "object"
-    ) {
-      return [
-        new BackchannelLogoutError(
-          '"http://schemas.openid.net/event/backchannel-logout" member in the "events" claim must be an object'
-        ),
-        null
-      ];
-    }
-
-    // Extract issuer from verified token payload
-    const issuer = payload.iss as string | undefined;
-
-    return [
-      null,
-      {
-        sid: payload.sid as string,
-        sub: payload.sub,
-        iss: issuer // include issuer for issuer-matched deletion
-      }
-    ];
-  }
-
-  private async authorizationUrl(
-    params: URLSearchParams
-  ): Promise<[null, URL] | [Error, null]> {
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-    if (discoveryError) {
-      return [discoveryError, null];
-    }
-
-    if (
-      this.pushedAuthorizationRequests &&
-      !authorizationServerMetadata.pushed_authorization_request_endpoint
-    ) {
-      console.error(
-        "The Auth0 tenant does not have pushed authorization requests enabled. Learn how to enable it here: https://auth0.com/docs/get-started/applications/configure-par"
+    // Delegate the full logout-token verification (discovery, JWKS, RS256
+    // `jwtVerify` with issuer/audience/`iat`, and the OIDC back-channel claim
+    // checks) to the engine. Its `verifyLogoutToken` performs the identical
+    // checks with identical messages and returns `{ sid, sub, iss }`.
+    try {
+      const claims = await this.engineServerClient.authClient.verifyLogoutToken(
+        { logoutToken }
       );
+
       return [
-        new Error(
-          "The authorization server does not support pushed authorization requests."
-        ),
-        null
-      ];
-    }
-
-    const authorizationUrl = new URL(
-      authorizationServerMetadata.authorization_endpoint!
-    );
-
-    if (this.pushedAuthorizationRequests) {
-      // push the request params to the authorization server
-      const response = await oauth.pushedAuthorizationRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        params,
+        null,
         {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+          sid: claims.sid as string,
+          sub: claims.sub,
+          iss: claims.iss // include issuer for issuer-matched deletion
         }
-      );
-
-      let parRes: oauth.PushedAuthorizationResponse;
-      try {
-        parRes = await oauth.processPushedAuthorizationResponse(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          response
-        );
-      } catch (e: any) {
-        const oauthErr = await extractOAuthErrorDetails(e);
-        return [
-          new AuthorizationError({
-            cause: new OAuth2Error({
-              code: oauthErr.error ?? "unknown_error",
-              message: oauthErr.error_description
-            }),
-            message:
-              "An error occurred while pushing the authorization request."
-          }),
-          null
-        ];
+      ];
+    } catch (e) {
+      // The engine throws `VerifyLogoutTokenError` (code
+      // `"verify_logout_token_error"`) for claim-shape violations, carrying the
+      // same messages this method used to return in the tuple. Map those back
+      // to the tuple contract as `BackchannelLogoutError` so callers see the
+      // same error type, messages, and HTTP status codes as before. We match on
+      // `code` rather than `instanceof` because the error class is exported from
+      // auth0-auth-js (a transitive dep), not auth0-server-js.
+      //
+      // Genuine verification/discovery faults (bad signature, JWKS or issuer
+      // failures) are not `verify_logout_token_error`; they keep propagating, as
+      // they did before when `jose.jwtVerify` threw out of this method.
+      const err = e as { code?: string; message?: string };
+      if (err?.code === "verify_logout_token_error") {
+        return [new BackchannelLogoutError(err.message ?? String(e)), null];
       }
 
-      authorizationUrl.searchParams.set("request_uri", parRes.request_uri);
-      authorizationUrl.searchParams.set(
-        "client_id",
-        this.clientMetadata.client_id
-      );
-
-      return [null, authorizationUrl];
+      throw e;
     }
-
-    // append the query parameters to the authorization URL for the normal flow
-    authorizationUrl.search = params.toString();
-
-    return [null, authorizationUrl];
-  }
-
-  private withMtlsEndpoint(
-    as: oauth.AuthorizationServer
-  ): oauth.AuthorizationServer {
-    if (this.useMtls && as.mtls_endpoint_aliases?.token_endpoint) {
-      return { ...as, token_endpoint: as.mtls_endpoint_aliases.token_endpoint };
-    }
-    return as;
-  }
-
-  /**
-   * Low-level revocation call against the authorization server's
-   * `/oauth/revoke` endpoint. Callers must supply the discovered metadata.
-   *
-   * @param as The discovered authorization server metadata.
-   * @param token The token to revoke.
-   * @param tokenTypeHint Optional `token_type_hint` per RFC 7009.
-   */
-  private async performTokenRevocation(
-    as: oauth.AuthorizationServer,
-    token: string,
-    tokenTypeHint?: "refresh_token" | "access_token"
-  ): Promise<void> {
-    const clientAuth = await this.getClientAuth();
-    const response = await oauth.revocationRequest(
-      as,
-      this.clientMetadata,
-      clientAuth,
-      token,
-      {
-        [oauth.customFetch]: this.fetch,
-        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-        ...this.httpOptions(),
-        ...(tokenTypeHint
-          ? { additionalParameters: { token_type_hint: tokenTypeHint } }
-          : {})
-      }
-    );
-    await oauth.processRevocationResponse(response);
   }
 
   /**
@@ -3089,28 +2935,33 @@ export class AuthClient {
       ];
     }
 
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
+    // Discovery is still surfaced here (not folded into the engine call) so a
+    // discovery failure keeps returning its own error type, preserving this
+    // public method's error contract. The metadata itself is unused: the engine's
+    // `revokeToken` re-discovers internally (a cache hit). This call is
+    // oauth4webapi-only and introduces no `jose` dependency.
+    const [discoveryError] = await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
       return [discoveryError, null];
     }
 
     try {
-      await this.performTokenRevocation(
-        authorizationServerMetadata,
+      await this.engineServerClient.authClient.revokeToken({
         token,
         tokenTypeHint
-      );
-    } catch (e) {
+      });
+    } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
       return [
         new TokenRevocationError(
           TokenRevocationErrorCode.FAILED_TO_REVOKE,
           "An error occurred while trying to revoke the token.",
           new OAuth2Error({
-            code:
-              e instanceof oauth.ResponseBodyError ? e.error : "revoke_failed",
-            message: e instanceof Error ? e.message : String(e)
+            code: oauthErr.error ?? "revoke_failed",
+            message:
+              oauthErr.error_description ??
+              (e instanceof Error ? e.message : String(e))
           })
         ),
         null
@@ -3322,7 +3173,7 @@ export class AuthClient {
       }
     }
 
-    // Fallback: use current AuthClient's domain (last resort if idToken absent)
+    // Fallback: use current Auth0ServerClient's domain (last resort if idToken absent)
     const domain = inferredDomain ?? this.domain;
 
     session.internal = session.internal || {};
@@ -3390,113 +3241,7 @@ export class AuthClient {
       tokenSet.refreshToken &&
       (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
-      const params = new URLSearchParams();
-
-      params.append("connection", options.connection);
-
-      const subjectTokenType =
-        options.subject_token_type ??
-        SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
-
-      const subjectToken =
-        subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
-          ? tokenSet.accessToken
-          : tokenSet.refreshToken;
-
-      params.append("subject_token_type", subjectTokenType);
-      params.append("subject_token", subjectToken);
-
-      params.append(
-        "requested_token_type",
-        REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
-      );
-
-      if (options.login_hint) {
-        params.append("login_hint", options.login_hint);
-      }
-
-      const [discoveryError, authorizationServerMetadata] =
-        await this.discoverAuthorizationServerMetadata();
-
-      if (discoveryError) {
-        return [discoveryError, null];
-      }
-
-      // Create DPoP handle ONCE outside the closure so it persists across retries.
-      // This is required by RFC 9449: the handle must learn and reuse the nonce from
-      // the DPoP-Nonce header across multiple attempts.
-      const dpopHandle =
-        this.useDPoP && this.dpopKeyPair
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-          : undefined;
-
-      // When useMtls=true, use the mTLS alias so the edge proxy forwards the
-      // Client-Certificate header. CNF is not issued for this grant type (auth-server behavior).
-      const connectionTokenMetadata = this.withMtlsEndpoint(
-        authorizationServerMetadata
-      );
-
-      const genericTokenEndpointRequestCall = async () =>
-        oauth.genericTokenEndpointRequest(
-          connectionTokenMetadata,
-          this.clientMetadata,
-          await this.getClientAuth(),
-          GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-          params,
-          {
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(dpopHandle && {
-              DPoP: dpopHandle
-            })
-          }
-        );
-
-      const processGenericTokenEndpointResponseCall = async () => {
-        const httpResponse = await genericTokenEndpointRequestCall();
-        return oauth.processGenericTokenEndpointResponse(
-          connectionTokenMetadata,
-          this.clientMetadata,
-          httpResponse
-        );
-      };
-
-      let tokenEndpointResponse: oauth.TokenEndpointResponse;
-      try {
-        tokenEndpointResponse = await withDPoPNonceRetry(
-          processGenericTokenEndpointResponseCall,
-          {
-            isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-            ...this.dpopOptions?.retry
-          }
-        );
-      } catch (err: any) {
-        const oauthErr = await extractOAuthErrorDetails(err);
-        return [
-          new AccessTokenForConnectionError(
-            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a connection access token.",
-            new OAuth2Error({
-              code: oauthErr.error ?? "unknown_error",
-              message: oauthErr.error_description
-            })
-          ),
-          null
-        ];
-      }
-
-      return [
-        null,
-        {
-          accessToken: tokenEndpointResponse.access_token,
-          expiresAt:
-            Math.floor(Date.now() / 1000) +
-            Number(tokenEndpointResponse.expires_in),
-          scope: tokenEndpointResponse.scope,
-          connection: options.connection,
-          ...(options.login_hint ? { loginHint: options.login_hint } : {})
-        }
-      ];
+      return this.#getConnectionTokenSetViaEngine(tokenSet, options);
     }
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
@@ -3575,10 +3320,12 @@ export class AuthClient {
       }
     }
 
-    // Discover authorization server metadata
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-
+    // Preserve the exact discovery-error surface. The engine performs its own OIDC
+    // discovery inside `exchangeToken()` (sharing the same discoveryCache), but a
+    // failure there would surface as a generic EXCHANGE_FAILED. Keep this pre-check
+    // so a cold-cache discovery failure still returns the "discovery_error" coded
+    // error consumers already depend on.
+    const [discoveryError] = await this.discoverAuthorizationServerMetadata();
     if (discoveryError) {
       return [
         new CustomTokenExchangeError(
@@ -3596,104 +3343,83 @@ export class AuthClient {
     // Merge scopes: user-provided + SDK defaults
     const finalScope = mergeScopes(DEFAULT_SCOPES, options.scope);
 
-    // Build request params
-    const params = new URLSearchParams();
-    params.append("subject_token", options.subjectToken);
-    params.append("subject_token_type", options.subjectTokenType);
-    params.append("scope", finalScope);
-
-    if (options.audience) {
-      params.append("audience", options.audience);
-    }
-
-    if (options.organization) {
-      params.append("organization", options.organization);
-    }
-
-    // Add actor token if provided (both must be present due to validation above)
-    if (options.actorToken && options.actorTokenType) {
-      params.append("actor_token", options.actorToken);
-      params.append("actor_token_type", options.actorTokenType);
-    }
-
-    // Add additionalParameters if present
+    // Map additionalParameters onto the engine's `extra`, preserving v4's behavior
+    // of String()-coercing every non-null value. The engine drops keys on its
+    // reserved-param denylist and rejects >20-item arrays (see plan 8d).
+    let extra: Record<string, string> | undefined;
     if (options.additionalParameters) {
+      extra = {};
       for (const [key, value] of Object.entries(options.additionalParameters)) {
         if (value !== undefined && value !== null) {
-          params.append(key, String(value));
+          extra[key] = String(value);
         }
       }
     }
 
-    // Create DPoP handle ONCE outside the closure so it persists across retries.
-    // This is required by RFC 9449: the handle must learn and reuse the nonce from
-    // the DPoP-Nonce header across multiple attempts.
-    const dpopHandle =
+    // Per-call DPoP: the engine builds the DPoP handle and performs the
+    // use_dpop_nonce retry internally when a key pair is supplied. (The engine
+    // does not honor dpopOptions.retry fine-tuning — see plan 8c.)
+    const requestOptions =
       this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        ? { dpopKeyPair: this.dpopKeyPair }
         : undefined;
 
-    // Execute token exchange with DPoP retry support
-    const tokenExchangeMetadata = this.withMtlsEndpoint(
-      authorizationServerMetadata
-    );
-    const processTokenExchange = async () => {
-      const httpResponse = await oauth.genericTokenEndpointRequest(
-        tokenExchangeMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
-        params,
-        {
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-          ...(dpopHandle && { DPoP: dpopHandle })
-        }
-      );
-      return oauth.processGenericTokenEndpointResponse(
-        tokenExchangeMetadata,
-        this.clientMetadata,
-        httpResponse
-      );
-    };
-
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let tokenResponse: EngineTokenResponse;
     let act: ActClaim | undefined;
     try {
-      tokenEndpointResponse = await withDPoPNonceRetry(processTokenExchange, {
-        isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-        ...this.dpopOptions?.retry
-      });
-      // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.1)
-      act = tokenEndpointResponse.id_token
-        ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
-            ActClaim | undefined)
+      tokenResponse = await this.engineServerClient.authClient.exchangeToken(
+        {
+          subjectToken: options.subjectToken,
+          subjectTokenType: options.subjectTokenType,
+          scope: finalScope,
+          ...(options.audience ? { audience: options.audience } : {}),
+          ...(options.organization
+            ? { organization: options.organization }
+            : {}),
+          // Both present due to the actor-pair validation above.
+          ...(options.actorToken && options.actorTokenType
+            ? {
+                actorToken: options.actorToken,
+                actorTokenType: options.actorTokenType
+              }
+            : {}),
+          ...(extra ? { extra } : {})
+        },
+        requestOptions
+      );
+      // Decode act claim from the ID token for delegation/impersonation flows
+      // (RFC 8693 §4.1). v4 decodes this unconditionally whenever an ID token is
+      // returned, independent of whether an actor_token was sent, so decode it
+      // here rather than relying on the engine's actorToken-gated `act`.
+      act = tokenResponse.idToken
+        ? (jose.decodeJwt(tokenResponse.idToken).act as ActClaim | undefined)
         : undefined;
     } catch (err: any) {
-      const oauthErr = await extractOAuthErrorDetails(err);
       return [
         new CustomTokenExchangeError(
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
           "There was an error trying to exchange the token.",
           new OAuth2Error({
-            code: oauthErr.error ?? "unknown_error",
-            message: oauthErr.error_description ?? err.message
+            code: err?.cause?.error ?? "unknown_error",
+            message: err?.cause?.error_description ?? err?.message
           })
         ),
         null
       ];
     }
 
-    // Map response: snake_case → camelCase
+    // Map response: engine camelCase → CTE response shape. Derive expiresIn from
+    // the engine's absolute `expiresAt` (Unix seconds); NaN (no expires_in) is
+    // preserved to match v4's Number(undefined) === NaN.
     return [
       null,
       {
-        accessToken: tokenEndpointResponse.access_token,
-        idToken: tokenEndpointResponse.id_token,
-        refreshToken: tokenEndpointResponse.refresh_token,
-        tokenType: tokenEndpointResponse.token_type ?? "Bearer",
-        expiresIn: Number(tokenEndpointResponse.expires_in),
-        scope: tokenEndpointResponse.scope,
+        accessToken: tokenResponse.accessToken,
+        idToken: tokenResponse.idToken,
+        refreshToken: tokenResponse.refreshToken,
+        tokenType: tokenResponse.tokenType ?? "Bearer",
+        expiresIn: tokenResponse.expiresAt - Math.floor(Date.now() / 1000),
+        scope: tokenResponse.scope,
         act
       }
     ];
@@ -3830,9 +3556,8 @@ export class AuthClient {
       return [actorError, null, null];
     }
 
-    // Discover authorization server metadata
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
+    // Preserve the exact discovery-error surface (see customTokenExchange).
+    const [discoveryError] = await this.discoverAuthorizationServerMetadata();
     if (discoveryError) {
       return [
         new CustomTokenExchangeError(
@@ -3858,139 +3583,77 @@ export class AuthClient {
     // just be a scope the server ignores.
     const finalScope = mergeScopes(DEFAULT_STT_SCOPES, options.scope);
 
-    const params = new URLSearchParams();
-    params.append("subject_token", options.subjectToken);
-    params.append("subject_token_type", options.subjectTokenType);
-    params.append("audience", audience);
-    params.append("scope", finalScope);
-    params.append("actor_token", actor!.token);
-    params.append("actor_token_type", actor!.type);
-
-    if (options.organization) {
-      params.append("organization", options.organization);
-    }
+    // Map caller extras onto the engine's `extra`, keeping the v4 guard that
+    // silently drops any key the SDK manages — shadowing e.g. audience or
+    // actor_token would break the STT contract, and organization is a first-class
+    // engine option below so re-sending it would duplicate the param. `reason` is
+    // an Auth0 body param (not an OAuth-reserved key, so it passes the engine's
+    // denylist) and is forwarded through `extra`.
+    const reservedParams = new Set([
+      "subject_token",
+      "subject_token_type",
+      "audience",
+      "scope",
+      "actor_token",
+      "actor_token_type",
+      "grant_type",
+      "organization",
+      "reason"
+    ]);
+    const extra: Record<string, string> = {};
     if (options.reason) {
-      params.append("reason", options.reason);
+      extra.reason = options.reason;
     }
     if (options.additionalParameters) {
-      // Guard against callers overriding parameters the SDK manages — silently
-      // shadowing e.g. audience or actor_token would break the STT contract, and
-      // organization/reason are already appended above so re-appending them here
-      // would produce a duplicate (and ambiguous) query param.
-      const reservedParams = new Set([
-        "subject_token",
-        "subject_token_type",
-        "audience",
-        "scope",
-        "actor_token",
-        "actor_token_type",
-        "grant_type",
-        "organization",
-        "reason"
-      ]);
       for (const [key, value] of Object.entries(options.additionalParameters)) {
         if (reservedParams.has(key)) {
           continue;
         }
         if (value !== undefined && value !== null) {
-          params.append(key, String(value));
+          extra[key] = String(value);
         }
       }
     }
 
-    const dpopHandle =
+    // Per-call DPoP: engine builds the handle + does the use_dpop_nonce retry.
+    const requestOptions =
       this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        ? { dpopKeyPair: this.dpopKeyPair }
         : undefined;
 
-    const tokenExchangeMetadata = this.withMtlsEndpoint(
-      authorizationServerMetadata
-    );
-
-    // STT responses carry `token_type: "N_A"` which oauth4webapi's
-    // processGenericTokenEndpointResponse rejects. We send the request via
-    // genericTokenEndpointRequest and parse the body ourselves.
-    const sendExchange = async (): Promise<Response> => {
-      return oauth.genericTokenEndpointRequest(
-        tokenExchangeMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
-        params,
+    // The engine's Profile (RFC 8693) path accepts the STT response `token_type:
+    // "N_A"` (openid-client special-cases it for the token-exchange grant) and
+    // returns `issuedTokenType` / `tokenType` verbatim, so no raw-JSON parse is
+    // needed. All error surfaces (network throw and error body) collapse into a
+    // thrown TokenExchangeError whose `cause.error` drives the STT error mapping.
+    let tokenResponse: EngineTokenResponse;
+    try {
+      tokenResponse = await this.engineServerClient.authClient.exchangeToken(
         {
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-          ...(dpopHandle && { DPoP: dpopHandle })
-        }
+          subjectToken: options.subjectToken,
+          subjectTokenType: options.subjectTokenType,
+          audience,
+          scope: finalScope,
+          actorToken: actor!.token,
+          actorTokenType: actor!.type,
+          ...(options.organization
+            ? { organization: options.organization }
+            : {}),
+          extra
+        },
+        requestOptions
       );
-    };
-
-    // DPoP nonce handling via the shared retry helper (Path 1: it inspects the
-    // returned Response for a `use_dpop_nonce` 400 and retries once). The DPoP
-    // handle learns the nonce from the `DPoP-Nonce` header automatically, so the
-    // resent request carries a valid proof. When DPoP is disabled this is a
-    // single pass-through call.
-    let httpResponse: Response;
-    try {
-      httpResponse = await withDPoPNonceRetry(sendExchange, {
-        isDPoPEnabled: !!(this.useDPoP && dpopHandle),
-        ...this.dpopOptions?.retry
-      });
     } catch (err: any) {
-      const oauthErr = await extractOAuthErrorDetails(err);
-      const errorCode = oauthErr.error ?? "unknown_error";
+      const errorCode = err?.cause?.error ?? "unknown_error";
       const sttCode = mapSttServerError(errorCode);
       return [
         new CustomTokenExchangeError(
           sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
-          oauthErr.error_description ??
+          err?.cause?.error_description ??
             "There was an error trying to exchange the token for a Session Transfer Token.",
           new OAuth2Error({
             code: errorCode,
-            message: oauthErr.error_description ?? err.message
-          })
-        ),
-        null,
-        null
-      ];
-    }
-
-    // Parse the raw JSON response ourselves — bypasses oauth4webapi's
-    // token_type allowlist which blocks "N_A".
-    // Fall back to text() when the body is not JSON (e.g. plain-text gateway errors)
-    // so the status code and raw message are preserved in the error.
-    let rawBody: any;
-    try {
-      rawBody = await httpResponse.json();
-    } catch {
-      let rawText = "";
-      try {
-        rawText = await httpResponse.text();
-      } catch {
-        // ignore — body already consumed or unreadable
-      }
-      return [
-        new CustomTokenExchangeError(
-          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
-          `Failed to parse the Session Transfer Token response body (HTTP ${httpResponse.status}).${rawText ? " " + rawText : ""}`
-        ),
-        null,
-        null
-      ];
-    }
-
-    // Surface server-side errors (4xx/5xx with error field)
-    if (!httpResponse.ok || rawBody?.error) {
-      const errorCode = rawBody?.error ?? "unknown_error";
-      const sttCode = mapSttServerError(errorCode);
-      return [
-        new CustomTokenExchangeError(
-          sttCode ?? CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
-          rawBody?.error_description ??
-            "There was an error trying to exchange the token for a Session Transfer Token.",
-          new OAuth2Error({
-            code: errorCode,
-            message: rawBody?.error_description ?? errorCode
+            message: err?.cause?.error_description ?? err?.message
           })
         ),
         null,
@@ -4001,25 +3664,29 @@ export class AuthClient {
     // The spec requires branching on issued_token_type to identify an STT.
     // Reject any response where it is missing or not the STT URN — a plain Bearer
     // access-token response must never be mistaken for a session transfer token.
-    if (rawBody.issued_token_type !== TOKEN_TYPES.SESSION_TRANSFER_TOKEN) {
+    if (tokenResponse.issuedTokenType !== TOKEN_TYPES.SESSION_TRANSFER_TOKEN) {
       return [
         new CustomTokenExchangeError(
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
-          `Unexpected issued_token_type: "${rawBody.issued_token_type ?? "(missing)"}". Expected "${TOKEN_TYPES.SESSION_TRANSFER_TOKEN}".`
+          `Unexpected issued_token_type: "${tokenResponse.issuedTokenType ?? "(missing)"}". Expected "${TOKEN_TYPES.SESSION_TRANSFER_TOKEN}".`
         ),
         null,
         null
       ];
     }
 
-    // STT never decoded, never cached — treat as opaque handle
+    // STT never decoded, never cached — treat as opaque handle. Feed the engine
+    // response back through the shared parser: rebuild the snake_case shape it
+    // expects, deriving expires_in from the engine's absolute expiresAt.
     return [
       null,
       parseSessionTransferTokenResponse({
-        access_token: rawBody.access_token,
-        issued_token_type: rawBody.issued_token_type,
-        expires_in: rawBody.expires_in,
-        token_type: rawBody.token_type
+        access_token: tokenResponse.accessToken,
+        issued_token_type: tokenResponse.issuedTokenType,
+        expires_in: Number.isFinite(tokenResponse.expiresAt)
+          ? tokenResponse.expiresAt - Math.floor(Date.now() / 1000)
+          : undefined,
+        token_type: tokenResponse.tokenType
       }),
       refreshedSession
     ];
@@ -4074,19 +3741,13 @@ export class AuthClient {
     session: SessionData,
     idToken?: string
   ): Promise<SessionData> {
-    if (this.beforeSessionSaved) {
-      const updatedSession = await this.beforeSessionSaved(
-        session,
-        idToken ?? null
-      );
-      session = {
-        ...updatedSession,
-        internal: session.internal
-      };
-    } else {
-      session.user = filterDefaultIdTokenClaims(session.user);
-    }
-    return session;
+    // Delegates to the shared finalize step so the handler-level save path and
+    // the engine store's in-`set()` finalize can never diverge.
+    return finalizeSessionData(
+      session,
+      idToken ?? null,
+      this.beforeSessionSaved
+    );
   }
 
   /**
@@ -4699,54 +4360,73 @@ export class AuthClient {
     // Extract raw mfaToken for Auth0 API call
     const mfaToken = context.mfaToken;
 
-    const endpoint = new URL("/mfa/authenticators", this.issuer).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
-
+    let authenticators: AuthenticatorApiResponse[];
     try {
-      const response = await this.fetch(endpoint, {
-        method: "GET",
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to retrieve authenticators"
-        }));
+      // The engine owns the /mfa/authenticators call. It returns camelCase, so we
+      // reverse-map to the snake_case AuthenticatorApiResponse the route contract
+      // exposes. NOTE (plan 10a): the engine transform keeps only id /
+      // authenticator_type / active / name / oob_channels / type, so
+      // phone_number / created_at / last_auth are dropped and unrecoverable
+      // (there is no raw-response variant on listAuthenticators).
+      const engineAuthenticators =
+        await this.engineServerClient.authClient.mfa.listAuthenticators({
+          mfaToken
+        });
+      authenticators = engineAuthenticators.map((a) => ({
+        id: a.id,
+        authenticator_type: a.authenticatorType,
+        active: a.active,
+        ...(a.name !== undefined && { name: a.name }),
+        ...(a.oobChannels?.[0] !== undefined && {
+          oob_channel: a.oobChannels[0]
+        }),
+        ...(a.type !== undefined && { type: a.type })
+      }));
+    } catch (e) {
+      const cause = (
+        e as {
+          cause?: {
+            error?: string;
+            error_description?: string;
+            message?: string;
+          };
+        }
+      )?.cause;
+      if (cause?.error || cause?.error_description) {
         throw new MfaGetAuthenticatorsError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description || "Failed to retrieve authenticators",
-          errorBody.error ? errorBody : undefined
+          cause.error || "unknown_error",
+          cause.error_description || "Failed to retrieve authenticators",
+          {
+            error: cause.error ?? "unknown_error",
+            error_description:
+              cause.error_description || "Failed to retrieve authenticators",
+            message: cause.message
+          }
         );
       }
-
-      const authenticators: AuthenticatorApiResponse[] = await response.json();
-
-      // Filter by allowed challenge types from mfa_requirements
-      const allowedTypes = new Set(
-        (context.mfaRequirements?.challenge ?? []).map((c) =>
-          c.type.toLowerCase()
-        )
-      );
-
-      // If no challenge types specified, return all (no filtering)
-      if (allowedTypes.size === 0) {
-        return authenticators;
-      }
-
-      // Filter authenticators by type field
-      return authenticators.filter(
-        (auth) => auth.type && allowedTypes.has(auth.type.toLowerCase())
-      );
-    } catch (e) {
-      if (e instanceof MfaGetAuthenticatorsError) throw e;
       throw new MfaGetAuthenticatorsError(
         "unexpected_error",
         "Unexpected error during authenticator retrieval",
         undefined
       );
     }
+
+    // Filter by allowed challenge types from mfa_requirements
+    const allowedTypes = new Set(
+      (context.mfaRequirements?.challenge ?? []).map((c) =>
+        c.type.toLowerCase()
+      )
+    );
+
+    // If no challenge types specified, return all (no filtering)
+    if (allowedTypes.size === 0) {
+      return authenticators;
+    }
+
+    // Filter authenticators by type field
+    return authenticators.filter(
+      (auth) => auth.type && allowedTypes.has(auth.type.toLowerCase())
+    );
   }
 
   /**
@@ -4794,47 +4474,46 @@ export class AuthClient {
     // Extract raw mfaToken for Auth0 API call
     const mfaToken = context.mfaToken;
 
-    const endpoint = new URL("/mfa/challenge", this.issuer).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Content-Type", "application/json");
-
     try {
-      const body: any = {
-        client_id: this.clientMetadata.client_id,
-        challenge_type: challengeType,
-        mfa_token: mfaToken
+      // The engine owns the /mfa/challenge call (client auth + challenge_type +
+      // authenticator_id). It returns camelCase, so we reverse-map to the
+      // snake_case ChallengeApiResponse the route contract exposes.
+      const challenge =
+        await this.engineServerClient.authClient.mfa.challengeAuthenticator({
+          mfaToken,
+          challengeType: challengeType as "otp" | "oob",
+          ...(authenticatorId ? { authenticatorId } : {})
+        });
+      const result: ChallengeApiResponse = {
+        challenge_type: challenge.challengeType,
+        ...(challenge.oobCode !== undefined && { oob_code: challenge.oobCode }),
+        ...(challenge.bindingMethod !== undefined && {
+          binding_method: challenge.bindingMethod
+        })
       };
-
-      if (this.clientSecret) {
-        body.client_secret = this.clientSecret;
-      }
-
-      if (authenticatorId) {
-        body.authenticator_id = authenticatorId;
-      }
-
-      const response = await this.fetch(endpoint, {
-        method: "POST",
-        body: JSON.stringify(body),
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to initiate MFA challenge"
-        }));
-        throw new MfaChallengeError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description || "Failed to initiate MFA challenge",
-          errorBody.error ? errorBody : undefined
-        );
-      }
-
-      const result: ChallengeApiResponse = await response.json();
       return result;
     } catch (e) {
-      if (e instanceof MfaChallengeError) throw e;
+      const cause = (
+        e as {
+          cause?: {
+            error?: string;
+            error_description?: string;
+            message?: string;
+          };
+        }
+      )?.cause;
+      if (cause?.error || cause?.error_description) {
+        throw new MfaChallengeError(
+          cause.error || "unknown_error",
+          cause.error_description || "Failed to initiate MFA challenge",
+          {
+            error: cause.error ?? "unknown_error",
+            error_description:
+              cause.error_description || "Failed to initiate MFA challenge",
+            message: cause.message
+          }
+        );
+      }
       throw new MfaChallengeError(
         "unexpected_error",
         "Unexpected error during MFA challenge",
@@ -4867,51 +4546,99 @@ export class AuthClient {
     // Extract raw mfaToken for Auth0 API call
     const mfaToken = context.mfaToken;
 
-    const endpoint = new URL(`/mfa/associate`, this.issuer).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
-    httpOptions.headers.set("Content-Type", "application/json");
-
-    // Build request body based on enrollment type
-    const body: Record<string, any> = {
-      authenticator_types: options.authenticatorTypes
+    // Build engine enrollment options from the nextjs enrollment options.
+    const enrollOptions: {
+      mfaToken: string;
+      authenticatorTypes:
+        | EnrollOtpOptions["authenticatorTypes"]
+        | EnrollOobOptions["authenticatorTypes"];
+      oobChannels?: EnrollOobOptions["oobChannels"];
+      phoneNumber?: string;
+      email?: string;
+    } = {
+      mfaToken,
+      authenticatorTypes: options.authenticatorTypes
     };
-
-    // Add type-specific fields with type narrowing
     if ("oobChannels" in options) {
       const oobOptions = options as EnrollOobOptions;
-      body.oob_channels = oobOptions.oobChannels;
+      enrollOptions.oobChannels = oobOptions.oobChannels;
       if (oobOptions.phoneNumber) {
-        body.phone_number = oobOptions.phoneNumber;
+        enrollOptions.phoneNumber = oobOptions.phoneNumber;
       }
       if (oobOptions.email) {
-        body.email = oobOptions.email;
+        enrollOptions.email = oobOptions.email;
       }
     }
 
     try {
-      const response = await this.fetch(endpoint, {
-        method: "POST",
-        body: JSON.stringify(body),
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to enroll authenticator"
-        }));
-        throw new MfaEnrollmentError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description || "Failed to enroll authenticator",
-          errorBody.error ? errorBody : undefined
+      // The engine owns the /mfa/associate call. It returns a camelCase
+      // discriminated union (otp | oob); reverse-map to the snake_case
+      // EnrollmentApiResponse the route contract exposes.
+      // NOTE (plan 10a): the engine throws on any authenticator_type other than
+      // otp/oob, so an "email" enrollment is no longer representable.
+      const enrollment =
+        await this.engineServerClient.authClient.mfa.enrollAuthenticator(
+          enrollOptions as unknown as Parameters<
+            EngineServerClient<Auth0CookieContext>["authClient"]["mfa"]["enrollAuthenticator"]
+          >[0]
         );
+      let result: EnrollmentApiResponse;
+      if (enrollment.authenticatorType === "oob") {
+        result = {
+          authenticator_type: "oob",
+          ...(enrollment.id !== undefined && { id: enrollment.id }),
+          ...(enrollment.oobChannel !== undefined && {
+            oob_channel: enrollment.oobChannel
+          }),
+          ...(enrollment.oobCode !== undefined && {
+            oob_code: enrollment.oobCode
+          }),
+          ...(enrollment.bindingMethod !== undefined && {
+            binding_method: enrollment.bindingMethod
+          }),
+          ...(enrollment.barcodeUri !== undefined && {
+            barcode_uri: enrollment.barcodeUri
+          }),
+          ...(enrollment.recoveryCodes !== undefined && {
+            recovery_codes: enrollment.recoveryCodes
+          })
+        } as EnrollmentApiResponse;
+      } else {
+        result = {
+          authenticator_type: "otp",
+          ...(enrollment.id !== undefined && { id: enrollment.id }),
+          ...(enrollment.secret !== undefined && { secret: enrollment.secret }),
+          ...(enrollment.barcodeUri !== undefined && {
+            barcode_uri: enrollment.barcodeUri
+          }),
+          ...(enrollment.recoveryCodes !== undefined && {
+            recovery_codes: enrollment.recoveryCodes
+          })
+        } as EnrollmentApiResponse;
       }
-
-      const result: EnrollmentApiResponse = await response.json();
       return result;
     } catch (e) {
-      if (e instanceof MfaEnrollmentError) throw e;
+      const cause = (
+        e as {
+          cause?: {
+            error?: string;
+            error_description?: string;
+            message?: string;
+          };
+        }
+      )?.cause;
+      if (cause?.error || cause?.error_description) {
+        throw new MfaEnrollmentError(
+          cause.error || "unknown_error",
+          cause.error_description || "Failed to enroll authenticator",
+          {
+            error: cause.error ?? "unknown_error",
+            error_description:
+              cause.error_description || "Failed to enroll authenticator",
+            message: cause.message
+          }
+        );
+      }
       throw new MfaEnrollmentError(
         "unexpected_error",
         "Unexpected error during MFA enrollment",
@@ -4939,8 +4666,9 @@ export class AuthClient {
       this.sessionStore.secret
     );
 
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
+    // nextjs-owned discovery pre-check preserves the specific "discovery_error"
+    // MfaVerifyError contract. The engine re-discovers internally for the grant.
+    const [discoveryError] = await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
       throw new MfaVerifyError(
@@ -4950,103 +4678,116 @@ export class AuthClient {
       );
     }
 
-    const verifyParams = buildVerifyParams(options, mfaToken, audience, scope);
-    const verifyGrantType = getVerifyGrantType(verifyParams);
+    // Derive the engine's factor-typed verify options from the nextjs verify
+    // options, preserving the prior credential-branching (otp / oob needs
+    // BOTH oobCode+bindingCode / recovery-code / else invalid_request).
+    // NOTE (plan 10d): the engine's MfaVerifyOptions has NO scope field, so the
+    // decrypted requested `scope` is NOT forwarded to the MFA token endpoint.
+    let verifyOptions: EngineMfaVerifyOptions;
+    if ("otp" in options && options.otp) {
+      verifyOptions = {
+        mfaToken,
+        factorType: "otp",
+        otp: options.otp,
+        ...(audience ? { audience } : {})
+      };
+    } else if (
+      "oobCode" in options &&
+      "bindingCode" in options &&
+      options.oobCode &&
+      options.bindingCode
+    ) {
+      verifyOptions = {
+        mfaToken,
+        factorType: "oob",
+        oobCode: options.oobCode,
+        bindingCode: options.bindingCode,
+        ...(audience ? { audience } : {})
+      };
+    } else if ("recoveryCode" in options && options.recoveryCode) {
+      verifyOptions = {
+        mfaToken,
+        factorType: "recovery-code",
+        recoveryCode: options.recoveryCode,
+        ...(audience ? { audience } : {})
+      };
+    } else {
+      throw new MfaVerifyError(
+        "invalid_request",
+        "At least one verification credential required (otp, oobCode+bindingCode, or recoveryCode)"
+      );
+    }
 
-    // Create DPoP handle ONCE outside the closure so it persists across retries.
-    // This is required by RFC 9449: the handle must learn and reuse the nonce from
-    // the DPoP-Nonce header across multiple attempts.
-    const dpopHandle =
+    // The engine owns the MFA token-endpoint grant (DPoP handle + nonce retry +
+    // client auth + discovery). DPoP is supplied via requestOptions.dpopKeyPair.
+    const requestOptions =
       this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
         : undefined;
 
-    // Execute MFA token exchange with DPoP retry support
-    const mfaVerifyMetadata = this.withMtlsEndpoint(
-      authorizationServerMetadata
-    );
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let tokenResponse: EngineTokenResponse;
     try {
-      tokenEndpointResponse = await withDPoPNonceRetry(
-        async () => {
-          const httpResponse = await oauth.genericTokenEndpointRequest(
-            mfaVerifyMetadata,
-            this.clientMetadata,
-            await this.getClientAuth(),
-            verifyGrantType,
-            verifyParams,
-            {
-              ...this.httpOptions(),
-              [oauth.customFetch]: this.fetch,
-              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-              ...(dpopHandle && {
-                DPoP: dpopHandle
-              })
-            }
-          );
-          return oauth.processGenericTokenEndpointResponse(
-            mfaVerifyMetadata,
-            this.clientMetadata,
-            httpResponse
-          );
-        },
-        {
-          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-          ...this.dpopOptions?.retry
-        }
+      tokenResponse = await this.engineServerClient.authClient.mfa.verify(
+        verifyOptions,
+        requestOptions
       );
     } catch (err: any) {
-      const oauthErr = await extractOAuthErrorDetails(err);
+      const cause = err?.cause;
 
-      // Handle chained MFA (subsequent mfa_required response)
-      if (oauthErr.error === "mfa_required" || err.error === "mfa_required") {
-        // Extract error body from cause for oauth4webapi wrapped errors
-        // ResponseBodyError wraps actual error in cause property
-        const errorBody =
-          err.cause &&
-          typeof err.cause === "object" &&
-          !(err.cause instanceof Response)
-            ? (err.cause as any)
-            : err;
-
+      // Handle chained MFA (a subsequent mfa_required response). The engine
+      // normalizer lifts the fresh mfa_token / mfa_requirements onto err.cause.
+      if (cause?.error === "mfa_required" || cause?.mfa_token) {
         // Re-encrypt the new mfaToken for client use
         const encryptedToken = await encryptMfaToken(
-          errorBody.mfa_token,
+          cause.mfa_token,
           audience,
           scope,
-          errorBody.mfa_requirements,
+          cause.mfa_requirements,
           this.sessionStore.secret,
           DEFAULT_MFA_CONTEXT_TTL_SECONDS
         );
         throw new MfaRequiredError(
-          oauthErr.error_description ||
-            errorBody.error_description ||
-            "Additional MFA factor required",
+          cause.error_description || "Additional MFA factor required",
           encryptedToken,
-          errorBody.mfa_requirements,
+          cause.mfa_requirements,
           new OAuth2Error({
             code: "mfa_required",
-            message: oauthErr.error_description || errorBody.error_description
+            message: cause.error_description
           })
         );
       }
 
       throw new MfaVerifyError(
-        oauthErr.error || "unknown_error",
-        oauthErr.error_description || err.message || "MFA verification failed",
-        oauthErr.error
+        cause?.error || "unknown_error",
+        cause?.error_description || err?.message || "MFA verification failed",
+        cause?.error
           ? {
-              error: oauthErr.error,
-              error_description: oauthErr.error_description ?? ""
+              error: cause.error,
+              error_description: cause.error_description ?? ""
             }
           : undefined
       );
     }
 
-    const result = {
-      ...tokenEndpointResponse,
-      token_type: normalizeTokenType(tokenEndpointResponse.token_type)
-    } as MfaTokenEndpointResponse;
+    // Map the engine's camelCase TokenResponse back to the internal snake_case
+    // MfaTokenEndpointResponse shape consumed by cacheTokenFromMfaVerify /
+    // createSessionFromPasswordlessVerify. `expiresAt` is an absolute Unix
+    // timestamp; the internal contract carries a relative `expires_in`.
+    const result: MfaTokenEndpointResponse = {
+      access_token: tokenResponse.accessToken,
+      token_type: normalizeTokenType(tokenResponse.tokenType),
+      expires_in: tokenResponse.expiresAt - Math.floor(Date.now() / 1000),
+      ...(tokenResponse.refreshToken !== undefined && {
+        refresh_token: tokenResponse.refreshToken
+      }),
+      ...(tokenResponse.idToken !== undefined && {
+        id_token: tokenResponse.idToken
+      }),
+      ...(tokenResponse.scope !== undefined && { scope: tokenResponse.scope }),
+      ...(tokenResponse.recoveryCode !== undefined && {
+        recovery_code: tokenResponse.recoveryCode
+      })
+    };
 
     return result;
   }
@@ -5153,61 +4894,69 @@ export class AuthClient {
   async passkeyRegister(
     options?: PasskeyRegisterOptions
   ): Promise<PasskeyRegisterResponse> {
-    const url = new URL("/passkey/register", this.issuer).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Content-Type", "application/json");
-
-    const body: Record<string, unknown> = {
-      client_id: this.clientMetadata.client_id
-    };
-
-    if (this.clientSecret) {
-      body.client_secret = this.clientSecret;
-    }
-
-    // Build user_profile from provided identity fields
-    const userProfile: Record<string, unknown> = {};
-    if (options?.name) userProfile.name = options.name;
-    if (options?.email) userProfile.email = options.email;
-    if (options?.username) userProfile.username = options.username;
-    if (options?.phoneNumber) userProfile.phone_number = options.phoneNumber;
-    if (options?.givenName) userProfile.given_name = options.givenName;
-    if (options?.familyName) userProfile.family_name = options.familyName;
-    if (options?.nickname) userProfile.nickname = options.nickname;
-    if (options?.picture) userProfile.picture = options.picture;
-    body.user_profile = userProfile;
-
-    if (options?.userMetadata) body.user_metadata = options.userMetadata;
-    if (options?.connection) body.realm = options.connection;
-    if (options?.organization) body.organization = options.organization;
+    // The engine's PasskeyClient owns the /passkey/register wire (it builds the
+    // same user_profile mapping, body-level client auth, and realm/organization/
+    // user_metadata fields). We only translate nextjs's option names (connection
+    // -> realm) and re-throw its error as nextjs's public PasskeyRegisterError so
+    // the route handler's instanceof + error-code branching is preserved.
+    const registerOptions: Record<string, unknown> = {};
+    if (options?.name) registerOptions.name = options.name;
+    if (options?.email) registerOptions.email = options.email;
+    if (options?.username) registerOptions.username = options.username;
+    if (options?.phoneNumber) registerOptions.phoneNumber = options.phoneNumber;
+    if (options?.givenName) registerOptions.givenName = options.givenName;
+    if (options?.familyName) registerOptions.familyName = options.familyName;
+    if (options?.nickname) registerOptions.nickname = options.nickname;
+    if (options?.picture) registerOptions.picture = options.picture;
+    if (options?.userMetadata)
+      registerOptions.userMetadata = options.userMetadata;
+    if (options?.connection) registerOptions.realm = options.connection;
+    if (options?.organization)
+      registerOptions.organization = options.organization;
 
     try {
-      const response = await this.fetch(url, {
-        method: "POST",
-        body: JSON.stringify(body),
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to get passkey signup challenge"
-        }));
-        throw new PasskeyRegisterError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description ||
-            "Failed to get passkey signup challenge",
-          errorBody.error ? errorBody : undefined
+      const challenge =
+        await this.engineServerClient.authClient.passkey.register(
+          // Cast through `unknown`: the engine's option type is a union that
+          // requires at least one identifier (email/username/phoneNumber), while
+          // nextjs's PasskeyRegisterOptions are all optional. Auth0 enforces the
+          // identifier requirement at the API, matching the prior behavior.
+          registerOptions as unknown as Parameters<
+            EngineServerClient<Auth0CookieContext>["authClient"]["passkey"]["register"]
+          >[0]
         );
-      }
-
-      const result = await response.json();
       return {
-        authSession: result.auth_session,
-        authnParamsPublicKey: result.authn_params_public_key
+        authSession: challenge.authSession,
+        authnParamsPublicKey:
+          challenge.authnParamsPublicKey as PasskeyRegisterResponse["authnParamsPublicKey"]
       };
     } catch (e) {
-      if (e instanceof PasskeyRegisterError) throw e;
+      // The engine throws its OWN PasskeyRegisterError (a different class) with a
+      // parsed API `cause`. Map it to nextjs's public PasskeyRegisterError. A
+      // non-API failure (network, etc.) has no cause -> "unexpected_error",
+      // matching the previous behavior.
+      const cause = (
+        e as {
+          cause?: {
+            error?: string;
+            error_description?: string;
+            message?: string;
+          };
+        }
+      )?.cause;
+      if (cause?.error || cause?.error_description) {
+        throw new PasskeyRegisterError(
+          cause.error || "unknown_error",
+          cause.error_description || "Failed to get passkey signup challenge",
+          {
+            error: cause.error ?? "unknown_error",
+            error_description:
+              cause.error_description ||
+              "Failed to get passkey signup challenge",
+            message: cause.message
+          }
+        );
+      }
       throw new PasskeyRegisterError(
         "unexpected_error",
         "Unexpected error during passkey signup challenge",
@@ -5223,48 +4972,50 @@ export class AuthClient {
   async passkeyChallenge(
     options?: PasskeyChallengeOptions
   ): Promise<PasskeyChallengeResponse> {
-    const url = new URL("/passkey/challenge", this.issuer).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Content-Type", "application/json");
-
-    const body: Record<string, unknown> = {
-      client_id: this.clientMetadata.client_id
-    };
-
-    if (this.clientSecret) {
-      body.client_secret = this.clientSecret;
-    }
-
-    if (options?.connection) body.realm = options.connection;
-    if (options?.organization) body.organization = options.organization;
+    // The engine's PasskeyClient owns the /passkey/challenge wire (client auth +
+    // realm/organization). Translate nextjs's connection -> realm and re-throw its
+    // error as nextjs's public PasskeyChallengeError to preserve the route
+    // handler's instanceof + error-code branching.
+    const challengeOptions: Record<string, unknown> = {};
+    if (options?.connection) challengeOptions.realm = options.connection;
+    if (options?.organization)
+      challengeOptions.organization = options.organization;
 
     try {
-      const response = await this.fetch(url, {
-        method: "POST",
-        body: JSON.stringify(body),
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to get passkey login challenge"
-        }));
-        throw new PasskeyChallengeError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description ||
-            "Failed to get passkey login challenge",
-          errorBody.error ? errorBody : undefined
+      const challenge =
+        await this.engineServerClient.authClient.passkey.challenge(
+          challengeOptions as Parameters<
+            EngineServerClient<Auth0CookieContext>["authClient"]["passkey"]["challenge"]
+          >[0]
         );
-      }
-
-      const result = await response.json();
       return {
-        authSession: result.auth_session,
-        authnParamsPublicKey: result.authn_params_public_key
+        authSession: challenge.authSession,
+        authnParamsPublicKey:
+          challenge.authnParamsPublicKey as PasskeyChallengeResponse["authnParamsPublicKey"]
       };
     } catch (e) {
-      if (e instanceof PasskeyChallengeError) throw e;
+      const cause = (
+        e as {
+          cause?: {
+            error?: string;
+            error_description?: string;
+            message?: string;
+          };
+        }
+      )?.cause;
+      if (cause?.error || cause?.error_description) {
+        throw new PasskeyChallengeError(
+          cause.error || "unknown_error",
+          cause.error_description || "Failed to get passkey login challenge",
+          {
+            error: cause.error ?? "unknown_error",
+            error_description:
+              cause.error_description ||
+              "Failed to get passkey login challenge",
+            message: cause.message
+          }
+        );
+      }
       throw new PasskeyChallengeError(
         "unexpected_error",
         "Unexpected error during passkey login challenge",
@@ -5284,8 +5035,10 @@ export class AuthClient {
   ): Promise<void> {
     await this.ensureDpopValidated();
 
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
+    // Preserve the exact discovery-error surface. The engine discovers the
+    // authorization server internally, but we keep the pre-check so a discovery
+    // failure still maps to "discovery_error" -> 500 in the route handler.
+    const [discoveryError] = await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
       throw new PasskeyGetTokenError(
@@ -5301,147 +5054,93 @@ export class AuthClient {
         this.authorizationParameters.audience
       ) || DEFAULT_SCOPES;
 
-    // Auth0's passkey token endpoint requires a JSON body because authn_response
-    // is a nested object — URLSearchParams would stringify it, causing a 400.
-    // This means we cannot use oauth.genericTokenEndpointRequest (which only
-    // sends URLSearchParams), so DPoP must be attached manually via the handle's
-    // internal addProof method.
-    const passkeyTokenMetadata = this.withMtlsEndpoint(
-      authorizationServerMetadata
-    );
-    const tokenUrl =
-      passkeyTokenMetadata.token_endpoint ??
-      new URL("/oauth/token", this.issuer).toString();
-
-    const jsonBody: Record<string, unknown> = {
-      grant_type: GRANT_TYPE_PASSKEY,
-      client_id: this.clientMetadata.client_id,
-      auth_session: options.authSession,
-      authn_response: options.authResponse,
-      scope
-    };
-
-    if (this.clientSecret) jsonBody.client_secret = this.clientSecret;
-    if (this.authorizationParameters.audience)
-      jsonBody.audience = this.authorizationParameters.audience;
-    if (options.connection) jsonBody.realm = options.connection;
-    if (options.organization) jsonBody.organization = options.organization;
-
-    // Create DPoP handle once outside the retry closure so the handle can
-    // learn and reuse the server-issued nonce across attempts (RFC 9449).
-    const dpopHandle =
+    // The engine's passkey.getTokenByPasskey owns the token-endpoint call: it
+    // sends authn_response as the nested JSON body (via createPasskeyFetch),
+    // attaches DPoP from requestOptions.dpopKeyPair (with the internal
+    // use_dpop_nonce retry), and validates the id_token. We keep the nextjs-owned
+    // concerns: scope resolution, the missing_id_token guard, the MFA re-encrypt,
+    // and the session build/save.
+    const requestOptions =
       this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
         : undefined;
 
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    let tokenResponse: EngineTokenResponse;
     try {
-      tokenEndpointResponse = await withDPoPNonceRetry(
-        async () => {
-          const httpOptions = this.httpOptions();
-          httpOptions.headers.set("Content-Type", "application/json");
-
-          const url = new URL(tokenUrl);
-
-          // oauth4webapi does not expose addProof/cacheNonce publicly, but they
-          // are the only way to attach a DPoP proof to a manually-built JSON
-          // request (genericTokenEndpointRequest only sends URLSearchParams).
-          if (dpopHandle) {
-            await (dpopHandle as any).addProof(
-              url,
-              httpOptions.headers,
-              "POST"
-            );
-          }
-
-          const httpResponse = await this.fetch(tokenUrl, {
-            method: "POST",
-            body: JSON.stringify(jsonBody),
-            ...httpOptions
-          });
-
-          // Let the handle learn the server-issued nonce from the response so
-          // it can be included in the next attempt's proof (RFC 9449 §8).
-          // Must happen before processGenericTokenEndpointResponse consumes
-          // the body, and before the retry check so the nonce is available on
-          // the next attempt even when the response is an error.
-          if (dpopHandle) {
-            (dpopHandle as any).cacheNonce(httpResponse, url);
-          }
-
-          // Let oauth4webapi process the response — this throws a
-          // ResponseBodyError for error responses (including use_dpop_nonce),
-          // which withDPoPNonceRetry can detect and retry on.
-          return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            httpResponse
-          );
-        },
-        {
-          isDPoPEnabled: !!dpopHandle,
-          ...this.dpopOptions?.retry
-        }
-      );
+      tokenResponse =
+        await this.engineServerClient.authClient.passkey.getTokenByPasskey(
+          {
+            authSession: options.authSession,
+            credential: options.authResponse as Parameters<
+              EngineServerClient<Auth0CookieContext>["authClient"]["passkey"]["getTokenByPasskey"]
+            >[0]["credential"],
+            scope,
+            ...(this.authorizationParameters.audience
+              ? { audience: this.authorizationParameters.audience as string }
+              : {}),
+            ...(options.connection ? { realm: options.connection } : {}),
+            ...(options.organization
+              ? { organization: options.organization }
+              : {})
+          },
+          requestOptions
+        );
     } catch (err: any) {
-      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
-        const claim = (err.cause as any)?.claim;
-        if (claim === "iss") {
-          throw new PasskeyGetTokenError(
-            "invalid_issuer",
-            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
-          );
+      // Reshape the engine PasskeyGetTokenError's `.cause` into the top-level
+      // shape the oauth4webapi-tuned MFA helpers expect, then JWE-encrypt the raw
+      // mfa_token into an MfaRequiredError before it can leak to the app.
+      const cause = err?.cause ?? {};
+      const oauthLikeError = {
+        error: cause.error,
+        error_description: cause.error_description,
+        cause: {
+          mfa_token: cause.mfa_token,
+          mfa_requirements: cause.mfa_requirements
         }
-        if (claim === "aud") {
-          throw new PasskeyGetTokenError(
-            "invalid_audience",
-            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
-          );
-        }
-      }
-
-      const oauthErr = await extractOAuthErrorDetails(err);
+      };
       await this.#throwIfMfaRequired(
-        err,
-        oauthErr,
+        oauthLikeError,
+        { error: cause.error, error_description: cause.error_description },
         this.authorizationParameters.audience as string | undefined,
         scope
       );
+      // NOTE (plan sub-step 9a): the engine validates the id_token iss/aud
+      // internally and strips openid-client's JWT_CLAIM_COMPARISON detail, so the
+      // former invalid_issuer / invalid_audience codes collapse into the generic
+      // passkey_get_token_error here. Still a 403 (accepted divergence).
       throw new PasskeyGetTokenError(
-        oauthErr.error || "unknown_error",
-        oauthErr.error_description ||
-          err.message ||
+        cause.error || "unknown_error",
+        cause.error_description ||
+          err?.message ||
           "Passkey verification failed",
-        oauthErr.error
+        cause.error
           ? {
-              error: oauthErr.error,
-              error_description: oauthErr.error_description ?? ""
+              error: cause.error,
+              error_description: cause.error_description ?? ""
             }
           : undefined
       );
     }
 
-    if (!tokenEndpointResponse.id_token) {
+    if (!tokenResponse.idToken) {
       throw new PasskeyGetTokenError(
         "missing_id_token",
         "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
       );
     }
 
-    const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
+    const claims = jose.decodeJwt(tokenResponse.idToken);
     const user = claims as unknown as User;
 
     let session: SessionData = {
       user,
       tokenSet: {
-        accessToken: tokenEndpointResponse.access_token,
-        idToken: tokenEndpointResponse.id_token,
-        scope: tokenEndpointResponse.scope,
-        refreshToken: tokenEndpointResponse.refresh_token,
-        expiresAt:
-          Math.floor(Date.now() / 1000) +
-          Number(tokenEndpointResponse.expires_in),
-        token_type: normalizeTokenType(tokenEndpointResponse.token_type)
+        accessToken: tokenResponse.accessToken,
+        idToken: tokenResponse.idToken,
+        scope: tokenResponse.scope,
+        refreshToken: tokenResponse.refreshToken,
+        expiresAt: tokenResponse.expiresAt,
+        token_type: normalizeTokenType(tokenResponse.tokenType)
       },
       internal: {
         sid: (claims.sid as string) || "",
@@ -5452,10 +5151,7 @@ export class AuthClient {
       }
     };
 
-    session = await this.finalizeSession(
-      session,
-      tokenEndpointResponse.id_token
-    );
+    session = await this.finalizeSession(session, tokenResponse.idToken);
     await this.saveSession(reqCookies, resCookies, session, true);
   }
 
@@ -6080,132 +5776,7 @@ export class AuthClient {
   ): Promise<PasswordlessVerifyTokenResponse> {
     await this.ensureDpopValidated();
 
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-
-    if (discoveryError) {
-      throw new PasswordlessVerifyError(
-        "discovery_error",
-        "Failed to discover authorization server metadata",
-        undefined
-      );
-    }
-
-    const params = new URLSearchParams();
-    params.append("realm", options.connection);
-    params.append("otp", options.verificationCode);
-
-    if (options.connection === "email") {
-      params.append("username", options.email);
-    } else {
-      params.append("username", options.phoneNumber);
-    }
-
-    // Resolve scope and audience from global authorizationParameters
-    const scope =
-      getScopeForAudience(
-        this.authorizationParameters.scope,
-        this.authorizationParameters.audience
-      ) || DEFAULT_SCOPES;
-    params.append("scope", scope);
-
-    if (this.authorizationParameters.audience) {
-      params.append(
-        "audience",
-        this.authorizationParameters.audience as string
-      );
-    }
-
-    // Create DPoP handle ONCE outside the closure so it persists across retries.
-    // This is required by RFC 9449: the handle must learn and reuse the nonce from
-    // the DPoP-Nonce header across multiple attempts.
-    const dpopHandle =
-      this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-        : undefined;
-
-    const passwordlessMetadata = this.withMtlsEndpoint(
-      authorizationServerMetadata
-    );
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
-    try {
-      tokenEndpointResponse = await withDPoPNonceRetry(
-        async () => {
-          const httpResponse = await oauth.genericTokenEndpointRequest(
-            passwordlessMetadata,
-            this.clientMetadata,
-            await this.getClientAuth(),
-            GRANT_TYPE_PASSWORDLESS_OTP,
-            params,
-            {
-              ...this.httpOptions(),
-              [oauth.customFetch]: this.fetch,
-              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-              ...(dpopHandle && { DPoP: dpopHandle })
-            }
-          );
-          return oauth.processGenericTokenEndpointResponse(
-            passwordlessMetadata,
-            this.clientMetadata,
-            httpResponse
-          );
-        },
-        {
-          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-          ...this.dpopOptions?.retry
-        }
-      );
-    } catch (err: any) {
-      // oauth4webapi validates the id_token (iss, aud, signature) inside
-      // processGenericTokenEndpointResponse and throws with code
-      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
-      // Surface those as specific PasswordlessVerifyErrors so callers can
-      // distinguish misconfiguration from a bad grant.
-      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
-        const claim = (err.cause as any)?.claim;
-        if (claim === "iss") {
-          throw new PasswordlessVerifyError(
-            "invalid_issuer",
-            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
-          );
-        }
-        if (claim === "aud") {
-          throw new PasswordlessVerifyError(
-            "invalid_audience",
-            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
-          );
-        }
-      }
-
-      const oauthErr = await extractOAuthErrorDetails(err);
-      await this.#throwIfMfaRequired(
-        err,
-        oauthErr,
-        this.authorizationParameters.audience as string | undefined,
-        scope
-      );
-      throw new PasswordlessVerifyError(
-        oauthErr.error || "unknown_error",
-        oauthErr.error_description ||
-          err.message ||
-          "Passwordless verification failed",
-        oauthErr.error
-          ? {
-              error: oauthErr.error,
-              error_description: oauthErr.error_description ?? ""
-            }
-          : undefined
-      );
-    }
-
-    return {
-      access_token: tokenEndpointResponse.access_token,
-      refresh_token: tokenEndpointResponse.refresh_token,
-      id_token: tokenEndpointResponse.id_token,
-      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
-      scope: tokenEndpointResponse.scope,
-      expires_in: Number(tokenEndpointResponse.expires_in)
-    };
+    return this.#passwordlessVerifyViaEngine(options);
   }
 
   /**
@@ -6292,115 +5863,7 @@ export class AuthClient {
   ): Promise<PasswordlessVerifyTokenResponse> {
     await this.ensureDpopValidated();
 
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-
-    if (discoveryError) {
-      throw new PasswordlessDbGetTokenError(
-        "discovery_error",
-        "Failed to discover authorization server metadata",
-        undefined
-      );
-    }
-
-    const scope =
-      getScopeForAudience(
-        this.authorizationParameters.scope,
-        this.authorizationParameters.audience
-      ) || DEFAULT_SCOPES;
-
-    const params = new URLSearchParams();
-    params.append("auth_session", options.authSession);
-    params.append("otp", options.otp);
-    params.append("scope", scope);
-
-    if (this.authorizationParameters.audience) {
-      params.append(
-        "audience",
-        this.authorizationParameters.audience as string
-      );
-    }
-
-    const dpopHandle =
-      this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-        : undefined;
-
-    const tokenMetadata = this.withMtlsEndpoint(authorizationServerMetadata);
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
-    try {
-      tokenEndpointResponse = await withDPoPNonceRetry(
-        async () => {
-          const httpResponse = await oauth.genericTokenEndpointRequest(
-            tokenMetadata,
-            this.clientMetadata,
-            await this.getClientAuth(),
-            GRANT_TYPE_PASSWORDLESS_OTP,
-            params,
-            {
-              ...this.httpOptions(),
-              [oauth.customFetch]: this.fetch,
-              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-              ...(dpopHandle && { DPoP: dpopHandle })
-            }
-          );
-          return oauth.processGenericTokenEndpointResponse(
-            tokenMetadata,
-            this.clientMetadata,
-            httpResponse
-          );
-        },
-        {
-          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-          ...this.dpopOptions?.retry
-        }
-      );
-    } catch (err: any) {
-      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
-        const claim = (err.cause as any)?.claim;
-        if (claim === "iss") {
-          throw new PasswordlessDbGetTokenError(
-            "invalid_issuer",
-            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
-          );
-        }
-        if (claim === "aud") {
-          throw new PasswordlessDbGetTokenError(
-            "invalid_audience",
-            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
-          );
-        }
-      }
-
-      const oauthErr = await extractOAuthErrorDetails(err);
-      await this.#throwIfMfaRequired(
-        err,
-        oauthErr,
-        this.authorizationParameters.audience as string | undefined,
-        scope
-      );
-      throw new PasswordlessDbGetTokenError(
-        oauthErr.error || "unknown_error",
-        oauthErr.error_description ||
-          err.message ||
-          "Passwordless DB token exchange failed",
-        oauthErr.error
-          ? {
-              error: oauthErr.error,
-              error_description: oauthErr.error_description ?? ""
-            }
-          : undefined
-      );
-    }
-
-    return {
-      access_token: tokenEndpointResponse.access_token,
-      refresh_token: tokenEndpointResponse.refresh_token,
-      id_token: tokenEndpointResponse.id_token,
-      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
-      scope: tokenEndpointResponse.scope,
-      expires_in: Number(tokenEndpointResponse.expires_in)
-    };
+    return this.#passwordlessDbGetTokenViaEngine(options);
   }
 
   /**
@@ -6522,7 +5985,7 @@ export class AuthClient {
     };
 
     // Cache only the DPoP handle so nonce state is shared across proxied
-    // requests for the same audience on this AuthClient instance. Always create
+    // requests for the same audience on this Auth0ServerClient instance. Always create
     // a fresh request-bound fetcher so token resolution remains scoped to the
     // current session instead of being shared or mutated.
     const dpopHandle =
@@ -6688,74 +6151,76 @@ export class AuthClient {
     | [SdkError, null]
   > {
     await this.ensureDpopValidated();
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
 
-    if (discoveryError) {
-      return [discoveryError, null];
+    return this.#refreshTokenSetViaEngine(tokenSet, options);
+  }
+
+  /**
+   * Engine-delegating refresh (Step 5, sub-step 2). Replaces only the low-level
+   * refresh-token grant mechanics of `#refreshTokenSet` (discovery, the
+   * `refresh_token` grant, DPoP proofing + `use_dpop_nonce` retry, and error
+   * normalization) with the engine's `AuthClient.getTokenByRefreshToken`. Every
+   * behavior around the grant is unchanged and mirrors `#refreshTokenSet`
+   * exactly:
+   *
+   * - DPoP is preserved by passing the session's `dpopKeyPair` in
+   *   `requestOptions`; the engine binds a DPoP handle to its per-request config
+   *   and openid-client drives the `use_dpop_nonce` retry internally, so nextjs
+   *   no longer needs its own `withDPoPNonceRetry` wrapper here.
+   * - The validated id-token claims are preserved: the engine's `TokenResponse`
+   *   carries `.claims` (openid-client's validated `id_token` claims), the same
+   *   value `oauth.getValidatedIdTokenClaims` returned in the prior v4
+   *   implementation.
+   * - MFA is preserved. The engine throws `TokenByRefreshTokenError` with the
+   *   OAuth error body on `.cause` (`error` / `error_description` / `mfa_token` /
+   *   `mfa_requirements`) rather than at the top level the oauth4webapi helpers
+   *   expect, so the body is reshaped into that top-level form before the shared
+   *   `isMfaRequiredError` / `extractMfaErrorDetails` helpers read it.
+   *
+   * `requestedScope`, the audience-keep rule, the mTLS certificate-bound warning,
+   * and refresh-token rotation are identical to the prior v4 implementation.
+   */
+  async #refreshTokenSetViaEngine(
+    tokenSet: Partial<TokenSet>,
+    options: {
+      scope?: string;
+      audience?: string | null;
+      requestedScope: string;
     }
-
-    const additionalParameters = new URLSearchParams();
-
-    if (options.scope) {
-      additionalParameters.append("scope", options.scope);
-    }
-
-    if (options.audience) {
-      additionalParameters.append("audience", options.audience);
-    }
-
-    // Create DPoP handle ONCE outside the closure so it persists across retries.
-    // This is required by RFC 9449: the handle must learn and reuse the nonce from
-    // the DPoP-Nonce header across multiple attempts.
-    const dpopHandle =
-      this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-        : undefined;
-
-    const refreshTokenGrantRequestCall = async () =>
-      oauth.refreshTokenGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        tokenSet.refreshToken!,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-          additionalParameters,
-          ...(dpopHandle && {
-            DPoP: dpopHandle
-          })
-        }
-      );
-
-    const processRefreshTokenResponseCall = (response: Response) =>
-      oauth.processRefreshTokenResponse(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        response
-      );
-
-    let oauthRes: oauth.TokenEndpointResponse;
+  ): Promise<
+    | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
+    | [SdkError, null]
+  > {
+    let tokenResponse;
     try {
-      oauthRes = await withDPoPNonceRetry(
-        async () => {
-          const refreshTokenRes = await refreshTokenGrantRequestCall();
-          return await processRefreshTokenResponseCall(refreshTokenRes);
-        },
-        {
-          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-          ...this.dpopOptions?.retry
-        }
-      );
+      tokenResponse =
+        await this.engineServerClient.authClient.getTokenByRefreshToken(
+          {
+            refreshToken: tokenSet.refreshToken!,
+            ...(options.audience ? { audience: options.audience } : {}),
+            ...(options.scope ? { scope: options.scope } : {})
+          },
+          this.useDPoP && this.dpopKeyPair
+            ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
+            : undefined
+        );
     } catch (e: any) {
-      const oauthErr = await extractOAuthErrorDetails(e);
+      // Reshape the engine error's `.cause` body into the top-level shape the
+      // oauth4webapi-tuned helpers expect (mfa fields live in the response body
+      // / `cause`, `error` + `error_description` at the top level).
+      const cause = e?.cause ?? {};
+      const oauthLikeError = {
+        error: cause.error,
+        error_description: cause.error_description,
+        cause: {
+          mfa_token: cause.mfa_token,
+          mfa_requirements: cause.mfa_requirements
+        }
+      };
 
-      // Check if this is an MFA required error
-      if (isMfaRequiredError(e)) {
+      if (isMfaRequiredError(oauthLikeError)) {
         const { mfa_token, error_description, mfa_requirements } =
-          extractMfaErrorDetails(e);
+          extractMfaErrorDetails(oauthLikeError);
 
         if (mfa_token) {
           // Encrypt token with full context before exposing to application
@@ -6768,25 +6233,20 @@ export class AuthClient {
             this.mfaTokenTtl
           );
 
-          // Return MFA required error with self-contained encrypted token
           return [
             new MfaRequiredError(
               error_description ?? "Multi-factor authentication is required.",
               encryptedToken,
               mfa_requirements,
               new OAuth2Error({
-                code: oauthErr.error ?? "unknown_error",
-                message: oauthErr.error_description
+                code: cause.error ?? "unknown_error",
+                message: cause.error_description
               })
             ),
             null
           ];
         } else {
-          // MFA required but no mfa_token provided
-          // This typically happens when:
-          // 1. The refresh token was issued before MFA was enrolled
-          // 2. The API doesn't support step-up (no authorization policies)
-          // User needs to re-authenticate to get a new session with MFA
+          // MFA required but no mfa_token - user needs to re-authenticate.
           console.error(
             "MFA required but no mfa_token - user needs to re-authenticate"
           );
@@ -6797,8 +6257,8 @@ export class AuthClient {
               "", // Empty token - signals re-auth needed
               mfa_requirements,
               new OAuth2Error({
-                code: oauthErr.error ?? "unknown_error",
-                message: oauthErr.error_description
+                code: cause.error ?? "unknown_error",
+                message: cause.error_description
               })
             ),
             null
@@ -6811,8 +6271,8 @@ export class AuthClient {
           AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
           "The access token has expired and there was an error while trying to refresh it.",
           new OAuth2Error({
-            code: oauthErr.error ?? "unknown_error",
-            message: oauthErr.error_description
+            code: cause.error ?? "unknown_error",
+            message: cause.error_description
           })
         ),
         null
@@ -6820,42 +6280,34 @@ export class AuthClient {
     }
 
     if (this.useMtls) {
-      warnIfNotCertificateBound(oauthRes.access_token);
+      warnIfNotCertificateBound(tokenResponse.accessToken);
     }
 
-    const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
-    const accessTokenExpiresAt =
-      Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+    // The engine's `TokenResponse` already carries the validated id-token claims
+    // (openid-client's `response.claims()`), matching `getValidatedIdTokenClaims`
+    // from the prior v4 implementation.
+    const idTokenClaims = tokenResponse.claims as oauth.IDToken;
 
     const updatedTokenSet = {
       ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-      accessToken: oauthRes.access_token,
-      idToken: oauthRes.id_token,
-      // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
-      // The server may return less scopes than requested.
-      // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
-      //
-      // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
-      // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
-      // - If we only store the requested scopes, we lose track of the actual scopes granted.
-      //
+      accessToken: tokenResponse.accessToken,
+      idToken: tokenResponse.idToken,
       // Scopes actually granted by the server
-      scope: oauthRes.scope,
-      // Scopes requested by the client
+      scope: tokenResponse.scope,
+      // Scopes requested by the client (see `#refreshTokenSet` for rationale)
       requestedScope: options.requestedScope,
-      expiresAt: accessTokenExpiresAt,
+      expiresAt: tokenResponse.expiresAt,
       // Keep the audience if it exists, otherwise use the one from the options.
-      // If not provided, use `undefined`.
       audience: tokenSet.audience || options.audience || undefined,
       // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-      ...(oauthRes.token_type && { token_type: oauthRes.token_type })
+      ...(tokenResponse.tokenType && { token_type: tokenResponse.tokenType })
     };
 
-    if (oauthRes.refresh_token) {
-      // refresh token rotation is enabled, persist the new refresh token from the response
-      updatedTokenSet.refreshToken = oauthRes.refresh_token;
+    if (tokenResponse.refreshToken) {
+      // refresh token rotation is enabled, persist the new refresh token
+      updatedTokenSet.refreshToken = tokenResponse.refreshToken;
     } else {
-      // we did not get a refresh token back, keep the current long-lived refresh token around
+      // no refresh token back, keep the current long-lived refresh token around
       updatedTokenSet.refreshToken = tokenSet.refreshToken;
     }
 
@@ -6866,5 +6318,262 @@ export class AuthClient {
         idTokenClaims
       }
     ];
+  }
+
+  /**
+   * Engine-backed federated-connection token exchange, delegated to the core
+   * `AuthClient.exchangeToken` (token-vault variant). Field-for-field equivalent
+   * to the prior v4 `getConnectionTokenSet` grant:
+   *
+   * - The MISSING_REFRESH_TOKEN guard and the cached-token short-circuit run in
+   *   `getConnectionTokenSet` before this method, so this only performs the
+   *   exchange itself.
+   * - `subject_token_type` / `subject_token` are computed exactly as before and
+   *   passed explicitly (the core defaults to the access-token subject type, so
+   *   the refresh-token default from nextjs is made explicit here).
+   * - DPoP is a per-request option (`requestOptions.dpopKeyPair`); openid-client
+   *   drives the `use_dpop_nonce` retry internally, and mTLS is handled by the
+   *   core Configuration's `use_mtls_endpoint_aliases`.
+   * - `expiresAt` (`now + expires_in`) and `scope` come straight off the core
+   *   `TokenResponse`, matching the prior computation.
+   * - On failure the core throws `TokenExchangeError` with the OAuth error body
+   *   on `.cause`; it is reshaped into the same `FAILED_TO_EXCHANGE` error the
+   *   prior v4 implementation returned.
+   */
+  async #getConnectionTokenSetViaEngine(
+    tokenSet: TokenSet,
+    options: AccessTokenForConnectionOptions
+  ): Promise<
+    [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
+  > {
+    const subjectTokenType =
+      options.subject_token_type ??
+      SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+
+    const subjectToken =
+      subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        ? tokenSet.accessToken
+        : tokenSet.refreshToken!;
+
+    let tokenResponse;
+    try {
+      tokenResponse = await this.engineServerClient.authClient.exchangeToken(
+        {
+          connection: options.connection,
+          subjectToken,
+          subjectTokenType,
+          ...(options.login_hint ? { loginHint: options.login_hint } : {})
+        },
+        this.useDPoP && this.dpopKeyPair
+          ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
+          : undefined
+      );
+    } catch (e: any) {
+      const cause = e?.cause ?? {};
+      return [
+        new AccessTokenForConnectionError(
+          AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+          "There was an error trying to exchange the refresh token for a connection access token.",
+          new OAuth2Error({
+            code: cause.error ?? "unknown_error",
+            message: cause.error_description
+          })
+        ),
+        null
+      ];
+    }
+
+    return [
+      null,
+      {
+        accessToken: tokenResponse.accessToken,
+        expiresAt: tokenResponse.expiresAt,
+        scope: tokenResponse.scope,
+        connection: options.connection,
+        ...(options.login_hint ? { loginHint: options.login_hint } : {})
+      }
+    ];
+  }
+
+  /**
+   * Engine-backed passwordless OTP verification, delegated to the core
+   * `AuthClient.getTokenByPasswordlessEmail` / `getTokenByPasswordlessSms`
+   * (both are the `http://auth0.com/oauth/grant-type/passwordless/otp` grant).
+   *
+   * The public contract of `passwordlessVerify` is preserved exactly:
+   * - Same resolved `scope` (`getScopeForAudience` || `DEFAULT_SCOPES`) and
+   *   `audience` from the global authorization parameters are passed explicitly,
+   *   so the wire params match the prior v4 implementation (the core only appends them when
+   *   provided).
+   * - DPoP is a per-request option (`requestOptions.dpopKeyPair`); mTLS is handled
+   *   by the core Configuration. `realm` is `email`/`sms`, matching the prior implementation.
+   * - The core `TokenResponse` (camelCase, absolute `expiresAt`) is mapped back to
+   *   the shipped snake_case `PasswordlessVerifyTokenResponse` (relative
+   *   `expires_in`, `normalizeTokenType`).
+   * - Errors are rethrown as the nextjs `PasswordlessVerifyError` (never the core
+   *   class), and `mfa_required` is reshaped from the engine's `.cause` and run
+   *   through the shared `#throwIfMfaRequired` so an `MfaRequiredError` with an
+   *   encrypted token is thrown, identical to the prior implementation.
+   *
+   * Note: the prior v4 implementation additionally mapped oauth4webapi's `JWT_CLAIM_COMPARISON`
+   * to `invalid_issuer` / `invalid_audience` codes; the engine flattens that
+   * validation error, so a misconfiguration still throws the same
+   * `PasswordlessVerifyError` type but with a generic code.
+   */
+  async #passwordlessVerifyViaEngine(
+    options: PasswordlessVerifyOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+    const audience = this.authorizationParameters.audience as
+      string | undefined;
+    const dpop =
+      this.useDPoP && this.dpopKeyPair
+        ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
+        : undefined;
+
+    let tokenResponse;
+    try {
+      tokenResponse =
+        options.connection === "email"
+          ? await this.engineServerClient.authClient.getTokenByPasswordlessEmail(
+              {
+                email: options.email,
+                code: options.verificationCode,
+                scope,
+                ...(audience ? { audience } : {})
+              },
+              dpop
+            )
+          : await this.engineServerClient.authClient.getTokenByPasswordlessSms(
+              {
+                phoneNumber: options.phoneNumber,
+                code: options.verificationCode,
+                scope,
+                ...(audience ? { audience } : {})
+              },
+              dpop
+            );
+    } catch (err: any) {
+      const cause = err?.cause ?? {};
+      const oauthLikeError = {
+        error: cause.error,
+        error_description: cause.error_description,
+        cause: {
+          mfa_token: cause.mfa_token,
+          mfa_requirements: cause.mfa_requirements
+        }
+      };
+
+      await this.#throwIfMfaRequired(
+        oauthLikeError,
+        { error: cause.error, error_description: cause.error_description },
+        audience,
+        scope
+      );
+
+      throw new PasswordlessVerifyError(
+        cause.error || "unknown_error",
+        cause.error_description ||
+          err?.message ||
+          "Passwordless verification failed",
+        cause.error
+          ? {
+              error: cause.error,
+              error_description: cause.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenResponse.accessToken,
+      refresh_token: tokenResponse.refreshToken,
+      id_token: tokenResponse.idToken,
+      token_type: normalizeTokenType(tokenResponse.tokenType),
+      scope: tokenResponse.scope,
+      expires_in: tokenResponse.expiresAt - Math.floor(Date.now() / 1000)
+    };
+  }
+
+  /**
+   * Engine-backed passwordless database-connection OTP exchange, delegated to the
+   * core `AuthClient.passwordless.getTokenByPasswordlessDbConnection` (same OTP
+   * grant). Mirrors `#passwordlessVerifyViaEngine`: resolved `scope`/`audience`
+   * passed explicitly, DPoP per-request, the core `TokenResponse` mapped back to
+   * the shipped snake_case `PasswordlessVerifyTokenResponse`, MFA reshaped through
+   * `#throwIfMfaRequired`, and failures rethrown as the nextjs
+   * `PasswordlessDbGetTokenError` (never the core class).
+   */
+  async #passwordlessDbGetTokenViaEngine(
+    options: PasswordlessDbGetTokenOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+    const audience = this.authorizationParameters.audience as
+      string | undefined;
+    const dpop =
+      this.useDPoP && this.dpopKeyPair
+        ? { dpopKeyPair: this.dpopKeyPair as CryptoKeyPair }
+        : undefined;
+
+    let tokenResponse;
+    try {
+      tokenResponse =
+        await this.engineServerClient.authClient.passwordless.getTokenByPasswordlessDbConnection(
+          {
+            authSession: options.authSession,
+            otp: options.otp,
+            scope,
+            ...(audience ? { audience } : {})
+          },
+          dpop
+        );
+    } catch (err: any) {
+      const cause = err?.cause ?? {};
+      const oauthLikeError = {
+        error: cause.error,
+        error_description: cause.error_description,
+        cause: {
+          mfa_token: cause.mfa_token,
+          mfa_requirements: cause.mfa_requirements
+        }
+      };
+
+      await this.#throwIfMfaRequired(
+        oauthLikeError,
+        { error: cause.error, error_description: cause.error_description },
+        audience,
+        scope
+      );
+
+      throw new PasswordlessDbGetTokenError(
+        cause.error || "unknown_error",
+        cause.error_description ||
+          err?.message ||
+          "Passwordless DB token exchange failed",
+        cause.error
+          ? {
+              error: cause.error,
+              error_description: cause.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenResponse.accessToken,
+      refresh_token: tokenResponse.refreshToken,
+      id_token: tokenResponse.idToken,
+      token_type: normalizeTokenType(tokenResponse.tokenType),
+      scope: tokenResponse.scope,
+      expires_in: tokenResponse.expiresAt - Math.floor(Date.now() / 1000)
+    };
   }
 }

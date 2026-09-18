@@ -1,5 +1,5 @@
 /**
- * AuthClientProvider manages AuthClient instances for multiple custom domains
+ * AuthClientProvider manages Auth0ServerClient instances for multiple custom domains
  * @internal
  */
 
@@ -8,7 +8,7 @@ import { DomainResolutionError } from "../errors/mcd.js";
 import type { DomainResolver } from "../types/mcd.js";
 import { LruMap } from "../utils/lru-map.js";
 import { normalizeDomain } from "../utils/normalize.js";
-import type { AuthClient } from "./auth-client/index.js";
+import type { Auth0ServerClient } from "./auth-client/index.js";
 
 /**
  * Options for AuthClientProvider.
@@ -22,10 +22,10 @@ interface AuthClientProviderOptions {
   domain: string | DomainResolver;
 
   /**
-   * Factory function to create an AuthClient for a given domain.
+   * Factory function to create an Auth0ServerClient for a given domain.
    * Called when a new domain client is needed.
    */
-  createAuthClient: (domain: string, issuer: string) => AuthClient;
+  createAuthClient: (domain: string, issuer: string) => Auth0ServerClient;
 
   /**
    * Allow insecure HTTP requests to localhost during development.
@@ -41,7 +41,7 @@ interface AuthClientProviderOptions {
 const MAX_DOMAIN_CLIENTS = 100;
 
 /**
- * AuthClientProvider manages creating and caching AuthClient instances for MCD mode.
+ * AuthClientProvider manages creating and caching Auth0ServerClient instances for MCD mode.
  *
  * Features:
  * - Detects static vs resolver mode from configuration
@@ -58,12 +58,12 @@ export class AuthClientProvider {
   private staticIssuer?: string;
   private resolver?: DomainResolver;
 
-  private domainClients: LruMap<string, AuthClient>;
+  private domainClients: LruMap<string, Auth0ServerClient>;
 
   private createAuthClientFactory: (
     domain: string,
     issuer: string
-  ) => AuthClient;
+  ) => Auth0ServerClient;
 
   /**
    * Creates a new AuthClientProvider instance.
@@ -90,7 +90,7 @@ export class AuthClientProvider {
       this.staticDomain = normalized.domain;
       this.staticIssuer = normalized.issuer;
 
-      // Pre-populate cache with singleton AuthClient keyed by issuer URL
+      // Pre-populate cache with singleton Auth0ServerClient keyed by issuer URL
       // (same key shape as resolver mode) to allow unified LRU lookup.
       const client = this.createAuthClientFactory(
         this.staticDomain,
@@ -131,15 +131,15 @@ export class AuthClientProvider {
   }
 
   /**
-   * Gets the AuthClient for static mode (if available).
+   * Gets the Auth0ServerClient for static mode (if available).
    *
    * Used internally to update provider references after construction.
    *
-   * @returns The cached AuthClient in static mode, or undefined in resolver mode
+   * @returns The cached Auth0ServerClient in static mode, or undefined in resolver mode
    *
    * @internal
    */
-  getAuthClientForStaticMode(): AuthClient | undefined {
+  getAuthClientForStaticMode(): Auth0ServerClient | undefined {
     if (this.mode === "static" && this.staticIssuer) {
       return this.domainClients.get(this.staticIssuer);
     }
@@ -147,19 +147,19 @@ export class AuthClientProvider {
   }
 
   /**
-   * Gets an AuthClient for the current request in resolver mode.
+   * Gets an Auth0ServerClient for the current request in resolver mode.
    *
    * In static mode, always returns the same cached client.
    * In resolver mode, resolves the domain from headers and caches the client.
    *
    * @param headers - Request headers used for domain resolution
    * @param url - Optional request URL for enhanced domain resolution
-   * @returns A promise resolving to the appropriate AuthClient
+   * @returns A promise resolving to the appropriate Auth0ServerClient
    * @throws {DomainResolutionError} If domain resolution fails
    *
    * @internal
    */
-  async forRequest(headers: Headers, url?: URL): Promise<AuthClient> {
+  async forRequest(headers: Headers, url?: URL): Promise<Auth0ServerClient> {
     if (this.mode === "static" && this.staticIssuer) {
       // Static mode: always return the pre-cached client
       return this.domainClients.get(this.staticIssuer)!;
@@ -171,17 +171,17 @@ export class AuthClientProvider {
   }
 
   /**
-   * Gets an AuthClient for a specific domain synchronously.
+   * Gets an Auth0ServerClient for a specific domain synchronously.
    *
    * Uses bounded LRU caching. If the cache exceeds MAX_DOMAIN_CLIENTS,
    * the oldest entry is evicted.
    *
    * @param domain - The domain to get a client for
-   * @returns The AuthClient for the domain
+   * @returns The Auth0ServerClient for the domain
    *
    * @internal
    */
-  forDomainSync(domain: string): AuthClient {
+  forDomainSync(domain: string): Auth0ServerClient {
     // Normalize and validate the domain
     const normalized = normalizeDomain(domain);
 
@@ -190,7 +190,7 @@ export class AuthClientProvider {
     // Using only the hostname would cause cache collisions between distinct issuer paths
     // on the same host (e.g. /oauth2/default vs /oauth2/custom).
     // When mTLS support is added, extend key to `${normalized.issuer}:${mtlsEnabled}`
-    // to cache separate AuthClient instances per mTLS mode (cf. server-js PR #119).
+    // to cache separate Auth0ServerClient instances per mTLS mode (cf. server-js PR #119).
     const cacheKey = normalized.issuer;
     const client = this.domainClients.get(cacheKey);
     if (client) {
@@ -240,7 +240,7 @@ export class AuthClientProvider {
     // Normalize the resolved domain and return the full issuer URL (including
     // any path component, e.g. https://myorg.okta.com/oauth2/default/) so that
     // forDomainSync can use it as a precise cache key and construct the correct
-    // AuthClient with the right issuer for OIDC discovery.
+    // Auth0ServerClient with the right issuer for OIDC discovery.
     const normalized = normalizeDomain(resolved);
     return normalized.issuer;
   }
