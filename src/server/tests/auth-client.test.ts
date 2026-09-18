@@ -37,7 +37,7 @@ import {
 } from "../../types/index.js";
 import { DEFAULT_SCOPES } from "../../utils/constants.js";
 import {
-  AuthClient,
+  Auth0ServerClient,
   buildConnectAccountErrorResponse
 } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
@@ -410,7 +410,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       expect(
         () =>
-          new AuthClient({
+          new Auth0ServerClient({
             ...stores,
 
             domain: DEFAULT.domain,
@@ -437,7 +437,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       expect(
         () =>
-          new AuthClient({
+          new Auth0ServerClient({
             ...stores,
 
             domain: DEFAULT.domain,
@@ -467,7 +467,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       expect(
         () =>
-          new AuthClient({
+          new Auth0ServerClient({
             ...stores,
 
             domain: DEFAULT.domain,
@@ -499,7 +499,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
 
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -529,7 +529,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should call the login handler if the path is /auth/login", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -554,7 +554,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should call the callback handler if the path is /auth/callback", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -579,7 +579,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should call the logout handler if the path is /auth/logout", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -604,7 +604,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should call the profile handler if the path is /auth/profile", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -629,7 +629,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should call the handleAccessToken method if the path is /auth/access-token and enableAccessTokenEndpoint is true", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -655,7 +655,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should not call the handleAccessToken method if the path is /auth/access-token but enableAccessTokenEndpoint is false", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -683,7 +683,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should use the default value (true) for enableAccessTokenEndpoint when not explicitly provided", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -709,7 +709,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should call the back-channel logout handler if the path is /auth/backchannel-logout", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -745,7 +745,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             inactivityDuration: 1800
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -828,7 +828,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             inactivityDuration: 1800
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -869,7 +869,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             absoluteDuration: 3600
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -954,7 +954,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
               beforeSessionRolled
             }
           });
-          return new AuthClient({
+          return new Auth0ServerClient({
             ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -1078,7 +1078,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should call the login handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1110,7 +1110,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should call the logout handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1142,7 +1142,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should call the callback handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1174,7 +1174,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should call the backChannelLogout handler when the configured route is called", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1206,7 +1206,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should call the profile handler when custom route is configured via routes option", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1238,7 +1238,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should call the accessToken handler when custom route is configured via routes option", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1272,7 +1272,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1305,7 +1305,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1380,7 +1380,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         for (const testCase of testCases) {
           const secret = await generateSecret(32);
           const stores = createTestStores({ secret });
-          const authClient = new AuthClient({
+          const authClient = new Auth0ServerClient({
             ...stores,
 
             domain: DEFAULT.domain,
@@ -1426,7 +1426,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1453,7 +1453,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should handle hardcoded /me routes with basePath", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1486,7 +1486,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should handle hardcoded /my-org routes with basePath", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -1522,7 +1522,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should redirect to the authorization server and store the transaction state", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -1593,7 +1593,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should configure redirect_uri when appBaseUrl isnt the root", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -1634,7 +1634,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should prepend the base path to the redirect_uri", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1670,7 +1670,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should infer appBaseUrl from request host when not configured", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -1702,7 +1702,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should prefer forwarded headers when inferring appBaseUrl", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -1738,7 +1738,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should throw when appBaseUrl cannot be inferred from the request", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -1764,7 +1764,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -1799,7 +1799,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should forward the query parameters to the authorization server", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1876,7 +1876,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should forward the configured authorization parameters to the authorization server", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -1939,7 +1939,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should override the configured authorization parameters with the query parameters", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -2003,7 +2003,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should protect internal params while ignoring redirect_uri overrides", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -2087,7 +2087,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should not forward parameters with null or undefined values", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -2147,7 +2147,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should store the maxAge in the transaction state and forward it to the authorization server", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -2196,7 +2196,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should store per-request maxAge=0 (step-up) in transaction state when not set in SDK config", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2231,7 +2231,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should use per-request maxAge over SDK-level max_age in transaction state", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2267,7 +2267,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should store the returnTo path in the transaction state", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -2311,7 +2311,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should prevent open redirects originating from the returnTo parameter", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -2355,7 +2355,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 400 for a non-numeric max_age query param", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2376,7 +2376,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 400 for a negative max_age query param", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -2398,7 +2398,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return an error if the authorization server does not support PAR", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2441,7 +2441,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should redirect to the authorization server with the request_uri and store the transaction state", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2532,7 +2532,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         it("should prepend the base path to the redirect_uri", async () => {
           const secret = await generateSecret(32);
           const stores = createTestStores({ secret });
-          const authClient = new AuthClient({
+          const authClient = new Auth0ServerClient({
             ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -2602,7 +2602,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             method: "GET"
           });
 
-          const authClient = new AuthClient({
+          const authClient = new Auth0ServerClient({
             ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -2676,7 +2676,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             method: "GET"
           });
 
-          const authClient = new AuthClient({
+          const authClient = new Auth0ServerClient({
             ...stores,
             domain: DEFAULT.domain,
             clientId: DEFAULT.clientId,
@@ -2749,7 +2749,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should redirect to the custom callback route after login", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -2802,7 +2802,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2852,7 +2852,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2895,7 +2895,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -2934,7 +2934,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should redirect to the authorization server logout URL with the correct params", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3006,7 +3006,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should use the returnTo URL as the post_logout_redirect_uri if provided", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3074,7 +3074,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should not include the id_token_hint parameter if a session does not exist", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3107,7 +3107,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should not include the logout_hint parameter if a session does not exist", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3153,7 +3153,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should fallback to the /v2/logout endpoint if the client does not have RP-Initiated Logout enabled", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3207,7 +3207,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3242,7 +3242,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should include id_token_hint in OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is true (default)", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -3303,7 +3303,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -3362,7 +3362,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should include id_token_hint by default when includeIdTokenHintInOIDCLogoutUrl is not specified", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -3420,7 +3420,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should not include id_token_hint when session has no idToken, regardless of includeIdTokenHintInOIDCLogoutUrl setting", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -3486,7 +3486,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           async () => {}
         ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3545,7 +3545,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           async () => {}
         ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3596,7 +3596,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3657,7 +3657,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           async () => {}
         ) as unknown as MockedFunction<(request: Request) => Promise<void>>;
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3705,7 +3705,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
@@ -3759,7 +3759,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return the user attributes stored in the session", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3818,7 +3818,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 401 if the user is not authenticated", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3848,7 +3848,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 204 if the user is not authenticated and noContentProfileResponseWhenUnauthenticated is enabled", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3885,7 +3885,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -3969,7 +3969,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4047,7 +4047,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .setExpirationTime("2h")
         .sign(DEFAULT.keyPair.privateKey);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4124,7 +4124,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .setExpirationTime("2h")
         .sign(DEFAULT.keyPair.privateKey);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4201,7 +4201,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .setExpirationTime("2h")
         .sign(DEFAULT.keyPair.privateKey);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4281,7 +4281,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -4363,7 +4363,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4447,7 +4447,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4480,7 +4480,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4529,7 +4529,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4582,7 +4582,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4656,7 +4656,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         .setExpirationTime("2h")
         .sign(DEFAULT.keyPair.privateKey);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -4711,7 +4711,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -4772,7 +4772,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -4878,7 +4878,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -4934,7 +4934,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5006,7 +5006,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5087,7 +5087,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5165,7 +5165,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5251,7 +5251,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const mockBeforeSessionSaved = vi
           .fn()
           .mockImplementation(async (session: unknown) => session);
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5319,7 +5319,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5410,7 +5410,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5442,7 +5442,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5535,7 +5535,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should throw when appBaseUrl is missing from ctx and configuration", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5568,7 +5568,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5709,7 +5709,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5782,7 +5782,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -5893,7 +5893,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6004,7 +6004,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6089,7 +6089,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6158,7 +6158,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return expires_in as 0 when expiresAt is missing", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6216,7 +6216,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 401 if the user does not have a session", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6255,7 +6255,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if obtaining a token set failed", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6329,7 +6329,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           deleteByLogoutToken: deleteByLogoutTokenSpy
         }
       });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6370,7 +6370,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       // pass in a stateless session store that does not implement a store
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6412,7 +6412,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           delete: vi.fn()
         }
       });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6457,7 +6457,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6504,7 +6504,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6545,7 +6545,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6593,7 +6593,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6640,7 +6640,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6687,7 +6687,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6734,7 +6734,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6781,7 +6781,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             deleteByLogoutToken: deleteByLogoutTokenSpy
           }
         });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -6828,7 +6828,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       let connectAccountRequestBody: any;
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -6965,7 +6965,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       let connectAccountRequestBody: any;
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7081,7 +7081,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7139,7 +7139,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return a 401 if the user does not have a session", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7180,7 +7180,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7236,7 +7236,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7304,7 +7304,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const currentAccessToken = DEFAULT.accessToken;
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7390,7 +7390,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       let connectAccountRequestBody: any;
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7484,7 +7484,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return the access token if it has not expired", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7516,7 +7516,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if the token set does not contain a refresh token and the access token has expired", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7547,7 +7547,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should refresh the access token if it expired", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7595,7 +7595,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if an error occurred during the refresh token exchange", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7632,7 +7632,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -7667,7 +7667,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should refresh the access token if it expired along with the updated refresh token", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -7718,7 +7718,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return the access token if it has not expired", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -7771,7 +7771,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return the access token when using map-based scope configuration and the access token has not expired", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -7830,7 +7830,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return an error if the token set does not contain a refresh token and the access token has expired", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -7878,7 +7878,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return an error if the token set does not contain a refresh token and the access token can not be found", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -7919,7 +7919,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should refresh the access token if it expired", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -7984,7 +7984,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should request the access token if no audience provided", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -8048,7 +8048,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should request the access token if no audience provided", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -8112,7 +8112,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return an error if an error occurred during the refresh token exchange", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -8166,7 +8166,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       it("should return the access token if it has not expired when only the audience is specified", async () => {
         const secret = await generateSecret(32);
         const stores = createTestStores({ secret });
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           ...stores,
 
           domain: DEFAULT.domain,
@@ -8233,7 +8233,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const fetchSpy = getMockAuthorizationServer();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8273,7 +8273,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should NOT return SESSION_EXPIRED when ceiling is comfortably in the future", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8313,7 +8313,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      return new AuthClient({
+      return new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8400,25 +8400,24 @@ ca/T0LLtgmbMmxSv/MmzIg==
         scope: "openid profile email custom_scope"
       };
 
-      // Spy on the authorizationUrl method to verify the passed params
-      const originalAuthorizationUrl = authClient["authorizationUrl"];
-      authClient["authorizationUrl"] = vi.fn(async (params) => {
-        // Verify the audience is set correctly
-        expect(params.get("audience")).toBe(authorizationParameters.audience);
-        // Verify the scope is set correctly
-        expect(params.get("scope")).toBe(authorizationParameters.scope);
-        return originalAuthorizationUrl.call(authClient, params);
+      const response = await authClient.startInteractiveLogin({
+        authorizationParameters
       });
-
-      await authClient.startInteractiveLogin({ authorizationParameters });
-
-      expect(authClient["authorizationUrl"]).toHaveBeenCalled();
+      const locationHeader = response.headers.get("Location");
+      expect(locationHeader).toBeTruthy();
+      const redirectUrl = new URL(locationHeader!);
+      expect(redirectUrl.searchParams.get("audience")).toBe(
+        authorizationParameters.audience
+      );
+      expect(redirectUrl.searchParams.get("scope")).toBe(
+        authorizationParameters.scope
+      );
     });
 
     it("should throw when appBaseUrl is missing and no request is available", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8440,7 +8439,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should throw when request host cannot be inferred", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8496,7 +8495,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -8553,23 +8552,19 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const methodScope = "openid profile email custom_scope";
       const methodAudience = "https://custom-api.example.com";
 
-      // Spy on the authorizationUrl method to verify the passed params
-      const originalAuthorizationUrl = authClient["authorizationUrl"];
-      authClient["authorizationUrl"] = vi.fn(async (params) => {
-        // Method's authorization parameters should override config
-        expect(params.get("audience")).toBe(methodAudience);
-        expect(params.get("scope")).toBe(methodScope);
-        return originalAuthorizationUrl.call(authClient, params);
-      });
-
-      await authClient.startInteractiveLogin({
+      const response = await authClient.startInteractiveLogin({
         authorizationParameters: {
           scope: methodScope,
           audience: methodAudience
         }
       });
 
-      expect(authClient["authorizationUrl"]).toHaveBeenCalled();
+      const locationHeader = response.headers.get("Location");
+      expect(locationHeader).toBeTruthy();
+      const redirectUrl = new URL(locationHeader!);
+      // Method's authorization parameters should override config
+      expect(redirectUrl.searchParams.get("audience")).toBe(methodAudience);
+      expect(redirectUrl.searchParams.get("scope")).toBe(methodScope);
     });
 
     // Add tests for handleLogin method
@@ -8636,7 +8631,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         } as oauth.TokenEndpointResponse
       });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8679,7 +8674,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const fetchSpy = vi.fn();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8730,7 +8725,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expires_in: 86400 // expires in 10 days
         } as oauth.TokenEndpointResponse
       });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8772,7 +8767,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8807,7 +8802,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if the token set does not contain a refresh token", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8839,7 +8834,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error and capture it as the cause when exchange failed", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8910,7 +8905,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -8992,7 +8987,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9074,7 +9069,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9126,7 +9121,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9171,7 +9166,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("listConnectedAccounts", async () => {
     function buildAuthClient(fetchSpy: any) {
       const stores = createTestStores({ secret: "secret" });
-      return new AuthClient({
+      return new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9393,7 +9388,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   describe("disconnectAccount", async () => {
     function buildAuthClient(fetchSpy: any) {
       const stores = createTestStores({ secret: "secret" });
-      return new AuthClient({
+      return new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -9683,7 +9678,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error if backchannel authentication is not enabled", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9726,7 +9721,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return the token set when successfully authenticated", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9772,7 +9767,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should return an error when the user rejects the authorization request", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9812,7 +9807,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9855,7 +9850,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9894,7 +9889,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should forward scope when scope defined as a map for the default audience", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9933,7 +9928,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should forward DEFAULT_SCOPES when no scope defined", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -9970,7 +9965,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should forward DEFAULT_SCOPES when scope defined as a map with no entry for the audience", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -10015,7 +10010,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
 
         domain: DEFAULT.domain,
@@ -10093,7 +10088,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
       const store = makeStore(session);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: store as any,
         domain: DEFAULT.domain,
@@ -10139,7 +10134,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       };
       const stores = createTestStores({ secret, store: mockBackingStore });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10180,7 +10175,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
       const store = makeStore(session);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: store as any,
         domain: DEFAULT.domain,
@@ -10215,7 +10210,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
       const store = makeStore(session);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: store as any,
         domain: DEFAULT.domain,
@@ -10300,7 +10295,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "domain-b.auth0.com",
@@ -10356,7 +10351,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
@@ -10408,7 +10403,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
@@ -10473,7 +10468,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       // Resolver mode: domain determined dynamically per request
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "domain-b.auth0.com", // This is the resolver's output for this request
@@ -10527,7 +10522,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const mockSessionStore = createMockSessionStore(postMCDSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "preserved.auth0.com",
@@ -10585,7 +10580,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
@@ -10649,7 +10644,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       // Static mode: no provider (or provider with isResolverMode=false)
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "example.auth0.com",
@@ -10697,7 +10692,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const staticProvider = { isResolverMode: false } as any;
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         sessionStore: mockSessionStore as any,
         domain: "example.auth0.com",
@@ -10760,7 +10755,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const mockKeypair = await generateDpopKeyPair();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10797,7 +10792,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10837,7 +10832,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const { generateDpopKeyPair } = await import("../dpop/retry.js");
       const mockKeypair = await generateDpopKeyPair();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10876,7 +10871,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
       const warnSpy = vi.spyOn(console, "warn");
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10917,7 +10912,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10952,7 +10947,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
       const warnSpy = vi.spyOn(console, "warn");
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -10996,7 +10991,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
       const warnSpy = vi.spyOn(console, "warn");
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11040,7 +11035,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11081,7 +11076,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const stores = createTestStores({ secret });
       const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11109,7 +11104,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -11139,7 +11134,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     ) {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      return new AuthClient({
+      return new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

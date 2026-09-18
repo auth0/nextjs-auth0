@@ -15,7 +15,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 
 // Test constants
@@ -98,7 +98,7 @@ describe("Logout Strategy Flow Tests", () => {
 
   describe("logoutStrategy: 'auto' (default)", () => {
     it("should use OIDC logout when end_session_endpoint is available", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -156,7 +156,7 @@ describe("Logout Strategy Flow Tests", () => {
       // Switch to handlers without end_session_endpoint
       server.use(...handlersWithoutEndSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -188,7 +188,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should handle returnTo parameter correctly with auto strategy", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -222,7 +222,7 @@ describe("Logout Strategy Flow Tests", () => {
 
   describe("logoutStrategy: 'oidc'", () => {
     it("should always use OIDC logout when strategy is set to 'oidc'", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -273,7 +273,7 @@ describe("Logout Strategy Flow Tests", () => {
       // Switch to handlers without end_session_endpoint
       server.use(...handlersWithoutEndSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -302,7 +302,7 @@ describe("Logout Strategy Flow Tests", () => {
 
   describe("logoutStrategy: 'v2'", () => {
     it("should always use v2 logout when strategy is set to 'v2'", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -352,7 +352,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should handle wildcard URLs correctly with v2 strategy", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -383,7 +383,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should use v2 logout even when OIDC endpoint is available", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -417,7 +417,7 @@ describe("Logout Strategy Flow Tests", () => {
       const strategies: Array<"auto" | "oidc" | "v2"> = ["auto", "oidc", "v2"];
 
       for (const strategy of strategies) {
-        const authClient = new AuthClient({
+        const authClient = new Auth0ServerClient({
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -470,7 +470,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should handle logout without existing session", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -504,7 +504,7 @@ describe("Logout Strategy Flow Tests", () => {
 
   describe("includeIdTokenHintInOIDCLogoutUrl option with different logout strategies", () => {
     it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false with auto strategy", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -555,7 +555,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false with oidc strategy", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -606,7 +606,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should not affect v2 logout strategy (includeIdTokenHintInOIDCLogoutUrl option has no effect)", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -660,7 +660,7 @@ describe("Logout Strategy Flow Tests", () => {
 
   describe("Federated logout support", () => {
     it("should add federated parameter to OIDC logout URL when federated is present in query", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -717,7 +717,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should add federated parameter to v2 logout URL when federated is present in query", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -752,7 +752,7 @@ describe("Logout Strategy Flow Tests", () => {
 
     it("should work with federated parameter and custom returnTo", async () => {
       const customReturnTo = "https://example.com/custom-logout";
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -785,7 +785,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should work with auto strategy and federated parameter when OIDC is available", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -818,7 +818,7 @@ describe("Logout Strategy Flow Tests", () => {
       // Switch to handlers without end_session_endpoint
       server.use(...handlersWithoutEndSession);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -848,7 +848,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should not add federated parameter when not present in query", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -877,7 +877,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should handle federated parameter with value (federated=true)", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -909,7 +909,7 @@ describe("Logout Strategy Flow Tests", () => {
 
   describe("state parameter support", () => {
     it("should forward state to OIDC logout URL", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -937,7 +937,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should not set state on OIDC logout URL when not provided", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -961,7 +961,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should not forward state to v2 logout URL", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -985,7 +985,7 @@ describe("Logout Strategy Flow Tests", () => {
     });
 
     it("should forward state to OIDC logout URL with auto strategy", async () => {
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

@@ -17,7 +17,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { decrypt, encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
@@ -49,7 +49,7 @@ describe("Authentication Client", async () => {
     };
 
     const secret = await generateSecret(32);
-    let authClient: AuthClient;
+    let authClient: Auth0ServerClient;
 
     // Create MSW server with default handlers
     const server = setupServer(
@@ -115,7 +115,7 @@ describe("Authentication Client", async () => {
 
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
-      authClient = new AuthClient({
+      authClient = new Auth0ServerClient({
         ...createTestStores({ secret }),
 
         domain: DEFAULT.domain,
@@ -655,7 +655,7 @@ describe("Authentication Client", async () => {
     };
 
     const secret = await generateSecret(32);
-    let authClient: AuthClient;
+    let authClient: Auth0ServerClient;
 
     // Create MSW server with default handlers
     const server = setupServer(
@@ -721,7 +721,7 @@ describe("Authentication Client", async () => {
 
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
-      authClient = new AuthClient({
+      authClient = new Auth0ServerClient({
         ...createTestStores({ secret }),
 
         domain: DEFAULT.domain,

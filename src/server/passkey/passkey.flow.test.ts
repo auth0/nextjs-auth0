@@ -1,6 +1,6 @@
 /**
- * Flow tests for AuthClient passkey core methods.
- * Tests the raw AuthClient.passkeyRegister / passkeyChallenge /
+ * Flow tests for Auth0ServerClient passkey core methods.
+ * Tests the raw Auth0ServerClient.passkeyRegister / passkeyChallenge /
  * passkeyGetToken methods — no Next.js runtime or cookie layer involved.
  *
  * The route handler and ServerPasskeyClient layers are tested in
@@ -18,7 +18,7 @@ import {
 } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 const DEFAULT = {
@@ -67,14 +67,14 @@ beforeAll(async () => {
   keyPair = await jose.generateKeyPair("RS256");
 });
 
-describe("AuthClient passkey methods", () => {
+describe("Auth0ServerClient passkey methods", () => {
   let secret: string;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
     const stores = createTestStores({ secret });
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -440,7 +440,7 @@ describe("AuthClient passkey methods", () => {
     it("sends a DPoP proof header when useDPoP is true", async () => {
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopSecret = await generateSecret(32);
-      const dpopClient = new AuthClient({
+      const dpopClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -508,7 +508,7 @@ describe("AuthClient passkey methods", () => {
     it("retries with server-supplied nonce on use_dpop_nonce and includes nonce on second attempt", async () => {
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopSecret = await generateSecret(32);
-      const dpopClient = new AuthClient({
+      const dpopClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -615,7 +615,7 @@ describe("AuthClient passkey methods", () => {
       );
 
       const freshSecret = await generateSecret(32);
-      const freshClient = new AuthClient({
+      const freshClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

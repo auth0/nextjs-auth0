@@ -23,7 +23,7 @@ import {
 } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
-import { AuthClient, AuthClientOptions } from "../auth-client/index.js";
+import { Auth0ServerClient, AuthClientOptions } from "../auth-client/index.js";
 import {
   ReadonlyRequestCookies,
   RequestCookies,
@@ -165,7 +165,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
    * - Preserve on failure (don't break other auth attempts)
    * - Bulk cleanup on logout (clear all auth state)
    */
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
   let stores: TestStores;
   let secret: string;
 
@@ -176,7 +176,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
     secret = await generateSecret(32);
 
     stores = createTestStores({ secret });
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       ...stores,
       ...baseOptions,
       secret
@@ -352,7 +352,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         transactionCookieOptions: { prefix: customPrefix }
       });
 
-      authClient = new AuthClient({
+      authClient = new Auth0ServerClient({
         ...customStores,
         ...baseOptions,
         secret
@@ -569,7 +569,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
      */
     beforeEach(async () => {
       // Re-use the stores from the outer beforeEach (stateless, same secret)
-      authClient = new AuthClient({
+      authClient = new Auth0ServerClient({
         ...stores,
         ...baseOptions,
         secret
@@ -754,7 +754,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
           enableParallelTransactions: false
         });
 
-        const singleTxnAuthClient = new AuthClient({
+        const singleTxnAuthClient = new Auth0ServerClient({
           ...singleStores,
           ...baseOptions,
           secret

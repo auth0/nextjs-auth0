@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 // Mock oauth4webapi for integration tests
@@ -28,7 +28,7 @@ vi.mock("oauth4webapi", async () => {
 });
 
 describe("DPoP Tests", () => {
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
   let secret: string;
   let dpopKeyPair: { privateKey: CryptoKey; publicKey: CryptoKey };
 
@@ -47,7 +47,7 @@ describe("DPoP Tests", () => {
 
     const stores = createTestStores({ secret });
 
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       ...stores,
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
@@ -86,7 +86,7 @@ describe("DPoP Tests", () => {
     });
 
     it("should create auth client without DPoP", () => {
-      const nonDpopAuthClient = new AuthClient({
+      const nonDpopAuthClient = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -160,7 +160,7 @@ describe("DPoP Tests", () => {
 
     it("should work with non-DPoP auth client", async () => {
       // Create auth client without DPoP and verify it works correctly
-      const nonDpopAuthClient = new AuthClient({
+      const nonDpopAuthClient = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

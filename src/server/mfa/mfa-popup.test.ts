@@ -8,7 +8,7 @@ import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, SessionData } from "../../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 import { TransactionState } from "../transaction-store.js";
@@ -131,7 +131,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should parse challengeMode=postMessage from URL and store in transaction", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -173,7 +173,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should accept challengeMode=redirect (no-op, default)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -206,7 +206,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should return 400 for invalid challengeMode", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -230,7 +230,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should store audience and scope in transaction for postMessage flow", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -269,7 +269,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should throw InvalidConfigurationError for invalid challengeMode (programmatic)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -290,7 +290,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should accept challengeMode=postMessage (programmatic)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -323,7 +323,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -412,7 +412,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -461,7 +461,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -520,7 +520,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -580,7 +580,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -643,7 +643,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -794,7 +794,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should pass mergeScopes=false to getTokenSet when query param is 'false'", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -848,7 +848,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should use default mergeScopes behavior when param is absent", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -890,7 +890,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should use ONLY options.scope when mergeScopes=false", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -933,7 +933,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     it("should use empty string when mergeScopes=false and no scope provided", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -990,7 +990,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1055,7 +1055,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const discoveryCache = await getDiscoveryCacheWithJWKS();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 
 const DEFAULT = {
   domain: "test.auth0.com",
@@ -70,7 +70,7 @@ function getMockAuthorizationServer(options: { supportPAR?: boolean } = {}) {
 }
 
 describe("Organizations Feature", () => {
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -79,7 +79,7 @@ describe("Organizations Feature", () => {
     const secret = DEFAULT.secret;
     const stores = createTestStores({ secret });
 
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       ...stores,
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
@@ -189,7 +189,7 @@ describe("Organizations Feature", () => {
 
   describe("Static Configuration", () => {
     it("should support organization in static configuration", async () => {
-      const authClientWithOrg = new AuthClient({
+      const authClientWithOrg = new Auth0ServerClient({
         ...createTestStores({ secret: DEFAULT.secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -216,7 +216,7 @@ describe("Organizations Feature", () => {
     });
 
     it("should allow URL parameter to override static configuration", async () => {
-      const authClientWithOrg = new AuthClient({
+      const authClientWithOrg = new Auth0ServerClient({
         ...createTestStores({ secret: DEFAULT.secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -252,7 +252,7 @@ describe("Organizations Feature", () => {
 
   describe("PAR (Pushed Authorization Requests) Mode", () => {
     it("should not forward organization parameter when PAR is enabled", async () => {
-      const authClientWithPAR = new AuthClient({
+      const authClientWithPAR = new Auth0ServerClient({
         ...createTestStores({ secret: DEFAULT.secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

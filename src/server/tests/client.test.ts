@@ -393,7 +393,7 @@ describe("Auth0Client", () => {
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
 
-      // Mock the provider's forRequest method to return a mock AuthClient
+      // Mock the provider's forRequest method to return a mock Auth0ServerClient
       const mockAuthClient = {
         getSessionWithDomainCheck: vi.fn().mockResolvedValue({
           session: mockSession,
@@ -417,7 +417,7 @@ describe("Auth0Client", () => {
     });
 
     it("should throw AccessTokenError if no session exists", async () => {
-      // Mock the provider's forRequest method to return a mock AuthClient with no session
+      // Mock the provider's forRequest method to return a mock Auth0ServerClient with no session
       const mockAuthClient = {
         getSessionWithDomainCheck: vi.fn().mockResolvedValue({
           session: null,
@@ -3435,7 +3435,7 @@ describe("Auth0Client", () => {
   });
 
   describe("startInteractiveLogin", () => {
-    it("forwards request cookies to AuthClient.startInteractiveLogin so transaction-cookie eviction can run", async () => {
+    it("forwards request cookies to Auth0ServerClient.startInteractiveLogin so transaction-cookie eviction can run", async () => {
       process.env[ENV_VARS.DOMAIN] = "env.auth0.com";
       process.env[ENV_VARS.CLIENT_ID] = "env_client_id";
       process.env[ENV_VARS.CLIENT_SECRET] = "env_client_secret";

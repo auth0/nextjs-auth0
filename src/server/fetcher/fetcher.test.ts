@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { Fetcher } from "./fetcher.js";
 
 // Mock oauth4webapi
@@ -21,7 +21,7 @@ vi.mock("oauth4webapi", async () => {
 describe("Fetcher", () => {
   let fetcher: Fetcher<Response>;
   let mockFetch: any;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
   let secret: string;
 
   const DEFAULT = {
@@ -48,7 +48,7 @@ describe("Fetcher", () => {
     // Create a basic authClient
     const stores = createTestStores({ secret });
 
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       ...stores,
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
@@ -127,7 +127,7 @@ describe("Fetcher", () => {
       // Create authClient with DPoP enabled
       const stores = createTestStores({ secret });
 
-      const dpopAuthClient = new AuthClient({
+      const dpopAuthClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

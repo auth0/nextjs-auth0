@@ -11,7 +11,7 @@ import {
 } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 const DEFAULT = {
@@ -67,14 +67,14 @@ async function generateIdToken(
     .sign(keyPair.privateKey);
 }
 
-describe("AuthClient passwordless DB route handlers", () => {
+describe("Auth0ServerClient passwordless DB route handlers", () => {
   let secret: string;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
     const stores = createTestStores({ secret });
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -389,7 +389,7 @@ describe("AuthClient passwordless DB route handlers", () => {
       );
 
       const freshSecret = await generateSecret(32);
-      const freshClient = new AuthClient({
+      const freshClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -533,7 +533,7 @@ describe("AuthClient passwordless DB route handlers", () => {
       const dpopKeyPair = await generateDpopKeyPair();
       const dpopSecret = await generateSecret(32);
 
-      const dpopClient = new AuthClient({
+      const dpopClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

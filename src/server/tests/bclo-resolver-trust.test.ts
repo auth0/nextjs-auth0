@@ -8,7 +8,7 @@ import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { DiscoveryCache } from "../discovery-cache.js";
 
 describe("BCLO Resolver-Based Trust", () => {
@@ -121,7 +121,7 @@ describe("BCLO Resolver-Based Trust", () => {
         deleteByLogoutToken: deleteByLogoutTokenSpy
       }
     });
-    const authClient = new AuthClient({
+    const authClient = new Auth0ServerClient({
       ...stores,
       domain,
       clientId: DEFAULT.clientId,
@@ -257,7 +257,7 @@ describe("BCLO Resolver-Based Trust", () => {
 
       // Create authClient for a different domain than the token's iss
       const differentDomain = "different.auth0.com";
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: differentDomain,
         clientId: DEFAULT.clientId,
@@ -381,7 +381,7 @@ describe("BCLO Resolver-Based Trust", () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
       const kp = await getKeyPair();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -410,7 +410,7 @@ describe("BCLO Resolver-Based Trust", () => {
         }
       });
       const kp = await getKeyPair();
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -449,7 +449,7 @@ describe("BCLO Resolver-Based Trust", () => {
   // ===== Response Body Size Limit Tests (kept from original) =====
 
   describe("Response Body Size Limit", () => {
-    const maxBodySize = AuthClient.MAX_RESPONSE_BODY_SIZE;
+    const maxBodySize = Auth0ServerClient.MAX_RESPONSE_BODY_SIZE;
 
     it("rejects responses with Content-Length exceeding limit", async () => {
       const oversizedLength = maxBodySize + 1;

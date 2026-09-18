@@ -22,7 +22,7 @@ import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
 import { TOKEN_TYPES } from "../../types/token-vault.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 /**
@@ -62,7 +62,7 @@ const authorizationServerMetadata = {
 
 let keyPair: jose.GenerateKeyPairResult;
 let secret: string;
-let authClient: AuthClient;
+let authClient: Auth0ServerClient;
 
 // Token endpoint handler state for DPoP nonce retry tests
 let dpopNonceState = { requireNonce: false, nonce: "" };
@@ -167,7 +167,7 @@ beforeEach(async () => {
 
   const stores = createTestStores({ secret });
 
-  authClient = new AuthClient({
+  authClient = new Auth0ServerClient({
     ...stores,
     domain: DEFAULT.domain,
     clientId: DEFAULT.clientId,
@@ -782,13 +782,13 @@ describe("Custom Token Exchange", () => {
   });
 
   describe("3: DPoP Integration", () => {
-    let dpopAuthClient: AuthClient;
+    let dpopAuthClient: Auth0ServerClient;
 
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
       const stores = createTestStores({ secret });
 
-      dpopAuthClient = new AuthClient({
+      dpopAuthClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -918,7 +918,7 @@ describe("Custom Token Exchange", () => {
 
       // Need new client to trigger fresh discovery
       const stores = createTestStores({ secret });
-      const freshClient = new AuthClient({
+      const freshClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -1243,7 +1243,7 @@ describe("Custom Token Exchange", () => {
 
       it("should return ACTOR_UNAVAILABLE when the session was created for a different MCD domain", async () => {
         // Defense-in-depth: Auth0Client.requestSessionTransferToken already enforces this via
-        // getSession() -> getSessionWithDomainCheck, but AuthClient.requestSessionTransferToken
+        // getSession() -> getSessionWithDomainCheck, but Auth0ServerClient.requestSessionTransferToken
         // can be called directly, so it must not trust a session tagged for another domain.
         const idToken = await makeAgentIdToken();
         const session = makeAgentSession(idToken);
@@ -1729,7 +1729,7 @@ describe("Custom Token Exchange", () => {
       it("should build the audience from the effective request domain (MCD)", async () => {
         const otherDomain = "brand-b.custom.example.com";
         const stores = createTestStores({ secret });
-        const mcdClient = new AuthClient({
+        const mcdClient = new Auth0ServerClient({
           ...stores,
           domain: otherDomain,
           clientId: DEFAULT.clientId,

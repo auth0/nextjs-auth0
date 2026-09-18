@@ -21,7 +21,7 @@ import { createNextHeadersMock } from "../../test-fixtures/mocks.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { MfaContext, SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { Auth0Client } from "../client.js";
 import { decrypt } from "../cookies/index.js";
 
@@ -583,14 +583,14 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
     }
   };
 
-  // AuthClient is used directly — same pattern as passkey.flow.test.ts — so we
+  // Auth0ServerClient is used directly — same pattern as passkey.flow.test.ts — so we
   // can call passkeyGetToken without a full HTTP handler stack.
-  let passkeyAuthClient: AuthClient;
+  let passkeyAuthClient: Auth0ServerClient;
   let passkeySecret: string;
 
   beforeEach(async () => {
     passkeySecret = await generateSecret(32);
-    passkeyAuthClient = new AuthClient({
+    passkeyAuthClient = new Auth0ServerClient({
       domain: domain.replace("https://", ""),
       clientId: testAuth0ClientConfig.clientId,
       clientSecret: testAuth0ClientConfig.clientSecret,
@@ -670,7 +670,7 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
     const testAudience = "https://api.example.com";
     const testScope = "openid profile email";
     const scopedSecret = await generateSecret(32);
-    const scopedClient = new AuthClient({
+    const scopedClient = new Auth0ServerClient({
       domain: domain.replace("https://", ""),
       clientId: testAuth0ClientConfig.clientId,
       clientSecret: testAuth0ClientConfig.clientSecret,
@@ -748,12 +748,12 @@ describe("MFA Error Bubbling — passkeyGetToken", () => {
 // ---------------------------------------------------------------------------
 
 describe("MFA Error Bubbling — passwordlessVerify", () => {
-  let passwordlessAuthClient: AuthClient;
+  let passwordlessAuthClient: Auth0ServerClient;
   let passwordlessSecret: string;
 
   beforeEach(async () => {
     passwordlessSecret = await generateSecret(32);
-    passwordlessAuthClient = new AuthClient({
+    passwordlessAuthClient = new Auth0ServerClient({
       domain: domain.replace("https://", ""),
       clientId: testAuth0ClientConfig.clientId,
       clientSecret: testAuth0ClientConfig.clientSecret,
@@ -834,7 +834,7 @@ describe("MFA Error Bubbling — passwordlessVerify", () => {
     const testAudience = "https://api.example.com";
     const testScope = "openid profile email";
     const scopedSecret = await generateSecret(32);
-    const scopedClient = new AuthClient({
+    const scopedClient = new Auth0ServerClient({
       domain: domain.replace("https://", ""),
       clientId: testAuth0ClientConfig.clientId,
       clientSecret: testAuth0ClientConfig.clientSecret,

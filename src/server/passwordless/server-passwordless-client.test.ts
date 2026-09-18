@@ -20,7 +20,7 @@ import {
 } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { ServerPasswordlessClient } from "./server-passwordless-client.js";
 
 // Shared mutable headers that the mocked next/headers cookies() returns.
@@ -83,7 +83,7 @@ async function makeIdToken(
 function makePasswordlessClient(): ServerPasswordlessClient {
   return new ServerPasswordlessClient({
     forRequest: async () =>
-      new AuthClient({
+      new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

@@ -7,7 +7,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 
 vi.mock("oauth4webapi", async () => {
@@ -49,7 +49,7 @@ function setupDiscoveryMocks(overrides: Record<string, unknown> = {}) {
   } as any);
 }
 
-describe("mTLS AuthClient", () => {
+describe("mTLS Auth0ServerClient", () => {
   let secret: string;
 
   beforeEach(async () => {
@@ -66,7 +66,7 @@ describe("mTLS AuthClient", () => {
 
       expect(
         () =>
-          new AuthClient({
+          new Auth0ServerClient({
             ...stores,
             domain: DOMAIN,
             clientId: CLIENT_ID,
@@ -85,7 +85,7 @@ describe("mTLS AuthClient", () => {
 
       let caught: unknown;
       try {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
@@ -111,7 +111,7 @@ describe("mTLS AuthClient", () => {
 
       let caught: unknown;
       try {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
@@ -137,7 +137,7 @@ describe("mTLS AuthClient", () => {
 
       let caught: unknown;
       try {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
@@ -163,7 +163,7 @@ describe("mTLS AuthClient", () => {
 
       let caught: unknown;
       try {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain: DOMAIN,
           clientId: CLIENT_ID,
@@ -189,7 +189,7 @@ describe("mTLS AuthClient", () => {
 
       expect(
         () =>
-          new AuthClient({
+          new Auth0ServerClient({
             ...stores,
             domain: DOMAIN,
             clientId: CLIENT_ID,
@@ -208,7 +208,7 @@ describe("mTLS AuthClient", () => {
 
       expect(
         () =>
-          new AuthClient({
+          new Auth0ServerClient({
             ...stores,
             domain: DOMAIN,
             clientId: CLIENT_ID,
@@ -226,7 +226,7 @@ describe("mTLS AuthClient", () => {
     it("sets use_mtls_endpoint_aliases=true on clientMetadata when useMtls=true", () => {
       const stores = makeStores(secret);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -247,7 +247,7 @@ describe("mTLS AuthClient", () => {
     it("does NOT set use_mtls_endpoint_aliases when useMtls=false", () => {
       const stores = makeStores(secret);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -268,7 +268,7 @@ describe("mTLS AuthClient", () => {
     it("calls oauth.revocationRequest with the mTLS alias revocation endpoint", async () => {
       const stores = makeStores(secret);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -324,7 +324,7 @@ describe("mTLS AuthClient", () => {
       setupDiscoveryMocks({ mtls_endpoint_aliases: undefined });
 
       const stores = makeStores(secret);
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -352,7 +352,7 @@ describe("mTLS AuthClient", () => {
       });
 
       const stores = makeStores(secret);
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -377,7 +377,7 @@ describe("mTLS AuthClient", () => {
     it("returns TlsClientAuth() when useMtls=true", async () => {
       const stores = makeStores(secret);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -402,7 +402,7 @@ describe("mTLS AuthClient", () => {
     it("does NOT call TlsClientAuth() when useMtls=false", async () => {
       const stores = makeStores(secret);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -424,7 +424,7 @@ describe("mTLS AuthClient", () => {
     it("throws when useMtls=false and no clientSecret or signingKey", async () => {
       const stores = makeStores(secret);
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,

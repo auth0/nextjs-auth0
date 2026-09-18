@@ -29,7 +29,7 @@ import {
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -214,7 +214,7 @@ describe("mTLS flow tests", () => {
         }
       );
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -244,7 +244,7 @@ describe("mTLS flow tests", () => {
 
       const stores = makeStores();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -280,7 +280,7 @@ describe("mTLS flow tests", () => {
 
       const stores = makeStores();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -311,7 +311,7 @@ describe("mTLS flow tests", () => {
 
       const stores = makeStores();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -345,7 +345,7 @@ describe("mTLS flow tests", () => {
           fetch(input, init)
       );
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -390,7 +390,7 @@ describe("mTLS flow tests", () => {
 
       const stores = makeStores();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,
@@ -425,7 +425,7 @@ describe("mTLS flow tests", () => {
 
       const stores = makeStores();
 
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DOMAIN,
         clientId: CLIENT_ID,

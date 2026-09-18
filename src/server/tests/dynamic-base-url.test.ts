@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createTestStores } from "../../test-fixtures/store-factory.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { Auth0Client } from "../client.js";
 
 const domain = "guabu.us.auth0.com";
@@ -96,7 +96,7 @@ describe("APP_BASE_URL Configuration", () => {
 
     it("should throw error if array is empty", () => {
       expect(() => {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain,
           clientId,
@@ -110,7 +110,7 @@ describe("APP_BASE_URL Configuration", () => {
 
     it("should throw error if array contains invalid URLs", () => {
       expect(() => {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain,
           clientId,
@@ -122,7 +122,7 @@ describe("APP_BASE_URL Configuration", () => {
       }).toThrow(/APP_BASE_URL array contains invalid URLs/);
 
       expect(() => {
-        new AuthClient({
+        new Auth0ServerClient({
           ...stores,
           domain,
           clientId,

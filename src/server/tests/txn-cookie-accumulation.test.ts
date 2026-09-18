@@ -7,7 +7,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES } from "../../types/connected-accounts.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { RequestCookies, ResponseCookies } from "../cookies/index.js";
 import {
   clampReturnTo,
@@ -561,10 +561,10 @@ describe("callback cleanup: delete(state) removes only the completing cookie", (
 
 // ---------------------------------------------------------------------------
 // Integration tests — handler() prefetch guard + handleCallback sweep
-// These cover the three checklist items that require AuthClient + real flows.
+// These cover the three checklist items that require Auth0ServerClient + real flows.
 // ---------------------------------------------------------------------------
 
-describe("Integration — prefetch guard and callback cleanup via AuthClient", () => {
+describe("Integration — prefetch guard and callback cleanup via Auth0ServerClient", () => {
   const domain = "test.auth0.com";
   const clientId = "test-client-id";
   let keyPair: jose.GenerateKeyPairResult;
@@ -617,7 +617,7 @@ describe("Integration — prefetch guard and callback cleanup via AuthClient", (
 
   const makeAuthClient = () => {
     const stores = createTestStores({ secret });
-    return new AuthClient({
+    return new Auth0ServerClient({
       domain,
       clientId,
       clientSecret: "test-secret",

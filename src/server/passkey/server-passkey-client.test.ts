@@ -18,7 +18,7 @@ import {
 } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { ServerPasskeyClient } from "./server-passkey-client.js";
 
@@ -92,7 +92,7 @@ async function makePasskeyClient(
   const s = secret ?? "test-secret-long-enough-for-hs256-algorithm";
   return new ServerPasskeyClient({
     forRequest: async () =>
-      new AuthClient({
+      new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

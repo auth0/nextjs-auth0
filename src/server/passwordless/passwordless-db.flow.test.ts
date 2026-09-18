@@ -9,7 +9,7 @@ import {
 } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 
 const DEFAULT = {
   domain: "auth0.local",
@@ -35,14 +35,14 @@ const server = setupServer(
 
 setupMswLifecycle(server);
 
-describe("AuthClient passwordless DB methods", () => {
+describe("Auth0ServerClient passwordless DB methods", () => {
   let secret: string;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
     const stores = createTestStores({ secret });
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -407,7 +407,7 @@ describe("AuthClient passwordless DB methods", () => {
       );
 
       const freshSecret = await generateSecret(32);
-      const freshClient = new AuthClient({
+      const freshClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

@@ -14,7 +14,7 @@ import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 import { ServerPasswordlessClient } from "../passwordless/server-passwordless-client.js";
@@ -82,14 +82,14 @@ async function _createSessionCookie(
   return encrypt(session, secret, expiration);
 }
 
-describe("AuthClient passwordless methods", () => {
+describe("Auth0ServerClient passwordless methods", () => {
   let secret: string;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
     const stores = createTestStores({ secret });
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -333,7 +333,7 @@ describe("AuthClient passwordless methods", () => {
       );
 
       const scopedSecret = await generateSecret(32);
-      const scopedClient = new AuthClient({
+      const scopedClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -542,7 +542,7 @@ describe("AuthClient passwordless methods", () => {
 
       // Fresh client so discovery cache is empty
       const freshSecret = await generateSecret(32);
-      const freshClient = new AuthClient({
+      const freshClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -644,7 +644,7 @@ describe("AuthClient passwordless methods", () => {
 
         // Client with explicit scope + audience so we can verify they're forwarded
         const scopedSecret = await generateSecret(32);
-        const scopedClient = new AuthClient({
+        const scopedClient = new Auth0ServerClient({
           domain: DEFAULT.domain,
           clientId: DEFAULT.clientId,
           clientSecret: DEFAULT.clientSecret,
@@ -1150,7 +1150,7 @@ describe("AuthClient passwordless methods", () => {
       const dpopSecret = await generateSecret(32);
       const dpopStores = createTestStores({ secret: dpopSecret });
 
-      const dpopClient = new AuthClient({
+      const dpopClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -1250,7 +1250,7 @@ describe("AuthClient passwordless methods", () => {
 
       // Configure global audience and narrow scope on the client
       const restrictedSecret = await generateSecret(32);
-      const restrictedClient = new AuthClient({
+      const restrictedClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -1388,7 +1388,7 @@ describe("AuthClient passwordless methods", () => {
       const provider = new AuthClientProvider({
         domain: resolver,
         createAuthClient: (domain) =>
-          new AuthClient({
+          new Auth0ServerClient({
             domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,
@@ -1463,7 +1463,7 @@ describe("AuthClient passwordless methods", () => {
       const provider = new AuthClientProvider({
         domain: resolver,
         createAuthClient: (domain) =>
-          new AuthClient({
+          new Auth0ServerClient({
             domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,
@@ -1541,7 +1541,7 @@ describe("AuthClient passwordless methods", () => {
       const provider = new AuthClientProvider({
         domain: resolver,
         createAuthClient: (domain) =>
-          new AuthClient({
+          new Auth0ServerClient({
             domain,
             clientId: DEFAULT.clientId,
             clientSecret: DEFAULT.clientSecret,

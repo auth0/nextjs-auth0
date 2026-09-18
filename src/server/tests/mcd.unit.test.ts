@@ -529,7 +529,7 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
       const originDomain = normalizeDomain(txn.originDomain!).domain;
 
       expect(originDomain).not.toBe(callbackDomain);
-      // Should delegate to secondary domain's AuthClient
+      // Should delegate to secondary domain's Auth0ServerClient
     });
 
     it("Scenario 4: Callback with invalid origin domain", () => {

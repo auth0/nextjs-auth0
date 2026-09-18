@@ -21,7 +21,7 @@ import {
 import { generateSecret } from "../../test-fixtures/utils.js";
 import type { SessionData } from "../../types/index.js";
 import type { EnrollOobOptions } from "../../types/mfa.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { encryptMfaToken } from "./mfa-utils.js";
 
@@ -65,18 +65,18 @@ async function createSessionCookie(
   return await encrypt(session, secret, expiration);
 }
 
-describe("AuthClient MFA Methods", () => {
+describe("Auth0ServerClient MFA Methods", () => {
   let secret: string;
   let stateStore: TestStores["stateStore"];
   let stateIdentifier: string;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
     const stores = createTestStores({ secret });
     stateStore = stores.stateStore;
     stateIdentifier = stores.stateIdentifier;
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,

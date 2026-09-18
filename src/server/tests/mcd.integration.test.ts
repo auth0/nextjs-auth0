@@ -3,7 +3,7 @@
  *
  * This test suite covers the full MCD feature integration:
  * - Unit 6: Auth0Client refactored to use provider
- * - Unit 7: AuthClient structural changes
+ * - Unit 7: Auth0ServerClient structural changes
  * - Unit 8: Session domain gating
  * - Unit 9: Callback domain delegation
  * - Unit 10: Logout domain awareness
@@ -113,7 +113,7 @@ describe("MCD Integration Tests (Units 6-12)", () => {
       expect(client.domain).toBe("resolved.example.com");
     });
 
-    it("U6-4: Static mode returns pre-cached AuthClient", async () => {
+    it("U6-4: Static mode returns pre-cached Auth0ServerClient", async () => {
       const createAuthClient = vi.fn(
         () =>
           ({
@@ -137,9 +137,9 @@ describe("MCD Integration Tests (Units 6-12)", () => {
     });
   });
 
-  // ===== Unit 7 Tests: AuthClient Structural Changes =====
+  // ===== Unit 7 Tests: Auth0ServerClient Structural Changes =====
 
-  describe("Unit 7: AuthClient Structural Changes", () => {
+  describe("Unit 7: Auth0ServerClient Structural Changes", () => {
     it("U7-1: domain field is readonly", async () => {
       const createAuthClient = vi.fn(
         (domain: string) =>
@@ -701,7 +701,7 @@ describe("MCD Integration Tests (Units 6-12)", () => {
         createAuthClient
       });
 
-      // ServerMfaClient receives provider, not AuthClient
+      // ServerMfaClient receives provider, not Auth0ServerClient
       expect(provider).toBeInstanceOf(AuthClientProvider);
       expect(provider.configuredDomain).toBe("example.com");
     });

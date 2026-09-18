@@ -1,9 +1,9 @@
 /**
- * Flow tests for AuthClient passkey route handlers.
+ * Flow tests for Auth0ServerClient passkey route handlers.
  * Tests handlePasskeyRegister / handlePasskeyChallenge /
  * handlePasskeyGetToken via authClient.handler() — the full HTTP dispatch layer.
  *
- * Core AuthClient passkey method tests live in passkey.flow.test.ts.
+ * Core Auth0ServerClient passkey method tests live in passkey.flow.test.ts.
  * ServerPasskeyClient (App/Pages Router overloads) is in
  * passkey/server-passkey-client.test.ts.
  */
@@ -20,7 +20,7 @@ import {
 } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 
 const DEFAULT = {
   domain: "auth0.local",
@@ -67,14 +67,14 @@ beforeAll(async () => {
   keyPair = await jose.generateKeyPair("RS256");
 });
 
-describe("AuthClient passkey route handlers", () => {
+describe("Auth0ServerClient passkey route handlers", () => {
   let secret: string;
-  let authClient: AuthClient;
+  let authClient: Auth0ServerClient;
 
   beforeEach(async () => {
     secret = await generateSecret(32);
     const stores = createTestStores({ secret });
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -445,7 +445,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const freshSecret = await generateSecret(32);
-      const freshClient = new AuthClient({
+      const freshClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

@@ -17,7 +17,7 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { SessionData } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 
 /**
@@ -131,7 +131,7 @@ const handlers = [
 // Setup MSW server for all tests in this suite
 const server = setupServer(...handlers);
 
-describe("AuthClient - beforeSessionSaved hook", async () => {
+describe("Auth0ServerClient - beforeSessionSaved hook", async () => {
   beforeAll(async () => {
     // Initialize key pair and start MSW server
     keyPair = await jose.generateKeyPair(alg);
@@ -159,7 +159,7 @@ describe("AuthClient - beforeSessionSaved hook", async () => {
     let hookReceivedAccessToken: string | undefined;
     let hookReceivedSession: SessionData | undefined;
 
-    const authClient = new AuthClient({
+    const authClient = new Auth0ServerClient({
       ...stores,
 
       domain: domain,

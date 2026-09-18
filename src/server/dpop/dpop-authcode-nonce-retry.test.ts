@@ -9,20 +9,20 @@ import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
 import { RESPONSE_TYPES, TransactionState } from "../../types/index.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { encrypt } from "../cookies/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 /**
  * Real SDK Integration Test for DPoP Nonce Retry on Auth Code Callback
  *
- * This test validates that AuthClient.handleCallback() properly implements
+ * This test validates that Auth0ServerClient.handleCallback() properly implements
  * RFC 9449 Section 8 behavior: when a token endpoint returns 400 with
  * use_dpop_nonce error and DPoP-Nonce header, the SDK automatically retries
  * the request with the nonce included in the DPoP proof.
  *
  * Test Flow:
- * 1. Create AuthClient with DPoP enabled
+ * 1. Create Auth0ServerClient with DPoP enabled
  * 2. Build callback request with authorization code and transaction cookie
  * 3. Call handleCallback() - the actual SDK method users call
  * 4. Custom fetch mock intercepts: first token request fails with use_dpop_nonce, second succeeds
@@ -156,7 +156,7 @@ beforeAll(async () => {
   dpopKeyPair = await generateDpopKeyPair();
 });
 
-describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
+describe("Auth0ServerClient.handleCallback with DPoP Nonce Retry", () => {
   it("should transparently retry auth code exchange when server returns use_dpop_nonce error", async () => {
     // Create handler with internal state management
     const { handler: tokenHandler, state: tokenHandlerState } =
@@ -192,9 +192,9 @@ describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
       const secret = await generateSecret(32);
       const stores = createTestStores({ secret });
 
-      // Create AuthClient with DPoP enabled
+      // Create Auth0ServerClient with DPoP enabled
       // Note: No custom fetch needed - MSW intercepts global fetch automatically
-      const authClient = new AuthClient({
+      const authClient = new Auth0ServerClient({
         ...stores,
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

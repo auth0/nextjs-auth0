@@ -17,11 +17,11 @@ import {
 } from "../../test-fixtures/proxy-handler-test-helpers.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 /**
- * Comprehensive Test Suite: AuthClient Custom Proxy Handler
+ * Comprehensive Test Suite: Auth0ServerClient Custom Proxy Handler
  *
  * This test suite validates the `#handleProxy()` method with custom proxy routes,
  * covering Bearer/DPoP authentication, HTTP methods, headers, bodies, streaming,
@@ -88,7 +88,7 @@ const _authorizationServerMetadata = createAuthorizationServerMetadata(
 let keyPair: jose.GenerateKeyPairResult;
 let dpopKeyPair: Awaited<ReturnType<typeof generateDpopKeyPair>>;
 let secret: string;
-let authClient: AuthClient;
+let authClient: Auth0ServerClient;
 
 const server = setupServer(
   // Discovery endpoint
@@ -160,7 +160,7 @@ setupMswLifecycle(server);
 
 describe("Authentication Client - Custom Proxy Handler", async () => {
   beforeEach(async () => {
-    authClient = new AuthClient({
+    authClient = new Auth0ServerClient({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
@@ -1073,11 +1073,11 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
   });
 
   describe("Category 7: DPoP Token Handling", () => {
-    let dpopAuthClient: AuthClient;
+    let dpopAuthClient: Auth0ServerClient;
 
     beforeEach(async () => {
-      // Create AuthClient with DPoP enabled
-      dpopAuthClient = new AuthClient({
+      // Create Auth0ServerClient with DPoP enabled
+      dpopAuthClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -2004,8 +2004,8 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
 
-      // Create AuthClient with multiple proxy routes
-      const multiProxyClient = new AuthClient({
+      // Create Auth0ServerClient with multiple proxy routes
+      const multiProxyClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -2093,7 +2093,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
           }
         });
 
-      const raceClient = new AuthClient({
+      const raceClient = new Auth0ServerClient({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,

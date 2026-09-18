@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDefaultRoutes } from "../../test-fixtures/defaults.js";
 import { createTestStores } from "../../test-fixtures/store-factory.js";
 import { generateSecret } from "../../test-fixtures/utils.js";
-import { AuthClient } from "../auth-client/index.js";
+import { Auth0ServerClient } from "../auth-client/index.js";
 import { generateDpopKeyPair } from "../dpop/retry.js";
 
 // Mock oauth4webapi for integration tests
@@ -157,7 +157,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       } as any);
 
       // Create auth client with DPoP enabled
-      const authClientWithDPoP = new AuthClient({
+      const authClientWithDPoP = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -227,7 +227,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       vi.mocked(oauth.protectedResourceRequest).mockResolvedValue(mockResponse);
 
       // Create auth client without DPoP
-      const authClientNoDPoP = new AuthClient({
+      const authClientNoDPoP = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -306,7 +306,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       } as any);
 
       // Create auth client with DPoP enabled
-      const authClientWithDPoP = new AuthClient({
+      const authClientWithDPoP = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -374,7 +374,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       vi.mocked(oauth.protectedResourceRequest).mockResolvedValue(mockResponse);
 
       // Create auth client without DPoP
-      const authClientNoDPoP = new AuthClient({
+      const authClientNoDPoP = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
@@ -443,7 +443,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       vi.mocked(oauth.protectedResourceRequest).mockResolvedValue(mockResponse);
 
       // Create auth client with DPoP enabled but no key pair
-      const authClientDPoPNoKeys = new AuthClient({
+      const authClientDPoPNoKeys = new Auth0ServerClient({
         ...createTestStores({ secret }),
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,

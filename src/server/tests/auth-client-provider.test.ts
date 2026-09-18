@@ -7,15 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvalidConfigurationError } from "../../errors/index.js";
 import { DomainResolutionError } from "../../errors/mcd.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client/index.js";
+import type { Auth0ServerClient } from "../auth-client/index.js";
 
 describe("AuthClientProvider", () => {
-  let mockAuthClient: AuthClient;
+  let mockAuthClient: Auth0ServerClient;
   let createAuthClientMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuthClient = {} as AuthClient;
+    mockAuthClient = {} as Auth0ServerClient;
     createAuthClientMock = vi.fn().mockReturnValue(mockAuthClient);
   });
 
