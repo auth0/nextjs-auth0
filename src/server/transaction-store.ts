@@ -45,8 +45,9 @@ export interface TransactionState extends jose.JWTPayload {
   originIssuer?: string;
 
   /**
-   * True if an active anonymous session was injected into the login transaction.
-   * Indicates to the onCallback hook that post-login migration logic may apply.
+   * True when a transfer ticket was successfully minted and appended to /authorize
+   * (link attempted, not confirmed — Auth0 may silently discard expired or replayed
+   * tickets). Indicates to the onCallback hook that post-login migration logic may apply.
    */
   anonymousSessionLinked?: boolean;
 

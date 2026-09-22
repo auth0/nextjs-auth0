@@ -1,5 +1,19 @@
 # Change Log
 
+## [v4.28.0](https://github.com/auth0/nextjs-auth0/tree/v4.28.0) (2026-09-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.27.0...v4.28.0)
+
+**Added**
+- feat: replace session_token in /authorize with short-lived anon_transfer_token for anonymous session linking [\#2813](https://github.com/auth0/nextjs-auth0/pull/2813) ([Piyush-85](https://github.com/Piyush-85))
+  - The SDK now mints a 30-second single-use JWE transfer ticket via `POST /anonymous/token` and appends it as `anon_transfer_token` to the `/authorize` redirect. The raw `session_token` session handle is no longer sent to `/authorize`, eliminating the persistent credential exposure in browser history and server logs.
+  - New `anonymousSession.clearAnonymousSessionOnLogin` config option (default `true`) controls whether the local `auth0_anon` cookie is cleared when the user initiates an interactive login.
+  - `ctx.anonymousSessionLinked` in the `onCallback` hook now reflects a link **attempt** (ticket successfully minted and appended), not a confirmed link.
+  - Login is fail-open: if the transfer ticket mint fails for any reason, the login proceeds normally without a ticket.
+
+**Fixed**
+- fix: validate expires_in lower bound in anonymous session token response (must be positive) [\#2813](https://github.com/auth0/nextjs-auth0/pull/2813) ([Piyush-85](https://github.com/Piyush-85))
+- fix: route expires_in validation and cookie payload construction through single toCookiePayload owner [\#2813](https://github.com/auth0/nextjs-auth0/pull/2813) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.27.0](https://github.com/auth0/nextjs-auth0/tree/v4.27.0) (2026-08-18)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.26.0...v4.27.0)
 

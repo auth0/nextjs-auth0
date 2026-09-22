@@ -70,10 +70,8 @@ import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
   ActClaim,
-  AnonymousCookiePayload,
   AnonymousSession,
   AnonymousSessionConfig,
-  AnonymousTokenResponse,
   AuthenticatorApiResponse,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
@@ -89,7 +87,6 @@ import {
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   GRANT_TYPE_PASSKEY,
   GRANT_TYPE_PASSWORDLESS_OTP,
-  isRecoverableAnonymousError,
   LogoutStrategy,
   LogoutToken,
   PasskeyChallengeOptions,
@@ -122,7 +119,14 @@ import {
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
+import type {
+  AnonymousCookiePayload,
+  AnonymousTokenResponse
+} from "../types/anonymous-session.js";
+import { isRecoverableAnonymousError } from "../types/anonymous-session.js";
 import {
+  ANON_TRANSFER_AUDIENCE,
+  ANON_TRANSFER_TOKEN_PARAM,
   ANONYMOUS_SUBJECT_PREFIX,
   DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME,
   METADATA_SIZE_LIMIT_BYTES,
@@ -274,7 +278,8 @@ const INTERNAL_AUTHORIZE_PARAMS = [
   "code_challenge_method",
   "state",
   "nonce",
-  RESERVED_SESSION_TOKEN_PARAM
+  RESERVED_SESSION_TOKEN_PARAM,
+  ANON_TRANSFER_TOKEN_PARAM // strip any caller-supplied ticket; SDK mints its own
 ];
 
 /**
@@ -480,6 +485,7 @@ export class AuthClient {
   private readonly anonymousCookieMaxAge: number;
   private readonly anonymousAudience?: string;
   private readonly anonymousScope?: string;
+  private readonly anonymousClearOnLogin: boolean;
 
   /**
    * Maximum allowed response body size (1 MB). Responses exceeding this limit
@@ -678,6 +684,7 @@ export class AuthClient {
     this.anonymousCookieMaxAge = anonConfig.cookie?.maxAge ?? 2592000; // 30 days default (CASCADE §C)
     this.anonymousAudience = anonConfig.audience;
     this.anonymousScope = anonConfig.scope;
+    this.anonymousClearOnLogin = anonConfig.clearAnonymousSessionOnLogin ?? true;
     this.anonymousCookieOptions = {
       httpOnly: true,
       secure: anonConfig.cookie?.secure ?? true,
@@ -956,35 +963,54 @@ export class AuthClient {
       }
     }
 
-    // SEC-1 three-layer fixation mitigation: inject anonymous session token if present
-    // Layer 1 (reserved-param stripping) has already happened via mergeAuthorizationParamsIntoSearchParams()
-    // Layer 2 (own-cookie sourcing) and Layer 3 (transaction state binding) below
+    // SEC-1: Three-layer session-fixation mitigation for anonymous session transfer.
+    // Layer 1 (reserved-param stripping) already ran via mergeAuthorizationParamsIntoSearchParams:
+    //   RESERVED_SESSION_TOKEN_PARAM and ANON_TRANSFER_TOKEN_PARAM stripped from caller input.
+    // Layers 2 (own-cookie sourcing) and 3 (transaction digest binding) applied below.
     let anonymousSessionLinked = false;
     let anonymousSessionRef: string | undefined;
     const anonymousLoginCookies = req?.cookies ?? loginCookies;
     if (this.anonymousSessionEnabled && anonymousLoginCookies) {
       try {
-        const anonCookie = await this.readAnonymousCookie(
-          anonymousLoginCookies
-        );
+        const anonCookie = await this.readAnonymousCookie(anonymousLoginCookies);
         if (anonCookie?.session_token) {
-          // Session token exists in own cookie → safe to inject (Layer 2)
-          authorizationParams.set(
-            RESERVED_SESSION_TOKEN_PARAM,
-            anonCookie.session_token
-          );
-          anonymousSessionLinked = true; // Flag for transaction state binding (Layer 3)
-          // Layer 3 records a digest of the injected token, never the token itself,
-          // so the callback can verify that the anonymous cookie it receives is the
-          // one this transaction was started with.
-          anonymousSessionRef = await digestAnonymousSessionToken(
-            anonCookie.session_token
-          );
+          // Layer 2: session_token is sourced ONLY from the SDK's own encrypted cookie.
+          // Never from request params (those were stripped by Layer 1 above).
+          //
+          // Enterprise Connect exclusion (D7): EC logins link sessions at the server level
+          // without persisting an SDK-side session for the link owner. Minting a ticket for
+          // EC logins would succeed at the network level but produce an unlinked state
+          // server-side. Skip mint for EC logins entirely; login proceeds without a ticket.
+          //
+          // PAR: NOT an exclusion. When pushedAuthorizationRequests is true and the login
+          // uses a standard (non-EC) connection, anon_transfer_token is submitted to the
+          // PAR endpoint as a normal authorizationParams entry. The Auth0 PAR endpoint
+          // accepts and forwards it in par_request. Verified against EA tenant (Sep 21).
+          const isEC = this.isEnterpriseConnectionLogin(authorizationParams);
+          if (!isEC) {
+            const ticket = await this.mintTransferToken(anonCookie.session_token);
+            if (ticket !== null) {
+              // Append ticket to /authorize (replaces the old session_token injection)
+              authorizationParams.set(ANON_TRANSFER_TOKEN_PARAM, ticket);
+              // "link attempted, not confirmed": Auth0 may silently discard expired or
+              // replayed tickets; authoritative confirmation requires the platform event.
+              anonymousSessionLinked = true;
+              // Layer 3: bind this transaction to the originating anonymous session via
+              // digest. digestAnonymousSessionToken stores SHA-256 of session_token,
+              // never the token itself.
+              anonymousSessionRef = await digestAnonymousSessionToken(
+                anonCookie.session_token
+              );
+            }
+            // else: ticket null → fail-open, login continues without ticket
+          }
+          // else: EC login → skip mint, login continues without ticket
         }
       } catch (err) {
-        // Log error but don't fail login over anon cookie issue
-        console.error("Error reading anonymous session cookie:", err);
+        // Fail-open: any error in cookie-read, mint, or append must not block login
+        console.error("Error in anonymous session transfer during login:", err);
       }
+      // anonymousSessionLinked and anonymousSessionRef remain false/undefined in all error paths
     }
 
     // Resolve challengeMode: controls whether handleCallback returns a redirect
@@ -1073,6 +1099,18 @@ export class AuthClient {
 
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
+
+    // Clear local anonymous cookie on login when configured.
+    // Runs unconditionally (not gated on mint success) to consistently retire the
+    // local cookie whenever a login is initiated. Local cookie only: the tenant-domain
+    // auth0_anon cookie cannot be cleared server-to-server.
+    if (this.anonymousSessionEnabled && this.anonymousClearOnLogin && anonymousLoginCookies) {
+      deleteChunkedCookie(
+        this.anonymousCookieName,
+        anonymousLoginCookies,
+        res.cookies
+      );
+    }
 
     // Save transaction state
     await this.transactionStore.save(res.cookies, transactionState);
@@ -2984,16 +3022,11 @@ export class AuthClient {
 
     // Access token is expired; can we write cookies?
     if (resCookies) {
-      // Writable context → attempt renewal by trying renewAccessToken()
-      try {
-        return await this.renewAccessToken(state, reqCookies, resCookies);
-      } catch (err) {
-        // Recoverable codes (session_expired, invalid_session_token) → recreate session
-        if (isRecoverableAnonymousError(err)) {
-          return await this.createAndPersist(reqCookies, resCookies); // metadata lost, no error (T1.5, T3.6)
-        }
-        throw err; // Other errors surface as AnonymousSessionError (T1.7)
-      }
+      // Writable context → attempt renewal.
+      // renewAccessToken already handles recoverable errors (session_expired,
+      // invalid_session_token) internally by calling createAndPersist.
+      // Non-recoverable errors surface as AnonymousSessionError to the caller.
+      return await this.renewAccessToken(state, reqCookies, resCookies);
     }
 
     // Can't write cookie (Server Component read-only context) → defer renewal (D7, T1.6)
@@ -3148,21 +3181,11 @@ export class AuthClient {
       );
     }
 
-    // Validate expires_in upper bound to prevent absurdly long-lived tokens
-    const MAX_EXPIRES_IN = 2592000; // 30 days (matches platform session_expires_in max)
-    if (!Number.isFinite(res.expires_in) || res.expires_in > MAX_EXPIRES_IN) {
-      throw new AnonymousSessionError(
-        "invalid_response",
-        `expires_in out of bounds: ${res.expires_in}`
-      );
-    }
-
-    const payload: AnonymousCookiePayload = {
-      session_token: res.session_token,
-      access_token: res.access_token,
-      expires_at: this.epoch() + res.expires_in,
-      ...(options?.metadata && { metadata: options.metadata })
-    };
+    // Route through toCookiePayload: owns expires_in validation (both bounds),
+    // server-rotation (res.session_token ?? prior), and metadata merge precedence
+    // (res.metadata wins over caller-supplied options.metadata).
+    // res.session_token is validated non-null immediately above.
+    const payload = this.toCookiePayload(res, res.session_token!, options?.metadata);
 
     await this.persistAnonymousCookie(payload, reqCookies, resCookies);
     return this.toPublicSession(payload);
@@ -3364,6 +3387,12 @@ export class AuthClient {
    * Convert auth server token response to cookie payload.
    * Handles both create (session_token present) and renew (session_token omitted) responses.
    *
+   * Validates expires_in: must be finite, positive (> 0), and within the 30-day cap.
+   * Test mocks MUST supply a valid positive expires_in value.
+   *
+   * Merge precedence: res.session_token ?? priorSessionToken (server rotation wins);
+   * res.metadata wins over caller-supplied metadata when the server returns metadata.
+   *
    * NOTE: Per DESIGN §5.I4, Auth0 returns merged metadata in the response (authorization
    * server performs the merge, not the SDK). This method extracts metadata from tokenRes
    * if present. Caller must ensure metadata from Auth0 response is used, not raw input.
@@ -3373,10 +3402,14 @@ export class AuthClient {
     priorSessionToken: string,
     metadata?: Record<string, unknown>
   ): AnonymousCookiePayload {
-    // Validate expires_in upper bound to prevent absurdly long-lived tokens
-    // (allow negative/zero for renewal test mocks that simulate already-expired tokens)
+    // Validate expires_in: must be finite, positive (> 0), and within the 30-day cap.
+    // Test mocks MUST supply a valid positive expires_in value.
     const MAX_EXPIRES_IN = 2592000; // 30 days (matches platform session_expires_in max)
-    if (!Number.isFinite(res.expires_in) || res.expires_in > MAX_EXPIRES_IN) {
+    if (
+      !Number.isFinite(res.expires_in) ||
+      res.expires_in <= 0 ||
+      res.expires_in > MAX_EXPIRES_IN
+    ) {
       throw new AnonymousSessionError(
         "invalid_response",
         `expires_in out of bounds: ${res.expires_in}`
@@ -3572,6 +3605,84 @@ export class AuthClient {
           ? errorData.error_description
           : undefined;
       throw this.mapAnonymousError(code, description, errorData);
+    }
+  }
+
+  // ── Enterprise Connection detection ───────────────────────────────────────
+
+  /**
+   * Returns true when authorizationParams indicates an Enterprise Connection login.
+   *
+   * EC logins are excluded from anonymous session transfer ticket minting (D7):
+   * the platform links EC sessions at server level but never persists an SDK-side
+   * session for the link owner, so minting a ticket would succeed at the network
+   * level but result in an unlinked state server-side.
+   *
+   * Detection: positive-match against known enterprise connection strategy names.
+   * These are Auth0 connection strategy identifiers, not user-visible names.
+   */
+  private isEnterpriseConnectionLogin(
+    authorizationParams: URLSearchParams
+  ): boolean {
+    const ENTERPRISE_STRATEGIES = new Set([
+      "samlp", // SAML 2.0 Enterprise Connection
+      "waad", // Azure AD / Microsoft Entra ID
+      "adfs", // Active Directory Federation Services
+      "pingfederate", // PingFederate
+      "oidc", // Generic OIDC enterprise federation
+      "google-apps", // Google Workspace
+      "ip", // IP Address (deprecated enterprise type)
+      "mscrm", // Microsoft Dynamics CRM
+      "sharepoint", // SharePoint Online
+      "mssql", // SQL Server (enterprise)
+      "ldap", // LDAP enterprise
+      "scim" // SCIM enterprise provisioning
+    ]);
+    const connection = authorizationParams.get("connection");
+    if (!connection) return false;
+    return ENTERPRISE_STRATEGIES.has(connection);
+  }
+
+  // ── Transfer ticket mint ───────────────────────────────────────────────────
+
+  /**
+   * Mint a 30-second single-use JWE transfer ticket for anonymous session linking.
+   *
+   * POSTs to /anonymous/token with:
+   *   { client_id, session_token, audience: "urn:auth0:anon_transfer", ...clientAuth }
+   *
+   * Fail-open: returns null on ANY error (network, non-2xx, missing field,
+   * wrong-type field, client-auth-build failure). Never throws. Never surfaces
+   * AnonymousSessionError. The caller appends the ticket to /authorize only on
+   * a non-null return.
+   *
+   * PAR compatibility: when pushedAuthorizationRequests is true, anon_transfer_token
+   * is submitted to the PAR endpoint as a normal authorizationParams entry for
+   * standard (non-EC) connections and reaches /authorize normally (verified Sep 21
+   * against EA tenant).
+   *
+   * Enterprise Connect: the CALLER is responsible for skipping this method when
+   * isEnterpriseConnectionLogin() returns true.
+   */
+  private async mintTransferToken(
+    sessionToken: string
+  ): Promise<string | null> {
+    try {
+      const url = new URL("/anonymous/token", `https://${this.domain}`);
+      const res = await this.fetch(
+        url.toString(),
+        await this.anonymousRequestInit({
+          session_token: sessionToken,
+          audience: ANON_TRANSFER_AUDIENCE
+        })
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as Record<string, unknown>;
+      return typeof data.anon_transfer_token === "string"
+        ? data.anon_transfer_token
+        : null;
+    } catch {
+      return null;
     }
   }
 

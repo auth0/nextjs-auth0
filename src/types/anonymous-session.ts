@@ -52,6 +52,13 @@ export interface AnonymousSessionConfig {
     /** Cookie max age in seconds. Defaults to 2592000 (30 days). */
     maxAge?: number;
   };
+  /**
+   * When true (default), the local auth0_anon cookie is deleted when the user
+   * initiates an interactive login. Clears local (app-domain) cookie only;
+   * the tenant-domain auth0_anon cookie is not affected (server-to-server
+   * cannot forward the browser cookie to clear it — accepted gap for EA).
+   */
+  clearAnonymousSessionOnLogin?: boolean;
 }
 
 /**

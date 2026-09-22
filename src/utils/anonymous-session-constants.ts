@@ -24,3 +24,17 @@ export function transferCookies(from: NextResponse, to: NextResponse): void {
     to.cookies.set(cookie);
   }
 }
+
+/**
+ * Query parameter appended to /authorize; also the response field name in the
+ * /anonymous/token mint response.
+ * Canonical per deployed Auth0 server (live since Sep 11, EA tenant PoC Sep 21).
+ * NOT configurable — frozen at Auth0 server level.
+ */
+export const ANON_TRANSFER_TOKEN_PARAM = "anon_transfer_token";
+
+/**
+ * Audience value that signals a transfer-ticket mint to POST /anonymous/token.
+ * NOT configurable — frozen at Auth0 server level.
+ */
+export const ANON_TRANSFER_AUDIENCE = "urn:auth0:anon_transfer";

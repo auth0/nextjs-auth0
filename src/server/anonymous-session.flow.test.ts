@@ -47,6 +47,14 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
         `https://${defaultDomain}/anonymous/token`,
         async ({ request }) => {
           const body = (await request.json()) as any;
+          // PHASE 2: Transfer ticket mint (distinguished by audience)
+          if (body.audience === "urn:auth0:anon_transfer") {
+            return HttpResponse.json({
+              anon_transfer_token: "mock-transfer-ticket-xyz",
+              token_type: "N_A",
+              expires_in: 30
+            });
+          }
           // CREATE mode (no session_token) returns new session_token
           if (!body.session_token) {
             return HttpResponse.json({
@@ -448,9 +456,14 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
         req
       );
 
-      // Verify session_token injected in location header
+      // P2: ticket appears as anon_transfer_token; raw session_token absent
+      expect([302, 307]).toContain(result.status);
       const location = result.headers.get("location");
-      expect(location).toContain("session_token=anon-for-login");
+      const url = new URL(location!);
+      expect(url.searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
+      expect(url.searchParams.has("session_token")).toBe(false);
     });
 
     it("SEC-1 T5.3: Attacker-supplied session_token parameter is STRIPPED (Layer 1 defense)", async () => {
@@ -476,17 +489,20 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
       const result = await (client as any).startInteractiveLogin(
         {
           returnTo: "/",
-          authorizationParams: attackerParams
+          authorizationParameters: attackerParams
         },
         req
       );
 
       // Layer 1: attacker-supplied session_token must be stripped
-      // SDK cookie should be injected, not attacker token
+      // P2: SDK now appends anon_transfer_token (not raw session_token)
       const location = result.headers.get("location");
-      expect(location).toContain("session_token=legitimate-sdk-token");
-      // Most critical: attacker token must NOT appear in authorization URL
+      const url = new URL(location!);
+      expect(url.searchParams.has("session_token")).toBe(false);
       expect(location).not.toContain("attacker-token-xyz");
+      expect(url.searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
     });
 
     it("SEC-1 T5.4: Injected session_token sourced only from own SDK cookie (Layer 2 defense)", async () => {
@@ -512,9 +528,12 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
         req
       );
 
-      // The injected token must be the exact one from the encrypted cookie
+      // P2: transfer ticket derived from this cookie's session_token is appended
       const location = result.headers.get("location");
-      expect(location).toContain("session_token=unique-cookie-token-789");
+      expect(
+        new URL(location!).searchParams.get("anon_transfer_token")
+      ).toBe("mock-transfer-ticket-xyz");
+      expect(new URL(location!).searchParams.has("session_token")).toBe(false);
     });
 
     it("SEC-1 T6.1: Transaction state binding records anonymousSessionLinked flag", async () => {
@@ -540,9 +559,11 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
       );
 
       // After startInteractiveLogin, the transaction state should have anonymousSessionLinked=true
-      // This is verified at callback time to prevent cookie-swap attacks
+      // P2: ticket appears as anon_transfer_token, not raw session_token
       const location = result.headers.get("location");
-      expect(location).toContain("session_token=session-bound");
+      expect(
+        new URL(location!).searchParams.get("anon_transfer_token")
+      ).toBe("mock-transfer-ticket-xyz");
 
       // Decrypt transaction cookie and verify anonymousSessionLinked flag
       const stateMatch = location!.match(/state=([^&]+)/);
@@ -1130,7 +1151,7 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
       const result = await (client as any).startInteractiveLogin(
         {
           returnTo: "/",
-          authorizationParams: {
+          authorizationParameters: {
             session_token: "attacker-injected"
           }
         },
@@ -1353,39 +1374,1115 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
       expect(session.id).toContain("anon@");
     });
 
-    it("CR-1b regression: renewal with negative expires_in works (test mock for expiry-driven renewal)", async () => {
-      // CR-1b fix: negative/zero expires_in allowed (used in renewal test mocks)
-      // This test verifies that the validation doesn't reject negative values
-      server.use(
-        http.post(`https://${defaultDomain}/anonymous/token`, () => {
+    // P2: "CR-1b regression: renewal with negative expires_in works" DELETED.
+    // expires_in <= 0 is now rejected by lower-bound validation → AnonymousSessionError.
+    // Replacement tests: P2-T9.1, P2-T9.2, P2-T9.3 in "Phase 2: Transfer Ticket Migration".
+  });
+});
+
+// =============================================================================
+// Phase 2: Transfer Ticket Migration
+// Tests for anon_transfer_token minting, fail-open, EC exclusion, cookie clear.
+// =============================================================================
+describe("Phase 2: Transfer Ticket Migration", () => {
+  let client: AuthClient;
+  let secret: string;
+  let server: any;
+  const defaultDomain = "auth0.local";
+
+  // Helper: build encrypted anon cookie from a session_token
+  async function createAnonCookie(
+    sessionToken: string,
+    overrideSecret?: string
+  ): Promise<string> {
+    const s = overrideSecret ?? secret;
+    const payload: AnonymousCookiePayload = {
+      session_token: sessionToken,
+      access_token: createMockJWT("anon@test-uuid"),
+      expires_at: Math.floor(Date.now() / 1000) + 3600
+    };
+    return encrypt(payload, s, Math.floor(Date.now() / 1000) + 3600);
+  }
+
+  // Helper: build encrypted anon cookie WITHOUT session_token (addenda case 1)
+  async function createAnonCookieNoToken(): Promise<string> {
+    const payload = {
+      access_token: createMockJWT("anon@test-uuid"),
+      expires_at: Math.floor(Date.now() / 1000) + 3600
+    } as unknown as AnonymousCookiePayload;
+    return encrypt(payload, secret, Math.floor(Date.now() / 1000) + 3600);
+  }
+
+  function makeClient(
+    anonConfig: { enabled: boolean; clearAnonymousSessionOnLogin?: boolean } = {
+      enabled: true
+    }
+  ): AuthClient {
+    return new AuthClient({
+      domain: defaultDomain,
+      clientId: "test-id",
+      clientSecret: "test-secret",
+      appBaseUrl: "http://localhost:3000",
+      secret,
+      routes: getDefaultRoutes(),
+      transactionStore: new TransactionStore({
+        secret,
+        cookieOptions: { secure: false }
+      }),
+      sessionStore: new StatelessSessionStore({
+        secret,
+        rolling: true,
+        absoluteDuration: 259200,
+        inactivityDuration: 86400
+      }),
+      anonymousSession: anonConfig
+    });
+  }
+
+  beforeAll(async () => {
+    server = setupServer(
+      http.post(
+        `https://${defaultDomain}/anonymous/token`,
+        async ({ request }) => {
+          const body = (await request.json()) as any;
+          // Transfer ticket mint
+          if (body.audience === "urn:auth0:anon_transfer") {
+            return HttpResponse.json({
+              anon_transfer_token: "mock-transfer-ticket-xyz",
+              token_type: "N_A",
+              expires_in: 30
+            });
+          }
+          // CREATE
+          if (!body.session_token) {
+            return HttpResponse.json({
+              token_type: "Bearer",
+              session_token: `session-${Date.now()}`,
+              access_token: createMockJWT("anon@uuid-9999"),
+              expires_in: 3600,
+              ...(body.metadata && { metadata: body.metadata })
+            });
+          }
+          // RENEW
           return HttpResponse.json({
             token_type: "Bearer",
-            access_token: createMockJWT("anon@uuid-9999", 3600),
-            expires_in: -10 // Negative but allowed
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: 3600,
+            metadata: body.metadata
           });
-        })
+        }
+      ),
+      http.post(`https://${defaultDomain}/anonymous/logout`, () => {
+        return HttpResponse.json({ ok: true });
+      }),
+      http.get(
+        `https://${defaultDomain}/.well-known/openid-configuration`,
+        () => {
+          return HttpResponse.json({
+            issuer: `https://${defaultDomain}/`,
+            authorization_endpoint: `https://${defaultDomain}/authorize`,
+            token_endpoint: `https://${defaultDomain}/oauth/token`,
+            userinfo_endpoint: `https://${defaultDomain}/userinfo`,
+            jwks_uri: `https://${defaultDomain}/.well-known/jwks.json`
+          });
+        }
+      )
+    );
+    server.listen({ onUnhandledRequest: "error" });
+  });
+
+  afterEach(() => {
+    server.resetHandlers();
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  beforeEach(async () => {
+    secret = await generateSecret(32);
+    client = makeClient({ enabled: true });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T1: Mint Success — URL + Transaction State
+  // ---------------------------------------------------------------------------
+  describe("P2-T1: Mint success — URL and TransactionState", () => {
+    it("P2-T1.1: anon_transfer_token present in /authorize URL on mint success", async () => {
+      const encrypted = await createAnonCookie("test-session-token-123");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
       );
 
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      const url = new URL(location!);
+      expect(url.searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
+    });
+
+    it("P2-T1.2: session_token ABSENT from /authorize URL (regression guard)", async () => {
+      const encrypted = await createAnonCookie("test-session-token-123");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("session_token")).toBe(false);
+    });
+
+    it("P2-T1.3: anonymousSessionLinked: true in TransactionState when mint succeeds", async () => {
+      const encrypted = await createAnonCookie("test-session-token-123");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location");
+      const stateMatch = location!.match(/state=([^&]+)/);
+      expect(stateMatch).toBeTruthy();
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+      expect(txState.payload.anonymousSessionLinked).toBe(true);
+    });
+
+    it("P2-T1.4: anonymousSessionRef (SHA-256 digest, 64 hex chars) in TransactionState", async () => {
+      const encrypted = await createAnonCookie("test-session-token-123");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location");
+      const stateMatch = location!.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+      expect(typeof txState.payload.anonymousSessionRef).toBe("string");
+      expect(txState.payload.anonymousSessionRef.length).toBe(64);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T2: Mint Request Body Correctness
+  // ---------------------------------------------------------------------------
+  describe("P2-T2: Mint request body correctness", () => {
+    async function captureBodySetup(): Promise<{
+      capturedBody: Record<string, unknown> | null;
+    }> {
+      const holder = { capturedBody: null as Record<string, unknown> | null };
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            const body = (await request.json()) as Record<string, unknown>;
+            holder.capturedBody = body;
+            return HttpResponse.json({
+              anon_transfer_token: "mock-transfer-ticket-xyz",
+              token_type: "N_A",
+              expires_in: 30
+            });
+          }
+        )
+      );
+      return holder;
+    }
+
+    it("P2-T2.1: POST body contains audience: 'urn:auth0:anon_transfer'", async () => {
+      const holder = await captureBodySetup();
+      const encrypted = await createAnonCookie("body-check-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      await (client as any).startInteractiveLogin({ returnTo: "/" }, req);
+
+      expect(holder.capturedBody).not.toBeNull();
+      expect(holder.capturedBody!.audience).toBe("urn:auth0:anon_transfer");
+    });
+
+    it("P2-T2.2: POST body contains session_token matching anon cookie value", async () => {
+      const holder = await captureBodySetup();
+      const encrypted = await createAnonCookie("body-check-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      await (client as any).startInteractiveLogin({ returnTo: "/" }, req);
+
+      expect(holder.capturedBody!.session_token).toBe("body-check-session");
+    });
+
+    it("P2-T2.3: POST body contains client_id", async () => {
+      const holder = await captureBodySetup();
+      const encrypted = await createAnonCookie("body-check-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      await (client as any).startInteractiveLogin({ returnTo: "/" }, req);
+
+      expect(holder.capturedBody!.client_id).toBe("test-id");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T3: Mint Non-2xx — Login Proceeds, No Token Param, No Throw
+  // ---------------------------------------------------------------------------
+  describe("P2-T3: Mint non-2xx — fail-open", () => {
+    it("P2-T3.1: HTTP 401 from mint → login redirect returned, anon_transfer_token absent", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({ error: "invalid_client" }, { status: 401 })
+        )
+      );
+      const encrypted = await createAnonCookie("session-401");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T3.2: HTTP 500 from mint → login proceeds (fail-open)", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({ error: "internal_error" }, { status: 500 })
+        )
+      );
+      const encrypted = await createAnonCookie("session-500");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T3.3: anonymousSessionLinked: false in TransactionState when mint returns non-2xx", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({ error: "invalid_client" }, { status: 401 })
+        )
+      );
+      const encrypted = await createAnonCookie("session-401");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location");
+      const stateMatch = location!.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+      expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+    });
+
+    it("P2-T3.4: Response body missing anon_transfer_token → login proceeds, no param", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({ token_type: "N_A", expires_in: 30 })
+        )
+      );
+      const encrypted = await createAnonCookie("session-missing-field");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T3.5: anon_transfer_token is a number, not string → treated as absent, login proceeds", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({
+            anon_transfer_token: 42,
+            token_type: "N_A",
+            expires_in: 30
+          })
+        )
+      );
+      const encrypted = await createAnonCookie("session-bad-type");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T4: Mint Network Error — Login Proceeds, No Throw
+  // ---------------------------------------------------------------------------
+  describe("P2-T4: Mint network error — fail-open", () => {
+    it("P2-T4.1: Fetch throws network error → login redirect returned, anon_transfer_token absent", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.error()
+        )
+      );
+      const encrypted = await createAnonCookie("session-network-fail");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T4.2: startInteractiveLogin does not throw when fetch fails", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.error()
+        )
+      );
+      const encrypted = await createAnonCookie("session-network-fail");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      await expect(
+        (client as any).startInteractiveLogin({ returnTo: "/" }, req)
+      ).resolves.toBeDefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T5: No Active Anonymous Session — Login Proceeds, No Mint
+  // ---------------------------------------------------------------------------
+  describe("P2-T5: No active anonymous session", () => {
+    it("P2-T5.1: No auth0_anon cookie → POST /anonymous/token NOT called for mint", async () => {
+      let mintCalled = false;
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            const body = (await request.json()) as Record<string, unknown>;
+            if (body.audience === "urn:auth0:anon_transfer") {
+              mintCalled = true;
+            }
+            return HttpResponse.json({ token_type: "N_A", expires_in: 30 });
+          }
+        )
+      );
+      const req = new NextRequest("http://localhost:3000/auth/login"); // no cookie
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect(mintCalled).toBe(false);
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+      const stateMatch = location!.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+      expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+    });
+
+    it("P2-T5.2: anonymousSession.enabled: false → no cookie read, no mint, login proceeds", async () => {
+      let mintCalled = false;
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            const body = (await request.json()) as Record<string, unknown>;
+            if (body.audience === "urn:auth0:anon_transfer") {
+              mintCalled = true;
+            }
+            return HttpResponse.json({ token_type: "N_A", expires_in: 30 });
+          }
+        )
+      );
+      const disabledClient = makeClient({ enabled: false });
+      const encrypted = await createAnonCookie("should-not-mint");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (disabledClient as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect(mintCalled).toBe(false);
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T5.3: anon cookie present but session_token absent → NO mint, login proceeds (addenda)", async () => {
+      let mintCalled = false;
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            const body = (await request.json()) as Record<string, unknown>;
+            if (body.audience === "urn:auth0:anon_transfer") {
+              mintCalled = true;
+            }
+            return HttpResponse.json({ token_type: "N_A", expires_in: 30 });
+          }
+        )
+      );
+      const encrypted = await createAnonCookieNoToken();
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect(mintCalled).toBe(false);
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T6: Anon Cookie/Store READ Throws — Login Still Proceeds (P0 Fail-Open)
+  // ---------------------------------------------------------------------------
+  describe("P2-T6: Cookie read throws — fail-open", () => {
+    it("P2-T6.1: Decryption failure → login completes with 302/307", async () => {
+      const wrongSecret = await generateSecret(32);
+      const payload: AnonymousCookiePayload = {
+        session_token: "decryption-fail",
+        access_token: createMockJWT("anon@x"),
+        expires_at: Math.floor(Date.now() / 1000) + 3600
+      };
+      const badCookie = await encrypt(
+        payload,
+        wrongSecret,
+        Math.floor(Date.now() / 1000) + 3600
+      );
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${badCookie}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T6.2: anonymousSessionLinked: false when cookie read throws", async () => {
+      const wrongSecret = await generateSecret(32);
+      const payload: AnonymousCookiePayload = {
+        session_token: "decryption-fail",
+        access_token: createMockJWT("anon@x"),
+        expires_at: Math.floor(Date.now() / 1000) + 3600
+      };
+      const badCookie = await encrypt(
+        payload,
+        wrongSecret,
+        Math.floor(Date.now() / 1000) + 3600
+      );
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${badCookie}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location");
+      const stateMatch = location!.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+      expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T7: Enterprise Connection Login — NO Mint, NO Append
+  // ---------------------------------------------------------------------------
+  describe("P2-T7: Enterprise Connection login — no mint", () => {
+    function makeMintSpy(): { mintCalled: boolean } {
+      const spy = { mintCalled: false };
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            const body = (await request.json()) as Record<string, unknown>;
+            if (body.audience === "urn:auth0:anon_transfer") {
+              spy.mintCalled = true;
+            }
+            return HttpResponse.json({ token_type: "N_A", expires_in: 30 });
+          }
+        )
+      );
+      return spy;
+    }
+
+    it("P2-T7.1: connection: 'samlp' (SAML Enterprise) → no mint, anon_transfer_token absent", async () => {
+      const spy = makeMintSpy();
+      const encrypted = await createAnonCookie("ec-session-samlp");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/", authorizationParameters: { connection: "samlp" } },
+        req
+      );
+
+      expect(spy.mintCalled).toBe(false);
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T7.2: connection: 'waad' (Azure AD / Entra ID) → no mint", async () => {
+      const spy = makeMintSpy();
+      const encrypted = await createAnonCookie("ec-session-waad");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/", authorizationParameters: { connection: "waad" } },
+        req
+      );
+
+      expect(spy.mintCalled).toBe(false);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T7.3: EC login → anonymousSessionLinked: false", async () => {
+      makeMintSpy();
+      const encrypted = await createAnonCookie("ec-session-samlp");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/", authorizationParameters: { connection: "samlp" } },
+        req
+      );
+
+      const location = result.headers.get("location");
+      const stateMatch = location!.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+      expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+    });
+
+    it("P2-T7.4: custom-named EC connection ('adfs') → no mint (code-review minor)", async () => {
+      const spy = makeMintSpy();
+      const encrypted = await createAnonCookie("ec-session-adfs");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/", authorizationParameters: { connection: "adfs" } },
+        req
+      );
+
+      expect(spy.mintCalled).toBe(false);
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
+        false
+      );
+    });
+
+    it("P2-T7.5: standard (non-EC) connection 'google-oauth2' → mint proceeds normally", async () => {
+      // Confirm EC guard does not over-block social connections
+      const encrypted = await createAnonCookie("non-ec-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        {
+          returnTo: "/",
+          authorizationParameters: { connection: "google-oauth2" }
+        },
+        req
+      );
+
+      const location = result.headers.get("location");
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T8: Layer-1 Reserved-Param Stripping
+  // ---------------------------------------------------------------------------
+  describe("P2-T8: Layer-1 reserved-param stripping", () => {
+    it("P2-T8.1: Caller-supplied session_token stripped; SDK's ticket appended", async () => {
+      const encrypted = await createAnonCookie("legitimate-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        {
+          returnTo: "/",
+          authorizationParameters: { session_token: "attacker-injected-value" }
+        },
+        req
+      );
+
+      const location = result.headers.get("location");
+      expect(location).not.toContain("attacker-injected-value");
+      expect(location).not.toContain("session_token=");
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
+    });
+
+    it("P2-T8.2: Caller-supplied anon_transfer_token stripped; SDK's ticket takes effect", async () => {
+      const encrypted = await createAnonCookie("session-for-strip");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        {
+          returnTo: "/",
+          authorizationParameters: { anon_transfer_token: "caller-supplied-ticket" }
+        },
+        req
+      );
+
+      const location = result.headers.get("location");
+      expect(location).not.toContain("caller-supplied-ticket");
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
+    });
+
+    it("P2-T8.3: Caller-supplied session_token, no anon cookie → stripped, no ticket, no throw", async () => {
+      const req = new NextRequest("http://localhost:3000/auth/login"); // no cookie
+
+      const result = await (client as any).startInteractiveLogin(
+        {
+          returnTo: "/",
+          authorizationParameters: { session_token: "attacker-no-cookie" }
+        },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const location = result.headers.get("location");
+      expect(location).not.toContain("session_token=");
+      expect(location).not.toContain("anon_transfer_token=");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T9: PR #2813 Folded Fixes
+  // ---------------------------------------------------------------------------
+  describe("P2-T9: PR #2813 folded fixes", () => {
+    it("P2-T9.1: expires_in = 0 → createAnonymousSession throws AnonymousSessionError invalid_response", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({
+            token_type: "Bearer",
+            session_token: `session-${Date.now()}`,
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: 0
+          })
+        )
+      );
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session"
+      );
+      const res = new NextResponse();
+
+      await expect(
+        (client as any).createAnonymousSession(req.cookies, res.cookies)
+      ).rejects.toThrow();
+
+      try {
+        await (client as any).createAnonymousSession(req.cookies, res.cookies);
+      } catch (e: any) {
+        expect(e.code).toBe("invalid_response");
+        expect(e.message).toContain("expires_in out of bounds");
+      }
+    });
+
+    it("P2-T9.2: expires_in = -1 → throws AnonymousSessionError invalid_response", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({
+            token_type: "Bearer",
+            session_token: `session-${Date.now()}`,
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: -1
+          })
+        )
+      );
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session"
+      );
+      const res = new NextResponse();
+
+      await expect(
+        (client as any).createAnonymousSession(req.cookies, res.cookies)
+      ).rejects.toThrow();
+
+      try {
+        await (client as any).createAnonymousSession(req.cookies, res.cookies);
+      } catch (e: any) {
+        expect(e.code).toBe("invalid_response");
+      }
+    });
+
+    it("P2-T9.3: expires_in = -10 → throws (previously allowed, now rejected by lower-bound)", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({
+            token_type: "Bearer",
+            session_token: `session-${Date.now()}`,
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: -10
+          })
+        )
+      );
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session"
+      );
+      const res = new NextResponse();
+
+      await expect(
+        (client as any).createAnonymousSession(req.cookies, res.cookies)
+      ).rejects.toThrow();
+
+      try {
+        await (client as any).createAnonymousSession(req.cookies, res.cookies);
+      } catch (e: any) {
+        expect(e.code).toBe("invalid_response");
+      }
+    });
+
+    it("P2-T9.4: expires_in = 3600 → session created and persisted successfully (regression-free path)", async () => {
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({
+            token_type: "Bearer",
+            session_token: `session-${Date.now()}`,
+            access_token: createMockJWT("anon@uuid-9999"),
+            expires_in: 3600
+          })
+        )
+      );
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session"
+      );
+      const res = new NextResponse();
+
+      const session = await (client as any).createAnonymousSession(
+        req.cookies,
+        res.cookies
+      );
+      expect(session).toBeDefined();
+      expect(session.id).toContain("anon@");
+    });
+
+    it("P2-T9.5: toPublicSession read path: A5 regression still passes (renewal with malformed sub returns null, no throw)", async () => {
+      // Verify the existing A5 regression still holds after P2 changes
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({
+            token_type: "Bearer",
+            access_token: createMockJWT("user@123"), // non-anon sub
+            expires_in: 3600
+          })
+        )
+      );
       const now = Math.floor(Date.now() / 1000);
       const expiredPayload: AnonymousCookiePayload = {
         session_token: "session-123",
         access_token: createMockJWT("anon@uuid-9999", -100),
         expires_at: now - 100
       };
-      const encrypted = await createSessionCookie(expiredPayload, secret);
+      const encrypted = await encrypt(
+        expiredPayload,
+        secret,
+        now + 3600
+      );
       const req = new NextRequest(
-        new URL("http://localhost:3000/auth/anonymous-session"),
-        {
-          headers: { cookie: `auth0_anon=${encrypted}` }
-        }
+        "http://localhost:3000/auth/anonymous-session",
+        { headers: { cookie: `auth0_anon=${encrypted}` } }
       );
 
-      // Should not throw during renewal, even though expires_in is negative
       const res = await (client as any).handleGetAnonymousSession(req);
-      // The renewed token has a valid access_token (3600s exp) but negative expires_in
-      // means expires_at is in the past, so it's treated as expired
-      // BUT the renewal succeeded without throwing, which is what we're testing
-      expect(res.status).toBe(200); // Renewal succeeded, access_token is valid
+      expect(res.status).toBe(204);
+    });
+
+    it("P2-T9.6: toCookiePayload merge precedence — server session_token and metadata win", async () => {
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            const body = (await request.json()) as Record<string, unknown>;
+            if (body.session_token && body.audience !== "urn:auth0:anon_transfer") {
+              // RENEW mode: return server-rotated session_token and metadata
+              return HttpResponse.json({
+                token_type: "Bearer",
+                session_token: "rotated-by-server",
+                access_token: createMockJWT("anon@uuid-rotated"),
+                expires_in: 3600,
+                metadata: { server: "wins" }
+              });
+            }
+            return HttpResponse.json({
+              token_type: "Bearer",
+              session_token: `s-${Date.now()}`,
+              access_token: createMockJWT("anon@uuid"),
+              expires_in: 3600
+            });
+          }
+        )
+      );
+
+      const now = Math.floor(Date.now() / 1000);
+      const expiredPayload: AnonymousCookiePayload = {
+        session_token: "prior-session-token",
+        access_token: createMockJWT("anon@uuid-9999", -100),
+        expires_at: now - 100,
+        metadata: { caller: "value" }
+      };
+      const encrypted = await encrypt(expiredPayload, secret, now + 3600);
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session",
+        { headers: { cookie: `auth0_anon=${encrypted}` } }
+      );
+
+      const res = await (client as any).handleGetAnonymousSession(req);
+
+      expect(res.status).toBe(200);
+      const anonCookie = res.cookies.get("auth0_anon");
+      expect(anonCookie).toBeTruthy();
+      const decrypted = await decrypt<AnonymousCookiePayload>(
+        anonCookie!.value,
+        secret
+      );
+      expect(decrypted).toBeTruthy();
+      expect(decrypted!.payload.session_token).toBe("rotated-by-server");
+      expect(decrypted!.payload.metadata).toEqual({ server: "wins" });
+    });
+
+    it("P2-T9.7: Internal types absent from public types barrel (runtime check)", async () => {
+      const barrelExports = await import("../types/index.js");
+      expect((barrelExports as any).AnonymousCookiePayload).toBeUndefined();
+      expect((barrelExports as any).AnonymousTokenResponse).toBeUndefined();
+      expect((barrelExports as any).isRecoverableAnonymousError).toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T10: clearAnonymousSessionOnLogin
+  // ---------------------------------------------------------------------------
+  describe("P2-T10: clearAnonymousSessionOnLogin", () => {
+    it("P2-T10.1: Default config (omitted → defaults true) → auth0_anon cookie deleted on login redirect", async () => {
+      const encrypted = await createAnonCookie("session-to-clear-default");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const setCookies = result.headers.getSetCookie();
+      const anonDeletions = setCookies.filter(
+        (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
+      );
+      expect(anonDeletions.length).toBeGreaterThan(0);
+    });
+
+    it("P2-T10.2: clearAnonymousSessionOnLogin: true → auth0_anon cookie cleared on redirect", async () => {
+      const clearClient = makeClient({
+        enabled: true,
+        clearAnonymousSessionOnLogin: true
+      });
+      const encrypted = await createAnonCookie("session-to-clear-explicit");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (clearClient as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const setCookies = result.headers.getSetCookie();
+      const anonDeletions = setCookies.filter(
+        (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
+      );
+      expect(anonDeletions.length).toBeGreaterThan(0);
+    });
+
+    it("P2-T10.3: clearAnonymousSessionOnLogin: false → auth0_anon cookie NOT cleared", async () => {
+      const keepClient = makeClient({
+        enabled: true,
+        clearAnonymousSessionOnLogin: false
+      });
+      const encrypted = await createAnonCookie("session-to-keep");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (keepClient as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const setCookies = result.headers.getSetCookie();
+      const anonDeletions = setCookies.filter(
+        (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
+      );
+      expect(anonDeletions.length).toBe(0);
+    });
+
+    it("P2-T10.4: clearAnonymousSessionOnLogin: true with no anon cookie → no error (no-op)", async () => {
+      const req = new NextRequest("http://localhost:3000/auth/login"); // no cookie
+
+      await expect(
+        (client as any).startInteractiveLogin({ returnTo: "/" }, req)
+      ).resolves.toBeDefined();
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+      expect([302, 307]).toContain(result.status);
+    });
+
+    it("P2-T10.5: clearAnonymousSessionOnLogin=true clears cookie UNCONDITIONALLY even when mint fails (addenda)", async () => {
+      // addenda: cookie must be cleared even on mint-failure path
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({ error: "invalid_client" }, { status: 401 })
+        )
+      );
+      const clearClient = makeClient({
+        enabled: true,
+        clearAnonymousSessionOnLogin: true
+      });
+      const encrypted = await createAnonCookie("session-mint-fail-clear");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (clearClient as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(result.status);
+      const setCookies = result.headers.getSetCookie();
+      const anonDeletions = setCookies.filter(
+        (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
+      );
+      expect(anonDeletions.length).toBeGreaterThan(0);
     });
   });
 });

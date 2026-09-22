@@ -318,8 +318,5 @@ export type {
   AnonymousSession,
   AnonymousSessionMetadata,
   AnonymousSessionConfig,
-  UseAnonymousSessionOptions,
-  AnonymousCookiePayload,
-  AnonymousTokenResponse
+  UseAnonymousSessionOptions
 } from "./anonymous-session.js";
-export { isRecoverableAnonymousError } from "./anonymous-session.js";
