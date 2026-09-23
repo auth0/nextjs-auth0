@@ -526,7 +526,7 @@ Anonymous access tokens are fetched server-to-server from Auth0 over TLS and are
 
 When a user logs in while an anonymous session cookie is present, the SDK performs a server-to-server call to mint a short-lived transfer ticket (`anon_transfer_token`) and appends it to the `/authorize` redirect. Auth0 uses this ticket to link the anonymous session to the new authenticated session. The `ctx.anonymousSessionLinked` field in the `onCallback` context reflects whether a link was **attempted**, not whether Auth0 confirmed that the link succeeded.
 
-The flag is `true` only when the SDK successfully minted a transfer ticket and appended it to `/authorize`. It is `false` when: no anonymous cookie was present at login, the mint call failed for any reason, the login used an Enterprise Connection (which Auth0 links at the platform level without an SDK-side ticket), or the anonymous cookie changed between login and callback (session fixation protection).
+The flag is `true` only when the SDK successfully minted a transfer ticket and appended it to `/authorize`. It is `false` when: no anonymous cookie was present at login, the mint call failed for any reason, or the anonymous cookie changed between login and callback (session fixation protection). Enterprise Connection and passwordless logins are not excluded client-side; Auth0 handles anonymous session linking for those connection types at the server level.
 
 Applications that use anonymous session data after login SHOULD check this flag in `onCallback`. Do not assume the anonymous session was linked when the flag is `false`.
 
@@ -538,12 +538,14 @@ Because the link relies on a short-lived transfer ticket rather than a persisten
 
 **Security note:** The transfer ticket has no server-side reuse detection beyond its 30-second TTL. A phishing or CSRF scenario where an attacker can direct a user to a crafted `/authorize` URL containing a valid, unexpired ticket could result in the attacker's anonymous session being linked to the victim's authenticated account. To limit the impact of such an attack, do not store security-sensitive data in anonymous session metadata and do not use anonymous session metadata for authorization decisions. Anonymous sessions are intended for non-sensitive personalization, not for access control.
 
-Unless you have enabled Pushed Authorization Requests, the `/authorize` redirect is a browser navigation, so `anon_transfer_token` appears in:
+**Security note (front-channel exposure):** Unless you have enabled Pushed Authorization Requests (PAR), the `/authorize` redirect is a browser navigation, so `anon_transfer_token` appears in:
 
 - The `Location` header of the redirect response, visible to proxies and log aggregators that record response headers.
 - The visitor's browser history.
 - The `Referer` header sent by the Auth0 login page to any third-party resources it loads, subject to the page's referrer policy.
 - Auth0's own access logs for the `/authorize` request.
+
+**Recommendation:** For production deployments, enable Pushed Authorization Requests on your Auth0 tenant and set `pushedAuthorizationRequests: true` in your SDK configuration. On the PAR path, all authorization parameters (including `anon_transfer_token`) are submitted to Auth0 server-to-server; the browser redirect URL carries only a `request_uri` and your `client_id`, so the transfer ticket never appears in browser history, Referer headers, or access logs.
 
 These mitigations are in place and are the ones you can rely on:
 
@@ -566,7 +568,7 @@ The following are not in scope for this release:
 
 - **Cross-App SSO**: The anonymous session lives in an app-domain cookie and does not participate in Auth0 cross-app single sign-on.
 - **Password Reset Preservation**: Anonymous sessions are not carried forward during password resets. Users complete the reset and start a new session.
-- **Sessions During Interactive Login**: By default (`clearAnonymousSessionOnLogin: true`), the local `auth0_anon` cookie is cleared when the user starts a login. The anonymous session cookie on the Auth0 tenant domain is not affected. Set `clearAnonymousSessionOnLogin: false` to retain the local cookie through the login flow. Use the `anonymousSessionLinked` flag on the `onCallback` context to determine whether a link was attempted.
+- **Sessions During Interactive Login**: By default (`clearAnonymousSessionOnLogin: true`), the local `auth0_anon` cookie is cleared at the **successful callback** (after the authenticated session is established). This means an abandoned login (the user navigates away before completing authentication) leaves the local cookie intact. The anonymous session cookie on the Auth0 tenant domain is never affected by the SDK. Set `clearAnonymousSessionOnLogin: false` to retain the local cookie even after a successful login. Use the `anonymousSessionLinked` flag on the `onCallback` context to determine whether a link was attempted.
 - **No server-side revocation**: Logging out of an anonymous session clears the cookie. Access tokens already issued to that identity remain valid until they expire.
 - **DPoP**: Auth0 does not support anonymous sessions for clients configured for DPoP. The SDK does not block the combination, so a DPoP client that enables anonymous sessions receives an error from the authorization server rather than a configuration error at startup.
 

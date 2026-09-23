@@ -59,6 +59,11 @@ import {
   SessionDomainMismatchError
 } from "../errors/mcd.js";
 import {
+  isRecoverableAnonymousError,
+  type AnonymousCookiePayload,
+  type AnonymousTokenResponse
+} from "../types/anonymous-session.js";
+import {
   CompleteConnectAccountRequest,
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
@@ -119,11 +124,6 @@ import {
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
-import type {
-  AnonymousCookiePayload,
-  AnonymousTokenResponse
-} from "../types/anonymous-session.js";
-import { isRecoverableAnonymousError } from "../types/anonymous-session.js";
 import {
   ANON_TRANSFER_AUDIENCE,
   ANON_TRANSFER_TOKEN_PARAM,
@@ -684,7 +684,8 @@ export class AuthClient {
     this.anonymousCookieMaxAge = anonConfig.cookie?.maxAge ?? 2592000; // 30 days default (CASCADE §C)
     this.anonymousAudience = anonConfig.audience;
     this.anonymousScope = anonConfig.scope;
-    this.anonymousClearOnLogin = anonConfig.clearAnonymousSessionOnLogin ?? true;
+    this.anonymousClearOnLogin =
+      anonConfig.clearAnonymousSessionOnLogin ?? true;
     this.anonymousCookieOptions = {
       httpOnly: true,
       secure: anonConfig.cookie?.secure ?? true,
@@ -972,45 +973,43 @@ export class AuthClient {
     const anonymousLoginCookies = req?.cookies ?? loginCookies;
     if (this.anonymousSessionEnabled && anonymousLoginCookies) {
       try {
-        const anonCookie = await this.readAnonymousCookie(anonymousLoginCookies);
+        const anonCookie = await this.readAnonymousCookie(
+          anonymousLoginCookies
+        );
         if (anonCookie?.session_token) {
           // Layer 2: session_token is sourced ONLY from the SDK's own encrypted cookie.
           // Never from request params (those were stripped by Layer 1 above).
           //
-          // Enterprise Connect exclusion (D7): EC logins link sessions at the server level
-          // without persisting an SDK-side session for the link owner. Minting a ticket for
-          // EC logins would succeed at the network level but produce an unlinked state
-          // server-side. Skip mint for EC logins entirely; login proceeds without a ticket.
+          // No client-side gate for Enterprise Connections or passwordless logins:
+          // Auth0 handles anonymous session linking for EC/passwordless at the server
+          // level; the server ignores an anon_transfer_token it cannot use, so minting
+          // is unconditional (matches auth0-auth-js/server-js precedent).
           //
-          // PAR: NOT an exclusion. When pushedAuthorizationRequests is true and the login
-          // uses a standard (non-EC) connection, anon_transfer_token is submitted to the
-          // PAR endpoint as a normal authorizationParams entry. The Auth0 PAR endpoint
-          // accepts and forwards it in par_request. Verified against EA tenant (Sep 21).
-          const isEC = this.isEnterpriseConnectionLogin(authorizationParams);
-          if (!isEC) {
-            const ticket = await this.mintTransferToken(anonCookie.session_token);
-            if (ticket !== null) {
-              // Append ticket to /authorize (replaces the old session_token injection)
-              authorizationParams.set(ANON_TRANSFER_TOKEN_PARAM, ticket);
-              // "link attempted, not confirmed": Auth0 may silently discard expired or
-              // replayed tickets; authoritative confirmation requires the platform event.
-              anonymousSessionLinked = true;
-              // Layer 3: bind this transaction to the originating anonymous session via
-              // digest. digestAnonymousSessionToken stores SHA-256 of session_token,
-              // never the token itself.
-              anonymousSessionRef = await digestAnonymousSessionToken(
-                anonCookie.session_token
-              );
-            }
-            // else: ticket null → fail-open, login continues without ticket
+          // PAR: NOT an exclusion. When pushedAuthorizationRequests is true, the ticket
+          // is submitted to the PAR endpoint as a normal authorizationParams entry.
+          // Verified against EA tenant (Sep 21).
+          const ticket = await this.mintTransferToken(anonCookie.session_token);
+          if (ticket !== null) {
+            // Layer 3: digest FIRST — if digestAnonymousSessionToken throws, none of
+            // the three assignments below execute, keeping all three unset and preserving
+            // the fail-open invariant. digestAnonymousSessionToken stores SHA-256 of
+            // session_token, never the token itself.
+            const ref = await digestAnonymousSessionToken(
+              anonCookie.session_token
+            );
+            // Append ticket to /authorize (replaces the old session_token injection)
+            authorizationParams.set(ANON_TRANSFER_TOKEN_PARAM, ticket);
+            // "link attempted, not confirmed": Auth0 may silently discard expired or
+            // replayed tickets; authoritative confirmation requires the platform event.
+            anonymousSessionRef = ref;
+            anonymousSessionLinked = true;
           }
-          // else: EC login → skip mint, login continues without ticket
+          // else: ticket null → fail-open, login continues without ticket
         }
       } catch (err) {
         // Fail-open: any error in cookie-read, mint, or append must not block login
         console.error("Error in anonymous session transfer during login:", err);
       }
-      // anonymousSessionLinked and anonymousSessionRef remain false/undefined in all error paths
     }
 
     // Resolve challengeMode: controls whether handleCallback returns a redirect
@@ -1099,18 +1098,6 @@ export class AuthClient {
 
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
-
-    // Clear local anonymous cookie on login when configured.
-    // Runs unconditionally (not gated on mint success) to consistently retire the
-    // local cookie whenever a login is initiated. Local cookie only: the tenant-domain
-    // auth0_anon cookie cannot be cleared server-to-server.
-    if (this.anonymousSessionEnabled && this.anonymousClearOnLogin && anonymousLoginCookies) {
-      deleteChunkedCookie(
-        this.anonymousCookieName,
-        anonymousLoginCookies,
-        res.cookies
-      );
-    }
 
     // Save transaction state
     await this.transactionStore.save(res.cookies, transactionState);
@@ -1635,6 +1622,10 @@ export class AuthClient {
           true
         );
         addCacheControlHeadersForSession(popupResponse);
+        this.#clearAnonymousSessionCookieOnLogin(
+          req.cookies,
+          popupResponse.cookies
+        );
         await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       } else {
@@ -1705,6 +1696,10 @@ export class AuthClient {
           true
         );
         addCacheControlHeadersForSession(popupResponse);
+        this.#clearAnonymousSessionCookieOnLogin(
+          req.cookies,
+          popupResponse.cookies
+        );
         await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       }
@@ -1767,10 +1762,53 @@ export class AuthClient {
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
+    // Clear the local anonymous cookie after a successful authentication.
+    // Placed here (after session is established) so that abandoned logins leave
+    // the anon cookie intact. Local cookie only: the tenant-domain auth0_anon
+    // cookie cannot be cleared server-to-server.
+    this.#clearAnonymousSessionCookieOnLogin(req.cookies, res.cookies);
+
     // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
+  }
+
+  /**
+   * Clears the anonymous session cookie after a successful login, if
+   * `anonymousSession.clearOnLogin` is enabled. The guard, try/catch, and
+   * `deleteChunkedCookie` call are consolidated here so every successful-
+   * callback branch (standard redirect and both popup sub-branches) uses the
+   * same implementation with no duplication.
+   *
+   * Called AFTER the session is persisted and ONLY on successful-authentication
+   * paths — not on error or abandoned-login paths.
+   */
+  #clearAnonymousSessionCookieOnLogin(
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): void {
+    if (this.anonymousSessionEnabled && this.anonymousClearOnLogin) {
+      try {
+        deleteChunkedCookie(
+          this.anonymousCookieName,
+          reqCookies,
+          resCookies,
+          false,
+          {
+            path: this.anonymousCookieOptions.path,
+            domain: this.anonymousCookieOptions.domain,
+            secure: this.anonymousCookieOptions.secure,
+            sameSite: this.anonymousCookieOptions.sameSite,
+            httpOnly: this.anonymousCookieOptions.httpOnly
+          }
+        );
+      } catch (err) {
+        // Fail-open: a cookie-clear error must not prevent the session response
+        // from reaching the caller.
+        console.error("Error clearing anonymous cookie at callback:", err);
+      }
+    }
   }
 
   async handleProfile(req: NextRequest): Promise<NextResponse> {
@@ -3185,7 +3223,11 @@ export class AuthClient {
     // server-rotation (res.session_token ?? prior), and metadata merge precedence
     // (res.metadata wins over caller-supplied options.metadata).
     // res.session_token is validated non-null immediately above.
-    const payload = this.toCookiePayload(res, res.session_token!, options?.metadata);
+    const payload = this.toCookiePayload(
+      res,
+      res.session_token!,
+      options?.metadata
+    );
 
     await this.persistAnonymousCookie(payload, reqCookies, resCookies);
     return this.toPublicSession(payload);
@@ -3608,41 +3650,6 @@ export class AuthClient {
     }
   }
 
-  // ── Enterprise Connection detection ───────────────────────────────────────
-
-  /**
-   * Returns true when authorizationParams indicates an Enterprise Connection login.
-   *
-   * EC logins are excluded from anonymous session transfer ticket minting (D7):
-   * the platform links EC sessions at server level but never persists an SDK-side
-   * session for the link owner, so minting a ticket would succeed at the network
-   * level but result in an unlinked state server-side.
-   *
-   * Detection: positive-match against known enterprise connection strategy names.
-   * These are Auth0 connection strategy identifiers, not user-visible names.
-   */
-  private isEnterpriseConnectionLogin(
-    authorizationParams: URLSearchParams
-  ): boolean {
-    const ENTERPRISE_STRATEGIES = new Set([
-      "samlp", // SAML 2.0 Enterprise Connection
-      "waad", // Azure AD / Microsoft Entra ID
-      "adfs", // Active Directory Federation Services
-      "pingfederate", // PingFederate
-      "oidc", // Generic OIDC enterprise federation
-      "google-apps", // Google Workspace
-      "ip", // IP Address (deprecated enterprise type)
-      "mscrm", // Microsoft Dynamics CRM
-      "sharepoint", // SharePoint Online
-      "mssql", // SQL Server (enterprise)
-      "ldap", // LDAP enterprise
-      "scim" // SCIM enterprise provisioning
-    ]);
-    const connection = authorizationParams.get("connection");
-    if (!connection) return false;
-    return ENTERPRISE_STRATEGIES.has(connection);
-  }
-
   // ── Transfer ticket mint ───────────────────────────────────────────────────
 
   /**
@@ -3656,32 +3663,48 @@ export class AuthClient {
    * AnonymousSessionError. The caller appends the ticket to /authorize only on
    * a non-null return.
    *
-   * PAR compatibility: when pushedAuthorizationRequests is true, anon_transfer_token
-   * is submitted to the PAR endpoint as a normal authorizationParams entry for
-   * standard (non-EC) connections and reaches /authorize normally (verified Sep 21
-   * against EA tenant).
+   * Timeout: uses a fixed 5-second AbortSignal so a hung /anonymous/token endpoint
+   * cannot stall the login flow beyond 5 s (no new public config flag).
    *
-   * Enterprise Connect: the CALLER is responsible for skipping this method when
-   * isEnterpriseConnectionLogin() returns true.
+   * PAR compatibility: when pushedAuthorizationRequests is true, anon_transfer_token
+   * is submitted to the PAR endpoint as a normal authorizationParams entry and
+   * reaches /authorize normally (verified Sep 21 against EA tenant).
    */
   private async mintTransferToken(
     sessionToken: string
   ): Promise<string | null> {
     try {
       const url = new URL("/anonymous/token", `https://${this.domain}`);
-      const res = await this.fetch(
-        url.toString(),
-        await this.anonymousRequestInit({
-          session_token: sessionToken,
-          audience: ANON_TRANSFER_AUDIENCE
-        })
-      );
-      if (!res.ok) return null;
+      const init = await this.anonymousRequestInit({
+        session_token: sessionToken,
+        audience: ANON_TRANSFER_AUDIENCE
+      });
+      // Override signal with a fixed 5-second timeout so a hung /anonymous/token
+      // call cannot stall login (no new public config flag).
+      init.signal = AbortSignal.timeout(5000);
+      const res = await this.fetch(url.toString(), init);
+      if (!res.ok) {
+        console.warn(
+          "mintTransferToken: non-2xx from /anonymous/token, mint skipped"
+        );
+        return null;
+      }
       const data = (await res.json()) as Record<string, unknown>;
-      return typeof data.anon_transfer_token === "string"
-        ? data.anon_transfer_token
-        : null;
-    } catch {
+      const ticket =
+        typeof data.anon_transfer_token === "string"
+          ? data.anon_transfer_token
+          : null;
+      if (ticket === null) {
+        console.info(
+          "mintTransferToken: anon_transfer_token absent or wrong type, mint skipped"
+        );
+      }
+      return ticket;
+    } catch (err) {
+      console.warn(
+        "mintTransferToken: failed, mint skipped:",
+        err instanceof Error ? err.message : "unknown error"
+      );
       return null;
     }
   }

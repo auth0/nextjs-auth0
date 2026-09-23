@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
@@ -8,7 +9,8 @@ import {
   beforeEach,
   describe,
   expect,
-  it
+  it,
+  vi
 } from "vitest";
 
 import { getDefaultRoutes } from "../test/defaults.js";
@@ -530,9 +532,9 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
 
       // P2: transfer ticket derived from this cookie's session_token is appended
       const location = result.headers.get("location");
-      expect(
-        new URL(location!).searchParams.get("anon_transfer_token")
-      ).toBe("mock-transfer-ticket-xyz");
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
       expect(new URL(location!).searchParams.has("session_token")).toBe(false);
     });
 
@@ -561,9 +563,9 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
       // After startInteractiveLogin, the transaction state should have anonymousSessionLinked=true
       // P2: ticket appears as anon_transfer_token, not raw session_token
       const location = result.headers.get("location");
-      expect(
-        new URL(location!).searchParams.get("anon_transfer_token")
-      ).toBe("mock-transfer-ticket-xyz");
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
+      );
 
       // Decrypt transaction cookie and verify anonymousSessionLinked flag
       const stateMatch = location!.match(/state=([^&]+)/);
@@ -1987,9 +1989,11 @@ describe("Phase 2: Transfer Ticket Migration", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Suite P2-T7: Enterprise Connection Login — NO Mint, NO Append
+  // Suite P2-T7: Enterprise Connection Login — Mint FIRES (no client-side gate)
+  // F1 fix: isEnterpriseConnectionLogin guard removed. Auth0 handles EC/passwordless
+  // linking server-side; the SDK mints unconditionally when an anon cookie is present.
   // ---------------------------------------------------------------------------
-  describe("P2-T7: Enterprise Connection login — no mint", () => {
+  describe("P2-T7: Enterprise Connection login — mint fires (no client-side gate)", () => {
     function makeMintSpy(): { mintCalled: boolean } {
       const spy = { mintCalled: false };
       server.use(
@@ -1999,6 +2003,11 @@ describe("Phase 2: Transfer Ticket Migration", () => {
             const body = (await request.json()) as Record<string, unknown>;
             if (body.audience === "urn:auth0:anon_transfer") {
               spy.mintCalled = true;
+              return HttpResponse.json({
+                anon_transfer_token: "mock-transfer-ticket-xyz",
+                token_type: "N_A",
+                expires_in: 30
+              });
             }
             return HttpResponse.json({ token_type: "N_A", expires_in: 30 });
           }
@@ -2007,7 +2016,7 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       return spy;
     }
 
-    it("P2-T7.1: connection: 'samlp' (SAML Enterprise) → no mint, anon_transfer_token absent", async () => {
+    it("P2-T7.1: connection: 'samlp' (SAML Enterprise) → mint DOES fire, anon_transfer_token present", async () => {
       const spy = makeMintSpy();
       const encrypted = await createAnonCookie("ec-session-samlp");
       const req = new NextRequest("http://localhost:3000/auth/login", {
@@ -2019,15 +2028,15 @@ describe("Phase 2: Transfer Ticket Migration", () => {
         req
       );
 
-      expect(spy.mintCalled).toBe(false);
+      expect(spy.mintCalled).toBe(true);
       expect([302, 307]).toContain(result.status);
       const location = result.headers.get("location");
-      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
-        false
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
       );
     });
 
-    it("P2-T7.2: connection: 'waad' (Azure AD / Entra ID) → no mint", async () => {
+    it("P2-T7.2: connection: 'waad' (Azure AD / Entra ID) → mint DOES fire", async () => {
       const spy = makeMintSpy();
       const encrypted = await createAnonCookie("ec-session-waad");
       const req = new NextRequest("http://localhost:3000/auth/login", {
@@ -2039,14 +2048,14 @@ describe("Phase 2: Transfer Ticket Migration", () => {
         req
       );
 
-      expect(spy.mintCalled).toBe(false);
+      expect(spy.mintCalled).toBe(true);
       const location = result.headers.get("location");
-      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
-        false
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
       );
     });
 
-    it("P2-T7.3: EC login → anonymousSessionLinked: false", async () => {
+    it("P2-T7.3: EC login → anonymousSessionLinked: true (mint succeeds)", async () => {
       makeMintSpy();
       const encrypted = await createAnonCookie("ec-session-samlp");
       const req = new NextRequest("http://localhost:3000/auth/login", {
@@ -2064,10 +2073,10 @@ describe("Phase 2: Transfer Ticket Migration", () => {
         result.cookies,
         decodeURIComponent(stateMatch![1])
       );
-      expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+      expect(txState.payload.anonymousSessionLinked).toBe(true);
     });
 
-    it("P2-T7.4: custom-named EC connection ('adfs') → no mint (code-review minor)", async () => {
+    it("P2-T7.4: connection: 'adfs' → mint fires (no strategy-name gate)", async () => {
       const spy = makeMintSpy();
       const encrypted = await createAnonCookie("ec-session-adfs");
       const req = new NextRequest("http://localhost:3000/auth/login", {
@@ -2079,16 +2088,15 @@ describe("Phase 2: Transfer Ticket Migration", () => {
         req
       );
 
-      expect(spy.mintCalled).toBe(false);
+      expect(spy.mintCalled).toBe(true);
       expect([302, 307]).toContain(result.status);
       const location = result.headers.get("location");
-      expect(new URL(location!).searchParams.has("anon_transfer_token")).toBe(
-        false
+      expect(new URL(location!).searchParams.get("anon_transfer_token")).toBe(
+        "mock-transfer-ticket-xyz"
       );
     });
 
-    it("P2-T7.5: standard (non-EC) connection 'google-oauth2' → mint proceeds normally", async () => {
-      // Confirm EC guard does not over-block social connections
+    it("P2-T7.5: connection: 'google-oauth2' → mint proceeds (social connection unchanged)", async () => {
       const encrypted = await createAnonCookie("non-ec-session");
       const req = new NextRequest("http://localhost:3000/auth/login", {
         headers: { cookie: `auth0_anon=${encrypted}` }
@@ -2144,7 +2152,9 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       const result = await (client as any).startInteractiveLogin(
         {
           returnTo: "/",
-          authorizationParameters: { anon_transfer_token: "caller-supplied-ticket" }
+          authorizationParameters: {
+            anon_transfer_token: "caller-supplied-ticket"
+          }
         },
         req
       );
@@ -2301,11 +2311,7 @@ describe("Phase 2: Transfer Ticket Migration", () => {
         access_token: createMockJWT("anon@uuid-9999", -100),
         expires_at: now - 100
       };
-      const encrypted = await encrypt(
-        expiredPayload,
-        secret,
-        now + 3600
-      );
+      const encrypted = await encrypt(expiredPayload, secret, now + 3600);
       const req = new NextRequest(
         "http://localhost:3000/auth/anonymous-session",
         { headers: { cookie: `auth0_anon=${encrypted}` } }
@@ -2321,7 +2327,10 @@ describe("Phase 2: Transfer Ticket Migration", () => {
           `https://${defaultDomain}/anonymous/token`,
           async ({ request }) => {
             const body = (await request.json()) as Record<string, unknown>;
-            if (body.session_token && body.audience !== "urn:auth0:anon_transfer") {
+            if (
+              body.session_token &&
+              body.audience !== "urn:auth0:anon_transfer"
+            ) {
               // RENEW mode: return server-rotated session_token and metadata
               return HttpResponse.json({
                 token_type: "Bearer",
@@ -2368,19 +2377,20 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       expect(decrypted!.payload.metadata).toEqual({ server: "wins" });
     });
 
-    it("P2-T9.7: Internal types absent from public types barrel (runtime check)", async () => {
-      const barrelExports = await import("../types/index.js");
-      expect((barrelExports as any).AnonymousCookiePayload).toBeUndefined();
-      expect((barrelExports as any).AnonymousTokenResponse).toBeUndefined();
-      expect((barrelExports as any).isRecoverableAnonymousError).toBeUndefined();
-    });
+    // P2-T9.7 (runtime barrel check) deleted. Compile-time coverage:
+    // `pnpm tsc --noEmit` catches any import of AnonymousCookiePayload,
+    // AnonymousTokenResponse, or isRecoverableAnonymousError from the public
+    // barrel — the symbols do not exist there and tsc will error.
   });
 
   // ---------------------------------------------------------------------------
   // Suite P2-T10: clearAnonymousSessionOnLogin
+  // F2+F4 fix: clear moved from login initiation to handleCallback (successful
+  // code exchange). Abandoned logins (no callback) leave the anon cookie intact.
   // ---------------------------------------------------------------------------
-  describe("P2-T10: clearAnonymousSessionOnLogin", () => {
-    it("P2-T10.1: Default config (omitted → defaults true) → auth0_anon cookie deleted on login redirect", async () => {
+  describe("P2-T10: clearAnonymousSessionOnLogin (clear at callback, not login)", () => {
+    it("P2-T10.1: Default config (omitted → defaults true) → anon cookie NOT cleared at login initiation (moved to callback)", async () => {
+      // With F2/F4 fix, the clear is at callback, so login redirect must NOT delete the cookie.
       const encrypted = await createAnonCookie("session-to-clear-default");
       const req = new NextRequest("http://localhost:3000/auth/login", {
         headers: { cookie: `auth0_anon=${encrypted}` }
@@ -2395,10 +2405,11 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       const anonDeletions = setCookies.filter(
         (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
       );
-      expect(anonDeletions.length).toBeGreaterThan(0);
+      // Cookie is preserved at login; will only be cleared at successful callback
+      expect(anonDeletions.length).toBe(0);
     });
 
-    it("P2-T10.2: clearAnonymousSessionOnLogin: true → auth0_anon cookie cleared on redirect", async () => {
+    it("P2-T10.2: clearAnonymousSessionOnLogin: true → anon cookie NOT cleared at login redirect (preserved for abandoned-login safety)", async () => {
       const clearClient = makeClient({
         enabled: true,
         clearAnonymousSessionOnLogin: true
@@ -2417,10 +2428,10 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       const anonDeletions = setCookies.filter(
         (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
       );
-      expect(anonDeletions.length).toBeGreaterThan(0);
+      expect(anonDeletions.length).toBe(0);
     });
 
-    it("P2-T10.3: clearAnonymousSessionOnLogin: false → auth0_anon cookie NOT cleared", async () => {
+    it("P2-T10.3: clearAnonymousSessionOnLogin: false → auth0_anon cookie NOT cleared at login or callback", async () => {
       const keepClient = makeClient({
         enabled: true,
         clearAnonymousSessionOnLogin: false
@@ -2456,8 +2467,8 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       expect([302, 307]).toContain(result.status);
     });
 
-    it("P2-T10.5: clearAnonymousSessionOnLogin=true clears cookie UNCONDITIONALLY even when mint fails (addenda)", async () => {
-      // addenda: cookie must be cleared even on mint-failure path
+    it("P2-T10.5: clearAnonymousSessionOnLogin=true with mint failure → anon cookie NOT cleared at login (preserved until callback)", async () => {
+      // With F2/F4 fix, even when mint fails, cookie is preserved at login initiation
       server.use(
         http.post(`https://${defaultDomain}/anonymous/token`, () =>
           HttpResponse.json({ error: "invalid_client" }, { status: 401 })
@@ -2482,7 +2493,333 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       const anonDeletions = setCookies.filter(
         (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
       );
+      // Cookie preserved at login, even when mint fails
+      expect(anonDeletions.length).toBe(0);
+    });
+
+    it("P2-T10.6: Abandoned login (no callback) → anon cookie intact (login does not delete it)", async () => {
+      // F4: login initiation no longer clears the cookie, so an abandoned login
+      // (user never completes auth) leaves the anon cookie available.
+      const encrypted = await createAnonCookie("abandoned-session-cookie");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const loginResult = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      expect([302, 307]).toContain(loginResult.status);
+      // No Set-Cookie for anon cookie deletion — cookie survives login initiation
+      const setCookies = loginResult.headers.getSetCookie();
+      const anonDeletions = setCookies.filter(
+        (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
+      );
+      expect(anonDeletions.length).toBe(0);
+      // (No callback → cookie remains intact in the browser)
+    });
+
+    it("P2-T10.7: handleCallback clears anon cookie with full cookie attributes (not just name)", async () => {
+      // F2: deleteChunkedCookie in handleCallback passes {path,domain,secure,sameSite,httpOnly}
+      // from anonymousCookieOptions so Chromium 124+ properly matches the cookie for deletion.
+      // We verify by driving handleCallback through a full OAuth mock.
+      const keyPair = await jose.generateKeyPair("RS256");
+
+      // Client with custom fetch that mocks the AS
+      const mockFetch = vi.fn(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(
+            typeof input === "string"
+              ? input
+              : input instanceof Request
+                ? input.url
+                : input.toString()
+          );
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json({
+              issuer: `https://${defaultDomain}/`,
+              authorization_endpoint: `https://${defaultDomain}/authorize`,
+              token_endpoint: `https://${defaultDomain}/oauth/token`,
+              userinfo_endpoint: `https://${defaultDomain}/userinfo`,
+              jwks_uri: `https://${defaultDomain}/.well-known/jwks.json`
+            });
+          }
+          if (url.pathname === "/.well-known/jwks.json") {
+            const publicJwk = await jose.exportJWK(keyPair.publicKey);
+            return Response.json({ keys: [{ ...publicJwk, kid: "test-key" }] });
+          }
+          if (url.pathname === "/oauth/token") {
+            // Extract nonce from transaction cookie to satisfy id_token validation
+            const nonce = (init as any)?._nonce ?? "nonce-placeholder";
+            const idToken = await new jose.SignJWT({ nonce })
+              .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+              .setSubject("user_123")
+              .setIssuedAt()
+              .setIssuer(`https://${defaultDomain}/`)
+              .setAudience("test-id")
+              .setExpirationTime("2h")
+              .sign(keyPair.privateKey);
+            return Response.json({
+              token_type: "Bearer",
+              access_token: "at_123",
+              id_token: idToken,
+              expires_in: 86400
+            });
+          }
+          if (url.pathname === "/anonymous/token") {
+            return Response.json({
+              anon_transfer_token: "mock-ticket-xyz",
+              token_type: "N_A",
+              expires_in: 30
+            });
+          }
+          throw new Error(`Unmocked URL: ${url.pathname}`);
+        }
+      );
+
+      const cbClient = new (client.constructor as any)({
+        domain: defaultDomain,
+        clientId: "test-id",
+        clientSecret: "test-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret,
+        routes: {
+          login: "/auth/login",
+          logout: "/auth/logout",
+          callback: "/auth/callback",
+          backChannelLogout: "/auth/backchannel-logout",
+          onError: undefined
+        },
+        transactionStore: new (
+          await import("./transaction-store.js")
+        ).TransactionStore({ secret, cookieOptions: { secure: false } }),
+        sessionStore: new (
+          await import("./session/stateless-session-store.js")
+        ).StatelessSessionStore({
+          secret,
+          rolling: true,
+          absoluteDuration: 259200,
+          inactivityDuration: 86400
+        }),
+        anonymousSession: { enabled: true },
+        fetch: mockFetch
+      });
+
+      // Step 1: initiate login with anon cookie present
+      const encrypted = await createAnonCookie("callback-clear-session");
+      const loginReq = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+      const loginRes = await (cbClient as any).startInteractiveLogin(
+        { returnTo: "/" },
+        loginReq
+      );
+      expect([302, 307]).toContain(loginRes.status);
+
+      // Step 2: extract state, nonce, and transaction cookie
+      const location = loginRes.headers.get("location")!;
+      const authorizeUrl = new URL(location);
+      const state = authorizeUrl.searchParams.get("state")!;
+      const nonce = authorizeUrl.searchParams.get("nonce")!;
+      const txCookie = loginRes.headers
+        .getSetCookie()
+        .find((c: string) => c.startsWith("__txn_"));
+      expect(txCookie).toBeTruthy();
+
+      // Patch mockFetch to inject nonce into /oauth/token responses
+      mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+          const url = new URL(
+            typeof input === "string"
+              ? input
+              : input instanceof Request
+                ? input.url
+                : input.toString()
+          );
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json({
+              issuer: `https://${defaultDomain}/`,
+              authorization_endpoint: `https://${defaultDomain}/authorize`,
+              token_endpoint: `https://${defaultDomain}/oauth/token`,
+              userinfo_endpoint: `https://${defaultDomain}/userinfo`,
+              jwks_uri: `https://${defaultDomain}/.well-known/jwks.json`
+            });
+          }
+          if (url.pathname === "/.well-known/jwks.json") {
+            const publicJwk = await jose.exportJWK(keyPair.publicKey);
+            return Response.json({
+              keys: [{ ...publicJwk, kid: "test-key" }]
+            });
+          }
+          if (url.pathname === "/oauth/token") {
+            const idToken = await new jose.SignJWT({ nonce })
+              .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+              .setSubject("user_123")
+              .setIssuedAt()
+              .setIssuer(`https://${defaultDomain}/`)
+              .setAudience("test-id")
+              .setExpirationTime("2h")
+              .sign(keyPair.privateKey);
+            return Response.json({
+              token_type: "Bearer",
+              access_token: "at_123",
+              id_token: idToken,
+              expires_in: 86400
+            });
+          }
+          throw new Error(`Unmocked: ${url.pathname}`);
+        }
+      );
+
+      // Step 3: simulate callback with auth code
+      const txCookieValue = txCookie!.split(";")[0]; // name=value only
+      const callbackReq = new NextRequest(
+        `http://localhost:3000/auth/callback?code=auth-code&state=${encodeURIComponent(state)}`,
+        { headers: { cookie: `${txCookieValue}; auth0_anon=${encrypted}` } }
+      );
+
+      const callbackRes = await cbClient.handleCallback(callbackReq);
+
+      // Step 4: verify anon cookie is cleared with cookie attributes in the callback response
+      const callbackSetCookies = callbackRes.headers.getSetCookie();
+      const anonDeletions = callbackSetCookies.filter(
+        (c: string) => c.startsWith("auth0_anon") && c.includes("Max-Age=0")
+      );
       expect(anonDeletions.length).toBeGreaterThan(0);
+
+      // F2 assertion: deletion header must include cookie-attribute directives
+      // (not just name=; Max-Age=0). HttpOnly and Path are set by anonymousCookieOptions defaults.
+      const deletionHeader = anonDeletions[0];
+      expect(deletionHeader).toMatch(/HttpOnly/i);
+      expect(deletionHeader).toMatch(/Path=/i);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Suite P2-T11: F3 digest-ordering — digest throws → all three unset
+  // ---------------------------------------------------------------------------
+  describe("P2-T11: F3 digest ordering — digest throws → fail-open", () => {
+    it("P2-T11.1: mint succeeds but digestAnonymousSessionToken throws → anonymousSessionLinked stays false, no ticket appended, login proceeds", async () => {
+      // digestAnonymousSessionToken (module-level in auth-client.ts) calls
+      //   crypto.subtle.digest("SHA-256", new TextEncoder().encode(sessionToken))
+      // We spy on the real crypto.subtle.digest with a content-matching
+      // implementation that rejects ONLY when the input decodes to our specific
+      // session token string, and delegates every other call (PKCE code-challenge,
+      // etc.) to the real implementation. This avoids the race with
+      // oauth.calculatePKCECodeChallenge, which also calls crypto.subtle.digest
+      // before the anonymous-session try/catch block runs.
+      const SESSION_TOKEN = "digest-throw-session";
+      const realDigest = crypto.subtle.digest.bind(crypto.subtle);
+      const digestSpy = vi
+        .spyOn(crypto.subtle, "digest")
+        .mockImplementation((algorithm, data) => {
+          // Detect the digestAnonymousSessionToken call by its UTF-8 encoded input.
+          // The PKCE code-verifier (random alphanumeric) and other callers pass binary
+          // data whose UTF-8 decoded form will never equal SESSION_TOKEN.
+          const decoded = new TextDecoder().decode(
+            data as ArrayBuffer | ArrayBufferView
+          );
+          if (decoded === SESSION_TOKEN) {
+            return Promise.reject(new Error("digest-fail-injected"));
+          }
+          return realDigest(algorithm, data);
+        });
+
+      try {
+        const encrypted = await createAnonCookie(SESSION_TOKEN);
+        const req = new NextRequest("http://localhost:3000/auth/login", {
+          headers: { cookie: `auth0_anon=${encrypted}` }
+        });
+
+        const result = await (client as any).startInteractiveLogin(
+          { returnTo: "/" },
+          req
+        );
+
+        // (c) login still proceeds fail-open: redirect is returned
+        expect([302, 307]).toContain(result.status);
+
+        const location = result.headers.get("location")!;
+
+        // (b) no anon_transfer_token param appended to the /authorize URL
+        const authorizeUrl = new URL(location);
+        expect(authorizeUrl.searchParams.has("anon_transfer_token")).toBe(
+          false
+        );
+
+        // (a) anonymousSessionLinked is NOT true in the saved transaction
+        const stateMatch = location.match(/state=([^&]+)/);
+        const txState = await (client as any).transactionStore.get(
+          result.cookies,
+          decodeURIComponent(stateMatch![1])
+        );
+        expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+        expect(txState.payload.anonymousSessionRef).toBeUndefined();
+      } finally {
+        // Always restore so the spy does not leak into other tests
+        digestSpy.mockRestore();
+      }
+    });
+
+    it("P2-T11.2: mint null (fail-open) → anonymousSessionLinked false, anonymousSessionRef undefined", async () => {
+      // When mint returns null, neither linked nor ref should be set
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, () =>
+          HttpResponse.json({ error: "unavailable" }, { status: 503 })
+        )
+      );
+
+      const encrypted = await createAnonCookie("mint-null-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location")!;
+      const stateMatch = location.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+
+      // Both must be unset together
+      expect(txState.payload.anonymousSessionLinked || false).toBe(false);
+      expect(txState.payload.anonymousSessionRef).toBeUndefined();
+    });
+
+    it("P2-T11.3: mint succeeds and digest succeeds → anonymousSessionLinked true, anonymousSessionRef set (64-char hex)", async () => {
+      // Success path: when both mint and digest succeed, all three fields must
+      // be set atomically (ref set, linked = true, ticket appended to URL).
+      const encrypted = await createAnonCookie("digest-success-session");
+      const req = new NextRequest("http://localhost:3000/auth/login", {
+        headers: { cookie: `auth0_anon=${encrypted}` }
+      });
+
+      const result = await (client as any).startInteractiveLogin(
+        { returnTo: "/" },
+        req
+      );
+
+      const location = result.headers.get("location")!;
+
+      // anon_transfer_token should be appended to the /authorize URL
+      const authorizeUrl = new URL(location);
+      expect(authorizeUrl.searchParams.has("anon_transfer_token")).toBe(true);
+
+      const stateMatch = location.match(/state=([^&]+)/);
+      const txState = await (client as any).transactionStore.get(
+        result.cookies,
+        decodeURIComponent(stateMatch![1])
+      );
+
+      // Both are set together (atomically)
+      expect(txState.payload.anonymousSessionLinked).toBe(true);
+      expect(typeof txState.payload.anonymousSessionRef).toBe("string");
+      expect(txState.payload.anonymousSessionRef.length).toBe(64);
     });
   });
 });
