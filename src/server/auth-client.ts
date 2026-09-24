@@ -1006,9 +1006,8 @@ export class AuthClient {
           }
           // else: ticket null → fail-open, login continues without ticket
         }
-      } catch (err) {
-        // Fail-open: any error in cookie-read, mint, or append must not block login
-        console.error("Error in anonymous session transfer during login:", err);
+      } catch {
+        // Fail-open: any error in cookie-read, mint, or append must not block login.
       }
     }
 
@@ -1803,10 +1802,9 @@ export class AuthClient {
             httpOnly: this.anonymousCookieOptions.httpOnly
           }
         );
-      } catch (err) {
+      } catch {
         // Fail-open: a cookie-clear error must not prevent the session response
         // from reaching the caller.
-        console.error("Error clearing anonymous cookie at callback:", err);
       }
     }
   }
@@ -3558,6 +3556,10 @@ export class AuthClient {
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),
+      // Never follow a 3xx from the anonymous endpoints; a redirect here would
+      // forward client-auth material to an unintended origin (parity with
+      // auth0-auth-js mintTransferToken).
+      redirect: "error",
       signal: httpOpts.signal
     };
   }
@@ -3663,8 +3665,8 @@ export class AuthClient {
    * AnonymousSessionError. The caller appends the ticket to /authorize only on
    * a non-null return.
    *
-   * Timeout: uses a fixed 5-second AbortSignal so a hung /anonymous/token endpoint
-   * cannot stall the login flow beyond 5 s (no new public config flag).
+   * Timeout: inherits the SDK-wide httpTimeout via anonymousRequestInit's signal,
+   * so a hung /anonymous/token endpoint cannot stall the login flow indefinitely.
    *
    * PAR compatibility: when pushedAuthorizationRequests is true, anon_transfer_token
    * is submitted to the PAR endpoint as a normal authorizationParams entry and
@@ -3679,32 +3681,15 @@ export class AuthClient {
         session_token: sessionToken,
         audience: ANON_TRANSFER_AUDIENCE
       });
-      // Override signal with a fixed 5-second timeout so a hung /anonymous/token
-      // call cannot stall login (no new public config flag).
-      init.signal = AbortSignal.timeout(5000);
       const res = await this.fetch(url.toString(), init);
       if (!res.ok) {
-        console.warn(
-          "mintTransferToken: non-2xx from /anonymous/token, mint skipped"
-        );
         return null;
       }
       const data = (await res.json()) as Record<string, unknown>;
-      const ticket =
-        typeof data.anon_transfer_token === "string"
-          ? data.anon_transfer_token
-          : null;
-      if (ticket === null) {
-        console.info(
-          "mintTransferToken: anon_transfer_token absent or wrong type, mint skipped"
-        );
-      }
-      return ticket;
-    } catch (err) {
-      console.warn(
-        "mintTransferToken: failed, mint skipped:",
-        err instanceof Error ? err.message : "unknown error"
-      );
+      return typeof data.anon_transfer_token === "string"
+        ? data.anon_transfer_token
+        : null;
+    } catch {
       return null;
     }
   }
