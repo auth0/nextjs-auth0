@@ -23,6 +23,8 @@ import {
   BackchannelLogoutError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
   CustomTokenExchangeError,
   CustomTokenExchangeErrorCode,
   DiscoveryError,
@@ -68,7 +70,8 @@ import {
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
   ConnectAccountRequest,
-  ConnectAccountResponse
+  ConnectAccountResponse,
+  ConnectedAccount
 } from "../types/connected-accounts.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -174,6 +177,7 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "../utils/proxy.js";
+import { isNonNavigationalRequest } from "../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -202,6 +206,7 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import {
   addCacheControlHeadersForSession,
@@ -222,7 +227,12 @@ import {
   FetcherMinimalConfig
 } from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import {
+  clampReturnTo,
+  clampTransactionField,
+  TransactionState,
+  TransactionStore
+} from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
 
 export type BeforeSessionSavedHook = (
@@ -308,6 +318,7 @@ export interface Routes {
   callback: string;
   profile: string;
   accessToken: string;
+  federatedDomain: string;
   backChannelLogout: string;
   connectAccount: string;
   mfaAuthenticators: string;
@@ -361,6 +372,8 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
+
+  enterpriseConnect?: true;
 
   routes: Routes;
 
@@ -446,6 +459,8 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
+
+  private enterpriseConnect?: true;
 
   private routes: Routes;
 
@@ -621,6 +636,8 @@ export class AuthClient {
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
+    this.enterpriseConnect = options.enterpriseConnect;
+
     // routes
     this.routes = options.routes;
 
@@ -747,6 +764,19 @@ export class AuthClient {
     const method = req.method;
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
+      if (isNonNavigationalRequest(req)) {
+        // 204 No Content signals "intentionally did nothing" for prefetch/
+        // non-navigational requests, avoiding polluting auth-failure telemetry
+        // and access logs. Next.js discards prefetch responses regardless, so
+        // behavior is unaffected.
+        // Cache-Control: no-store prevents CDNs and reverse proxies from caching
+        // this 204 — RFC 9111 makes 204 heuristically cacheable without an explicit
+        // directive, so a cached 204 would silently break real login navigations.
+        return new NextResponse(null, {
+          status: 204,
+          headers: { "Cache-Control": "no-store" }
+        });
+      }
       return this.handleLogin(req);
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
       return this.handleLogout(req);
@@ -760,6 +790,12 @@ export class AuthClient {
       this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.federatedDomain &&
+      this.enterpriseConnect
+    ) {
+      return this.handleFederatedDomain(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
@@ -890,16 +926,33 @@ export class AuthClient {
   }
 
   /**
+   * Returns a fetch function pre-loaded with the SDK telemetry headers and the
+   * configured size-limited fetch. Used by isFederatedDomain so WebFinger calls
+   * share the same fetch pipeline (proxy, size limit, telemetry) as all other
+   * Auth0 requests.
+   *
+   * @internal
+   */
+  createWebFingerFetch(): typeof fetch {
+    return (url, init) => {
+      const { headers } = this.httpOptions();
+      const merged = new Headers(headers);
+      for (const [k, v] of new Headers(init?.headers ?? {})) merged.set(k, v);
+      return this.fetch(url as string, { ...init, headers: merged });
+    };
+  }
+
+  /**
    * @param options Login options.
    * @param req The incoming request, when one is available.
-   * @param loginCookies Request cookies to read for this login when there is no
+   * @param reqCookies Request cookies to read for this login when there is no
    * request object, which is the case for the programmatic Server Action form.
    * Ignored when `req` is supplied, since the request carries its own cookies.
    */
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest,
-    loginCookies?: RequestCookies
+    reqCookies?: RequestCookies | ReadonlyRequestCookies
   ): Promise<NextResponse> {
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
@@ -918,10 +971,12 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo =
+        returnTo = clampReturnTo(
           sanitizedReturnTo.pathname +
-          sanitizedReturnTo.search +
-          sanitizedReturnTo.hash;
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
       }
     }
 
@@ -970,7 +1025,7 @@ export class AuthClient {
     // Layers 2 (own-cookie sourcing) and 3 (transaction digest binding) applied below.
     let anonymousSessionLinked = false;
     let anonymousSessionRef: string | undefined;
-    const anonymousLoginCookies = req?.cookies ?? loginCookies;
+    const anonymousLoginCookies = req?.cookies ?? reqCookies;
     if (this.anonymousSessionEnabled && anonymousLoginCookies) {
       try {
         const anonCookie = await this.readAnonymousCookie(
@@ -1064,6 +1119,11 @@ export class AuthClient {
       }
       resolvedMaxAge = parsed;
     }
+    // scope and audience come from user-controllable query params on
+    // /auth/login, so clamp each independently to keep the resulting cookie
+    // under the byte cap. A ridiculous value gets replaced with `undefined`
+    // (equivalent to not passing the field), and the authorization server
+    // will reject any invalid value at /authorize.
     const transactionState: TransactionState = {
       nonce,
       maxAge: resolvedMaxAge,
@@ -1071,8 +1131,16 @@ export class AuthClient {
       responseType: RESPONSE_TYPES.CODE,
       state,
       returnTo,
-      scope: authorizationParams.get("scope") || undefined,
-      audience: authorizationParams.get("audience") || undefined,
+      scope: clampTransactionField(
+        "scope",
+        authorizationParams.get("scope") || undefined,
+        undefined
+      ),
+      audience: clampTransactionField(
+        "audience",
+        authorizationParams.get("audience") || undefined,
+        undefined
+      ),
       challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
       // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
@@ -1098,8 +1166,11 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    // Save transaction state
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies ?? reqCookies
+    );
 
     return res;
   }
@@ -1121,6 +1192,16 @@ export class AuthClient {
     ) {
       return new NextResponse(
         `Invalid challengeMode query param: ${queryChallengeMode}. Expected 'redirect', 'popup', or omit.`,
+        { status: 400 }
+      );
+    }
+
+    // Popup mode is not supported in Enterprise Connect mode: the callback
+    // returns the app's own session cookie via onCallback, not postMessage HTML,
+    // so the popup never closes and the parent window never receives the result.
+    if (this.enterpriseConnect && queryChallengeMode === "popup") {
+      return new NextResponse(
+        "challengeMode=popup is not supported in Enterprise Connect mode.",
         { status: 400 }
       );
     }
@@ -1179,7 +1260,11 @@ export class AuthClient {
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const logoutState = req.nextUrl.searchParams.get("state");
-    const federated = req.nextUrl.searchParams.has("federated");
+    const federatedParam = req.nextUrl.searchParams.get("federated");
+    const federated =
+      federatedParam === "false"
+        ? false
+        : req.nextUrl.searchParams.has("federated") || !!this.enterpriseConnect;
 
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
@@ -1743,6 +1828,24 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
+    // Enterprise Connect: Auth0 acts as an SSO relay only. No Auth0 session
+    // cookie is written and beforeSessionSaved is not run. The hook's response is
+    // the only way a cookie reaches the browser on the callback, so the app is
+    // expected to attach its own session cookie to it.
+    if (this.enterpriseConnect) {
+      if (!res) {
+        console.warn(
+          "[nextjs-auth0] onCallback returned a falsy value in Enterprise Connect mode. " +
+            "Ensure your hook returns a NextResponse on all code paths — the response is the " +
+            "only way a session cookie reaches the browser in this mode."
+        );
+      } else {
+        await this.transactionStore.delete(res.cookies, state);
+      }
+
+      return res;
+    }
+
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
@@ -1827,6 +1930,42 @@ export class AuthClient {
     const res = NextResponse.json(session?.user);
     addCacheControlHeadersForSession(res);
     return res;
+  }
+
+  /**
+   * Route: POST /auth/federated-domain
+   * Server-side Home Realm Discovery for Enterprise Connect. Reads `{ email }`
+   * from the request body and returns `{ isFederated }`. Backs the client-side
+   * `startEnterpriseLogin` helper so the browser never calls WebFinger directly
+   * (which would expose the tenant's customer domains to enumeration).
+   */
+  async handleFederatedDomain(req: NextRequest): Promise<NextResponse> {
+    let email: unknown;
+    try {
+      ({ email } = await req.json());
+    } catch {
+      return NextResponse.json(
+        { error: "invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof email !== "string" ||
+      /\s/.test(email) ||
+      email.indexOf("@") <= 0 ||
+      email.indexOf("@") !== email.lastIndexOf("@") ||
+      email.endsWith("@")
+    ) {
+      return NextResponse.json({ error: "invalid email" }, { status: 400 });
+    }
+
+    const emailDomain = email.slice(email.lastIndexOf("@") + 1).toLowerCase();
+    const isFederated = await isFederatedDomain(this.domain, emailDomain, {
+      customFetch: this.createWebFingerFetch()
+    });
+
+    return NextResponse.json({ isFederated });
   }
 
   /**
@@ -4495,7 +4634,8 @@ export class AuthClient {
             Math.floor(Date.now() / 1000) +
             Number(tokenEndpointResponse.expires_in),
           scope: tokenEndpointResponse.scope,
-          connection: options.connection
+          connection: options.connection,
+          ...(options.login_hint ? { loginHint: options.login_hint } : {})
         }
       ];
     }
@@ -5179,10 +5319,12 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo =
+        returnTo = clampReturnTo(
           sanitizedReturnTo.pathname +
-          sanitizedReturnTo.search +
-          sanitizedReturnTo.hash;
+            sanitizedReturnTo.search +
+            sanitizedReturnTo.hash,
+          this.signInReturnToPath
+        );
       }
     }
 
@@ -5220,7 +5362,11 @@ export class AuthClient {
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(
+      res.cookies,
+      transactionState,
+      req?.cookies
+    );
 
     return [null, res];
   }
@@ -5289,7 +5435,7 @@ export class AuthClient {
     } catch (e: any) {
       let message =
         "An unexpected error occurred while trying to initiate the connect account flow.";
-      if (e instanceof DPoPError) {
+      if (isDPoPError(e)) {
         message = e.message;
       }
       return [
@@ -5372,6 +5518,215 @@ export class AuthClient {
         null
       ];
     }
+  }
+
+  /**
+   * Lists the connected accounts for the current user via the My Account API.
+   *
+   * Handles pagination transparently (the endpoint returns at most 20 accounts
+   * per page and an optional `next` token) so the full set is always returned.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+   */
+  async listConnectedAccounts(
+    tokenSet: TokenSet
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    try {
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt || 0,
+          scope: tokenSet.scope,
+          token_type: tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
+      const accounts: ConnectedAccount[] = [];
+      let next: string | undefined;
+      // `next` is server-controlled. Guard against a server that echoes the same
+      // token or cycles, which would otherwise loop and grow `accounts` without
+      // bound on the request thread.
+      const seenNext = new Set<string>();
+      const MAX_PAGES = 100;
+      let pages = 0;
+
+      do {
+        if (++pages > MAX_PAGES || (next && seenNext.has(next))) {
+          // The server returned a non-terminating cursor (page cap exceeded or
+          // a repeated `next` token). Returning the partial list as success is
+          // unsafe: callers reconcile against it destructively (pruning cached
+          // tokens for omitted accounts, and disconnectAccount would leave
+          // additional matching accounts linked). Fail loudly instead.
+          return [
+            new ConnectedAccountsError({
+              code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+              message: "Connected-account pagination did not terminate safely."
+            }),
+            null
+          ];
+        }
+        if (next) {
+          seenNext.add(next);
+        }
+        const url = new URL("/me/v1/connected-accounts/accounts", this.issuer);
+        if (next) {
+          url.searchParams.set("next", next);
+        }
+
+        const res = await fetcher.fetchWithAuth(url.toString(), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          return buildConnectedAccountsErrorResponse(
+            res,
+            ConnectedAccountsErrorCodes.FAILED_TO_LIST
+          );
+        }
+
+        const body = await res.json();
+        for (const account of body.accounts ?? []) {
+          accounts.push({
+            id: account.id,
+            connection: account.connection,
+            accessType: account.access_type,
+            scopes: account.scopes,
+            createdAt: account.created_at,
+            expiresAt: account.expires_at,
+            orgId: account.org_id
+          });
+        }
+        next = body.next;
+      } while (next);
+
+      return [null, accounts];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to list the connected accounts.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_LIST,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Deletes a single connected account by its id via the My Account API.
+   *
+   * Accepts a pre-built fetcher so callers (e.g. `disconnectAccount`) can reuse
+   * a single fetcher across multiple deletes. With DPoP enabled, a new fetcher
+   * starts without a nonce and pays a `use_dpop_nonce` rejection + retry on the
+   * first request; reusing the fetcher amortises that to one round-trip total
+   * instead of one per account.
+   *
+   * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+   */
+  private async deleteConnectedAccount(
+    fetcher: Fetcher<Response>,
+    id: string
+  ): Promise<[null, null] | [ConnectedAccountsError, null]> {
+    try {
+      const url = new URL(
+        `/me/v1/connected-accounts/accounts/${encodeURIComponent(id)}`,
+        this.issuer
+      );
+
+      const res = await fetcher.fetchWithAuth(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!res.ok) {
+        return buildConnectedAccountsErrorResponse(
+          res,
+          ConnectedAccountsErrorCodes.FAILED_TO_DELETE
+        );
+      }
+
+      return [null, null];
+    } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to delete the connected account.";
+      if (isDPoPError(e)) {
+        message = e.message;
+      }
+      return [
+        new ConnectedAccountsError({
+          code: ConnectedAccountsErrorCodes.FAILED_TO_DELETE,
+          message
+        }),
+        null
+      ];
+    }
+  }
+
+  /**
+   * Disconnects all connected accounts for the given connection.
+   *
+   * Resolves the connection name to the connected-account id(s) via the list
+   * endpoint (the delete endpoint is keyed by id), then deletes each. The
+   * operation is idempotent: if the server reports no accounts for the
+   * connection, it returns the empty list without error so callers can still
+   * reconcile local state.
+   */
+  async disconnectAccount(
+    tokenSet: TokenSet,
+    connection: string
+  ): Promise<[null, ConnectedAccount[]] | [ConnectedAccountsError, null]> {
+    const [listError, accounts] = await this.listConnectedAccounts(tokenSet);
+    if (listError) {
+      return [listError, null];
+    }
+
+    const matching = accounts.filter(
+      (account) => account.connection === connection
+    );
+
+    if (matching.length === 0) {
+      return [null, []];
+    }
+
+    // Build the fetcher once and reuse it across every DELETE. With DPoP
+    // enabled, per-account fetchers would each start with an empty nonce cache
+    // and pay a `use_dpop_nonce` rejection + retry — turning N deletes into 2N
+    // requests. `listConnectedAccounts` already does this for pagination.
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      getAccessToken: async () => ({
+        accessToken: tokenSet.accessToken,
+        expiresAt: tokenSet.expiresAt || 0,
+        scope: tokenSet.scope,
+        token_type: tokenSet.token_type
+      }),
+      fetch: this.fetch
+    });
+
+    const removed: ConnectedAccount[] = [];
+    for (const account of matching) {
+      const [deleteError] = await this.deleteConnectedAccount(
+        fetcher,
+        account.id
+      );
+      if (deleteError) {
+        return [deleteError, null];
+      }
+      removed.push(account);
+    }
+
+    return [null, removed];
   }
 
   private async getOpenIdClientConfig(): Promise<
@@ -5928,22 +6283,68 @@ export class AuthClient {
       );
     }
 
-    // Decrypt token to extract audience
-    const { audience } = await decryptMfaToken(
+    // Decrypt token to extract audience and the requested scope
+    const { audience, scope: requestedScope } = await decryptMfaToken(
       encryptedMfaToken,
       this.sessionStore.secret
     );
 
     session.accessTokens = session.accessTokens || [];
-    session.accessTokens.push({
+
+    const newAccessTokenSet = {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
+      requestedScope,
       // oauth4webapi TokenEndpointResponse does NOT include audience field
       audience: audience || "",
       expiresAt:
         Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
       token_type: tokenResponse.token_type
-    });
+    };
+
+    // Replace an existing token for the same audience AND scope, or append a
+    // new one. Without this, each MFA step-up appends another full token set —
+    // growing the session cookie unbounded (and eventually a 431). The key is
+    // audience + normalized scope (not audience alone), so a differently-scoped
+    // step-up for the same audience does not evict a still-useful entry.
+    //
+    // The match is exact normalized-set equality on requestedScope (with a
+    // fallback to granted `scope` for legacy entries). `findAccessTokenSet`
+    // does a looser superset match via `compareScopes`; the two rules do NOT
+    // agree. Consequences of the divergence:
+    // - `findAccessTokenSet` may return a wider entry to satisfy a narrower
+    //   request (superset match on read), while this dedup keeps them as
+    //   separate entries (exact match on write).
+    // - Per audience, the session can accumulate up to one entry per distinct
+    //   normalized-scope set. Bounded per session, but looser than
+    //   `findAccessTokenSet` would suggest.
+    // Aligning to `compareScopes` here would be a behaviour change (wide
+    // entries would evict narrower ones), which is out of scope for this fix.
+    // See also `mergePopupTokenIntoSession` (session-helpers.ts) which uses a
+    // third rule — keyed on audience alone — pre-existing on main.
+    //
+    // Key on the requested scope (always present, with a fallback to the
+    // granted scope for legacy entries): the granted `scope` may be reduced or
+    // omitted by the server, which would otherwise collide distinct requests.
+    const normalizeScope = (scope?: string) =>
+      (scope ?? "").trim().split(/\s+/).filter(Boolean).sort().join(" ");
+    const newScope = normalizeScope(
+      newAccessTokenSet.requestedScope ?? newAccessTokenSet.scope
+    );
+    // Remove ALL existing entries for this audience + scope (not just the first)
+    // so sessions that accumulated duplicates before this fix deployed are
+    // compacted on the next step-up. Best-effort for legacy entries: those have
+    // no `requestedScope` and fall back to the granted `scope`, so if the server
+    // reduced scope, a legacy entry's fallback key may not match a new request's
+    // requestedScope key and it will be retained alongside the new entry.
+    session.accessTokens = session.accessTokens.filter(
+      (t) =>
+        !(
+          t.audience === newAccessTokenSet.audience &&
+          normalizeScope(t.requestedScope ?? t.scope) === newScope
+        )
+    );
+    session.accessTokens.push(newAccessTokenSet);
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
@@ -6862,7 +7263,11 @@ export class AuthClient {
             "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
         );
       }
-      await this.transactionStore.save(resCookies, magicLinkTransactionState);
+      await this.transactionStore.save(
+        resCookies,
+        magicLinkTransactionState,
+        req?.cookies
+      );
     }
   }
 
@@ -7761,6 +8166,62 @@ export async function buildConnectAccountErrorResponse(
       null
     ];
   }
+}
+
+export async function buildConnectedAccountsErrorResponse(
+  res: Response,
+  errorCode: ConnectedAccountsErrorCodes
+): Promise<[ConnectedAccountsError, null]> {
+  const actionVerb =
+    errorCode === ConnectedAccountsErrorCodes.FAILED_TO_LIST
+      ? "list the connected accounts"
+      : "delete the connected account";
+
+  try {
+    const errorBody = await res.json();
+    return [
+      new ConnectedAccountsError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`,
+        cause: new MyAccountApiError({
+          type: errorBody.type,
+          title: errorBody.title,
+          detail: errorBody.detail,
+          status: res.status,
+          validationErrors: errorBody.validation_errors
+        })
+      }),
+      null
+    ];
+  } catch (e) {
+    return [
+      new ConnectedAccountsError({
+        code: errorCode,
+        message: `The request to ${actionVerb} failed with status ${res.status}.`
+      }),
+      null
+    ];
+  }
+}
+
+/**
+ * Identifies a DPoP failure by its `code` rather than an `instanceof` check.
+ * `instanceof` is unreliable across module/realm boundaries (duplicate copies
+ * of the error class), so we match on the well-known DPoP error codes instead.
+ *
+ * @internal
+ */
+function isDPoPError(
+  e: unknown
+): e is { code: DPoPErrorCode; message: string } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    "message" in e &&
+    typeof (e as { message: unknown }).message === "string" &&
+    Object.values(DPoPErrorCode).includes((e as { code: DPoPErrorCode }).code)
+  );
 }
 
 /**

@@ -367,11 +367,15 @@ describe("url", () => {
      */
     function createMockRequest(
       pathname: string,
-      searchParams: Record<string, string> = {}
+      searchParams: Record<string, string | string[]> = {}
     ): NextRequest {
       const url = new URL(`http://localhost${pathname}`);
       Object.entries(searchParams).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
+        if (Array.isArray(value)) {
+          value.forEach((v) => url.searchParams.append(key, v));
+        } else {
+          url.searchParams.set(key, value);
+        }
       });
 
       return {
@@ -510,6 +514,47 @@ describe("url", () => {
         expect(result.toString()).toMatch(
           /https:\/\/issuer\/me\/v1\/profile\?.*includeMetadata=true/
         );
+      });
+
+      it("should preserve all values for repeated query parameter keys", () => {
+        const req = createMockRequest("/api/users", {
+          role: ["admin", "editor", "viewer"]
+        });
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.searchParams.getAll("role")).toEqual([
+          "admin",
+          "editor",
+          "viewer"
+        ]);
+      });
+
+      it("should preserve repeated keys mixed with single-value keys", () => {
+        const req = createMockRequest("/my-org/v1/members", {
+          filter: ["active", "pending"],
+          page: "1"
+        });
+        const options: ProxyOptions = {
+          proxyPath: "/my-org",
+          targetBaseUrl: "https://issuer/my-org",
+          audience: "https://issuer/my-org/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.searchParams.getAll("filter")).toEqual([
+          "active",
+          "pending"
+        ]);
+        expect(result.searchParams.get("page")).toBe("1");
       });
     });
 

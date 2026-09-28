@@ -928,6 +928,81 @@ describe("Logout Strategy Flow Tests", () => {
       expect(logoutUrl.searchParams.has("federated")).toBe(true);
       expect(logoutUrl.searchParams.get("federated")).toBe("");
     });
+
+    it("defaults federated=true in EC mode even when ?federated is absent", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        enterpriseConnect: true,
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      const logoutUrl = new URL(response.headers.get("Location")!);
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+    });
+
+    it("respects explicit ?federated in EC mode", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        enterpriseConnect: true,
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      const logoutUrl = new URL(response.headers.get("Location")!);
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+    });
+
+    it("allows ?federated=false to suppress federated logout even in EC mode", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        enterpriseConnect: true,
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated=false", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      const logoutUrl = new URL(response.headers.get("Location")!);
+      expect(logoutUrl.searchParams.has("federated")).toBe(false);
+    });
   });
 
   describe("state parameter support", () => {

@@ -1,24 +1,36 @@
 # Change Log
 
-## [v4.28.0](https://github.com/auth0/nextjs-auth0/tree/v4.28.0) (2026-09-22)
+## [v4.30.0](https://github.com/auth0/nextjs-auth0/tree/v4.30.0) (2026-09-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.29.0...v4.30.0)
+
+**Added**
+- feat: add typed Experiment Center override params  [\#2852](https://github.com/auth0/nextjs-auth0/pull/2852) ([Piyush-85](https://github.com/Piyush-85))
+- feat: Enterprise connect implementation [\#2799](https://github.com/auth0/nextjs-auth0/pull/2799) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: bind middleware to the Auth0Client instance [\#2840](https://github.com/auth0/nextjs-auth0/pull/2840) ([sleitor](https://github.com/sleitor))
+
+## [v4.29.0](https://github.com/auth0/nextjs-auth0/tree/v4.29.0) (2026-09-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.28.0...v4.29.0)
+
+**Added**
+- feat: FIFO eviction for `__txn_*` cookies — total size capped at 3500 bytes; oldest in-flight transactions are evicted first when the limit is reached, preventing 431 Request Header Fields Too Large errors caused by unbounded accumulation [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+
+**⚠️ Changed**
+- `__txn_*` cookies are now written as `{timestamp}:{jwe}` instead of bare `{jwe}`. **Rolling deployments only**: any login started on a v4.29.0 pod and completed on a v4.28.0 pod (or vice versa) will receive "state parameter is invalid" and the user must re-initiate login — the window is bounded by `transactionCookie.maxAge` (default 1 hour). To eliminate the overlap entirely, deploy v4.29.0 to all pods before accepting new logins, or shorten the TTL (`transactionCookie: { maxAge: 600 }`) to reduce the window. [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: txn cookie accumulation [\#2748](https://github.com/auth0/nextjs-auth0/pull/2748) ([Piyush-85](https://github.com/Piyush-85))
+- fix: preserve multi-value query params in proxy URL builder [\#2834](https://github.com/auth0/nextjs-auth0/pull/2834) ([Piyush-85](https://github.com/Piyush-85))
+
+## [v4.28.0](https://github.com/auth0/nextjs-auth0/tree/v4.28.0) (2026-08-28)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.27.0...v4.28.0)
 
 **Added**
-- feat: replace session_token in /authorize with short-lived anon_transfer_token for anonymous session linking [\#2813](https://github.com/auth0/nextjs-auth0/pull/2813) ([Piyush-85](https://github.com/Piyush-85))
-  - The SDK now mints a 30-second single-use JWE transfer ticket via `POST /anonymous/token` and appends it as `anon_transfer_token` to the `/authorize` redirect. The raw `session_token` session handle is no longer sent to `/authorize`. **Note:** on the non-PAR path, `anon_transfer_token` still appears in the `/authorize` redirect URL (browser history, Referer headers, access logs). Enable Pushed Authorization Requests (`pushedAuthorizationRequests: true`) to keep the ticket out of the browser-visible URL.
-  - New `anonymousSession.clearAnonymousSessionOnLogin` config option (default `true`) controls whether the local `auth0_anon` cookie is cleared. The cookie is now cleared at the **successful callback** (after the authenticated session is established), not at login initiation, so abandoned logins do not cause data loss.
-  - `ctx.anonymousSessionLinked` in the `onCallback` hook now reflects a link **attempt** (ticket successfully minted and appended), not a confirmed link.
-  - Login is fail-open: if the transfer ticket mint fails for any reason, the login proceeds normally without a ticket.
+-  feat: add connected-accounts disconnect and listing with orphan cookie cleanup [\#2784](https://github.com/auth0/nextjs-auth0/pull/2784) ([Piyush-85](https://github.com/Piyush-85))
 
-**Fixed**
-- fix: validate expires_in lower bound in anonymous session token response (must be positive) [\#2813](https://github.com/auth0/nextjs-auth0/pull/2813) ([Piyush-85](https://github.com/Piyush-85))
-- fix: route expires_in validation and cookie payload construction through single toCookiePayload owner [\#2813](https://github.com/auth0/nextjs-auth0/pull/2813) ([Piyush-85](https://github.com/Piyush-85))
-
-**⚠️ Removed (anonymous sessions EA/unstable)**
-- The following symbols were removed from the public types barrel (`import ... from "@auth0/nextjs-auth0"`). These were never intended for public export and are internal implementation details. Because anonymous sessions carry Early Access / unstable status, removals are acceptable under the minor version bump. If you imported these directly, remove the imports:
-  - `isRecoverableAnonymousError` (internal error-classification helper)
-  - `AnonymousCookiePayload` (internal encrypted-cookie shape)
-  - `AnonymousTokenResponse` (internal `/anonymous/token` response shape)
+**Security**
+- fix: bump next.js to patched versions (15.5.24, 16.3.3) addressing cr… [\#2824](https://github.com/auth0/nextjs-auth0/pull/2824) ([Piyush-85](https://github.com/Piyush-85))
 
 ## [v4.27.0](https://github.com/auth0/nextjs-auth0/tree/v4.27.0) (2026-08-18)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.26.0...v4.27.0)

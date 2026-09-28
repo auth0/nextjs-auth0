@@ -124,9 +124,9 @@ export interface CompleteConnectAccountResponse {
    */
   connection: string;
   /**
-   * The access type, always 'offline'.
+   * The access type, always `"offline"` for the Connect Account response.
    */
-  accessType: string;
+  accessType: "offline";
   /**
    * Array of scopes granted.
    */
@@ -139,4 +139,58 @@ export interface CompleteConnectAccountResponse {
    * ISO date string of when the refresh token expires (optional).
    */
   expiresAt?: string;
+}
+
+/**
+ * Options to disconnect (unlink) a connected account using the My Account API.
+ * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+ */
+export interface DisconnectAccountOptions {
+  /**
+   * The name of the connection to disconnect (e.g., 'google-oauth2', 'facebook').
+   *
+   * All connected accounts for this connection are disconnected. Per-account
+   * disconnect is not currently supported because the My Account API keys
+   * connected accounts by id and does not expose the login hint used to
+   * disambiguate multiple accounts on the same connection.
+   */
+  connection: string;
+}
+
+/**
+ * A connected account as returned by the My Account API list endpoint.
+ * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+ */
+export interface ConnectedAccount {
+  /**
+   * The unique identifier of the connected account (e.g., 'cac_...').
+   */
+  id: string;
+  /**
+   * The name of the connection associated with the connected account.
+   */
+  connection: string;
+  /**
+   * The access type. Currently always returned as `"offline"` by the My
+   * Account API, but typed as optional since the field is not guaranteed on
+   * the response.
+   */
+  accessType?: "offline";
+  /**
+   * Array of scopes granted for this connected account.
+   */
+  scopes?: string[];
+  /**
+   * ISO date string of when the connected account was created.
+   */
+  createdAt?: string;
+  /**
+   * ISO date string of when the connected account expires (optional).
+   */
+  expiresAt?: string;
+  /**
+   * The organization ID this connected account is scoped to. Only present for
+   * accounts bound to an organization.
+   */
+  orgId?: string;
 }

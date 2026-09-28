@@ -5,11 +5,13 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
   vi,
-  type MockedFunction
+  type MockedFunction,
+  type MockInstance
 } from "vitest";
 
 import {
@@ -18,13 +20,16 @@ import {
   BackchannelAuthenticationError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidConfigurationError,
   MyAccountApiError,
   TokenRevocationError,
   TokenRevocationErrorCode
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
-import { generateSecret } from "../test/utils.js";
+import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
 import {
   AccessTokenSet,
   RESPONSE_TYPES,
@@ -32,7 +37,12 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { AuthClient } from "./auth-client.js";
+import { _clearWebFingerCacheForTesting } from "../utils/webfingerCache.js";
+import {
+  AuthClient,
+  buildConnectAccountErrorResponse,
+  type AuthClientOptions
+} from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -118,7 +128,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onCompleteConnectAccountRequest,
     completeConnectAccountErrorResponse,
     onRevocationRequest,
-    revocationErrorResponse
+    revocationErrorResponse,
+    onListConnectedAccountsRequest,
+    listConnectedAccountsResponses,
+    onDeleteConnectedAccountRequest,
+    deleteConnectedAccountErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -134,7 +148,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     completeConnectAccountErrorResponse?: Response;
     onRevocationRequest?: (request: Request) => Promise<void>;
     revocationErrorResponse?: Response;
+    onListConnectedAccountsRequest?: (request: Request) => Promise<void>;
+    // Successive responses for the paginated list endpoint. Each call consumes
+    // the next entry; the last entry is reused once exhausted.
+    listConnectedAccountsResponses?: Response[];
+    onDeleteConnectedAccountRequest?: (request: Request) => Promise<void>;
+    deleteConnectedAccountErrorResponse?: Response;
   } = {}) {
+    let listConnectedAccountsCallCount = 0;
     // this function acts as a mock authorization server
     return vi.fn(
       async (
@@ -282,6 +303,41 @@ ca/T0LLtgmbMmxSv/MmzIg==
               status: 201
             }
           );
+        }
+
+        // List connected accounts
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts" &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          if (onListConnectedAccountsRequest) {
+            await onListConnectedAccountsRequest(new Request(input, init));
+          }
+
+          if (listConnectedAccountsResponses?.length) {
+            const index = Math.min(
+              listConnectedAccountsCallCount,
+              listConnectedAccountsResponses.length - 1
+            );
+            listConnectedAccountsCallCount++;
+            return listConnectedAccountsResponses[index];
+          }
+
+          return Response.json({ accounts: [] }, { status: 200 });
+        }
+
+        // Delete connected account
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          if (onDeleteConnectedAccountRequest) {
+            await onDeleteConnectedAccountRequest(new Request(input, init));
+          }
+          if (deleteConnectedAccountErrorResponse) {
+            return deleteConnectedAccountErrorResponse;
+          }
+          return new Response(null, { status: 204 });
         }
 
         // Revocation endpoint
@@ -1674,7 +1730,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2004,7 +2060,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(
           (
             (await decrypt(
-              transactionCookie!.value,
+              stripTransactionValuePrefix(transactionCookie!.value),
               secret
             )) as jose.JWTDecryptResult
           ).payload
@@ -2358,7 +2414,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2405,7 +2461,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2448,7 +2504,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2499,7 +2555,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2554,7 +2610,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -2744,7 +2800,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(
           (
             (await decrypt(
-              transactionCookie.value,
+              stripTransactionValuePrefix(transactionCookie.value),
               secret
             )) as jose.JWTDecryptResult
           ).payload
@@ -2908,7 +2964,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(
             (
               (await decrypt(
-                transactionCookie.value,
+                stripTransactionValuePrefix(transactionCookie.value),
                 secret
               )) as jose.JWTDecryptResult
             ).payload
@@ -2995,7 +3051,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
           expect(
-            (await decrypt(transactionCookie!.value, secret))!.payload
+            (await decrypt(
+              stripTransactionValuePrefix(transactionCookie!.value),
+              secret
+            ))!.payload
           ).toEqual(
             expect.objectContaining({
               nonce: expect.any(String),
@@ -5713,6 +5772,362 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
+    describe("stateless passthrough (Enterprise Connect)", async () => {
+      /**
+       * Drives a successful callback and returns the response, so each test can
+       * assert on cookies and redirect target.
+       */
+      async function runCallback({
+        onCallback,
+        enterpriseConnect,
+        returnTo = "/dashboard"
+      }: {
+        onCallback: AuthClientOptions["onCallback"];
+        enterpriseConnect?: true;
+        returnTo?: string;
+      }) {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          onCallback,
+          enterpriseConnect
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CODE,
+          state,
+          returnTo
+        };
+        const expiration = Math.floor(Date.now() / 1000 + 60 * 60);
+
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+
+        return authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+      }
+
+      it("uses the hook's NextResponse and writes no __session when enterpriseConnect is true", async () => {
+        const onCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
+
+        const response = await runCallback({
+          onCallback,
+          enterpriseConnect: true
+        });
+
+        // The hook still receives the session so it can persist identity itself.
+        // Claims are unfiltered here: beforeSessionSaved and the default claim
+        // filter both belong to the session-write path, which EC skips.
+        expect(onCallback).toHaveBeenCalledWith(
+          null,
+          expect.objectContaining({ returnTo: "/dashboard" }),
+          expect.objectContaining({
+            user: expect.objectContaining({ sub: DEFAULT.sub })
+          })
+        );
+
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("honours a response returned by the hook", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/welcome", DEFAULT.appBaseUrl))
+            ),
+          enterpriseConnect: true,
+          returnTo: "/dashboard"
+        });
+
+        expect(new URL(response.headers.get("Location")!).pathname).toEqual(
+          "/welcome"
+        );
+        expect(response.cookies.get("__session")).toBeUndefined();
+      });
+
+      it("clears the transaction cookie on the EC path", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            ),
+          enterpriseConnect: true
+        });
+
+        const txnCookie = response.cookies.get("__txn_transaction-state");
+        expect(txnCookie?.value).toEqual("");
+        expect(txnCookie?.maxAge).toEqual(0);
+      });
+
+      it("still writes the session cookie when enterpriseConnect is not set", async () => {
+        const response = await runCallback({
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
+        });
+
+        expect(response.cookies.get("__session")).toBeDefined();
+      });
+
+      it("does not run beforeSessionSaved on the passthrough path", async () => {
+        const state = "transaction-state";
+        const secret = await generateSecret(32);
+        const beforeSessionSaved = vi.fn();
+
+        const authClient = new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer(),
+
+          enterpriseConnect: true,
+          beforeSessionSaved,
+          onCallback: vi
+            .fn()
+            .mockResolvedValue(
+              NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+            )
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", "auth-code");
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(
+            {
+              nonce: "nonce-value",
+              maxAge: 3600,
+              codeVerifier: "code-verifier",
+              responseType: RESPONSE_TYPES.CODE,
+              state,
+              returnTo: "/dashboard"
+            } satisfies TransactionState,
+            secret,
+            Math.floor(Date.now() / 1000 + 60 * 60)
+          )}`
+        );
+
+        await authClient.handleCallback(
+          new NextRequest(url, { method: "GET", headers })
+        );
+
+        expect(beforeSessionSaved).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("handleFederatedDomain route (POST /auth/federated-domain)", async () => {
+      const OIDC_REL = "http://openid.net/specs/connect/1.0/issuer";
+      let fetchSpy: MockInstance<typeof fetch>;
+
+      /** A WebFinger 200 body advertising the OIDC issuer link (managed domain). */
+      function managedWebFingerResponse() {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          body: null,
+          json: async () => ({ links: [{ rel: OIDC_REL }] })
+        } as unknown as Response;
+      }
+
+      /** A WebFinger 404 (domain not managed for enterprise SSO). */
+      function unmanagedWebFingerResponse() {
+        return {
+          ok: false,
+          status: 404,
+          headers: new Headers(),
+          body: null,
+          json: async () => ({})
+        } as unknown as Response;
+      }
+
+      async function buildClient() {
+        const secret = await generateSecret(32);
+        const authServerFetch = getMockAuthorizationServer();
+        // Route WebFinger calls to global.fetch so the spy intercepts them;
+        // all other URLs stay on the authorization-server mock.
+        const fetch = vi.fn(
+          (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            const href = input instanceof Request ? input.url : String(input);
+            if (new URL(href).pathname.startsWith("/.well-known/webfinger")) {
+              return globalThis.fetch(input, init);
+            }
+            return authServerFetch(input, init);
+          }
+        );
+        return new AuthClient({
+          transactionStore: new TransactionStore({ secret }),
+          sessionStore: new StatelessSessionStore({ secret }),
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          enterpriseConnect: true,
+          fetch
+        });
+      }
+
+      function post(body: string) {
+        return new NextRequest(
+          new URL("/auth/federated-domain", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body
+          }
+        );
+      }
+
+      beforeEach(() => {
+        _clearWebFingerCacheForTesting();
+        // WebFinger calls are routed to global.fetch by the buildClient() wrapper
+        // above, so spying on global.fetch still intercepts them.
+        fetchSpy = vi.spyOn(global, "fetch");
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+        _clearWebFingerCacheForTesting();
+      });
+
+      it("returns { isFederated: true } and queries WebFinger against the email domain", async () => {
+        fetchSpy.mockResolvedValue(managedWebFingerResponse());
+        const authClient = await buildClient();
+
+        const response = await authClient.handler(
+          post(JSON.stringify({ email: "jane@acme.com" }))
+        );
+
+        expect(response.status).toEqual(200);
+        await expect(response.json()).resolves.toEqual({ isFederated: true });
+
+        const webfingerUrl = fetchSpy.mock.calls[0][0] as string;
+        expect(webfingerUrl).toContain(
+          `https://${DEFAULT.domain}/.well-known/webfinger`
+        );
+        expect(webfingerUrl).toContain("urn:auth0:discovery:domain:acme.com");
+      });
+
+      it("returns { isFederated: false } for an unmanaged domain", async () => {
+        fetchSpy.mockResolvedValue(unmanagedWebFingerResponse());
+        const authClient = await buildClient();
+
+        const response = await authClient.handler(
+          post(JSON.stringify({ email: "jane@gmail.com" }))
+        );
+
+        expect(response.status).toEqual(200);
+        await expect(response.json()).resolves.toEqual({ isFederated: false });
+      });
+
+      it("lowercases the email domain before discovery", async () => {
+        fetchSpy.mockResolvedValue(unmanagedWebFingerResponse());
+        const authClient = await buildClient();
+
+        await authClient.handler(
+          post(JSON.stringify({ email: "Jane@ACME.com" }))
+        );
+
+        const webfingerUrl = fetchSpy.mock.calls[0][0] as string;
+        expect(webfingerUrl).toContain("urn:auth0:discovery:domain:acme.com");
+      });
+
+      it("returns 400 on a malformed JSON body without calling WebFinger", async () => {
+        const authClient = await buildClient();
+
+        const response = await authClient.handler(post("not-json"));
+
+        expect(response.status).toEqual(400);
+        await expect(response.json()).resolves.toEqual({
+          error: "invalid request body"
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when the email is missing or not an email", async () => {
+        const authClient = await buildClient();
+
+        const missing = await authClient.handler(post(JSON.stringify({})));
+        expect(missing.status).toEqual(400);
+        await expect(missing.json()).resolves.toEqual({
+          error: "invalid email"
+        });
+
+        const notEmail = await authClient.handler(
+          post(JSON.stringify({ email: "not-an-email" }))
+        );
+        expect(notEmail.status).toEqual(400);
+        await expect(notEmail.json()).resolves.toEqual({
+          error: "invalid email"
+        });
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("only dispatches on POST: a GET does not run discovery", async () => {
+        const authClient = await buildClient();
+
+        await authClient.handler(
+          new NextRequest(
+            new URL("/auth/federated-domain", DEFAULT.appBaseUrl),
+            { method: "GET" }
+          )
+        );
+
+        // The route is POST-only, so a GET falls through to the default handler
+        // and never reaches handleFederatedDomain / WebFinger.
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+    });
+
     describe("beforeSessionSaved hook", async () => {
       it("should be called with the correct arguments", async () => {
         const state = "transaction-state";
@@ -7551,7 +7966,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -7698,7 +8113,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -8141,7 +8556,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(
         (
           (await decrypt(
-            transactionCookie!.value,
+            stripTransactionValuePrefix(transactionCookie!.value),
             secret
           )) as jose.JWTDecryptResult
         ).payload
@@ -9231,6 +9646,49 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
 
+    it("should forward Experiment Center override params to the authorization URL", async () => {
+      const authClient = await createAuthClient();
+
+      const response = await authClient.startInteractiveLogin({
+        authorizationParameters: {
+          experiment_id: "exp_passkeys_onboarding",
+          variation_id: "var_passkey_enabled",
+          segment_id: "seg_enterprise"
+        }
+      });
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.searchParams.get("experiment_id")).toBe(
+        "exp_passkeys_onboarding"
+      );
+      expect(authorizationUrl.searchParams.get("variation_id")).toBe(
+        "var_passkey_enabled"
+      );
+      expect(authorizationUrl.searchParams.get("segment_id")).toBe(
+        "seg_enterprise"
+      );
+    });
+
+    it("should not add segment_id when only experiment_id and variation_id are provided", async () => {
+      const authClient = await createAuthClient();
+
+      const response = await authClient.startInteractiveLogin({
+        authorizationParameters: {
+          experiment_id: "exp_passkeys_onboarding",
+          variation_id: "var_passkey_enabled"
+        }
+      });
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.searchParams.get("experiment_id")).toBe(
+        "exp_passkeys_onboarding"
+      );
+      expect(authorizationUrl.searchParams.get("variation_id")).toBe(
+        "var_passkey_enabled"
+      );
+      expect(authorizationUrl.searchParams.has("segment_id")).toBe(false);
+    });
+
     it("should throw when appBaseUrl is missing and no request is available", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -9513,7 +9971,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: undefined,
+        loginHint: "000100123"
       });
     });
 
@@ -9616,7 +10076,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: undefined,
+        loginHint: "000100123"
       });
       expect(fetchSpy).toHaveBeenCalled();
     });
@@ -10059,6 +10521,517 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error).toBeTruthy();
       expect(error?.code).toBe("failed_to_exchange_refresh_token");
       expect(connectionTokenSet).toBeNull();
+    });
+  });
+
+  describe("listConnectedAccounts", async () => {
+    function buildAuthClient(fetchSpy: any) {
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret: "secret" }),
+        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret: "secret",
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+    }
+
+    const tokenSet = {
+      accessToken: "my-account-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+
+    it("returns the mapped connected accounts from a single page", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                {
+                  id: "cac_1",
+                  connection: "google-oauth2",
+                  access_type: "offline",
+                  scopes: ["email"],
+                  created_at: "2024-01-01T00:00:00.000Z",
+                  expires_at: "2024-02-01T00:00:00.000Z",
+                  org_id: "org_123"
+                }
+              ]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts).toEqual([
+        {
+          id: "cac_1",
+          connection: "google-oauth2",
+          accessType: "offline",
+          scopes: ["email"],
+          createdAt: "2024-01-01T00:00:00.000Z",
+          expiresAt: "2024-02-01T00:00:00.000Z",
+          orgId: "org_123"
+        }
+      ]);
+    });
+
+    it("maps orgId as undefined for accounts not bound to an organization", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [{ id: "cac_1", connection: "google-oauth2" }]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts?.[0].orgId).toBeUndefined();
+    });
+
+    it("follows pagination via the next token", async () => {
+      const listConnectedAccountsResponses = [
+        Response.json(
+          {
+            accounts: [{ id: "cac_1", connection: "google-oauth2" }],
+            next: "page-2"
+          },
+          { status: 200 }
+        ),
+        Response.json(
+          { accounts: [{ id: "cac_2", connection: "github" }] },
+          { status: 200 }
+        )
+      ];
+      const nextParams: (string | null)[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses,
+        onListConnectedAccountsRequest: async (req) => {
+          nextParams.push(new URL(req.url).searchParams.get("next"));
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(error).toBeNull();
+      expect(accounts?.map((a) => a.id)).toEqual(["cac_1", "cac_2"]);
+      // First request has no next param, second passes the token from page 1.
+      expect(nextParams).toEqual([null, "page-2"]);
+    });
+
+    it("returns a FAILED_TO_LIST error on a non-ok response", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              type: "https://auth0.com/errors",
+              title: "Forbidden",
+              detail: "insufficient scope"
+            },
+            { status: 403 }
+          )
+        ]
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.cause?.status).toBe(403);
+    });
+
+    it("fails with FAILED_TO_LIST when the server repeats the same next token", async () => {
+      // A server that echoes the same `next` token on every page would loop
+      // forever without the cycle guard. Returning the partial list as success
+      // is unsafe (callers reconcile against it destructively), so we surface a
+      // FAILED_TO_LIST error instead. Each call returns a fresh Response
+      // (bodies can only be read once).
+      let requests = 0;
+      const base = getMockAuthorizationServer();
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts" &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          requests++;
+          return Response.json(
+            {
+              accounts: [{ id: "cac_1", connection: "google-oauth2" }],
+              next: "same-token"
+            },
+            { status: 200 }
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe(
+        "Connected-account pagination did not terminate safely."
+      );
+      // First page (no token) + one page for "same-token", then the repeat is
+      // detected before a third request is issued.
+      expect(requests).toBe(2);
+    });
+
+    it("returns a FAILED_TO_LIST error when the fetch throws", async () => {
+      // A transport-level failure (e.g. network error) is thrown, not returned
+      // as a non-ok Response, and must be caught and surfaced as a typed error.
+      const fetchSpy = vi.fn(async () => {
+        throw new TypeError("network down");
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe(
+        "An unexpected error occurred while trying to list the connected accounts."
+      );
+    });
+
+    it("surfaces a DPoPError message when listing throws one", async () => {
+      // A DPoP failure throws a DPoPError; its message is passed through rather
+      // than the generic fallback. Discovery must succeed first (it also uses
+      // this.fetch), so only the accounts request throws.
+      const base = getMockAuthorizationServer();
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname === "/me/v1/connected-accounts/accounts") {
+          throw new DPoPError(
+            DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+            "DPoP keypair is missing."
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, accounts] =
+        await authClient.listConnectedAccounts(tokenSet);
+
+      expect(accounts).toBeNull();
+      expect(error?.code).toBe("failed_to_list");
+      expect(error?.message).toBe("DPoP keypair is missing.");
+    });
+  });
+
+  describe("disconnectAccount", async () => {
+    function buildAuthClient(fetchSpy: any) {
+      return new AuthClient({
+        transactionStore: new TransactionStore({ secret: "secret" }),
+        sessionStore: new StatelessSessionStore({ secret: "secret" }),
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret: "secret",
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetchSpy
+      });
+    }
+
+    const tokenSet = {
+      accessToken: "my-account-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+
+    it("deletes every account matching the connection", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                { id: "cac_1", connection: "google-oauth2" },
+                { id: "cac_2", connection: "github" },
+                { id: "cac_3", connection: "google-oauth2" }
+              ]
+            },
+            { status: 200 }
+          )
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(error).toBeNull();
+      expect(deletedIds).toEqual(["cac_1", "cac_3"]);
+      expect(removed?.map((a) => a.id)).toEqual(["cac_1", "cac_3"]);
+    });
+
+    it("is idempotent when no account matches the connection", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_2", connection: "github" }] },
+            { status: 200 }
+          )
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(error).toBeNull();
+      expect(deletedIds).toEqual([]);
+      expect(removed).toEqual([]);
+    });
+
+    it("propagates a list error without attempting deletes", async () => {
+      const deletedIds: string[] = [];
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json({ title: "Nope", detail: "no" }, { status: 401 })
+        ],
+        onDeleteConnectedAccountRequest: async (req) => {
+          deletedIds.push(new URL(req.url).pathname.split("/").pop()!);
+        }
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error?.code).toBe("failed_to_list");
+      expect(deletedIds).toEqual([]);
+    });
+
+    it("returns a FAILED_TO_DELETE error when a delete fails", async () => {
+      const fetchSpy = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ],
+        deleteConnectedAccountErrorResponse: Response.json(
+          { title: "Too many", detail: "rate limited" },
+          { status: 429 }
+        )
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.cause?.status).toBe(429);
+    });
+
+    it("returns a FAILED_TO_DELETE error even when the first delete succeeded (partial failure)", async () => {
+      // Two accounts for the same connection: cac_1 unlinks successfully, cac_2
+      // fails with 429. The error surfaces so the caller knows the disconnect
+      // did not fully complete. The caller-side (client.ts) prunes connection
+      // -scoped cached tokens regardless, so orphaned __FC cookies are cleaned up.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            {
+              accounts: [
+                { id: "cac_1", connection: "google-oauth2" },
+                { id: "cac_2", connection: "google-oauth2" }
+              ]
+            },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts/cac_1" &&
+          init?.method === "DELETE"
+        ) {
+          return new Response(null, { status: 204 });
+        }
+        if (
+          url.pathname === "/me/v1/connected-accounts/accounts/cac_2" &&
+          init?.method === "DELETE"
+        ) {
+          return Response.json(
+            { title: "Too many", detail: "rate limited" },
+            { status: 429 }
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.cause?.status).toBe(429);
+    });
+
+    it("returns a FAILED_TO_DELETE error when the delete fetch throws", async () => {
+      // List succeeds, but the DELETE transport call throws (e.g. network
+      // error). The thrown error must be caught and surfaced as a typed error.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          throw new TypeError("network down");
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error).toBeInstanceOf(ConnectedAccountsError);
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.message).toBe(
+        "An unexpected error occurred while trying to delete the connected account."
+      );
+    });
+
+    it("surfaces a DPoPError message when the delete throws one", async () => {
+      // List succeeds; the DELETE throws a DPoPError whose message is passed
+      // through rather than the generic fallback.
+      const base = getMockAuthorizationServer({
+        listConnectedAccountsResponses: [
+          Response.json(
+            { accounts: [{ id: "cac_1", connection: "google-oauth2" }] },
+            { status: 200 }
+          )
+        ]
+      });
+      const fetchSpy = vi.fn(async (input: any, init?: any) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (
+          url.pathname.startsWith("/me/v1/connected-accounts/accounts/") &&
+          init?.method === "DELETE"
+        ) {
+          throw new DPoPError(
+            DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+            "DPoP keypair is missing."
+          );
+        }
+        return base(input, init);
+      });
+      const authClient = buildAuthClient(fetchSpy);
+
+      const [error, removed] = await authClient.disconnectAccount(
+        tokenSet,
+        "google-oauth2"
+      );
+
+      expect(removed).toBeNull();
+      expect(error?.code).toBe("failed_to_delete");
+      expect(error?.message).toBe("DPoP keypair is missing.");
+    });
+  });
+
+  describe("buildConnectAccountErrorResponse", async () => {
+    it("falls back to a plain error when the response body is not JSON", async () => {
+      // Some error responses (e.g. an upstream proxy 502) carry a non-JSON
+      // body; `res.json()` then throws and we must still return a typed error
+      // without a MyAccountApiError cause.
+      const res = new Response("<html>Bad Gateway</html>", {
+        status: 502,
+        headers: { "content-type": "text/html" }
+      });
+
+      const [error, result] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_INITIATE
+      );
+
+      expect(result).toBeNull();
+      expect(error).toBeInstanceOf(ConnectAccountError);
+      expect(error?.code).toBe(ConnectAccountErrorCodes.FAILED_TO_INITIATE);
+      expect(error?.message).toBe(
+        "The request to initiate the connect account flow failed with status 502."
+      );
+      // No parseable body means no MyAccountApiError cause is attached.
+      expect(error?.cause).toBeUndefined();
+    });
+
+    it("uses the complete verb for a FAILED_TO_COMPLETE code", async () => {
+      const res = new Response("not json", {
+        status: 500,
+        headers: { "content-type": "text/plain" }
+      });
+
+      const [error] = await buildConnectAccountErrorResponse(
+        res,
+        ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+      );
+
+      expect(error?.message).toBe(
+        "The request to complete the connect account flow failed with status 500."
+      );
     });
   });
 
@@ -11129,11 +12102,11 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     };
 
     afterEach(() => {
-      // Clean up environment variables after each test
       delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
       delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
       delete process.env.AUTH0_DPOP_CLOCK_SKEW;
       delete process.env.AUTH0_DPOP_CLOCK_TOLERANCE;
+      vi.restoreAllMocks();
     });
 
     it("should include dpop_jkt in authorization URL when dpopKeyPair is provided", async () => {
@@ -11297,8 +12270,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "Failed to load DPoP keypair from environment variables"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should not include dpop_jkt when useDPoP is false", async () => {
@@ -11378,8 +12349,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should fall back to bearer auth when only private key is in environment variables", async () => {
@@ -11424,8 +12393,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
           "useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
-
-      warnSpy.mockRestore();
     });
 
     it("should update clientMetadata with clockSkew and clockTolerance from environment variables", async () => {

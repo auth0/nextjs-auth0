@@ -360,7 +360,7 @@ describe("Stateless Session Store", async () => {
       const headers = new Headers();
       headers.append(
         "cookie",
-        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue}`
+        `__session=${encryptedCookieValue};__FC_0=${encryptedGoogleConnectionCookieValue}`
       );
       const requestCookies = new RequestCookies(headers);
 
@@ -418,7 +418,7 @@ describe("Stateless Session Store", async () => {
       const headers = new Headers();
       headers.append(
         "cookie",
-        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue};__FC.1=${encryptedGithubConnectionCookieValue}`
+        `__session=${encryptedCookieValue};__FC_0=${encryptedGoogleConnectionCookieValue};__FC_1=${encryptedGithubConnectionCookieValue}`
       );
       const requestCookies = new RequestCookies(headers);
 
@@ -615,15 +615,44 @@ describe("Stateless Session Store", async () => {
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.set).toHaveBeenCalledTimes(4);
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          1,
+        // setChunkedCookie for __session now makes 6 calls (1 set + 5 deletes of __session__0..4)
+        // Then legacy cookie deletion: 1 base + 2 legacy chunks = 3
+        // Total: 6 + 1 + 2 = 9 calls
+        expect(responseCookies.set).toHaveBeenCalledTimes(9);
+        // Verify main __session cookie is set (without maxAge: 0)
+        expect(responseCookies.set).toHaveBeenCalledWith(
           "__session",
           expect.any(String),
-          expect.not.objectContaining({ maxAge: 0, path: "/" })
+          expect.not.objectContaining({ maxAge: 0 })
         );
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          2,
+        // Verify deterministic deletes of __session__0..4
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__0`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__1`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__2`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__3`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          `__session__4`,
+          "",
+          expect.objectContaining({ maxAge: 0 })
+        );
+        // Verify legacy cookie base is deleted
+        expect(responseCookies.set).toHaveBeenCalledWith(
           LEGACY_COOKIE_NAME,
           "",
           {
@@ -634,8 +663,8 @@ describe("Stateless Session Store", async () => {
             secure: false
           }
         );
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          3,
+        // Verify legacy chunks .0 and .1 are deleted
+        expect(responseCookies.set).toHaveBeenCalledWith(
           `${LEGACY_COOKIE_NAME}.0`,
           "",
           {
@@ -646,8 +675,7 @@ describe("Stateless Session Store", async () => {
             secure: false
           }
         );
-        expect(responseCookies.set).toHaveBeenNthCalledWith(
-          4,
+        expect(responseCookies.set).toHaveBeenCalledWith(
           `${LEGACY_COOKIE_NAME}.1`,
           "",
           {
@@ -928,26 +956,470 @@ describe("Stateless Session Store", async () => {
       const decryptedPayload = decryptedNewSession!.payload;
       expect(decryptedPayload).toEqual(expect.objectContaining(sessionToSet));
 
-      // set should be called once for setting the new session cookie and once for deleting the legacy cookie
-      expect(setSpy).toHaveBeenCalledTimes(2);
-      expect(setSpy).toHaveBeenNthCalledWith(
-        1,
+      // setChunkedCookie for __session makes 6 calls (1 set + 5 deletes of __session__0..4)
+      // legacyCookiesInSetup will have entries from setChunkedCookie on the legacy cookie
+      // For a chunked legacy cookie, it would be: 3 sets + 2 deletes + 1 base delete = 6 calls in setup
+      // But those were on tempResCookies. In sessionStore.set, we have:
+      // - 6 calls for __session from setChunkedCookie
+      // - 1 call for deleting legacy cookie base
+      // Total: 7 calls
+      expect(setSpy).toHaveBeenCalledTimes(7);
+
+      // Verify main __session cookie is set
+      expect(setSpy).toHaveBeenCalledWith(
         "__session",
         expect.any(String),
-        expect.not.objectContaining({ maxAge: 0, path: "/" })
+        expect.not.objectContaining({ maxAge: 0 })
       );
-      expect(setSpy).toHaveBeenNthCalledWith(
-        2,
-        legacyCookiesInSetup[0].name,
-        "",
-        {
-          httpOnly: true,
-          maxAge: 0,
-          path: "/",
-          sameSite: "lax",
-          secure: false
+
+      // Verify legacy cookie base is deleted
+      expect(setSpy).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        httpOnly: true,
+        maxAge: 0,
+        path: "/",
+        sameSite: "lax",
+        secure: false
+      });
+    });
+
+    describe("session cookie size warning", async () => {
+      const baseSession = (createdAt: number): SessionData => ({
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: { sid: "auth0-sid", createdAt }
+      });
+
+      it("warns when the session cookie exceeds the size threshold", async () => {
+        const secret = await generateSecret(32);
+        const consoleWarnSpy = vi
+          .spyOn(console, "warn")
+          .mockImplementation(() => {});
+        try {
+          const session = baseSession(Math.floor(Date.now() / 1000));
+          // Large custom claim pushes the encoded session well past 4096 bytes
+          // (and across multiple __session chunks).
+          (session.user as Record<string, unknown>).bigClaim = "x".repeat(6000);
+
+          const sessionStore = new StatelessSessionStore({ secret });
+          await sessionStore.set(
+            new RequestCookies(new Headers()),
+            new ResponseCookies(new Headers()),
+            session
+          );
+
+          const warned = consoleWarnSpy.mock.calls.some((c) =>
+            String(c[0]).includes("__session cookie size")
+          );
+          expect(warned).toBe(true);
+        } finally {
+          consoleWarnSpy.mockRestore();
         }
+      });
+
+      it("does not warn for a small session cookie", async () => {
+        const secret = await generateSecret(32);
+        const consoleWarnSpy = vi
+          .spyOn(console, "warn")
+          .mockImplementation(() => {});
+        try {
+          const sessionStore = new StatelessSessionStore({ secret });
+          await sessionStore.set(
+            new RequestCookies(new Headers()),
+            new ResponseCookies(new Headers()),
+            baseSession(Math.floor(Date.now() / 1000))
+          );
+
+          const warned = consoleWarnSpy.mock.calls.some((c) =>
+            String(c[0]).includes("__session cookie size")
+          );
+          expect(warned).toBe(false);
+        } finally {
+          consoleWarnSpy.mockRestore();
+        }
+      });
+    });
+  });
+
+  describe("set — connection token sets (__FC_N cookies)", async () => {
+    const baseSession = (createdAt: number): SessionData => ({
+      user: { sub: "user_123" },
+      tokenSet: {
+        accessToken: "at_123",
+        refreshToken: "rt_123",
+        expiresAt: 9999999999
+      },
+      internal: { sid: "sid", createdAt }
+    });
+
+    it("writes one __FC_N cookie per connection token set", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        ...baseSession(Math.floor(Date.now() / 1000)),
+        connectionTokenSets: [
+          {
+            connection: "google-oauth2",
+            accessToken: "fc_g",
+            expiresAt: 9999999999
+          },
+          { connection: "github", accessToken: "fc_gh", expiresAt: 9999999999 }
+        ]
+      };
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+      const store = new StatelessSessionStore({ secret });
+
+      await store.set(reqCookies, resCookies, session);
+
+      expect(resCookies.get("__FC_0")?.value).toBeTruthy();
+      expect(resCookies.get("__FC_1")?.value).toBeTruthy();
+      // Session cookie must not contain the connectionTokenSets payload.
+      expect(resCookies.get("__FC_2")).toBeUndefined();
+    });
+
+    it("round-trips: get() reads back what set() wrote", async () => {
+      const secret = await generateSecret(32);
+      const createdAt = Math.floor(Date.now() / 1000);
+      const googleTokenSet = {
+        connection: "google-oauth2",
+        accessToken: "fc_g",
+        expiresAt: 9999999999
+      };
+      const session: SessionData = {
+        ...baseSession(createdAt),
+        connectionTokenSets: [googleTokenSet]
+      };
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+      const store = new StatelessSessionStore({ secret });
+
+      await store.set(reqCookies, resCookies, session);
+
+      // Promote the response cookies into the next request's cookies.
+      const nextHeaders = new Headers();
+      resCookies
+        .getAll()
+        .filter((c) => (c.maxAge ?? 1) > 0)
+        .forEach((c) => nextHeaders.append("cookie", `${c.name}=${c.value}`));
+      const nextReqCookies = new RequestCookies(nextHeaders);
+
+      const result = await store.get(nextReqCookies);
+      expect(result?.connectionTokenSets).toEqual([
+        expect.objectContaining(googleTokenSet)
+      ]);
+    });
+
+    it("does not write __FC_N cookies when connectionTokenSets is absent", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = baseSession(Math.floor(Date.now() / 1000));
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+      const store = new StatelessSessionStore({ secret });
+
+      await store.set(reqCookies, resCookies, session);
+
+      const fcCookies = resCookies
+        .getAll()
+        .filter((c) => c.name.startsWith("__FC_"));
+      expect(fcCookies).toHaveLength(0);
+    });
+
+    it("warns when an individual __FC_N cookie exceeds 4096 bytes", async () => {
+      const secret = await generateSecret(32);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const session: SessionData = {
+          ...baseSession(Math.floor(Date.now() / 1000)),
+          connectionTokenSets: [
+            // A 4000-char accessToken produces a JWE well over 4096 encoded bytes.
+            {
+              connection: "google-oauth2",
+              accessToken: "x".repeat(4000),
+              expiresAt: 9999999999
+            }
+          ]
+        };
+        const store = new StatelessSessionStore({ secret });
+        await store.set(
+          new RequestCookies(new Headers()),
+          new ResponseCookies(new Headers()),
+          session
+        );
+
+        const warned = warnSpy.mock.calls.some((c) =>
+          String(c[0]).includes("__FC_0 cookie size exceeds")
+        );
+        expect(warned).toBe(true);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("set — session size warning emitted only once per process", async () => {
+    it("warns on the first oversized set() and suppresses the second", async () => {
+      // Reset the module-level flag by re-importing a fresh module instance.
+      vi.resetModules();
+      const { StatelessSessionStore: FreshStore } =
+        await import("./stateless-session-store.js");
+      const secret = await generateSecret(32);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const store = new FreshStore({ secret });
+        const bigSession = (createdAt: number): SessionData => {
+          const s: SessionData = {
+            user: { sub: "user_123" },
+            tokenSet: { accessToken: "at", expiresAt: 9999999999 },
+            internal: { sid: "sid", createdAt }
+          };
+          (s.user as Record<string, unknown>).bigClaim = "x".repeat(6000);
+          return s;
+        };
+
+        await store.set(
+          new RequestCookies(new Headers()),
+          new ResponseCookies(new Headers()),
+          bigSession(Math.floor(Date.now() / 1000))
+        );
+        await store.set(
+          new RequestCookies(new Headers()),
+          new ResponseCookies(new Headers()),
+          bigSession(Math.floor(Date.now() / 1000))
+        );
+
+        const sessionSizeWarns = warnSpy.mock.calls.filter((c) =>
+          String(c[0]).includes("cookie size")
+        );
+        expect(sessionSizeWarns).toHaveLength(1);
+      } finally {
+        warnSpy.mockRestore();
+        vi.resetModules();
+      }
+    });
+  });
+
+  describe("get — corrupted __FC cookie is silently skipped", async () => {
+    it("excludes an __FC cookie whose JWE cannot be decrypted", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: { accessToken: "at_123", expiresAt: 9999999999 },
+        internal: { sid: "sid", createdAt: Math.floor(Date.now() / 1000) }
+      };
+      const expiration = Math.floor(Date.now() / 1000 + 3600);
+      const validJwe = await encrypt(session, secret, expiration);
+
+      const headers = new Headers();
+      headers.append("cookie", `__session=${validJwe};__FC_0=not-a-valid-jwe`);
+      const reqCookies = new RequestCookies(headers);
+      const store = new StatelessSessionStore({ secret });
+
+      const result = await store.get(reqCookies);
+
+      // Session itself is intact; the bad FC cookie is dropped, not throwing.
+      expect(result?.user.sub).toBe("user_123");
+      expect(result?.connectionTokenSets).toBeUndefined();
+    });
+  });
+
+  describe("delete — clears __FC_N connection-token cookies", async () => {
+    it("deletes all __FC_N cookies present in the request", async () => {
+      const secret = await generateSecret(32);
+      const expiration = Math.floor(Date.now() / 1000 + 3600);
+      const fakeJwe = await encrypt(
+        { connection: "google-oauth2", accessToken: "fc_g", expiresAt: 1 },
+        secret,
+        expiration
       );
+
+      const headers = new Headers();
+      headers.append("cookie", `__FC_0=${fakeJwe};__FC_1=${fakeJwe}`);
+      const reqCookies = new RequestCookies(headers);
+      const resCookies = new ResponseCookies(new Headers());
+      const store = new StatelessSessionStore({ secret });
+
+      await store.delete(reqCookies, resCookies);
+
+      expect(resCookies.get("__FC_0")?.maxAge).toBe(0);
+      expect(resCookies.get("__FC_1")?.maxAge).toBe(0);
+    });
+
+    describe("__FC connection-token orphan cleanup", async () => {
+      const baseSession = (
+        connectionTokenSets: SessionData["connectionTokenSets"]
+      ): SessionData => ({
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        connectionTokenSets
+      });
+
+      // Seeds `count` __FC_i cookies on the request, as a prior write would have.
+      async function seedConnectionCookies(
+        store: StatelessSessionStore,
+        requestCookies: RequestCookies,
+        responseCookies: ResponseCookies,
+        connections: string[]
+      ) {
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession(
+            connections.map((connection) => ({
+              connection,
+              accessToken: `at_${connection}`,
+              expiresAt: 999999
+            }))
+          )
+        );
+      }
+
+      // A `__FC` cookie is "deleted" via `resCookies.set(name, "", {maxAge:0})`,
+      // so a deletion is a `set` call with an empty value and `maxAge` 0.
+      function deletedCookieNames(setSpy: {
+        mock: { calls: unknown[][] };
+      }): string[] {
+        return setSpy.mock.calls
+          .filter(
+            (call) =>
+              call[1] === "" &&
+              typeof call[2] === "object" &&
+              call[2] !== null &&
+              (call[2] as { maxAge?: number }).maxAge === 0
+          )
+          .map((call) => call[0] as string);
+      }
+
+      it("deletes trailing __FC cookies when the array shrinks", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        // Start with three connections -> __FC_0, __FC_1, __FC_2
+        await seedConnectionCookies(store, requestCookies, responseCookies, [
+          "google-oauth2",
+          "github",
+          "slack"
+        ]);
+        expect(requestCookies.get("__FC_0")).toBeDefined();
+        expect(requestCookies.get("__FC_1")).toBeDefined();
+        expect(requestCookies.get("__FC_2")).toBeDefined();
+
+        // Now write a session with a single connection.
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession([
+            {
+              connection: "google-oauth2",
+              accessToken: "at_google-oauth2",
+              expiresAt: 999999
+            }
+          ])
+        );
+
+        // __FC_1 and __FC_2 must be deleted; __FC_0 stays (overwritten).
+        const deletedNames = deletedCookieNames(setSpy);
+        expect(deletedNames).toContain("__FC_1");
+        expect(deletedNames).toContain("__FC_2");
+        expect(deletedNames).not.toContain("__FC_0");
+      });
+
+      it("does not delete any __FC cookies when the array grows", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        await seedConnectionCookies(store, requestCookies, responseCookies, [
+          "google-oauth2"
+        ]);
+
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession([
+            {
+              connection: "google-oauth2",
+              accessToken: "at_google-oauth2",
+              expiresAt: 999999
+            },
+            {
+              connection: "github",
+              accessToken: "at_github",
+              expiresAt: 999999
+            }
+          ])
+        );
+
+        const deletedFcNames = deletedCookieNames(setSpy).filter((name) =>
+          name.startsWith("__FC")
+        );
+        expect(deletedFcNames).toEqual([]);
+      });
+
+      it("deletes all __FC cookies when the array becomes empty", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        await seedConnectionCookies(store, requestCookies, responseCookies, [
+          "google-oauth2",
+          "github"
+        ]);
+
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession(undefined)
+        );
+
+        const deletedNames = deletedCookieNames(setSpy);
+        expect(deletedNames).toContain("__FC_0");
+        expect(deletedNames).toContain("__FC_1");
+      });
+
+      it("leaves non-indexed __FC-prefixed cookies untouched", async () => {
+        const secret = await generateSecret(32);
+        const store = new StatelessSessionStore({ secret });
+
+        // A legacy/foreign cookie that does not match the `__FC_<index>` shape.
+        const headers = new Headers();
+        headers.append("cookie", "__FCcustom=preserve-me");
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const setSpy = vi.spyOn(responseCookies, "set");
+        await store.set(
+          requestCookies,
+          responseCookies,
+          baseSession([
+            {
+              connection: "google-oauth2",
+              accessToken: "at_google-oauth2",
+              expiresAt: 999999
+            }
+          ])
+        );
+
+        const deletedNames = deletedCookieNames(setSpy);
+        expect(deletedNames).not.toContain("__FCcustom");
+      });
     });
   });
 

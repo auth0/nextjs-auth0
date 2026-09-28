@@ -192,7 +192,7 @@ export default async function Home() {
 ```
 
 > [!IMPORTANT]  
-> You must use `<a>` tags instead of the `<Link>` component to ensure that the routing is not done client-side as that may result in some unexpected behavior.
+> A default `<Link href="/auth/login">` is safe — the SDK detects the AUTO prefetch header and returns `204 No Content` without writing a transaction cookie. Avoid `<Link href="/auth/login" prefetch={true}>` (FULL prefetch): it sends no detectable prefetch header, so the SDK cannot distinguish it from a real navigation and will start a login flow. Use a plain `<a>` tag or `<Link prefetch={false}>` if you need to be safe across all prefetch modes. See [Preventing "431 Request Header Fields Too Large" Errors](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#preventing-431-request-header-fields-too-large-errors) for details.
 
 ## Customizing the client
 
@@ -496,6 +496,21 @@ The SDK mounts following routes:
 For enterprise connections, the upstream identity provider can cap how long a user's session lives. When the connection is configured to honor it, Auth0 includes a `session_expiry` claim in the ID token (set via a Post-Login Action, value must be Unix seconds), and the SDK enforces this ceiling on every session read. Once it is reached, `getSession()` returns `null`, `useUser()` reflects the logged-out state, and `getAccessToken()` throws an `AccessTokenError` with code `session_expired`. If the ceiling is already in the past at login, the callback rejects the session immediately. Apps that assumed a session always exists after login should add a null check and redirect back to login.
 
 For more details, see [Session Expiry from the Upstream IdP](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-expiry-from-the-upstream-idp) in EXAMPLES.md.
+
+## Experiment Center
+
+> [!NOTE]
+> Experiment Center support via SDKs is currently in Early Access. To request access to this feature, contact your Auth0 representative.
+
+[Experiment Center](https://auth0.com/docs/customize/experiment-center/overview) lets you A/B test your login flow. Force a specific variant by passing `experiment_id` and `variation_id` per-login, either as query params on `/auth/login` or via `startInteractiveLogin`:
+
+```html
+<a href="/auth/login?experiment_id=<EXPERIMENT_ID>&variation_id=<VARIATION_ID>">
+  Log in
+</a>
+```
+
+For usage guidance, segment targeting, and testing patterns, see [Experiment Center in guides/experiment-center.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/experiment-center.md).
 
 ## Feedback
 

@@ -11,6 +11,8 @@ import {
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  ConnectedAccountsError,
+  ConnectedAccountsErrorCodes,
   InvalidConfigurationError,
   MfaRequiredError,
   TokenRevocationError,
@@ -24,14 +26,17 @@ import {
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   ConnectAccountOptions,
+  ConnectedAccount,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
+  DisconnectAccountOptions,
   GetAccessTokenOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
   SessionTransferTokenOptions,
   SessionTransferTokenResult,
+  StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
@@ -43,6 +48,7 @@ import {
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
@@ -53,6 +59,7 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
+import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
@@ -212,6 +219,19 @@ export interface Auth0ClientOptions {
    * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
+
+  /**
+   * Enable Enterprise Connect mode.
+   *
+   * Set to `true` when Auth0 acts as a pure SSO relay and your application owns
+   * the session. `onCallback` must persist identity and return a `NextResponse`
+   * with your session cookie. Session-backed methods (`getSession`, `getAccessToken`,
+   * etc.) throw rather than returning `null`. Incompatible config (`offline_access`
+   * scope, static `organization`) is reported at initialization.
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for additional details
+   */
+  enterpriseConnect?: true;
 
   // provide a session store to persist sessions in your own data store
   /**
@@ -695,6 +715,9 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      federatedDomain:
+        process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+        "/auth/federated-domain",
       connectAccount: "/auth/connect",
       mfaAuthenticators:
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
@@ -785,6 +808,34 @@ export class Auth0Client {
         return runtimeDomain;
       });
 
+    if (options.enterpriseConnect) {
+      this.disableSessionMembersForEnterpriseConnect();
+
+      const scope = options.authorizationParameters?.scope ?? DEFAULT_SCOPES;
+
+      if (
+        typeof scope === "string" &&
+        scope.split(/\s+/).includes("offline_access")
+      ) {
+        console.warn(
+          "WARNING: 'offline_access' is in scope but Enterprise Connect clients are not " +
+            "issued refresh tokens. Set authorizationParameters.scope to " +
+            "'openid profile email' to drop it — the default scope includes offline_access."
+        );
+      }
+
+      if (options.authorizationParameters?.organization) {
+        console.warn(
+          "WARNING: enterpriseConnect is true but a static 'organization' is set in " +
+            "authorizationParameters. In Enterprise Connect the organization is resolved " +
+            "per login by Home Realm Discovery from the login_hint email domain. A static " +
+            "value routes every enterprise customer to the same organization, breaking " +
+            "multi-customer deployments. Leave 'organization' unset unless this client " +
+            "serves exactly one organization."
+        );
+      }
+    }
+
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
@@ -814,6 +865,7 @@ export class Auth0Client {
 
           beforeSessionSaved: options.beforeSessionSaved,
           onCallback: options.onCallback,
+          enterpriseConnect: options.enterpriseConnect,
 
           routes: this.routes,
 
@@ -833,7 +885,6 @@ export class Auth0Client {
           mfaTokenTtl,
           cspNonce: options.cspNonce,
           anonymousSession: options.anonymousSession,
-
           discoveryCache,
           provider: this.provider
         });
@@ -847,6 +898,16 @@ export class Auth0Client {
     if (staticClient) {
       staticClient.provider = this.provider;
     }
+
+    // Next.js 16's `proxy.ts` convention (and some `middleware.ts` setups) commonly
+    // re-export this method directly, e.g. `export default auth0.middleware;`, rather
+    // than wrapping it in a closure like `(req) => auth0.middleware(req)`. When the
+    // method is invoked that way, it is detached from the `Auth0Client` instance, so
+    // `this` is `undefined` inside the method body (per JS strict-mode semantics for
+    // unbound method calls), causing a `TypeError: Cannot read properties of
+    // undefined (reading 'provider')` on every request. Binding here makes
+    // `auth0.middleware` safe to pass around as a plain function reference.
+    this.middleware = this.middleware.bind(this);
   }
 
   /**
@@ -1319,9 +1380,19 @@ export class Auth0Client {
       );
     }
 
-    // Find the connection token set in the session
+    // Find the connection token set in the session. Treat "no hint" as its own
+    // key rather than a wildcard: a call without `login_hint` matches only
+    // entries that also have no `loginHint`. This preserves multi-account
+    // isolation — an unhinted call cannot select a hinted entry and later
+    // overwrite it with an unhinted token, which would erase the hint from the
+    // session. Sessions written before the multi-account feature have no
+    // `loginHint` on any entry, so unhinted calls still match them (back-compat).
     const existingTokenSet = session.connectionTokenSets?.find(
-      (tokenSet) => tokenSet.connection === options.connection
+      (tokenSet) =>
+        tokenSet.connection === options.connection &&
+        (options.login_hint
+          ? tokenSet.loginHint === options.login_hint
+          : !tokenSet.loginHint)
     );
 
     const [error, retrievedTokenSet] = await authClient.getConnectionTokenSet(
@@ -1331,6 +1402,28 @@ export class Auth0Client {
     );
 
     if (error !== null) {
+      // The refresh-token -> connection-token exchange failed (e.g. the upstream
+      // refresh token was revoked or expired). Any connection token we had
+      // cached for this account is now dead, so drop it from the session and
+      // persist the change. This deletes the orphaned `__FC` cookie via the
+      // stateless session store, preventing it from lingering and contributing
+      // to request-header bloat (see gh-2450). Then rethrow the original error.
+      if (
+        existingTokenSet &&
+        error.code === AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE &&
+        session.connectionTokenSets?.length
+      ) {
+        const remaining = session.connectionTokenSets.filter(
+          (tokenSet) => tokenSet !== existingTokenSet
+        );
+        const { connectionTokenSets: _removed, ...rest } = session;
+        await this.saveToSession(
+          remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
+          normalizedReq,
+          res
+        );
+      }
+
       throw error;
     }
 
@@ -1350,10 +1443,12 @@ export class Auth0Client {
       // we need to update the item in the array
       // If not, we need to add it.
       if (existingTokenSet) {
+        // Replace only the specific entry we matched, by identity. Matching on
+        // connection (+ optional login_hint) again would, when no login_hint is
+        // supplied, overwrite every entry for the connection with this single
+        // token set, collapsing distinct per-account tokens into duplicates.
         tokenSets = session.connectionTokenSets?.map((tokenSet) =>
-          tokenSet.connection === options.connection
-            ? retrievedTokenSet
-            : tokenSet
+          tokenSet === existingTokenSet ? retrievedTokenSet : tokenSet
         );
       } else {
         tokenSets = [...(session.connectionTokenSets || []), retrievedTokenSet];
@@ -1831,6 +1926,11 @@ export class Auth0Client {
     return new RequestCookies(toHeadersFromIncomingMessage(req));
   }
 
+  /** @see applyEnterpriseConnectRestrictions */
+  private disableSessionMembersForEnterpriseConnect(): void {
+    applyEnterpriseConnectRestrictions(this);
+  }
+
   /**
    * Resolves request context from any Next.js server context into a uniform shape.
    *
@@ -1879,6 +1979,96 @@ export class Auth0Client {
   }
 
   /**
+   * Mints a My Account API access token. Minting can silently refresh the
+   * primary token, which rotates (and invalidates) the shared refresh token, so
+   * that rotation must be persisted or the next refresh triggers reuse-detection
+   * and logs the user out.
+   *
+   * Returns the access token, the session reflecting any rotation, and a
+   * `sessionChanged` flag indicating whether the mint rotated the token set.
+   *
+   * By default the rotated session is persisted here. Callers that write the
+   * session again afterwards (e.g. to prune connectionTokenSets) should pass
+   * `persist: false` and perform a single write from the returned `session`,
+   * so the response does not carry two conflicting `Set-Cookie` writes for the
+   * same session and connection cookies. Such callers must start from the
+   * returned `session` (not a fresh cookie re-read): in the Pages Router,
+   * request cookies are rebuilt from the original request headers and never
+   * reflect writes made during this request, so a re-read would clobber the
+   * rotated refresh token. When `persist` is false and the caller ends up not
+   * writing (nothing to prune), it must still persist the rotated session when
+   * `sessionChanged` is true.
+   * @internal
+   */
+  private async mintMyAccountToken(
+    options: GetAccessTokenOptions & { audience: string; scope: string },
+    req?: NextRequest | PagesRouterRequest,
+    res?: PagesRouterResponse | NextResponse,
+    { persist = true }: { persist?: boolean } = {}
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    audience?: string;
+    session: SessionData;
+    sessionChanged: boolean;
+  }> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+    if (!session) {
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
+    }
+
+    const [error, tokenSetResponse] = await authClient.getTokenSet(
+      session,
+      options
+    );
+    if (error) {
+      throw error;
+    }
+
+    const { tokenSet, idTokenClaims } = tokenSetResponse;
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      {
+        scope: this.#options.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.#options.authorizationParameters?.audience
+      }
+    );
+
+    let persistedSession: SessionData = session;
+    const sessionChanged = !!sessionChanges;
+    if (sessionChanges) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      const finalSession = await authClient.finalizeSession(
+        { ...session, ...sessionChanges },
+        tokenSet.idToken
+      );
+      persistedSession = finalSession;
+      if (persist) {
+        await this.saveToSession(finalSession, req, res);
+      }
+    }
+
+    return {
+      token: tokenSet.accessToken,
+      expiresAt: tokenSet.expiresAt,
+      audience: tokenSet.audience,
+      session: persistedSession,
+      sessionChanged
+    };
+  }
+
+  /**
    * startInteractiveLogin redirects the user to the authorization server to log in.
    *
    * Pass the request when one is available (Route Handlers, middleware, the Pages
@@ -1915,6 +2105,65 @@ export class Auth0Client {
   }
 
   /**
+   * Login entry point for {@link Auth0Client.enterpriseConnect} mode.
+   *
+   * Runs Home Realm Discovery on the email domain. Returns a `NextResponse`
+   * redirect (with `login_hint` set) when the domain is federated, or `null`
+   * when it is not — allowing the caller to fall back to its own login.
+   *
+   * Must be called from a Route Handler (not a Server Action) so the transaction
+   * cookie is returned to the browser.
+   *
+   * @param options - `email` is required; `authorizationParameters`, `returnTo`,
+   *   and `challengeMode` are forwarded to the underlying login.
+   * @returns Redirect response for a federated domain, or `null`.
+   *
+   * @example
+   * ```ts
+   * // app/api/login/route.ts
+   * export async function POST(req: NextRequest) {
+   *   const email = String((await req.formData()).get("email") ?? "");
+   *   const res = await auth0.startEnterpriseLogin({ email, returnTo: "/dashboard" });
+   *   if (res) {
+   *     const redirect = NextResponse.redirect(res.headers.get("location")!, 303);
+   *     for (const c of res.cookies.getAll()) redirect.cookies.set(c);
+   *     return redirect;
+   *   }
+   *   return NextResponse.redirect(new URL("/existing-login", req.url));
+   * }
+   * ```
+   *
+   * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
+   */
+  async startEnterpriseLogin(
+    options: StartEnterpriseLoginOptions
+  ): Promise<NextResponse | null> {
+    const emailDomain = options.email.split("@")[1]?.toLowerCase();
+    if (!emailDomain) {
+      return null;
+    }
+
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const federated = await isFederatedDomain(authClient.domain, emailDomain, {
+      customFetch: authClient.createWebFingerFetch()
+    });
+    if (!federated) {
+      return null;
+    }
+
+    const { email, authorizationParameters, ...rest } = options;
+    return authClient.startInteractiveLogin({
+      ...rest,
+      authorizationParameters: {
+        ...authorizationParameters,
+        login_hint: email
+      }
+    });
+  }
+
+  /**
    * Authenticates using Client-Initiated Backchannel Authentication and returns the token set and optionally the ID token claims and authorization details.
    *
    * This method will initialize the backchannel authentication process with Auth0, and poll the token endpoint until the authentication is complete.
@@ -1938,6 +2187,26 @@ export class Auth0Client {
 
   /**
    * Initiates the Connect Account flow to connect a third-party account to the user's profile.
+   *
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   */
+  async connectAccount(options: ConnectAccountOptions): Promise<NextResponse>;
+
+  /**
+   * Initiates the Connect Account flow to connect a third-party account to the user's profile.
+   *
+   * Pass the `req` object when calling from middleware, or when `APP_BASE_URL`
+   * is configured dynamically (as an array of allowed origins), so the redirect
+   * and session are resolved from the request context. The returned
+   * `NextResponse` carries the redirect and the transaction cookies.
+   */
+  async connectAccount(
+    options: ConnectAccountOptions,
+    req: NextRequest | Request
+  ): Promise<NextResponse>;
+
+  /**
+   * Initiates the Connect Account flow to connect a third-party account to the user's profile.
    * If the user does not have an active session, a `ConnectAccountError` is thrown.
    *
    * This method first attempts to obtain an access token with the `create:me:connected_accounts` scope
@@ -1945,13 +2214,34 @@ export class Auth0Client {
    *
    * The user will then be redirected to authorize the connection with the third-party provider.
    *
+   * Pass the `req` object when calling from middleware or when `APP_BASE_URL` is
+   * configured dynamically (as an array of allowed origins), so the redirect and
+   * session are resolved from the request context. In App Router Server Actions
+   * and Route Handlers with a static `APP_BASE_URL`, omit it. Because this
+   * returns a redirect `NextResponse` (rather than writing to a passed-in
+   * response), a Pages Router `ServerResponse` is not accepted here; forward the
+   * returned response's `Location` and `Set-Cookie` headers onto your response.
+   *
+   * Minting the My Account access token can rotate the refresh token. On success
+   * that rotation is written onto the returned redirect response's cookies, so
+   * forwarding its `Set-Cookie` headers (as above) persists it. On the error path
+   * there is no response to attach to, so the rotation is persisted best-effort
+   * via ambient cookies, which a React Server Component cannot write; prefer a
+   * Route Handler, Server Action, API route, or middleware so a failed connect
+   * does not drop the rotated token and log the user out on the next refresh.
+   *
    * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
-  async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
-    const reqHeaders = await getHeaders();
-    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+  async connectAccount(
+    options: ConnectAccountOptions,
+    req?: NextRequest | Request
+  ): Promise<NextResponse> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session = await this.getSession();
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
 
     if (!session) {
       throw new ConnectAccountError({
@@ -1968,23 +2258,345 @@ export class Auth0Client {
       scope: "create:me:connected_accounts"
     };
 
-    const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
+    // Defer persistence: connectAccount returns its own redirect response, so a
+    // rotated session must be written onto that response's cookies below (an
+    // ambient cookies() write would not attach to the returned redirect, and in
+    // middleware/Pages there is no response to write to here at all).
+    const accessToken = await this.mintMyAccountToken(
+      getMyAccountTokenOpts,
+      normalizedReq,
+      undefined,
+      { persist: false }
+    );
 
-    const [error, connectAccountResponse] = await authClient.connectAccount({
-      ...options,
-      tokenSet: {
+    const [error, connectAccountResponse] = await authClient.connectAccount(
+      {
+        ...options,
+        tokenSet: {
+          accessToken: accessToken.token,
+          expiresAt: accessToken.expiresAt,
+          scope: getMyAccountTokenOpts.scope,
+          audience: accessToken.audience
+        }
+      },
+      normalizedReq instanceof NextRequest ? normalizedReq : undefined
+    );
+
+    if (error) {
+      // The mint may have rotated the refresh token before connectAccount
+      // failed. There is no redirect response to attach cookies to on the error
+      // path, so persist the rotated session best-effort (App Router ambient
+      // cookies; a no-op in middleware/Pages, where there is no response to
+      // write to here). This avoids dropping the rotation, which would trigger
+      // reuse-detection and log the user out on the next refresh.
+      if (accessToken.sessionChanged) {
+        await this.saveToSession(accessToken.session, undefined, undefined);
+      }
+      throw error;
+    }
+
+    // If the mint rotated the refresh token, persist it onto the redirect
+    // response so the rotated token is not dropped (which would trigger
+    // reuse-detection and log the user out on the next refresh). Writing to the
+    // response cookies works across App Router, middleware, and Pages Router
+    // since the caller forwards this response's Set-Cookie headers.
+    if (accessToken.sessionChanged) {
+      const reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : await cookies();
+      await this.sessionStore.set(
+        reqCookies,
+        connectAccountResponse.cookies,
+        accessToken.session
+      );
+    }
+
+    return connectAccountResponse;
+  }
+
+  /**
+   * Disconnects (unlinks) all connected accounts for the given connection.
+   *
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   */
+  async disconnectAccount(options: DisconnectAccountOptions): Promise<void>;
+
+  /**
+   * Disconnects (unlinks) all connected accounts for the given connection.
+   *
+   * This method can be used in middleware and API routes in the **Pages Router**.
+   */
+  async disconnectAccount(
+    options: DisconnectAccountOptions,
+    req: PagesRouterRequest | NextRequest | Request,
+    res: PagesRouterResponse | NextResponse
+  ): Promise<void>;
+
+  /**
+   * Disconnects (unlinks) all connected accounts for the given connection.
+   *
+   * This revokes the connection server-side via the My Account API and removes
+   * the corresponding cached connection tokens from the session so they are not
+   * re-assembled on subsequent reads.
+   *
+   * If the user does not have an active session, a `ConnectedAccountsError` is
+   * thrown with code `MISSING_SESSION`. If the server-side revoke fails, a
+   * `ConnectedAccountsError` with code `FAILED_TO_DELETE` is thrown.
+   *
+   * **Do not call this from a React Server Component.** Minting the My Account
+   * access token can rotate the refresh token, and Server Components cannot
+   * write cookies, so the write is silently dropped (only warned in
+   * `NODE_ENV=development`). On the next request the browser still sends the old
+   * refresh token, which the authorization server rejects as replay and logs the
+   * user out. Call from a Route Handler, Server Action, API route, or middleware.
+   *
+   * Partial-failure contract: the local cached connection tokens
+   * (`connectionTokenSets`) for the connection are pruned from the session
+   * regardless of whether the server-side revoke succeeded, and any rotated
+   * refresh token is persisted, before the error (if any) is rethrown. So on a
+   * `FAILED_TO_DELETE` the server-side state may be partially disconnected while
+   * the local state is fully cleaned; a subsequent `getAccessTokenForConnection`
+   * would fail-exchange and prune anyway.
+   *
+   * In the Pages Router (or middleware), pass the `req` and `res` objects so the
+   * pruned session can be persisted to the response cookies. In App Router Server
+   * Actions and Route Handlers, omit them.
+   *
+   * Note: disconnect is connection-scoped. All accounts connected through the
+   * given connection are disconnected. Per-account disconnect is not currently
+   * supported because the My Account API keys connected accounts by id and does
+   * not expose the login hint used to disambiguate multiple accounts on the same
+   * connection.
+   */
+  async disconnectAccount(
+    options: DisconnectAccountOptions,
+    req?: PagesRouterRequest | NextRequest | Request,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<void> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+
+    if (!session) {
+      throw new ConnectedAccountsError({
+        code: ConnectedAccountsErrorCodes.MISSING_SESSION,
+        message: "The user does not have an active session."
+      });
+    }
+
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers, e.g.
+    // https://myorg.okta.com/oauth2/default/) so the audience is correct.
+    const getMyAccountTokenOpts = {
+      audience: `${authClient.issuer}me/`,
+      scope: "read:me:connected_accounts delete:me:connected_accounts"
+    };
+
+    // Defer persistence: this method may write the session again below to prune
+    // connectionTokenSets. Writing once (from the mint's rotated session) avoids
+    // emitting two conflicting `Set-Cookie` writes for the same cookies.
+    const accessToken = await this.mintMyAccountToken(
+      getMyAccountTokenOpts,
+      normalizedReq,
+      res,
+      { persist: false }
+    );
+
+    const [error] = await authClient.disconnectAccount(
+      {
         accessToken: accessToken.token,
         expiresAt: accessToken.expiresAt,
         scope: getMyAccountTokenOpts.scope,
         audience: accessToken.audience
-      }
-    });
+      },
+      options.connection
+    );
 
+    // Prune cached connection tokens for this connection regardless of whether
+    // the loop over accounts fully succeeded. When multiple accounts share a
+    // connection and only some are unlinked before an error (e.g. rate limit
+    // on the second DELETE), the server-side state is partially disconnected
+    // while our cached tokens for the connection are now stale. Pruning is
+    // connection-scoped, so it's safe to prune all local state for the
+    // connection: a subsequent getAccessTokenForConnection would fail-exchange
+    // and prune anyway. Rethrow the error after pruning so the caller sees the
+    // partial failure.
+    //
+    // Prune from the session the mint produced, not a fresh cookie re-read. In
+    // the Pages Router, request cookies are rebuilt from the original request
+    // headers and never reflect writes made during the mint, so a re-read would
+    // clobber the rotated refresh token.
+    const latestSession = accessToken.session;
+
+    let pruned = false;
+    if (latestSession.connectionTokenSets?.length) {
+      const remaining = latestSession.connectionTokenSets.filter(
+        (tokenSet) => tokenSet.connection !== options.connection
+      );
+
+      if (remaining.length !== latestSession.connectionTokenSets.length) {
+        const { connectionTokenSets: _removed, ...rest } = latestSession;
+        await this.saveToSession(
+          remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
+          normalizedReq,
+          res
+        );
+        pruned = true;
+      }
+    }
+
+    // If nothing was pruned, the mint may still have rotated the token set.
+    // Persist it here since mintMyAccountToken was told not to (persist: false).
+    // This runs before the rethrow below so a rotated refresh token is never
+    // dropped on the error path (which would trigger reuse-detection and log the
+    // user out on the next refresh). The prune write above already carries the
+    // rotation, so at most one write happens.
+    if (!pruned && accessToken.sessionChanged) {
+      await this.saveToSession(latestSession, normalizedReq, res);
+    }
+
+    // Rethrow after persisting so the caller sees the partial failure.
     if (error) {
       throw error;
     }
+  }
 
-    return connectAccountResponse;
+  /**
+   * Lists the connected accounts for the current user from the My Account API.
+   *
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   */
+  async getConnectedAccounts(): Promise<ConnectedAccount[]>;
+
+  /**
+   * Lists the connected accounts for the current user from the My Account API.
+   *
+   * This method can be used in middleware and API routes in the **Pages Router**.
+   */
+  async getConnectedAccounts(
+    req: PagesRouterRequest | NextRequest | Request,
+    res: PagesRouterResponse | NextResponse
+  ): Promise<ConnectedAccount[]>;
+
+  /**
+   * Lists the connected accounts for the current user from the My Account API.
+   *
+   * The My Account API is the source of truth, so this also reconciles the
+   * session: any locally cached connection tokens (`connectionTokenSets`) whose
+   * connection is no longer present server-side are pruned, so they are not
+   * re-assembled into the session on subsequent reads.
+   *
+   * **Do not call this from a React Server Component.** Minting the My Account
+   * access token can rotate the refresh token, and Server Components cannot
+   * write cookies — the write is silently dropped (only warned in
+   * `NODE_ENV=development`). On the next request the browser still sends the
+   * old refresh token, which the authorization server rejects as replay and
+   * logs the user out. Call from a Route Handler, Server Action, API route,
+   * or middleware. In the Pages Router (or middleware), pass the `req` and
+   * `res` objects so the reconciled session can be persisted to the response
+   * cookies.
+   *
+   * If the user does not have an active session, a `ConnectedAccountsError` is thrown.
+   *
+   * Note: reconciliation is connection-scoped. If a user has multiple accounts
+   * on the same connection and only some are disconnected server-side, the
+   * connection still appears in the list, so the local tokens are retained. This
+   * mirrors the connection-scoped behaviour of {@link disconnectAccount}.
+   */
+  async getConnectedAccounts(
+    req?: PagesRouterRequest | NextRequest | Request,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<ConnectedAccount[]> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
+
+    if (!session) {
+      throw new ConnectedAccountsError({
+        code: ConnectedAccountsErrorCodes.MISSING_SESSION,
+        message: "The user does not have an active session."
+      });
+    }
+
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers) so the audience is correct.
+    const getMyAccountTokenOpts = {
+      audience: `${authClient.issuer}me/`,
+      scope: "read:me:connected_accounts"
+    };
+
+    // Defer persistence: this method may write the session again below to prune
+    // stale connectionTokenSets. Writing once (from the mint's rotated session)
+    // avoids emitting two conflicting `Set-Cookie` writes for the same cookies.
+    const accessToken = await this.mintMyAccountToken(
+      getMyAccountTokenOpts,
+      normalizedReq,
+      res,
+      { persist: false }
+    );
+
+    const [error, accounts] = await authClient.listConnectedAccounts({
+      accessToken: accessToken.token,
+      expiresAt: accessToken.expiresAt,
+      scope: getMyAccountTokenOpts.scope,
+      audience: accessToken.audience
+    });
+
+    if (error) {
+      // The mint may have rotated the refresh token before the list failed
+      // (the first call in a session always refreshes, since the My Account
+      // audience is not cached yet). Persist the rotation before rethrowing so
+      // it is not dropped, which would trigger reuse-detection and log the user
+      // out on the next refresh.
+      if (accessToken.sessionChanged) {
+        await this.saveToSession(accessToken.session, normalizedReq, res);
+      }
+      throw error;
+    }
+
+    // Reconcile: drop cached connection tokens whose connection is no longer
+    // present server-side.
+    //
+    // Prune from the session the mint produced, not a fresh cookie re-read. In
+    // the Pages Router, request cookies are rebuilt from the original request
+    // headers and never reflect writes made during the mint, so a re-read would
+    // clobber the rotated refresh token.
+    const latestSession = accessToken.session;
+
+    let reconciled = false;
+    if (latestSession.connectionTokenSets?.length) {
+      const serverConnections = new Set(
+        accounts.map((account) => account.connection)
+      );
+      const remaining = latestSession.connectionTokenSets.filter((tokenSet) =>
+        serverConnections.has(tokenSet.connection)
+      );
+
+      if (remaining.length !== latestSession.connectionTokenSets.length) {
+        const { connectionTokenSets: _removed, ...rest } = latestSession;
+        await this.saveToSession(
+          remaining.length ? { ...rest, connectionTokenSets: remaining } : rest,
+          normalizedReq,
+          res
+        );
+        reconciled = true;
+      }
+    }
+
+    // Nothing was reconciled, but the mint may have rotated the token set.
+    // Persist it here since mintMyAccountToken was told not to (persist: false).
+    if (!reconciled && accessToken.sessionChanged) {
+      await this.saveToSession(latestSession, normalizedReq, res);
+    }
+
+    return accounts;
   }
 
   // Pages Router overload - no arguments

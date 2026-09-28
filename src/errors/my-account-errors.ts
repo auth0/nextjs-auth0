@@ -101,3 +101,51 @@ export class ConnectAccountError extends SdkError {
     this.cause = cause;
   }
 }
+
+/**
+ * Enum representing error codes for connected-accounts operations
+ * (listing and disconnecting).
+ */
+export enum ConnectedAccountsErrorCodes {
+  /**
+   * The session is missing.
+   */
+  MISSING_SESSION = "missing_session",
+
+  /**
+   * Failed to list the connected accounts.
+   */
+  FAILED_TO_LIST = "failed_to_list",
+
+  /**
+   * Failed to delete the connected account.
+   */
+  FAILED_TO_DELETE = "failed_to_delete"
+}
+
+/**
+ * Error class representing a connected-accounts operation error (listing or
+ * disconnecting).
+ */
+export class ConnectedAccountsError extends SdkError {
+  /**
+   * The error code associated with the connected-accounts error.
+   */
+  public code: string;
+  public cause?: MyAccountApiError;
+
+  constructor({
+    code,
+    message,
+    cause
+  }: {
+    code: string;
+    message: string;
+    cause?: MyAccountApiError;
+  }) {
+    super(message);
+    this.name = "ConnectedAccountsError";
+    this.code = code;
+    this.cause = cause;
+  }
+}

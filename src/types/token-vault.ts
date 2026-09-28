@@ -70,6 +70,9 @@ export interface ConnectionTokenSet {
   scope?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   connection: string;
+  // The login hint used to obtain this token, if any. Allows multiple accounts
+  // to be connected for the same connection (disambiguated by login hint).
+  loginHint?: string;
   [key: string]: unknown;
 }
 

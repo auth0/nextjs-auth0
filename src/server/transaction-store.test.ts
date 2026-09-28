@@ -2,7 +2,7 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
+import { generateSecret, stripTransactionValuePrefix } from "../test/utils.js";
 import { RESPONSE_TYPES } from "../types/connected-accounts.js";
 import {
   decrypt,
@@ -108,8 +108,12 @@ describe("Transaction Store", async () => {
 
       expect(cookie).toBeDefined();
       expect(
-        ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
-          .payload
+        (
+          (await decrypt(
+            stripTransactionValuePrefix(cookie!.value),
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
       ).toEqual(expect.objectContaining(transactionState));
       expect(cookie?.path).toEqual("/");
       expect(cookie?.httpOnly).toEqual(true);
@@ -172,8 +176,12 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect(
-          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
-            .payload
+          (
+            (await decrypt(
+              stripTransactionValuePrefix(cookie!.value),
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -211,8 +219,12 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect(
-          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
-            .payload
+          (
+            (await decrypt(
+              stripTransactionValuePrefix(cookie!.value),
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -250,8 +262,12 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect(
-          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
-            .payload
+          (
+            (await decrypt(
+              stripTransactionValuePrefix(cookie!.value),
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/custom-path");
       });
@@ -285,8 +301,12 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect(
-          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
-            .payload
+          (
+            (await decrypt(
+              stripTransactionValuePrefix(cookie!.value),
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -325,8 +345,12 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect(
-          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
-            .payload
+          (
+            (await decrypt(
+              stripTransactionValuePrefix(cookie!.value),
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
