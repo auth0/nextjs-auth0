@@ -2091,16 +2091,12 @@ export class Auth0Client {
       return authClient.startInteractiveLogin(options, normalizedReq);
     }
 
-    // Cookies are only needed to link an anonymous session, so they are read only
-    // when that feature is enabled. This keeps the call sequence unchanged for
-    // every application that does not use anonymous sessions.
-    if (!this.#options.anonymousSession?.enabled) {
-      return authClient.startInteractiveLogin(options);
-    }
-
     // No NextRequest to hand down, so supply the request cookies separately:
     // the Pages Router request carries them in its headers, and a Server Action
-    // reads them through next/headers the way the sibling methods do.
+    // reads them through next/headers. Forwarding cookies is required so
+    // TransactionStore.save() can run __txn_* cookie eviction — without them
+    // stale transaction cookies accumulate unbounded for logins started from
+    // Server Actions.
     const reqCookies = normalizedReq
       ? (this.createRequestCookies(normalizedReq) as RequestCookies)
       : ((await cookies()) as unknown as RequestCookies);
