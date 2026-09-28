@@ -325,7 +325,13 @@ export function setChunkedCookie(
     for (let i = 0; i < clearUpTo; i++) {
       const chunkName = `${name}${CHUNK_PREFIX}${i}`;
       deleteCookie(resCookies, chunkName, deleteOptions);
-      reqCookies.delete(chunkName);
+      // Same alias guard as the set() paths: a naked reqCookies.delete() drops
+      // the domain from the deletion entry, so when both stores alias the same
+      // cookies() store it would overwrite the domain-correct deletion applied
+      // to resCookies above and break chunk cleanup under AUTH0_COOKIE_DOMAIN.
+      if ((reqCookies as unknown) !== (resCookies as unknown)) {
+        reqCookies.delete(chunkName);
+      }
     }
 
     return sizeOf(name, value);
@@ -359,12 +365,18 @@ export function setChunkedCookie(
   for (let i = chunkIndex; i < clearUpTo; i++) {
     const chunkName = `${name}${CHUNK_PREFIX}${i}`;
     deleteCookie(resCookies, chunkName, deleteOptions);
-    reqCookies.delete(chunkName);
+    // Alias guard: skip the naked delete when both stores alias (see above).
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.delete(chunkName);
+    }
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
   deleteCookie(resCookies, name, deleteOptions);
-  reqCookies.delete(name);
+  // Alias guard: skip the naked delete when both stores alias (see above).
+  if ((reqCookies as unknown) !== (resCookies as unknown)) {
+    reqCookies.delete(name);
+  }
 
   return totalBytes;
 }
