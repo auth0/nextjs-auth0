@@ -3462,7 +3462,10 @@ export class AuthClient {
   private async readAnonymousCookie(
     reqCookies: RequestCookies | ReadonlyRequestCookies
   ): Promise<AnonymousCookiePayload | null> {
-    const cookieValue = getChunkedCookie(this.anonymousCookieName, reqCookies as RequestCookies);
+    const cookieValue = getChunkedCookie(
+      this.anonymousCookieName,
+      reqCookies as RequestCookies
+    );
     if (!cookieValue) {
       return null;
     }

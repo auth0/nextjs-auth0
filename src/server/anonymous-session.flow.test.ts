@@ -2629,47 +2629,46 @@ describe("Phase 2: Transfer Ticket Migration", () => {
 
       // Patch mockFetch to inject nonce into /oauth/token responses
       mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
-          const url = new URL(
-            typeof input === "string"
-              ? input
-              : input instanceof Request
-                ? input.url
-                : input.toString()
-          );
-          if (url.pathname === "/.well-known/openid-configuration") {
-            return Response.json({
-              issuer: `https://${defaultDomain}/`,
-              authorization_endpoint: `https://${defaultDomain}/authorize`,
-              token_endpoint: `https://${defaultDomain}/oauth/token`,
-              userinfo_endpoint: `https://${defaultDomain}/userinfo`,
-              jwks_uri: `https://${defaultDomain}/.well-known/jwks.json`
-            });
-          }
-          if (url.pathname === "/.well-known/jwks.json") {
-            const publicJwk = await jose.exportJWK(keyPair.publicKey);
-            return Response.json({
-              keys: [{ ...publicJwk, kid: "test-key" }]
-            });
-          }
-          if (url.pathname === "/oauth/token") {
-            const idToken = await new jose.SignJWT({ nonce })
-              .setProtectedHeader({ alg: "RS256", kid: "test-key" })
-              .setSubject("user_123")
-              .setIssuedAt()
-              .setIssuer(`https://${defaultDomain}/`)
-              .setAudience("test-id")
-              .setExpirationTime("2h")
-              .sign(keyPair.privateKey);
-            return Response.json({
-              token_type: "Bearer",
-              access_token: "at_123",
-              id_token: idToken,
-              expires_in: 86400
-            });
-          }
-          throw new Error(`Unmocked: ${url.pathname}`);
+        const url = new URL(
+          typeof input === "string"
+            ? input
+            : input instanceof Request
+              ? input.url
+              : input.toString()
+        );
+        if (url.pathname === "/.well-known/openid-configuration") {
+          return Response.json({
+            issuer: `https://${defaultDomain}/`,
+            authorization_endpoint: `https://${defaultDomain}/authorize`,
+            token_endpoint: `https://${defaultDomain}/oauth/token`,
+            userinfo_endpoint: `https://${defaultDomain}/userinfo`,
+            jwks_uri: `https://${defaultDomain}/.well-known/jwks.json`
+          });
         }
-      );
+        if (url.pathname === "/.well-known/jwks.json") {
+          const publicJwk = await jose.exportJWK(keyPair.publicKey);
+          return Response.json({
+            keys: [{ ...publicJwk, kid: "test-key" }]
+          });
+        }
+        if (url.pathname === "/oauth/token") {
+          const idToken = await new jose.SignJWT({ nonce })
+            .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+            .setSubject("user_123")
+            .setIssuedAt()
+            .setIssuer(`https://${defaultDomain}/`)
+            .setAudience("test-id")
+            .setExpirationTime("2h")
+            .sign(keyPair.privateKey);
+          return Response.json({
+            token_type: "Bearer",
+            access_token: "at_123",
+            id_token: idToken,
+            expires_in: 86400
+          });
+        }
+        throw new Error(`Unmocked: ${url.pathname}`);
+      });
 
       // Step 3: simulate callback with auth code
       const txCookieValue = txCookie!.split(";")[0]; // name=value only
