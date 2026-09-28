@@ -596,11 +596,10 @@ if ! command -v auth0 &> /dev/null; then
   if [[ "$OSTYPE" == "darwin"* ]]; then
     brew install auth0
   else
-    # Download and review the install script before executing
-    curl -sSfL https://raw.githubusercontent.com/auth0/auth0-cli/main/install.sh -o /tmp/auth0-install.sh
-    echo "⚠️  Review the install script at /tmp/auth0-install.sh before running"
-    sh /tmp/auth0-install.sh -b /usr/local/bin
-    rm /tmp/auth0-install.sh
+    INSTALLER=$(mktemp)
+    curl -sSfL https://raw.githubusercontent.com/auth0/auth0-cli/main/install.sh -o "$INSTALLER"
+    sh "$INSTALLER" -b /usr/local/bin
+    rm -f "$INSTALLER"
   fi
 fi
 
