@@ -53,9 +53,10 @@ export interface AnonymousSessionConfig {
     maxAge?: number;
   };
   /**
-   * When true (default), the local auth0_anon cookie is deleted when the user
-   * initiates an interactive login. Clears local (app-domain) cookie only;
-   * the tenant-domain auth0_anon cookie is not affected (server-to-server
+   * When true (default), the local auth0_anon cookie is deleted after a
+   * successful login callback, once the authenticated session is established.
+   * Abandoned logins leave the cookie intact. Clears local (app-domain) cookie
+   * only; the tenant-domain auth0_anon cookie is not affected (server-to-server
    * cannot forward the browser cookie to clear it — accepted gap for EA).
    */
   clearAnonymousSessionOnLogin?: boolean;

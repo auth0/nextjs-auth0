@@ -9,7 +9,7 @@ An anonymous session is represented by an `anon@{uuid}` identity and includes:
 - **Expiration**: Unix timestamp indicating when the access token expires
 - **Metadata**: Optional user-defined key-value data (up to 1 KB)
 
-Anonymous sessions are completely independent from authenticated user sessions. They do not interact with login/logout flows unless your application explicitly coordinates them.
+When anonymous sessions are enabled, the SDK automatically links an anonymous session to the user's account at login by minting a transfer ticket and appending it to the `/authorize` redirect. After a successful login callback the local `auth0_anon` cookie is cleared (if `clearAnonymousSessionOnLogin` is `true`). If login is abandoned, the cookie is retained.
 
 ## Table of Contents
 
@@ -66,7 +66,7 @@ export const auth0 = new Auth0Client({
 | `cookie.sameSite` | `"lax" \| "strict" \| "none"` | `"lax"`        | SameSite attribute for the cookie. Set to `"none"` only if absolutely necessary, and always with `secure: true`.                                                                                                                                                                                                                                                                          |
 | `cookie.secure`   | `boolean`                     | `true`         | Secure flag for the cookie.                                                                                                                                                                                                                                                                                                                                                               |
 | `cookie.maxAge`   | `number`                      | `2592000`      | Cookie lifetime in seconds. Defaults to 2592000 (30 days). The anonymous access token is renewed transparently as it nears expiry, so the cookie generally outlives any single access token. Setting a very short `maxAge` (under an hour) forces the cookie to be re-minted on nearly every request that can write cookies, which adds renewal overhead without a corresponding benefit. |
-| `clearAnonymousSessionOnLogin` | `boolean` | `true` | When `true` (default), the local `auth0_anon` cookie is deleted when the user initiates an interactive login. This is a local-only deletion; the anonymous session cookie on the Auth0 tenant domain is not affected. Set to `false` to keep the local anonymous cookie active through the login flow, for example if your `onCallback` hook needs to read it. |
+| `clearAnonymousSessionOnLogin` | `boolean` | `true` | When `true` (default), the local `auth0_anon` cookie is deleted after a successful login callback, once the authenticated session has been established. This is a local-only deletion; the anonymous session cookie on the Auth0 tenant domain is not affected. Abandoned logins leave the cookie intact. Set to `false` to keep the local anonymous cookie active even after a successful login. |
 
 Both `audience` and `scope` must be permitted for anonymous callers on your tenant. An audience that is unresolved, or a resource server that does not allow anonymous access, produces `invalid_target`. A scope that is not granted to anonymous subjects produces `invalid_scope`. Both are thrown as `AnonymousSessionError` and are not recovered automatically.
 
@@ -534,7 +534,7 @@ Applications that use anonymous session data after login SHOULD check this flag 
 
 When a user starts a login while an anonymous session cookie is present, the SDK performs a server-to-server POST to Auth0's `/anonymous/token` endpoint to mint a 30-second single-use JWE transfer ticket. The ticket is appended to the `/authorize` redirect as the `anon_transfer_token` query parameter and is consumed once by Auth0 during the login flow. The raw `session_token` session handle is no longer sent to `/authorize`.
 
-Because the link relies on a short-lived transfer ticket rather than a persistent session handle, a captured `anon_transfer_token` becomes useless within 30 seconds. Login never fails because of a ticket error: if the mint call fails for any reason, the SDK logs the failure and proceeds with the login normally without appending a ticket.
+Because the link relies on a short-lived transfer ticket rather than a persistent session handle, a captured `anon_transfer_token` becomes useless within 30 seconds. Login never fails because of a ticket error: if the mint call fails for any reason, the SDK silently proceeds with the login without appending a ticket, and `ctx.anonymousSessionLinked` is `false`.
 
 **Security note:** The transfer ticket has no server-side reuse detection beyond its 30-second TTL. A phishing or CSRF scenario where an attacker can direct a user to a crafted `/authorize` URL containing a valid, unexpired ticket could result in the attacker's anonymous session being linked to the victim's authenticated account. To limit the impact of such an attack, do not store security-sensitive data in anonymous session metadata and do not use anonymous session metadata for authorization decisions. Anonymous sessions are intended for non-sensitive personalization, not for access control.
 
@@ -663,9 +663,10 @@ interface AnonymousSessionConfig {
     maxAge?: number;
   };
   /**
-   * When true (default), the local auth0_anon cookie is deleted when the user
-   * initiates an interactive login. Local cookie only: the tenant-domain cookie
-   * is not affected.
+   * When true (default), the local auth0_anon cookie is deleted after a
+   * successful login callback, once the authenticated session is established.
+   * Abandoned logins leave the cookie intact. Local cookie only: the
+   * tenant-domain cookie is not affected.
    */
   clearAnonymousSessionOnLogin?: boolean;
 }

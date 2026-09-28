@@ -307,8 +307,14 @@ export function setChunkedCookie(
   // If value fits in a single cookie, set it directly
   if (valueBytes <= MAX_CHUNK_SIZE) {
     resCookies.set(name, value, finalOptions);
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(name, value);
+    // Read-after-write for middleware: only write when reqCookies is a separate
+    // store from resCookies. When both alias the same cookies() store (Server
+    // Actions), the resCookies write above already applied the full security
+    // attributes; a second naked set() without options would overwrite and drop
+    // HttpOnly, Secure, SameSite, and Max-Age from the Set-Cookie header.
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.set(name, value);
+    }
 
     // When we are writing a non-chunked cookie, remove any previously stored
     // chunks for this cookie name. Sweep at least `__0..MAX_CHUNKS-1` (covers
@@ -335,8 +341,10 @@ export function setChunkedCookie(
     const chunkName = `${name}${CHUNK_PREFIX}${chunkIndex}`;
 
     resCookies.set(chunkName, chunk, finalOptions);
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(chunkName, chunk);
+    // Same guard as the non-chunked path: skip when stores alias each other.
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.set(chunkName, chunk);
+    }
     totalBytes += sizeOf(chunkName, chunk);
     position += MAX_CHUNK_SIZE;
     chunkIndex++;

@@ -1026,7 +1026,11 @@ export class Auth0Client {
    * Metadata is set once at creation and cannot be changed after (CASCADE-v2 M2).
    * Validates metadata against 1KB cap before network call; oversize → metadata_too_large.
    *
-   * Use in Route Handlers and the **Pages Router** (request/response form).
+   * Use in Route Handlers (**App Router** only — `res` must be a `NextResponse`).
+   * The response writes cookies via `res.cookies`, which requires a `NextResponse`; a
+   * Pages Router `ServerResponse` / `NextApiResponse` does not have a `cookies` jar.
+   * For Pages Router usage, use `getAnonymousSession()` instead and manage cookie
+   * headers manually.
    */
   async createAnonymousSession(
     req: PagesRouterRequest | NextRequest,
