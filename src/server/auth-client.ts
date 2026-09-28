@@ -3460,9 +3460,9 @@ export class AuthClient {
    * No caller-supplied data is mixed in.
    */
   private async readAnonymousCookie(
-    reqCookies: RequestCookies
+    reqCookies: RequestCookies | ReadonlyRequestCookies
   ): Promise<AnonymousCookiePayload | null> {
-    const cookieValue = getChunkedCookie(this.anonymousCookieName, reqCookies);
+    const cookieValue = getChunkedCookie(this.anonymousCookieName, reqCookies as RequestCookies);
     if (!cookieValue) {
       return null;
     }
