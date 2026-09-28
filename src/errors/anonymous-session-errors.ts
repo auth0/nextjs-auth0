@@ -62,14 +62,29 @@ export function mapAnonymousErrorCode(
     unauthorized_client: "This client is not enabled for anonymous sessions.",
     server_error: "The authorization server encountered an error.",
     invalid_request: "The request is malformed.",
+    invalid_response:
+      "The authorization server returned an invalid or incomplete response.",
     session_expired: "The session has expired."
   };
 
   const trimmedDescription = serverDescription?.trim();
 
+  // The `code` in the last-resort fallback message is the raw `error` field from
+  // the authorization server's HTTP response, i.e. attacker-influenceable, upstream
+  // content. Any known code is already handled by `codeToMessage` above, so this
+  // branch is only reached for an unrecognized value. Sanitize it to the charset
+  // real OAuth/OIDC error codes use (lowercase letters + underscore) before
+  // interpolating, so a malformed or hostile value cannot inject markup/control
+  // characters into an error string an application might surface. An empty result
+  // (nothing survived the filter) degrades to a static message.
+  const sanitizedCode = code.replace(/[^a-z_]/g, "");
+  const fallbackMessage = sanitizedCode
+    ? `An error occurred: ${sanitizedCode}`
+    : "An error occurred (unknown error code).";
+
   return new AnonymousSessionError(
     code,
-    trimmedDescription || codeToMessage[code] || `An error occurred: ${code}`,
+    trimmedDescription || codeToMessage[code] || fallbackMessage,
     trimmedDescription,
     rawBody
   );
@@ -78,7 +93,7 @@ export function mapAnonymousErrorCode(
 /**
  * Map an anonymous-session error code to its HTTP status per DESIGN §3.C7.
  * 401 invalid_client; 403 feature_not_enabled / unauthorized_client;
- * 500 server_error; 400 for every other (client/request) code.
+ * 500 server_error / invalid_response; 400 for every other (client/request) code.
  */
 export function getStatusForAnonymousError(code: string): number {
   switch (code) {
@@ -87,7 +102,12 @@ export function getStatusForAnonymousError(code: string): number {
     case "feature_not_enabled":
     case "unauthorized_client":
       return 403;
+    // `server_error` is an authorization-server fault; `invalid_response` is a
+    // protocol violation the SDK raises when Auth0 returns a malformed payload
+    // (out-of-range `expires_in`, missing `session_token`). Neither is the
+    // caller's fault, so both surface as 5xx rather than a misleading 400.
     case "server_error":
+    case "invalid_response":
       return 500;
     default:
       return 400;

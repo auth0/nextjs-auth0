@@ -78,9 +78,14 @@ export interface AnonymousCookiePayload extends jose.JWTPayload {
 }
 
 /**
- * Server-side token response from POST /anonymous/token
+ * Server-side token response from POST /anonymous/token in create/renew mode.
  * CASCADE-v2 M5: Authorization server wire response includes session_expires_in (30d),
  * but SDK deliberately ignores it; renewal is error-driven/reactive only (no expiry check).
+ *
+ * NOTE: this shape covers only the create (201) and renew (200) responses, whose
+ * `token_type` is "Bearer". It does NOT describe the transfer-ticket mint response
+ * (`token_type: "N_A"`, `anon_transfer_token`), which `mintTransferToken` parses
+ * directly as `Record<string, unknown>`. Do not reuse this interface for the mint call.
  */
 export interface AnonymousTokenResponse {
   token_type: "Bearer";

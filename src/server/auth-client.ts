@@ -3359,7 +3359,9 @@ export class AuthClient {
     // Route through toCookiePayload: owns expires_in validation (both bounds),
     // server-rotation (res.session_token ?? prior), and metadata merge precedence
     // (res.metadata wins over caller-supplied options.metadata).
-    // res.session_token is validated non-null immediately above.
+    // The `!` is safe: `res.session_token` is guarded non-null immediately above,
+    // but TypeScript cannot carry that narrowing across the intervening call, so
+    // the assertion restates the invariant rather than accessing a nullable value.
     const payload = this.toCookiePayload(
       res,
       res.session_token!,
@@ -3440,7 +3442,8 @@ export class AuthClient {
     // Use setChunkedCookie to handle large encrypted payloads (D2: re-wrap in app-domain cookie)
     // Signature: setChunkedCookie(name, value, options, reqCookies, resCookies)
     // anonymousCookieOptions does NOT include maxAge; we add it here per call.
-    await setChunkedCookie(
+    // setChunkedCookie is synchronous (returns the written byte count); no await.
+    setChunkedCookie(
       this.anonymousCookieName,
       encrypted,
       { ...this.anonymousCookieOptions, maxAge: this.anonymousCookieMaxAge },
@@ -3512,13 +3515,12 @@ export class AuthClient {
 
       const ref = await digestAnonymousSessionToken(anonCookie.session_token);
       return ref === transactionState.anonymousSessionRef && linked;
-    } catch (err) {
+    } catch {
       // An unreadable anonymous cookie cannot be shown to match the bound digest,
-      // so the link is not reported. Login is not failed over it.
-      console.error(
-        "Error verifying the anonymous session binding at callback:",
-        err
-      );
+      // so the link is not reported and login is not failed over it. Swallow the
+      // error silently, matching every other Phase 2 fail-open path: the error
+      // object can carry decryption/JOSE internals and this method is on the
+      // security-critical callback path, so it is never logged.
       return false;
     }
   }

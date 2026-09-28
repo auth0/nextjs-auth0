@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AnonymousSessionError,
+  getStatusForAnonymousError,
   mapAnonymousErrorCode
 } from "../errors/anonymous-session-errors.js";
 import { AuthClient } from "../server/auth-client.js";
@@ -89,6 +90,43 @@ describe("AnonymousSessionError", () => {
       const err = mapAnonymousErrorCode("unknown_code");
       expect(err.code).toBe("unknown_code");
       expect(err.message).toContain("An error occurred");
+    });
+
+    it("sanitizes a hostile unknown code out of the fallback message", () => {
+      const err = mapAnonymousErrorCode("<script>alert(1)</script>");
+      // code is preserved verbatim on the error object (machine-readable)...
+      expect(err.code).toBe("<script>alert(1)</script>");
+      // ...but the human-readable message keeps only [a-z_] characters.
+      expect(err.message).toBe("An error occurred: scriptalertscript");
+      expect(err.message).not.toContain("<");
+      expect(err.message).not.toContain(">");
+    });
+
+    it("degrades to a static message when nothing survives sanitization", () => {
+      const err = mapAnonymousErrorCode("12345");
+      expect(err.message).toBe("An error occurred (unknown error code).");
+    });
+  });
+
+  describe("getStatusForAnonymousError", () => {
+    it("maps invalid_client to 401", () => {
+      expect(getStatusForAnonymousError("invalid_client")).toBe(401);
+    });
+
+    it("maps feature_not_enabled and unauthorized_client to 403", () => {
+      expect(getStatusForAnonymousError("feature_not_enabled")).toBe(403);
+      expect(getStatusForAnonymousError("unauthorized_client")).toBe(403);
+    });
+
+    it("maps server_error and invalid_response to 500 (server/protocol faults)", () => {
+      expect(getStatusForAnonymousError("server_error")).toBe(500);
+      expect(getStatusForAnonymousError("invalid_response")).toBe(500);
+    });
+
+    it("defaults unknown/client codes to 400", () => {
+      expect(getStatusForAnonymousError("invalid_request")).toBe(400);
+      expect(getStatusForAnonymousError("metadata_too_large")).toBe(400);
+      expect(getStatusForAnonymousError("something_else")).toBe(400);
     });
   });
 
