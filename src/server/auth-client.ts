@@ -495,7 +495,6 @@ export class AuthClient {
   private readonly secret: string;
   private readonly anonymousSessionEnabled: boolean;
   private readonly anonymousCookieName: string;
-  private readonly anonymousSessionConfig: AnonymousSessionConfig;
   private readonly anonymousCookieOptions: CookieOptions;
   private readonly anonymousCookieMaxAge: number;
   private readonly anonymousAudience?: string;
@@ -697,7 +696,6 @@ export class AuthClient {
     this.anonymousSessionEnabled = anonConfig.enabled;
     this.anonymousCookieName =
       anonConfig.cookie?.name ?? DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME;
-    this.anonymousSessionConfig = anonConfig;
     this.anonymousCookieMaxAge = anonConfig.cookie?.maxAge ?? 2592000; // 30 days default (CASCADE §C)
     this.anonymousAudience = anonConfig.audience;
     this.anonymousScope = anonConfig.scope;
@@ -3271,7 +3269,7 @@ export class AuthClient {
       if (isRecoverableAnonymousError(err)) {
         return await this.createAndPersist(reqCookies, resCookies);
       }
-      throw err; // Non-recoverable error → throw to caller
+      throw err; // Non-recoverable error → throw to caller (route handler maps to HTTP status per §3.C7)
     }
   }
 
@@ -3379,6 +3377,12 @@ export class AuthClient {
    * triggers silent renewal; without it (Server Component read path, D7) a valid
    * decrypted session is returned as-is and renewal defers to the next route call.
    * Short-circuits to null when the feature is disabled (§3.C2 / FR-1 / T8.5).
+   *
+   * NOTE (read-only contexts — RSC, getServerSideProps): when called without
+   * resCookies, the returned session's access token may already be expired because
+   * the renewed cookie cannot be written back to the response. Callers that forward
+   * `accessToken` to downstream services should be prepared to handle a possibly-
+   * expired token and trigger re-validation via the route handler if needed.
    */
   async getAnonymousSession(
     reqCookies: RequestCookies,
@@ -3623,6 +3627,24 @@ export class AuthClient {
   }
 
   /**
+   * Base URL (origin) to use for anonymous endpoint requests.
+   *
+   * When mTLS is enabled, routes through the mTLS alias origin from the discovery
+   * document (mirrors the guard in withMtlsEndpoint). Falls back to
+   * `https://${this.domain}` when mTLS is off, when discovery fails, or when the
+   * discovery document does not advertise an mTLS token endpoint alias.
+   */
+  private async anonymousBaseUrl(): Promise<string> {
+    if (this.useMtls) {
+      const [err, as] = await this.discoverAuthorizationServerMetadata();
+      if (!err && as.mtls_endpoint_aliases?.token_endpoint) {
+        return new URL(as.mtls_endpoint_aliases.token_endpoint).origin;
+      }
+    }
+    return `https://${this.domain}`;
+  }
+
+  /**
    * Resolve the authorization server metadata that the client authentication
    * callable is handed.
    *
@@ -3725,7 +3747,7 @@ export class AuthClient {
     audience?: string;
     scope?: string;
   }): Promise<AnonymousTokenResponse> {
-    const url = new URL(`/anonymous/token`, `https://${this.domain}`);
+    const url = new URL(`/anonymous/token`, await this.anonymousBaseUrl());
 
     const res = await this.fetch(
       url.toString(),
@@ -3766,7 +3788,7 @@ export class AuthClient {
    * 401 and 403 throw alongside the 5xx range.
    */
   private async anonymousLogoutRequest(): Promise<void> {
-    const url = new URL(`/anonymous/logout`, `https://${this.domain}`);
+    const url = new URL(`/anonymous/logout`, await this.anonymousBaseUrl());
 
     const body = this.clientMetadata.client_id
       ? { client_id: this.clientMetadata.client_id }
@@ -3820,7 +3842,7 @@ export class AuthClient {
     sessionToken: string
   ): Promise<string | null> {
     try {
-      const url = new URL("/anonymous/token", `https://${this.domain}`);
+      const url = new URL("/anonymous/token", await this.anonymousBaseUrl());
       const init = await this.anonymousRequestInit({
         session_token: sessionToken,
         audience: ANON_TRANSFER_AUDIENCE
@@ -3833,7 +3855,11 @@ export class AuthClient {
       return typeof data.anon_transfer_token === "string"
         ? data.anon_transfer_token
         : null;
-    } catch {
+    } catch (err) {
+      console.error(
+        "[nextjs-auth0] Anonymous transfer token mint failed (login proceeds):",
+        err instanceof Error ? err.message : String(err)
+      );
       return null;
     }
   }
@@ -3932,7 +3958,10 @@ export class AuthClient {
       try {
         await this.anonymousLogoutRequest();
       } catch (err) {
-        console.error("Anonymous logout network error (ignored):", err);
+        console.warn(
+          "[nextjs-auth0] Anonymous logout failed (ignored):",
+          err instanceof Error ? err.message : String(err)
+        );
       }
 
       // Clear the cookie, including any chunk fragments, so a chunked session

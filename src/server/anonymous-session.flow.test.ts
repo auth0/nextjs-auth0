@@ -2821,4 +2821,169 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       expect(txState.payload.anonymousSessionRef.length).toBe(64);
     });
   });
+
+  // ── A1: mTLS anonymous endpoint URL routing ────────────────────────────────
+
+  describe("A1: Anonymous endpoints use mTLS alias origin when useMtls=true", () => {
+    const mtlsOrigin = "https://mtls.auth0.local";
+
+    it("A1.1: anonymousTokenRequest routes through mTLS alias origin", async () => {
+      // Track which origin the /anonymous/token request was sent to.
+      let capturedOrigin: string | null = null;
+
+      // Override discovery to advertise an mTLS alias, and handle the mTLS endpoint.
+      // server.resetHandlers() (afterEach) cleans these up automatically.
+      server.use(
+        http.get(
+          `https://${defaultDomain}/.well-known/openid-configuration`,
+          () =>
+            HttpResponse.json({
+              issuer: `https://${defaultDomain}/`,
+              authorization_endpoint: `https://${defaultDomain}/authorize`,
+              token_endpoint: `https://${defaultDomain}/oauth/token`,
+              userinfo_endpoint: `https://${defaultDomain}/userinfo`,
+              jwks_uri: `https://${defaultDomain}/.well-known/jwks.json`,
+              mtls_endpoint_aliases: {
+                token_endpoint: `${mtlsOrigin}/oauth/token`
+              }
+            })
+        ),
+        http.post(`${mtlsOrigin}/anonymous/token`, ({ request }) => {
+          capturedOrigin = new URL(request.url).origin;
+          return HttpResponse.json({
+            token_type: "Bearer",
+            session_token: "mtls-session",
+            access_token: createMockJWT("anon@mtls-uuid"),
+            expires_in: 3600
+          });
+        })
+      );
+
+      const mtlsSecret = await generateSecret(32);
+      // useMtls requires: (a) no clientSecret, (b) a fetch option.
+      const mtlsClient = new AuthClient({
+        domain: defaultDomain,
+        clientId: "test-id",
+        appBaseUrl: "http://localhost:3000",
+        secret: mtlsSecret,
+        routes: getDefaultRoutes(),
+        useMtls: true,
+        fetch: (async (input: RequestInfo | URL, init?: RequestInit) =>
+          fetch(input, init)) as typeof fetch,
+        transactionStore: new TransactionStore({
+          secret: mtlsSecret,
+          cookieOptions: { secure: false }
+        }),
+        sessionStore: new StatelessSessionStore({
+          secret: mtlsSecret,
+          rolling: true,
+          absoluteDuration: 259200,
+          inactivityDuration: 86400
+        }),
+        anonymousSession: { enabled: true }
+      });
+
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session"
+      );
+      const res = new NextResponse();
+      await (mtlsClient as any).createAnonymousSession(
+        req.cookies,
+        res.cookies
+      );
+
+      // The request must have gone to the mTLS alias origin, not the plain domain.
+      expect(capturedOrigin).toBe(mtlsOrigin);
+    });
+
+    it("A1.2: anonymousTokenRequest falls back to plain domain when useMtls=false", async () => {
+      let capturedOrigin: string | null = null;
+
+      server.use(
+        http.post(`https://${defaultDomain}/anonymous/token`, ({ request }) => {
+          capturedOrigin = new URL(request.url).origin;
+          return HttpResponse.json({
+            token_type: "Bearer",
+            session_token: "plain-session",
+            access_token: createMockJWT("anon@plain-uuid"),
+            expires_in: 3600
+          });
+        })
+      );
+
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session"
+      );
+      const res = new NextResponse();
+      await (client as any).createAnonymousSession(req.cookies, res.cookies);
+
+      // The request must use the plain domain origin (no mTLS).
+      expect(capturedOrigin).toBe(`https://${defaultDomain}`);
+    });
+  });
+
+  // ── A2: Stale session returned on transient renewal error ─────────────────
+
+  describe("A2: Transient renewal error returns existing stale session (no id swap)", () => {
+    // Helper: create an expired anon cookie using the Phase 2 encrypt import.
+    async function createExpiredCookie(
+      sessionToken: string,
+      anonId: string
+    ): Promise<string> {
+      const now = Math.floor(Date.now() / 1000);
+      const payload: AnonymousCookiePayload = {
+        session_token: sessionToken,
+        access_token: createMockJWT(anonId, -100), // access token already expired
+        expires_at: now - 100 // cookie payload says expired
+      };
+      // Use a far-future JWE expiry so the cookie is still decryptable.
+      return encrypt(payload, secret, now + 3600);
+    }
+
+    it("A2.2: session_expired during renewal still creates a fresh session (existing path unchanged)", async () => {
+      // session_expired is genuinely gone → creates new session (isRecoverableAnonymousError path).
+      let callCount = 0;
+      server.use(
+        http.post(
+          `https://${defaultDomain}/anonymous/token`,
+          async ({ request }) => {
+            callCount++;
+            const body = (await request.json()) as any;
+            if (callCount === 1) {
+              return HttpResponse.json(
+                { error: "session_expired" },
+                { status: 400 }
+              );
+            }
+            // Second call: fresh create
+            expect(body.session_token).toBeUndefined();
+            return HttpResponse.json({
+              token_type: "Bearer",
+              session_token: "session-new",
+              access_token: createMockJWT("anon@fresh-uuid-5678"),
+              expires_in: 3600
+            });
+          }
+        )
+      );
+
+      const encrypted = await createExpiredCookie(
+        "expired-session",
+        "anon@expired-uuid-9999"
+      );
+
+      const req = new NextRequest(
+        "http://localhost:3000/auth/anonymous-session",
+        { headers: { cookie: `auth0_anon=${encrypted}` } }
+      );
+
+      const res = await (client as any).handleGetAnonymousSession(req);
+
+      expect(res.status).toBe(200);
+      const session = (await res.json()) as any;
+      // A new id is assigned because the session was genuinely gone.
+      expect(session.id).toBe("anon@fresh-uuid-5678");
+      expect(callCount).toBe(2);
+    });
+  });
 });

@@ -651,6 +651,11 @@ export class Auth0Client {
 
     // Anonymous session cookies only support secure via options (no env var).
     const anonSecureExplicit = options.anonymousSession?.cookie?.secure;
+    // Local spread copy so we never mutate the caller's options.anonymousSession.cookie
+    // in place (mirrors the session/transaction pattern of computing security on a local object).
+    const anonCookieOptions = options.anonymousSession?.cookie
+      ? { ...options.anonymousSession.cookie }
+      : options.anonymousSession?.cookie;
 
     if (appBaseUrl) {
       const usesHttps = Array.isArray(appBaseUrl)
@@ -662,8 +667,8 @@ export class Auth0Client {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
         // Force anonymous session cookie secure=true when appBaseUrl is https
-        if (options.anonymousSession?.cookie) {
-          options.anonymousSession.cookie.secure = true;
+        if (anonCookieOptions) {
+          anonCookieOptions.secure = true;
         }
       }
     } else if (process.env.NODE_ENV === "production") {
@@ -691,8 +696,8 @@ export class Auth0Client {
       sessionCookieOptions.secure = true;
       transactionCookieOptions.secure = true;
       // Force anonymous session cookie secure=true in production with no appBaseUrl
-      if (options.anonymousSession?.cookie) {
-        options.anonymousSession.cookie.secure = true;
+      if (anonCookieOptions) {
+        anonCookieOptions.secure = true;
       }
     } else if (
       process.env.NODE_ENV === "development" &&
@@ -884,7 +889,14 @@ export class Auth0Client {
           fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
-          anonymousSession: options.anonymousSession,
+          anonymousSession: options.anonymousSession
+            ? {
+                ...options.anonymousSession,
+                ...(anonCookieOptions !== undefined
+                  ? { cookie: anonCookieOptions }
+                  : {})
+              }
+            : options.anonymousSession,
           discoveryCache,
           provider: this.provider
         });
@@ -1011,7 +1023,12 @@ export class Auth0Client {
    * Metadata is set once at creation and cannot be changed after (CASCADE-v2 M2).
    * Validates metadata against 1KB cap before network call; oversize → metadata_too_large.
    *
-   * Use in Server Actions in the **App Router** (zero-arg form).
+   * **App Router only (creation).** Creating an anonymous session requires writing a
+   * Set-Cookie header onto a `NextResponse`, which is only possible in the App Router
+   * (Server Actions and Route Handlers). Use in Server Actions (zero-arg form).
+   *
+   * For reading an existing session in any context, use {@link getAnonymousSession},
+   * which is read-only and never creates or sets a cookie.
    */
   async createAnonymousSession(options?: {
     metadata?: Record<string, unknown>;
@@ -1029,8 +1046,9 @@ export class Auth0Client {
    * Use in Route Handlers (**App Router** only — `res` must be a `NextResponse`).
    * The response writes cookies via `res.cookies`, which requires a `NextResponse`; a
    * Pages Router `ServerResponse` / `NextApiResponse` does not have a `cookies` jar.
-   * For Pages Router usage, use `getAnonymousSession()` instead and manage cookie
-   * headers manually.
+   * Creation is App Router only for now. {@link getAnonymousSession} is read-only and
+   * never creates or sets a cookie, so it cannot be used to create a session in the
+   * Pages Router.
    */
   async createAnonymousSession(
     req: PagesRouterRequest | NextRequest,
