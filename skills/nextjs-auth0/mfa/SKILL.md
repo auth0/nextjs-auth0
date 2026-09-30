@@ -152,6 +152,7 @@ v4 persists only a default claim subset, so `amr` is dropped by default. Opt it 
 ```ts
 export const auth0 = new Auth0Client({
   async beforeSessionSaved(session, idToken) {
+    if (!idToken) return session;
     const claims = decodeJwt(idToken); // e.g. jose's decodeJwt; idToken is the raw JWT string
     return { ...session, user: { ...session.user, amr: claims.amr } };
   },

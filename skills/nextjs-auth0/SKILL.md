@@ -373,8 +373,8 @@ export default function Profile({ user }: { user: any }) {
   return <h1>Welcome, {user.name}!</h1>;
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
-  const session = await auth0.getSession(req, res);
+export const getServerSideProps: GetServerSideProps = async ({ req }) => {
+  const session = await auth0.getSession(req);
 
   if (!session) {
     return {
@@ -419,7 +419,7 @@ import { auth0 } from '@/lib/auth0';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await auth0.getSession(req, res);
+  const session = await auth0.getSession(req);
 
   if (!session) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -508,7 +508,7 @@ import { auth0 } from '@/lib/auth0';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await auth0.getSession(req, res);
+  const session = await auth0.getSession(req);
 
   if (!session) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -547,7 +547,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 | "Invalid state" error | Clear cookies/storage. Verify callback URL in Auth0 dashboard matches `APP_BASE_URL/auth/callback` |
 | User session not persisting | Check `AUTH0_SECRET` is set and at least 32 characters |
 | API routes return 401 | Check session with `auth0.getSession()` in route handler |
-| Middleware loops infinitely | Ensure middleware matcher excludes `/auth/*` routes, not `/api/auth/*` |
+| Middleware loops infinitely | Do not exclude `/auth/*` from the matcher — those routes must reach `auth0.middleware()`. Instead return `authRes` early when `request.nextUrl.pathname.startsWith('/auth')` |
 | Import errors for v3 helpers | v4 removed `withApiAuthRequired` and `withPageAuthRequired` - use `auth0.getSession()` |
 | Environment variable not recognized | v4 uses `AUTH0_DOMAIN` (no scheme) and `APP_BASE_URL`, not `AUTH0_ISSUER_BASE_URL` or `AUTH0_BASE_URL` |
 | Callback URL mismatch | Add `/auth/callback` to Allowed Callback URLs (v4 dropped `/api` prefix) |
@@ -620,12 +620,18 @@ if [ -z "$APP_ID" ]; then
     --callbacks "http://localhost:3000/auth/callback" \
     --logout-urls "http://localhost:3000" \
     --metadata "created_by=agent_skills" \
-    --json | grep -o '"client_id":"[^"]*' | cut -d'"' -f4)
+    --json | jq -r '.client_id')
 fi
 
 # Get credentials
-AUTH0_DOMAIN=$(auth0 apps show "$APP_ID" --json | grep -o '"domain":"[^"]*' | cut -d'"' -f4)
-AUTH0_CLIENT_ID=$(auth0 apps show "$APP_ID" --json | grep -o '"client_id":"[^"]*' | cut -d'"' -f4)
+APP_JSON=$(auth0 apps show "$APP_ID" --json)
+AUTH0_DOMAIN=$(echo "$APP_JSON" | jq -r '.domain')
+AUTH0_CLIENT_ID=$(echo "$APP_JSON" | jq -r '.client_id')
+
+if [ -z "$AUTH0_DOMAIN" ] || [ -z "$AUTH0_CLIENT_ID" ]; then
+  echo "Error: failed to retrieve app credentials. Check the app ID and try again." >&2
+  exit 1
+fi
 
 # Generate secret
 AUTH0_SECRET=$(openssl rand -hex 32)

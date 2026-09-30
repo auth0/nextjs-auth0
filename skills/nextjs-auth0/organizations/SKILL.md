@@ -16,7 +16,7 @@ requires:
 
 # Auth0 Organizations (v4)
 
-Multi-tenant B2B authentication. Organizations let each of your customers have their own isolated user pool, roles, and connections — all within one Auth0 tenant.
+Multi-tenant B2B authentication. Organizations represent logical customer boundaries within one Auth0 tenant. User profiles are tenant-level and are associated with Organizations through memberships; each org can have its own roles and connections.
 
 ## When to use Organizations
 
@@ -32,7 +32,7 @@ Do NOT use Organizations for consumer apps (B2C). Organizations is a B2B constru
 
 | Concept | Description |
 |---|---|
-| **Organization** | An isolated tenant within your Auth0 tenant. Has an `id` (org_xxx) and `name` (slug). |
+| **Organization** | A logical customer boundary within your Auth0 tenant. Has an `id` (org_xxx) and `name` (slug). |
 | **Member** | A user belonging to an organization. A user can belong to multiple orgs. |
 | **Org-level role** | A role granted to a user within a specific org (not globally). |
 | **Connection** | A login method enabled for an org (database, enterprise SSO, social). |
