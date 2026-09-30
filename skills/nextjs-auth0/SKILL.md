@@ -599,6 +599,7 @@ if ! command -v auth0 &> /dev/null; then
     INSTALLER=$(mktemp)
     curl -sSfL https://raw.githubusercontent.com/auth0/auth0-cli/main/install.sh -o "$INSTALLER"
     mkdir -p "$HOME/.local/bin" && sh "$INSTALLER" -b "$HOME/.local/bin"
+    export PATH="$HOME/.local/bin:$PATH"
     rm -f "$INSTALLER"
   fi
 fi
