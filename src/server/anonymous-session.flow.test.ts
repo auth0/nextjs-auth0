@@ -2983,6 +2983,8 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       const session = (await res.json()) as any;
       // A new id is assigned because the session was genuinely gone.
       expect(session.id).toBe("anon@fresh-uuid-5678");
+      // The swap is announced, not silent, via sessionReplaced.
+      expect(session.sessionReplaced).toBe(true);
       expect(callCount).toBe(2);
     });
   });

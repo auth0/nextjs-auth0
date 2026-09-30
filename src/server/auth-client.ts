@@ -3265,9 +3265,15 @@ export class AuthClient {
         return null;
       }
     } catch (err) {
-      // If renewal fails with recoverable error (session_expired), silently create new session
+      // If renewal fails with a recoverable error (session_expired /
+      // invalid_session_token) the prior session is already gone server-side, so
+      // we mint a fresh anonymous identity. Flag it with sessionReplaced so the
+      // id swap is not silent: callers keying cart/analytics on `id` can detect
+      // that the previous identity (and its metadata) is gone. Mirrors
+      // auth0-auth-js (feat/SDK-10237-anonymous-sessions).
       if (isRecoverableAnonymousError(err)) {
-        return await this.createAndPersist(reqCookies, resCookies);
+        const replaced = await this.createAndPersist(reqCookies, resCookies);
+        return { ...replaced, sessionReplaced: true };
       }
       throw err; // Non-recoverable error → throw to caller (route handler maps to HTTP status per §3.C7)
     }

@@ -17,6 +17,15 @@ export interface AnonymousSession {
   expiresAt: number;
   /** User-set top-level key-value metadata, max 1KB serialized, optional */
   metadata?: Record<string, unknown>;
+  /**
+   * True when this session was silently created to replace one whose session
+   * token had expired or been invalidated during renewal. The previous `id`,
+   * any attached metadata, and any server-side state tied to the prior
+   * anonymous identity are permanently gone. Callers that key cart contents or
+   * analytics on `id` should treat a `sessionReplaced` session as a new
+   * identity. Absent (undefined) on normally created or read sessions.
+   */
+  sessionReplaced?: boolean;
 }
 
 /**
