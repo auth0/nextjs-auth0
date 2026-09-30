@@ -16,7 +16,7 @@ requires:
 
 # @auth0/nextjs-auth0 — MFA (v4)
 
-**Minimum version:** 4.15.0 for base MFA + the MFA management APIs; reactive popup step-up (`mfa.challengeWithPopup`) landed later (verify — 4.19+; the changelog names it `stepUpWithPopup`, the guide `challengeWithPopup`, so confirm the method name against the installed version).
+**Minimum version:** 4.15.0 for base MFA + the MFA management APIs; reactive popup step-up (`mfa.challengeWithPopup`) requires 4.19.0+.
 
 Framework-specific surface only. The shared mechanic, tenant config, `amr`/error tables, and full MFA API detail live in `guides/mfa.md` at the package root.
 
@@ -114,7 +114,7 @@ try {
 }
 ```
 
-On `/mfa`, read the cookie back, re-check `sub === session.user.sub`, drive `auth0.mfa.*`, then `(await cookies()).delete("mfa_token")` after a successful verify.
+On `/mfa`, read the cookie back. If `auth0.getSession()` returns null (user logged out or session expired), redirect to login and delete the MFA cookie. Otherwise re-check `sub === session.user.sub` to prevent one user completing another's MFA challenge, drive `auth0.mfa.*`, then `(await cookies()).delete("mfa_token")` after a successful verify.
 
 ## Flow 2 — MFA management API (`auth0.mfa.*`)
 

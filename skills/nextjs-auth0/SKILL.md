@@ -24,7 +24,7 @@ Add authentication to Next.js applications using @auth0/nextjs-auth0. Supports b
 
 ## Prerequisites
 
-- Next.js 13+ application (App Router or Pages Router)
+- Next.js 14.2.35+ application (App Router or Pages Router)
 - Auth0 account and application configured
 - If Auth0 isn't set up yet, set it up first with the Auth0 CLI (`auth0 login`, then `auth0 apps create`)
 
@@ -276,7 +276,7 @@ export async function GET() {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const apiResponse = await fetch('https://external-api.com/data', {
+  const apiResponse = await fetch('https://api.example.com/data', {
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -598,9 +598,15 @@ if ! command -v auth0 &> /dev/null; then
   else
     INSTALLER=$(mktemp)
     curl -sSfL https://raw.githubusercontent.com/auth0/auth0-cli/main/install.sh -o "$INSTALLER"
-    sh "$INSTALLER" -b /usr/local/bin
+    mkdir -p "$HOME/.local/bin" && sh "$INSTALLER" -b "$HOME/.local/bin"
     rm -f "$INSTALLER"
   fi
+fi
+
+# Require jq for JSON parsing
+if ! command -v jq &> /dev/null; then
+  echo "Error: jq is required. Install it first (e.g. apt install jq / brew install jq)." >&2
+  exit 1
 fi
 
 # Login
@@ -625,8 +631,8 @@ fi
 
 # Get credentials
 APP_JSON=$(auth0 apps show "$APP_ID" --json)
-AUTH0_DOMAIN=$(echo "$APP_JSON" | jq -r '.domain')
-AUTH0_CLIENT_ID=$(echo "$APP_JSON" | jq -r '.client_id')
+AUTH0_DOMAIN=$(echo "$APP_JSON" | jq -r '.domain // empty')
+AUTH0_CLIENT_ID=$(echo "$APP_JSON" | jq -r '.client_id // empty')
 
 if [ -z "$AUTH0_DOMAIN" ] || [ -z "$AUTH0_CLIENT_ID" ]; then
   echo "Error: failed to retrieve app credentials. Check the app ID and try again." >&2

@@ -125,8 +125,9 @@ Configure the tenant/app first — **two prerequisites, each a hard 400** before
 auth0 api patch "clients/<client-id>" \
   --data '{"organization_usage":"allow","organization_require_behavior":"no_prompt"}'
 
-# 2. Without this: "A default login route is required to generate the invitation url."
-#    Read the current value FIRST — it's tenant-wide; you may need to restore it.
+# 2. Without a default login route you get: "A default login route is required to generate the invitation url."
+#    If the selected client already has an Application Login URI (initiate_login_uri), skip this — that URI supplies the invitation login route.
+#    Otherwise, set the tenant-wide fallback (read the current value FIRST; it's tenant-wide and may affect other apps):
 auth0 api get "tenants/settings" | jq -r '.default_redirection_uri // ""'
 auth0 api patch "tenants/settings" \
   --data '{"default_redirection_uri":"https://app.example.com/callback"}'
