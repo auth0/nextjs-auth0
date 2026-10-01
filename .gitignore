@@ -40,6 +40,9 @@ build/Release
 
 # Dependency directories
 node_modules/
+# Also ignore a bare `node_modules` entry (e.g. a symlink to a shared store),
+# which the trailing-slash pattern above does not match.
+node_modules
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)

@@ -127,6 +127,27 @@ export interface TransactionState extends jose.JWTPayload {
    * @internal
    */
   originIssuer?: string;
+
+  /**
+   * True when a transfer ticket was successfully minted and appended to /authorize
+   * (link attempted, not confirmed — Auth0 may silently discard expired or replayed
+   * tickets). Indicates to the onCallback hook that post-login migration logic may apply.
+   */
+  anonymousSessionLinked?: boolean;
+
+  /**
+   * SHA-256 digest, hex encoded, of the anonymous session token that was
+   * injected into this login transaction. The raw token is never stored here.
+   * The callback recomputes the digest from the anonymous cookie it receives and
+   * refuses to report a link when the two do not match, which is what binds the
+   * linkage signal to the browser that started the transaction.
+   *
+   * Absent on transactions created before this field existed, and on
+   * transactions where no anonymous session was injected. Both cases are treated
+   * as unbound rather than as a mismatch.
+   * @internal
+   */
+  anonymousSessionRef?: string;
 }
 
 export interface TransactionCookieOptions {

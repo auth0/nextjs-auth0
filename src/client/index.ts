@@ -1,4 +1,5 @@
 export { useUser, type UseUserOptions } from "./hooks/use-user.js";
+export { useAnonymousSession } from "./hooks/use-anonymous-session.js";
 export {
   getAccessToken,
   type AccessTokenOptions
@@ -21,3 +22,4 @@ export type { ChallengeWithPopupOptions } from "./mfa/index.js";
 export type { AccessTokenResponse } from "./helpers/get-access-token.js";
 export { passwordless } from "./passwordless/index.js";
 export { passkey, serializeCredential } from "./passkey/index.js";
+export type { UseAnonymousSessionOptions } from "../types/index.js";
