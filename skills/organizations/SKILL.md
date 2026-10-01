@@ -40,6 +40,12 @@ Do NOT use Organizations for consumer apps (B2C). Organizations is a B2B constru
 
 ## Pass organization at login
 
+**Prerequisite:** the Auth0 application must have `organization_usage` set to `allow` (or `require`). Without it, any `/authorize` request that includes `organization=…` returns `400 invalid_request: parameter organization is not allowed`. Set it once in the dashboard (Application → Organizations) or with the CLI:
+
+```bash
+auth0 api patch "clients/<CLIENT_ID>" --data '{"organization_usage":"allow"}'
+```
+
 The org-login shape is protocol-level: send the organization identifier on the `/authorize`
 request, then read `org_id` back off the returned token. In `@auth0/nextjs-auth0` v4 there is
 **no dedicated top-level `organization` option** — it goes inside `authorizationParameters`

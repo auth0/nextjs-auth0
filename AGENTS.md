@@ -5,8 +5,8 @@
 **Runtime:** Node 20+, ESM, TypeScript
 
 > **Agent skills:** for task-specific, version-pinned guidance read
-> [`skills/nextjs-auth0/SKILL.md`](skills/nextjs-auth0/SKILL.md) (hub) and its sub-skills
-> (e.g. `skills/nextjs-auth0/mfa/SKILL.md`). These ship inside the published package, so
+> [`skills/SKILL.md`](skills/SKILL.md) (hub) and its sub-skills
+> (e.g. `skills/mfa/SKILL.md`). These ship inside the published package, so
 > they are also present under `node_modules/@auth0/nextjs-auth0/skills/` in a consuming app.
 
 ---
