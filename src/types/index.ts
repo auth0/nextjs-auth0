@@ -319,3 +319,10 @@ export {
   PasskeyRequestOptionsJSON,
   PasskeyCredentialDescriptorJSON
 } from "./passkey.js";
+
+export type {
+  AnonymousSession,
+  AnonymousSessionMetadata,
+  AnonymousSessionConfig,
+  UseAnonymousSessionOptions
+} from "./anonymous-session.js";
