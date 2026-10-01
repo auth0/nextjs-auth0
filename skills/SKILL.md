@@ -217,7 +217,7 @@ Visit `http://localhost:3000` and test the login flow.
 | Missing or weak AUTH0_SECRET | Generate secure secret with `openssl rand -hex 32` and store in .env.local |
 | Using .env instead of .env.local | Next.js requires .env.local for local secrets, and .env.local should be in .gitignore |
 | App created as SPA type in Auth0 | Must be Regular Web Application type for Next.js |
-| Using removed v3 helpers | v4 removed `withPageAuthRequired` and `withApiAuthRequired` - use `getSession()` instead |
+| Using standalone `withPageAuthRequired` / `withApiAuthRequired` | Use the instance methods `auth0.withPageAuthRequired()` and `auth0.withApiAuthRequired()`, or `auth0.getSession()` directly |
 | Using useUser in Server Component | useUser is client-only, use `auth0.getSession()` for Server Components |
 | AUTH0_DOMAIN includes https:// | v4 `AUTH0_DOMAIN` should be just the domain (e.g., `example.auth0.com`), no scheme |
 
@@ -324,7 +324,7 @@ export const auth0 = new Auth0Client({
   },
   session: {
     rolling: true,
-    rollingDuration: 24 * 60 * 60, // 24 hours in seconds
+    inactivityDuration: 24 * 60 * 60, // 24 hours in seconds
     absoluteDuration: 7 * 24 * 60 * 60, // 7 days in seconds
   },
 });
@@ -549,7 +549,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 | User session not persisting | Check `AUTH0_SECRET` is set and at least 32 characters |
 | API routes return 401 | Check session with `auth0.getSession()` in route handler |
 | Middleware loops infinitely | Do not exclude `/auth/*` from the matcher — those routes must reach `auth0.middleware()`. Instead return `authRes` early when `request.nextUrl.pathname.startsWith('/auth')` |
-| Import errors for v3 helpers | v4 removed `withApiAuthRequired` and `withPageAuthRequired` - use `auth0.getSession()` |
+| Import errors for `withApiAuthRequired` / `withPageAuthRequired` | These are instance methods — use `auth0.withApiAuthRequired()` / `auth0.withPageAuthRequired()`, or `auth0.getSession()` directly |
 | Environment variable not recognized | v4 uses `AUTH0_DOMAIN` (no scheme) and `APP_BASE_URL`, not `AUTH0_ISSUER_BASE_URL` or `AUTH0_BASE_URL` |
 | Callback URL mismatch | Add `/auth/callback` to Allowed Callback URLs (v4 dropped `/api` prefix) |
 | Routes return 404 | v4 uses `/auth/*` paths, not `/api/auth/*` - update all auth links |

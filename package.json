@@ -119,6 +119,7 @@
   "files": [
     "dist",
     "skills",
+    "guides",
     "AGENTS.md"
   ]
 }

@@ -124,7 +124,7 @@ All take `{ mfaToken }`:
   `Authenticator: { id: string, authenticatorType: 'otp'|'oob', oobChannel?: 'sms'|'voice'|'auth0'|'email', active: boolean }`
 - `enroll({ mfaToken, authenticatorTypes, oobChannels?, phoneNumber?, email? })` — OTP: `["otp"]` → `{ barcodeUri: string, secret: string, recoveryCodes?: string[] }`; OOB: `["oob"]` + `oobChannels` → `{ oobCode: string, bindingMethod?: string }`.
 - `challenge({ mfaToken, challengeType: 'oob', authenticatorId })` → `{ oobCode: string, bindingMethod?: string }` (OOB only — not needed for OTP).
-- `verify({ mfaToken, otp: string })` / `({ mfaToken, oobCode, bindingCode? })` / `({ mfaToken, recoveryCode })` → `MfaVerifyResponse` (tokens written to session). When `recoveryCode` is used, the response may include a new `recovery_code` — show it to the user once.
+- `verify({ mfaToken, otp: string })` / `({ mfaToken, oobCode, bindingCode: string })` / `({ mfaToken, recoveryCode })` → `MfaVerifyResponse` (tokens written to session). `bindingCode` is required when using OOB. When `recoveryCode` is used, the response may include a new `recovery_code` — show it to the user once.
 
 Callable from a Server Component/Action (`auth0.mfa.verify`) or a client component (`import { mfa } from "@auth0/nextjs-auth0/client"`).
 
@@ -163,4 +163,4 @@ export const auth0 = new Auth0Client({
 
 ## Server error classes
 
-`MfaRequiredError`, `MfaTokenNotFoundError`, `MfaTokenExpiredError`, `MfaTokenInvalidError`, `MfaGetAuthenticatorsError`, `MfaEnrollmentError`, `MfaChallengeError`, `MfaVerifyError` (from `@auth0/nextjs-auth0/errors`).
+`MfaRequiredError`, `MfaNoAvailableFactorsError`, `MfaTokenExpiredError`, `MfaTokenInvalidError`, `MfaGetAuthenticatorsError`, `MfaEnrollmentError`, `MfaChallengeError`, `MfaVerifyError` (from `@auth0/nextjs-auth0/errors`).
