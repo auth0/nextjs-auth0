@@ -21,6 +21,7 @@ Add authentication to Next.js applications using @auth0/nextjs-auth0. Supports b
 |------|-----------|
 | Step-up auth, `mfa_required`, enroll/challenge/verify, popup or redirect step-up | [mfa/SKILL.md](./mfa/SKILL.md) |
 | Multi-tenant B2B, pass `organization` at login, read `org_id`, invitations, org/connection setup | [organizations/SKILL.md](./organizations/SKILL.md) |
+| Passkey signup, sign-in, and My Account enrollment using the server-side `auth0.passkey.*` API | [passkeys/SKILL.md](./passkeys/SKILL.md) |
 
 ## Prerequisites
 
