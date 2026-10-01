@@ -307,8 +307,14 @@ export function setChunkedCookie(
   // If value fits in a single cookie, set it directly
   if (valueBytes <= MAX_CHUNK_SIZE) {
     resCookies.set(name, value, finalOptions);
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(name, value);
+    // Read-after-write for middleware: only write when reqCookies is a separate
+    // store from resCookies. When both alias the same cookies() store (Server
+    // Actions), the resCookies write above already applied the full security
+    // attributes; a second naked set() without options would overwrite and drop
+    // HttpOnly, Secure, SameSite, and Max-Age from the Set-Cookie header.
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.set(name, value);
+    }
 
     // When we are writing a non-chunked cookie, remove any previously stored
     // chunks for this cookie name. Sweep at least `__0..MAX_CHUNKS-1` (covers
@@ -319,7 +325,13 @@ export function setChunkedCookie(
     for (let i = 0; i < clearUpTo; i++) {
       const chunkName = `${name}${CHUNK_PREFIX}${i}`;
       deleteCookie(resCookies, chunkName, deleteOptions);
-      reqCookies.delete(chunkName);
+      // Same alias guard as the set() paths: a naked reqCookies.delete() drops
+      // the domain from the deletion entry, so when both stores alias the same
+      // cookies() store it would overwrite the domain-correct deletion applied
+      // to resCookies above and break chunk cleanup under AUTH0_COOKIE_DOMAIN.
+      if ((reqCookies as unknown) !== (resCookies as unknown)) {
+        reqCookies.delete(chunkName);
+      }
     }
 
     return sizeOf(name, value);
@@ -335,8 +347,10 @@ export function setChunkedCookie(
     const chunkName = `${name}${CHUNK_PREFIX}${chunkIndex}`;
 
     resCookies.set(chunkName, chunk, finalOptions);
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(chunkName, chunk);
+    // Same guard as the non-chunked path: skip when stores alias each other.
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.set(chunkName, chunk);
+    }
     totalBytes += sizeOf(chunkName, chunk);
     position += MAX_CHUNK_SIZE;
     chunkIndex++;
@@ -351,12 +365,18 @@ export function setChunkedCookie(
   for (let i = chunkIndex; i < clearUpTo; i++) {
     const chunkName = `${name}${CHUNK_PREFIX}${i}`;
     deleteCookie(resCookies, chunkName, deleteOptions);
-    reqCookies.delete(chunkName);
+    // Alias guard: skip the naked delete when both stores alias (see above).
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.delete(chunkName);
+    }
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
   deleteCookie(resCookies, name, deleteOptions);
-  reqCookies.delete(name);
+  // Alias guard: skip the naked delete when both stores alias (see above).
+  if ((reqCookies as unknown) !== (resCookies as unknown)) {
+    reqCookies.delete(name);
+  }
 
   return totalBytes;
 }
