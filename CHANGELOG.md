@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.31.0](https://github.com/auth0/nextjs-auth0/tree/v4.31.0) (2026-10-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.30.0...v4.31.0)
+
+**Added**
+- feat(anonymous-sessions): anonymous sessions with Session Transfer Ticket linking (EA) [\#2865](https://github.com/auth0/nextjs-auth0/pull/2865) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.30.0](https://github.com/auth0/nextjs-auth0/tree/v4.30.0) (2026-09-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.29.0...v4.30.0)
 
