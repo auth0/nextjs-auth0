@@ -407,29 +407,15 @@ describe("Auth0Client: Anonymous Sessions Routes (a3)", () => {
       expect(requestCount).toBe(0);
     });
 
-    it("M2-CREATE-MD-4: silent recovery (renewal) omits metadata", async () => {
-      let recoveryBody: any = null;
-      let callCount = 0;
+    it("M2-CREATE-MD-4: session_expired during renewal returns 400 and clears cookie", async () => {
       server.use(
         http.post(
           `https://${defaultDomain}/anonymous/token`,
-          async ({ request }) => {
-            callCount++;
-            const body = (await request.json()) as any;
-            if (callCount === 1 && body.session_token) {
-              return HttpResponse.json(
-                { error: "session_expired" },
-                { status: 400 }
-              );
-            }
-            recoveryBody = body;
-            return HttpResponse.json({
-              token_type: "Bearer",
-              session_token: `recovery-${Date.now()}`,
-              access_token: createMockJWT("anon@uuid-recovery"),
-              expires_in: 3600,
-              scope: "read:catalog"
-            });
+          async () => {
+            return HttpResponse.json(
+              { error: "session_expired" },
+              { status: 400 }
+            );
           }
         )
       );
@@ -453,8 +439,11 @@ describe("Auth0Client: Anonymous Sessions Routes (a3)", () => {
 
       const res = await (client as any).handleGetAnonymousSession(req);
 
-      expect(res.status).toBe(200);
-      expect(recoveryBody).not.toHaveProperty("metadata");
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as any;
+      expect(body.code).toBe("session_expired");
+      const setCookie = res.headers.get("set-cookie");
+      expect(setCookie).toMatch(/auth0_anon=;/);
     });
   });
 

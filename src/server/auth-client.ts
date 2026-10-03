@@ -3158,8 +3158,8 @@ export class AuthClient {
   /**
    * Core renewal logic (ERROR-DRIVEN): evaluate cookie payload against current time.
    * - Access token valid? → return session as-is
-   * - Access expired + writable context? → try renewAccessToken(); catch recoverable codes
-   *   (session_expired, invalid_session_token) → createAndPersist() (metadata lost, no error)
+   * - Access expired + writable context? → try renewAccessToken(); on session_expired /
+   *   invalid_session_token it clears the dead cookie and throws AnonymousSessionError
    * - Access expired + read-only context? → return decrypted as-is (D7 deferral)
    *
    * NO session_expires_at check; renewal discovers session expiry by trying.
@@ -3196,9 +3196,8 @@ export class AuthClient {
     // Access token is expired; can we write cookies?
     if (resCookies) {
       // Writable context → attempt renewal.
-      // renewAccessToken already handles recoverable errors (session_expired,
-      // invalid_session_token) internally by calling createAndPersist.
-      // Non-recoverable errors surface as AnonymousSessionError to the caller.
+      // renewAccessToken clears the dead cookie on session_expired /
+      // invalid_session_token and throws; all errors surface to the caller.
       return await this.renewAccessToken(state, reqCookies, resCookies);
     }
 
@@ -3231,7 +3230,7 @@ export class AuthClient {
   /**
    * Mint new access token from existing session token.
    * Called when access token expired but session token still valid.
-   * Silent operation: no error surface.
+   * Throws AnonymousSessionError when the session is permanently gone.
    */
   private async renewAccessToken(
     state: AnonymousCookiePayload,
@@ -3265,17 +3264,25 @@ export class AuthClient {
         return null;
       }
     } catch (err) {
-      // If renewal fails with a recoverable error (session_expired /
-      // invalid_session_token) the prior session is already gone server-side, so
-      // we mint a fresh anonymous identity. Flag it with sessionReplaced so the
-      // id swap is not silent: callers keying cart/analytics on `id` can detect
-      // that the previous identity (and its metadata) is gone. Mirrors
-      // auth0-auth-js (feat/SDK-10237-anonymous-sessions).
       if (isRecoverableAnonymousError(err)) {
-        const replaced = await this.createAndPersist(reqCookies, resCookies);
-        return { ...replaced, sessionReplaced: true };
+        // Session is permanently gone server-side. Clear the dead cookie so
+        // the next request doesn't retry with an unusable token, then surface
+        // the error so the caller can decide whether to start a new session.
+        deleteChunkedCookie(
+          this.anonymousCookieName,
+          reqCookies,
+          resCookies,
+          false,
+          {
+            path: this.anonymousCookieOptions.path,
+            domain: this.anonymousCookieOptions.domain,
+            secure: this.anonymousCookieOptions.secure,
+            sameSite: this.anonymousCookieOptions.sameSite,
+            httpOnly: this.anonymousCookieOptions.httpOnly
+          }
+        );
       }
-      throw err; // Non-recoverable error → throw to caller (route handler maps to HTTP status per §3.C7)
+      throw err;
     }
   }
 
