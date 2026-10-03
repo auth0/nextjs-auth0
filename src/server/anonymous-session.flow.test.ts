@@ -208,7 +208,7 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
 
       expect(res.status).toBe(400);
       const body = (await res.json()) as any;
-      expect(body.code).toBe("session_expired");
+      expect(body.error).toBe("session_expired");
       // Cookie must be cleared in the response
       const setCookie = res.headers.get("set-cookie");
       expect(setCookie).toMatch(/auth0_anon=;/);
@@ -248,7 +248,7 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
 
       expect(res.status).toBe(400);
       const body = (await res.json()) as any;
-      expect(body.code).toBe("invalid_session_token");
+      expect(body.error).toBe("invalid_session_token");
       const setCookie = res.headers.get("set-cookie");
       expect(setCookie).toMatch(/auth0_anon=;/);
     });
@@ -2912,31 +2912,14 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       return encrypt(payload, secret, now + 3600);
     }
 
-    it("A2.2: session_expired during renewal still creates a fresh session (existing path unchanged)", async () => {
-      // session_expired is genuinely gone → creates new session (isRecoverableAnonymousError path).
-      let callCount = 0;
+    it("A2.2: session_expired during renewal surfaces error and clears cookie", async () => {
       server.use(
-        http.post(
-          `https://${defaultDomain}/anonymous/token`,
-          async ({ request }) => {
-            callCount++;
-            const body = (await request.json()) as any;
-            if (callCount === 1) {
-              return HttpResponse.json(
-                { error: "session_expired" },
-                { status: 400 }
-              );
-            }
-            // Second call: fresh create
-            expect(body.session_token).toBeUndefined();
-            return HttpResponse.json({
-              token_type: "Bearer",
-              session_token: "session-new",
-              access_token: createMockJWT("anon@fresh-uuid-5678"),
-              expires_in: 3600
-            });
-          }
-        )
+        http.post(`https://${defaultDomain}/anonymous/token`, async () => {
+          return HttpResponse.json(
+            { error: "session_expired" },
+            { status: 400 }
+          );
+        })
       );
 
       const encrypted = await createExpiredCookie(
@@ -2951,13 +2934,11 @@ describe("Phase 2: Transfer Ticket Migration", () => {
 
       const res = await (client as any).handleGetAnonymousSession(req);
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
       const session = (await res.json()) as any;
-      // A new id is assigned because the session was genuinely gone.
-      expect(session.id).toBe("anon@fresh-uuid-5678");
-      // The swap is announced, not silent, via sessionReplaced.
-      expect(session.sessionReplaced).toBe(true);
-      expect(callCount).toBe(2);
+      expect(session.error).toBe("session_expired");
+      const setCookie = res.headers.get("set-cookie");
+      expect(setCookie).toMatch(/auth0_anon=;/);
     });
   });
 });

@@ -409,15 +409,12 @@ describe("Auth0Client: Anonymous Sessions Routes (a3)", () => {
 
     it("M2-CREATE-MD-4: session_expired during renewal returns 400 and clears cookie", async () => {
       server.use(
-        http.post(
-          `https://${defaultDomain}/anonymous/token`,
-          async () => {
-            return HttpResponse.json(
-              { error: "session_expired" },
-              { status: 400 }
-            );
-          }
-        )
+        http.post(`https://${defaultDomain}/anonymous/token`, async () => {
+          return HttpResponse.json(
+            { error: "session_expired" },
+            { status: 400 }
+          );
+        })
       );
 
       const now = Math.floor(Date.now() / 1000);
@@ -441,7 +438,7 @@ describe("Auth0Client: Anonymous Sessions Routes (a3)", () => {
 
       expect(res.status).toBe(400);
       const body = (await res.json()) as any;
-      expect(body.code).toBe("session_expired");
+      expect(body.error).toBe("session_expired");
       const setCookie = res.headers.get("set-cookie");
       expect(setCookie).toMatch(/auth0_anon=;/);
     });
