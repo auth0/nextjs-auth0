@@ -3903,38 +3903,28 @@ export class AuthClient {
   private async handleGetAnonymousSession(
     req: NextRequest
   ): Promise<NextResponse> {
+    if (!this.anonymousSessionEnabled) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
+    // Temp jar collects any cookies written during the renewal state machine.
+    // Hoisted outside try so the catch block can transfer the deletion cookie
+    // written by renewAccessToken when a session expires.
+    const pending = new NextResponse();
+
     try {
-      if (!this.anonymousSessionEnabled) {
-        return new NextResponse("Not found", { status: 404 });
-      }
-
-      // FIX C3 (rev3): The response returned to the client MUST be the object whose
-      // .cookies jar received the renewed cookies. resolveAnonymousSession writes renewed
-      // cookies via persistAnonymousCookie into whatever ResponseCookies jar it is given,
-      // but the body (session) is only known AFTER resolve returns. So: use a temp jar to
-      // collect renewed cookies during resolve, then transfer them onto the final response.
-      // transferCookies() = for (const c of from.cookies.getAll()) to.cookies.set(c);
-      // (helper defined in unit a1 constants/util module)
-
-      // Temp jar collects any cookies written during the renewal state machine.
-      const pending = new NextResponse();
-
       const session = await this.resolveAnonymousSession(
         req.cookies,
         pending.cookies
       );
 
       if (!session) {
-        // No session → 204 No Content (client hook interprets as null).
-        // Renewal did not run (nothing to renew), but transfer defensively.
         const empty = new NextResponse(null, { status: 204 });
         transferCookies(pending, empty);
         addCacheControlHeadersForSession(empty);
         return empty;
       }
 
-      // Session found → build JSON response, THEN move the renewed cookies onto it,
-      // THEN return that same object. This guarantees renewed cookies reach the client.
       const jsonRes = NextResponse.json(session);
       transferCookies(pending, jsonRes);
       addCacheControlHeadersForSession(jsonRes);
@@ -3942,10 +3932,12 @@ export class AuthClient {
     } catch (err) {
       const code =
         err instanceof AnonymousSessionError ? err.code : "server_error";
-      return this.anonymousErrorResponse(
+      const errRes = this.anonymousErrorResponse(
         code,
         getStatusForAnonymousError(code)
       );
+      transferCookies(pending, errRes);
+      return errRes;
     }
   }
 
