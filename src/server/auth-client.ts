@@ -3385,10 +3385,12 @@ export class AuthClient {
 
   /**
    * Public reader for the current anonymous session (mirrors getSession).
-   * Returns the session or null; never throws for a missing/malformed/expired cookie.
-   * When resCookies is supplied (request/response context) an expired access token
-   * triggers silent renewal; without it (Server Component read path, D7) a valid
-   * decrypted session is returned as-is and renewal defers to the next route call.
+   * Returns the session or null for a missing or malformed cookie. When resCookies
+   * is supplied (request/response context) an expired access token triggers renewal;
+   * if renewal reports `session_expired` or `invalid_session_token` it throws
+   * `AnonymousSessionError` — callers can catch it and create a new session if needed.
+   * Without resCookies (Server Component read path, D7) a valid decrypted session is
+   * returned as-is and renewal defers to the next route call.
    * Short-circuits to null when the feature is disabled (§3.C2 / FR-1 / T8.5).
    *
    * NOTE (read-only contexts — RSC, getServerSideProps): when called without
