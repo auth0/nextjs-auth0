@@ -492,14 +492,14 @@ try {
 | `unauthorized_client`   | 403         | Manual   | Anonymous sessions are disabled in your SDK configuration, or your application is not enabled for anonymous sessions on the tenant.                                                                                    |
 | `server_error`          | 500         | Retry    | Authorization server encountered an error.                                                                                                                                                                             |
 | `invalid_response`      | 500         | Manual   | The authorization server returned a malformed or incomplete response (for example an out-of-range `expires_in`, or a create response missing the `session_token`). This is an SDK/platform defect, not a client error. |
-| `invalid_session_token` | 400         | Auto     | Session token is invalid or expired. During renewal, a new session is created silently.                                                                                                                                |
-| `session_expired`       | 400         | Auto     | Session expired. During renewal, a new session is created silently.                                                                                                                                                    |
+| `invalid_session_token` | 400         | Manual   | Session token is invalid or expired. The dead cookie is cleared automatically. Call `createAnonymousSession()` to start a new session.                                                                                 |
+| `session_expired`       | 400         | Manual   | Session expired. The dead cookie is cleared automatically. Call `createAnonymousSession()` to start a new session.                                                                                                     |
 | `metadata_too_large`    | 400         | Manual   | Metadata payload exceeds the 1 KB UTF-8 byte limit when creating a session.                                                                                                                                            |
 | `invalid_target`        | 400         | Manual   | The `anonymousSession.audience` you configured is unresolved, or that resource server does not allow anonymous access. Reachable only when you configure an audience.                                                  |
 | `invalid_scope`         | 400         | Manual   | The `anonymousSession.scope` you configured is not granted to anonymous subjects. Reachable only when you configure a scope.                                                                                           |
 | `invalid_request`       | 400         | Manual   | Request was malformed, or `metadata` is not a plain JSON object when creating a session.                                                                                                                               |
 
-**Auto-Recovery**: When `session_expired` or `invalid_session_token` errors occur during token renewal, the SDK silently creates a new session and returns it, avoiding application errors. No error is thrown. The metadata on the old session is lost permanently.
+**Session expiry**: When `session_expired` or `invalid_session_token` occurs during token renewal, the SDK clears the dead `auth0_anon` cookie and throws `AnonymousSessionError`. Call `createAnonymousSession()` to start a new session. Any metadata on the previous session is permanently lost.
 
 ## Security and Limitations
 
@@ -511,13 +511,13 @@ Calling the logout route clears the local `auth0_anon` cookie but does NOT revok
 
 For security-sensitive use cases that require immediate token revocation, use standard authenticated sessions with refresh tokens. For anonymous sessions, keep token TTLs short and treat the session token as a sensitive credential.
 
-#### Silent session recreation loses metadata
+#### Session expiry clears metadata
 
-When the anonymous session's access token cannot be renewed because the underlying session expired or the session token became invalid (`session_expired` or `invalid_session_token`), the SDK silently creates a new anonymous session rather than throwing an error. This behavior upholds the read contract: a Server Component read of the anonymous session never breaks a render.
+When the anonymous session's access token cannot be renewed because the underlying session expired or the session token became invalid (`session_expired` or `invalid_session_token`), the SDK clears the dead cookie and throws `AnonymousSessionError`. The caller is responsible for catching the error and calling `createAnonymousSession()` to start a new session.
 
-This silent recreation has important consequences. First, the anonymous identity changes. A new `anon@{uuid}` subject is issued. Second, any metadata set on the previous session is not carried over and is lost.
+When a new session is created after expiry, the anonymous identity changes — a new `anon@{uuid}` subject is issued. Any metadata set on the previous session is not carried over and is permanently lost.
 
-Do not store security-critical or authorization-relevant data in anonymous session metadata. Treat metadata as ephemeral. If your application depends on specific metadata values, re-set them after a recreation.
+Do not store security-critical or authorization-relevant data in anonymous session metadata. Treat metadata as ephemeral. If your application depends on specific metadata values, re-set them when creating a new session after expiry.
 
 #### Token trust model
 
