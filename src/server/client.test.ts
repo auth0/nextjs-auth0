@@ -3856,7 +3856,7 @@ describe("Auth0Client", () => {
         "acme.com",
         expect.any(Object)
       );
-      expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
+      expect(resolved.startInteractiveLogin.mock.calls[0][0]).toEqual({
         authorizationParameters: { login_hint: "jane@acme.com" },
         returnTo: "/dashboard"
       });
@@ -3884,7 +3884,7 @@ describe("Auth0Client", () => {
         returnTo: "/dashboard"
       });
 
-      expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
+      expect(resolved.startInteractiveLogin.mock.calls[0][0]).toEqual({
         authorizationParameters: {
           organization: "org_123",
           connection: "acme-saml",
@@ -3911,7 +3911,7 @@ describe("Auth0Client", () => {
         authorizationParameters: { login_hint: "someone-else@acme.com" }
       });
 
-      expect(resolved.startInteractiveLogin).toHaveBeenCalledWith({
+      expect(resolved.startInteractiveLogin.mock.calls[0][0]).toEqual({
         authorizationParameters: { login_hint: "jane@acme.com" }
       });
     });
@@ -3974,6 +3974,20 @@ describe("Auth0Client", () => {
       );
       expect(resolved.startInteractiveLogin).toHaveBeenCalled();
       expect(res).toBe(redirect);
+    });
+
+    it("forwards request cookies so transaction-cookie eviction can run", async () => {
+      vi.mocked(isFederatedDomain).mockResolvedValue(true);
+      const client = ecClient();
+      const mockCookieJar = { getAll: () => [] };
+      vi.mocked(nextCookies).mockResolvedValue(mockCookieJar as any);
+      const resolved = mockResolvedClient(client, "test.auth0.com");
+
+      await client.startEnterpriseLogin({ email: "jane@acme.com" });
+
+      const [, req, reqCookies] = resolved.startInteractiveLogin.mock.calls[0];
+      expect(req).toBeUndefined();
+      expect(reqCookies).toBe(mockCookieJar);
     });
   });
 
