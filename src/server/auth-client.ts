@@ -3158,8 +3158,8 @@ export class AuthClient {
   /**
    * Core renewal logic (ERROR-DRIVEN): evaluate cookie payload against current time.
    * - Access token valid? → return session as-is
-   * - Access expired + writable context? → try renewAccessToken(); catch recoverable codes
-   *   (session_expired, invalid_session_token) → createAndPersist() (metadata lost, no error)
+   * - Access expired + writable context? → try renewAccessToken(); on session_expired /
+   *   invalid_session_token it clears the dead cookie and throws AnonymousSessionError
    * - Access expired + read-only context? → return decrypted as-is (D7 deferral)
    *
    * NO session_expires_at check; renewal discovers session expiry by trying.
@@ -3196,9 +3196,8 @@ export class AuthClient {
     // Access token is expired; can we write cookies?
     if (resCookies) {
       // Writable context → attempt renewal.
-      // renewAccessToken already handles recoverable errors (session_expired,
-      // invalid_session_token) internally by calling createAndPersist.
-      // Non-recoverable errors surface as AnonymousSessionError to the caller.
+      // renewAccessToken clears the dead cookie on session_expired /
+      // invalid_session_token and throws; all errors surface to the caller.
       return await this.renewAccessToken(state, reqCookies, resCookies);
     }
 
@@ -3231,7 +3230,7 @@ export class AuthClient {
   /**
    * Mint new access token from existing session token.
    * Called when access token expired but session token still valid.
-   * Silent operation: no error surface.
+   * Throws AnonymousSessionError when the session is permanently gone.
    */
   private async renewAccessToken(
     state: AnonymousCookiePayload,
@@ -3265,17 +3264,25 @@ export class AuthClient {
         return null;
       }
     } catch (err) {
-      // If renewal fails with a recoverable error (session_expired /
-      // invalid_session_token) the prior session is already gone server-side, so
-      // we mint a fresh anonymous identity. Flag it with sessionReplaced so the
-      // id swap is not silent: callers keying cart/analytics on `id` can detect
-      // that the previous identity (and its metadata) is gone. Mirrors
-      // auth0-auth-js (feat/SDK-10237-anonymous-sessions).
       if (isRecoverableAnonymousError(err)) {
-        const replaced = await this.createAndPersist(reqCookies, resCookies);
-        return { ...replaced, sessionReplaced: true };
+        // Session is permanently gone server-side. Clear the dead cookie so
+        // the next request doesn't retry with an unusable token, then surface
+        // the error so the caller can decide whether to start a new session.
+        deleteChunkedCookie(
+          this.anonymousCookieName,
+          reqCookies,
+          resCookies,
+          false,
+          {
+            path: this.anonymousCookieOptions.path,
+            domain: this.anonymousCookieOptions.domain,
+            secure: this.anonymousCookieOptions.secure,
+            sameSite: this.anonymousCookieOptions.sameSite,
+            httpOnly: this.anonymousCookieOptions.httpOnly
+          }
+        );
       }
-      throw err; // Non-recoverable error → throw to caller (route handler maps to HTTP status per §3.C7)
+      throw err;
     }
   }
 
@@ -3378,10 +3385,12 @@ export class AuthClient {
 
   /**
    * Public reader for the current anonymous session (mirrors getSession).
-   * Returns the session or null; never throws for a missing/malformed/expired cookie.
-   * When resCookies is supplied (request/response context) an expired access token
-   * triggers silent renewal; without it (Server Component read path, D7) a valid
-   * decrypted session is returned as-is and renewal defers to the next route call.
+   * Returns the session or null for a missing or malformed cookie. When resCookies
+   * is supplied (request/response context) an expired access token triggers renewal;
+   * if renewal reports `session_expired` or `invalid_session_token` it throws
+   * `AnonymousSessionError` — callers can catch it and create a new session if needed.
+   * Without resCookies (Server Component read path, D7) a valid decrypted session is
+   * returned as-is and renewal defers to the next route call.
    * Short-circuits to null when the feature is disabled (§3.C2 / FR-1 / T8.5).
    *
    * NOTE (read-only contexts — RSC, getServerSideProps): when called without
@@ -3896,38 +3905,28 @@ export class AuthClient {
   private async handleGetAnonymousSession(
     req: NextRequest
   ): Promise<NextResponse> {
+    if (!this.anonymousSessionEnabled) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
+    // Temp jar collects any cookies written during the renewal state machine.
+    // Hoisted outside try so the catch block can transfer the deletion cookie
+    // written by renewAccessToken when a session expires.
+    const pending = new NextResponse();
+
     try {
-      if (!this.anonymousSessionEnabled) {
-        return new NextResponse("Not found", { status: 404 });
-      }
-
-      // FIX C3 (rev3): The response returned to the client MUST be the object whose
-      // .cookies jar received the renewed cookies. resolveAnonymousSession writes renewed
-      // cookies via persistAnonymousCookie into whatever ResponseCookies jar it is given,
-      // but the body (session) is only known AFTER resolve returns. So: use a temp jar to
-      // collect renewed cookies during resolve, then transfer them onto the final response.
-      // transferCookies() = for (const c of from.cookies.getAll()) to.cookies.set(c);
-      // (helper defined in unit a1 constants/util module)
-
-      // Temp jar collects any cookies written during the renewal state machine.
-      const pending = new NextResponse();
-
       const session = await this.resolveAnonymousSession(
         req.cookies,
         pending.cookies
       );
 
       if (!session) {
-        // No session → 204 No Content (client hook interprets as null).
-        // Renewal did not run (nothing to renew), but transfer defensively.
         const empty = new NextResponse(null, { status: 204 });
         transferCookies(pending, empty);
         addCacheControlHeadersForSession(empty);
         return empty;
       }
 
-      // Session found → build JSON response, THEN move the renewed cookies onto it,
-      // THEN return that same object. This guarantees renewed cookies reach the client.
       const jsonRes = NextResponse.json(session);
       transferCookies(pending, jsonRes);
       addCacheControlHeadersForSession(jsonRes);
@@ -3935,10 +3934,12 @@ export class AuthClient {
     } catch (err) {
       const code =
         err instanceof AnonymousSessionError ? err.code : "server_error";
-      return this.anonymousErrorResponse(
+      const errRes = this.anonymousErrorResponse(
         code,
         getStatusForAnonymousError(code)
       );
+      transferCookies(pending, errRes);
+      return errRes;
     }
   }
 

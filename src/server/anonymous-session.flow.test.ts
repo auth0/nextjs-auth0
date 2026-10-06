@@ -172,32 +172,18 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
       expect(session.id).toMatch(/^anon@/);
     });
 
-    it("Flow: Session expiry triggers silent recovery (T1.5)", async () => {
-      // Session token expired → renew attempt returns session_expired error → silent create
-      let callCount = 0;
+    it("Flow: Session expiry surfaces error and clears cookie (T1.5)", async () => {
+      // Session token expired → renew attempt returns session_expired → 400, cookie cleared
       server.use(
         http.post(
           `https://${defaultDomain}/anonymous/token`,
           async ({ request }) => {
-            callCount++;
             const body = (await request.json()) as any;
-            if (callCount === 1) {
-              // First call (RENEW attempt with expired session_token) → session_expired
-              expect(body.session_token).toBe("expired-session");
-              return HttpResponse.json(
-                { error: "session_expired" },
-                { status: 400 }
-              );
-            }
-            // Second call (CREATE, no session_token) → fresh session
-            expect(body.session_token).toBeUndefined();
-            return HttpResponse.json({
-              token_type: "Bearer",
-              session_token: `session-recovered-${Date.now()}`,
-              access_token: createMockJWT("anon@uuid-9999"),
-              expires_in: 3600,
-              scope: "read:catalog"
-            });
+            expect(body.session_token).toBe("expired-session");
+            return HttpResponse.json(
+              { error: "session_expired" },
+              { status: 400 }
+            );
           }
         )
       );
@@ -220,40 +206,25 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
 
       const res = await (client as any).handleGetAnonymousSession(req);
 
-      expect(res.status).toBe(200);
-      const session = (await res.json()) as any;
-      expect(session.id).toMatch(/^anon@/);
-      // Metadata lost on recovery (create mode has no metadata in response)
-      expect(session.metadata).toBeUndefined();
-      expect(callCount).toBe(2);
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as any;
+      expect(body.error).toBe("session_expired");
+      // Cookie must be cleared in the response
+      const setCookie = res.headers.get("set-cookie");
+      expect(setCookie).toMatch(/auth0_anon=;/);
     });
 
-    it("Flow: T1.5b invalid_session_token recovery during renewal", async () => {
-      // Distinct from session_expired: invalid_session_token also triggers recovery
-      let callCount = 0;
+    it("Flow: T1.5b invalid_session_token surfaces error and clears cookie", async () => {
       server.use(
         http.post(
           `https://${defaultDomain}/anonymous/token`,
           async ({ request }) => {
-            callCount++;
             const body = (await request.json()) as any;
-            if (callCount === 1) {
-              // First call (RENEW attempt) → invalid_session_token
-              expect(body.session_token).toBe("invalid-token");
-              return HttpResponse.json(
-                { error: "invalid_session_token" },
-                { status: 400 }
-              );
-            }
-            // Second call (CREATE) → fresh session
-            expect(body.session_token).toBeUndefined();
-            return HttpResponse.json({
-              token_type: "Bearer",
-              session_token: `session-recovered-${Date.now()}`,
-              access_token: createMockJWT("anon@uuid-9999"),
-              expires_in: 3600,
-              scope: "read:catalog"
-            });
+            expect(body.session_token).toBe("invalid-token");
+            return HttpResponse.json(
+              { error: "invalid_session_token" },
+              { status: 400 }
+            );
           }
         )
       );
@@ -275,10 +246,11 @@ describe("Anonymous Session Complete Flow Tests (Section 4)", () => {
 
       const res = await (client as any).handleGetAnonymousSession(req);
 
-      expect(res.status).toBe(200);
-      const session = (await res.json()) as any;
-      expect(session.id).toMatch(/^anon@/);
-      expect(callCount).toBe(2);
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as any;
+      expect(body.error).toBe("invalid_session_token");
+      const setCookie = res.headers.get("set-cookie");
+      expect(setCookie).toMatch(/auth0_anon=;/);
     });
 
     // CASCADE-v2 M1: deleted 2 update tests (metadata-update renewal, session expiry during update).
@@ -2940,31 +2912,14 @@ describe("Phase 2: Transfer Ticket Migration", () => {
       return encrypt(payload, secret, now + 3600);
     }
 
-    it("A2.2: session_expired during renewal still creates a fresh session (existing path unchanged)", async () => {
-      // session_expired is genuinely gone → creates new session (isRecoverableAnonymousError path).
-      let callCount = 0;
+    it("A2.2: session_expired during renewal surfaces error and clears cookie", async () => {
       server.use(
-        http.post(
-          `https://${defaultDomain}/anonymous/token`,
-          async ({ request }) => {
-            callCount++;
-            const body = (await request.json()) as any;
-            if (callCount === 1) {
-              return HttpResponse.json(
-                { error: "session_expired" },
-                { status: 400 }
-              );
-            }
-            // Second call: fresh create
-            expect(body.session_token).toBeUndefined();
-            return HttpResponse.json({
-              token_type: "Bearer",
-              session_token: "session-new",
-              access_token: createMockJWT("anon@fresh-uuid-5678"),
-              expires_in: 3600
-            });
-          }
-        )
+        http.post(`https://${defaultDomain}/anonymous/token`, async () => {
+          return HttpResponse.json(
+            { error: "session_expired" },
+            { status: 400 }
+          );
+        })
       );
 
       const encrypted = await createExpiredCookie(
@@ -2979,13 +2934,11 @@ describe("Phase 2: Transfer Ticket Migration", () => {
 
       const res = await (client as any).handleGetAnonymousSession(req);
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
       const session = (await res.json()) as any;
-      // A new id is assigned because the session was genuinely gone.
-      expect(session.id).toBe("anon@fresh-uuid-5678");
-      // The swap is announced, not silent, via sessionReplaced.
-      expect(session.sessionReplaced).toBe(true);
-      expect(callCount).toBe(2);
+      expect(session.error).toBe("session_expired");
+      const setCookie = res.headers.get("set-cookie");
+      expect(setCookie).toMatch(/auth0_anon=;/);
     });
   });
 });
