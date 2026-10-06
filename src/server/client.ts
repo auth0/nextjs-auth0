@@ -2172,13 +2172,19 @@ export class Auth0Client {
     }
 
     const { email, authorizationParameters, ...rest } = options;
-    return authClient.startInteractiveLogin({
+    const loginOptions = {
       ...rest,
       authorizationParameters: {
         ...authorizationParameters,
         login_hint: email
       }
-    });
+    };
+    // Forward request cookies so stale `__txn_*` cookies can be evicted.
+    return authClient.startInteractiveLogin(
+      loginOptions,
+      undefined,
+      await cookies()
+    );
   }
 
   /**
