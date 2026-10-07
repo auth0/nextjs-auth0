@@ -1,5 +1,15 @@
 # Change Log
 
+## [v4.31.1](https://github.com/auth0/nextjs-auth0/tree/v4.31.1) (2026-10-07)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.31.0...v4.31.1)
+
+**Added**
+- feat: ship agent skills inside the package [\#2866](https://github.com/auth0/nextjs-auth0/pull/2866) ([subhankarmaiti](https://github.com/subhankarmaiti))
+
+**Fixed**
+- fix(anonymous-sessions): surface session expiry error instead of silently rotating [\#2879](https://github.com/auth0/nextjs-auth0/pull/2879) ([yogeshchoudhary147](https://github.com/yogeshchoudhary147))
+- fix: pass request cookies in startEnterpriseLogin to evict stale txn cookies [\#2868](https://github.com/auth0/nextjs-auth0/pull/2868) ([kwy404](https://github.com/kwy404))
+
 ## [v4.31.0](https://github.com/auth0/nextjs-auth0/tree/v4.31.0) (2026-10-01)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.30.0...v4.31.0)
 
