@@ -1334,3 +1334,74 @@ describe("Chunked Cookie — end-to-end jar", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: alias guard — req and res stores are the same object
+//
+// In Server Actions and Route Handlers, Next.js returns one shared store for
+// every cookies() call. setChunkedCookie writes each chunk to resCookies with
+// full attributes, then does a naked reqCookies.set() for middleware
+// read-after-write. Without the alias guard, when both stores are the same
+// object that second write overwrites the first and strips Domain, HttpOnly,
+// Secure, SameSite, and Max-Age. These tests pin the v4.31.0 guard.
+// ---------------------------------------------------------------------------
+describe("setChunkedCookie — alias guard (Server Action context)", () => {
+  const OPTS_WITH_DOMAIN: CookieOptions = {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax" as const,
+    maxAge: 86400,
+    domain: ".example.com"
+  };
+
+  // `RequestCookies.delete` returns `boolean | boolean[]` while
+  // `ResponseCookies.delete` returns `ResponseCookies` — a single plain object
+  // cannot structurally satisfy both interfaces simultaneously, which is exactly
+  // why `createMocks()` returns two separate objects. Use real `ResponseCookies`
+  // as the shared store and cast it for the reqCookies parameter. The cast
+  // mirrors the `as unknown` in the implementation's own alias guard.
+
+  it("preserves all security attributes on a single-chunk cookie when stores are aliased", () => {
+    const sharedStore = new ResponseCookies(new Headers());
+
+    setChunkedCookie(
+      "__session",
+      "x".repeat(100),
+      OPTS_WITH_DOMAIN,
+      sharedStore as unknown as RequestCookies,
+      sharedStore
+    );
+
+    const cookie = sharedStore.get("__session");
+    expect(cookie).toBeDefined();
+    expect(cookie?.domain).toBe(".example.com");
+    expect(cookie?.httpOnly).toBe(true);
+    expect(cookie?.secure).toBe(true);
+    expect(cookie?.sameSite).toBe("lax");
+    expect(cookie?.maxAge).toBe(86400);
+  });
+
+  it("preserves all security attributes on each chunk of a multi-chunk cookie when stores are aliased", () => {
+    const sharedStore = new ResponseCookies(new Headers());
+
+    setChunkedCookie(
+      "__session",
+      "x".repeat(8000),
+      OPTS_WITH_DOMAIN,
+      sharedStore as unknown as RequestCookies,
+      sharedStore
+    );
+
+    // At least two chunks must exist and each must carry full attributes.
+    for (const chunkName of ["__session__0", "__session__1"]) {
+      const cookie = sharedStore.get(chunkName);
+      expect(cookie).toBeDefined();
+      expect(cookie?.domain).toBe(".example.com");
+      expect(cookie?.httpOnly).toBe(true);
+      expect(cookie?.secure).toBe(true);
+      expect(cookie?.sameSite).toBe("lax");
+      expect(cookie?.maxAge).toBe(86400);
+    }
+  });
+});

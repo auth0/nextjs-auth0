@@ -1157,6 +1157,129 @@ describe("Stateless Session Store", async () => {
         warnSpy.mockRestore();
       }
     });
+
+    describe("alias guard — aliased req/res stores (Server Action context)", async () => {
+      // In Server Actions and Route Handlers, Next.js returns one shared store
+      // for every cookies() call. The SDK must not overwrite the full-attribute
+      // resCookies.set() with a naked reqCookies.set() when both point at the
+      // same object. These tests catch a regression if the guard is removed.
+      //
+      // The `as unknown as RequestCookies` cast is unavoidable: the two types
+      // are structurally incompatible in TypeScript even though at runtime one
+      // object can fulfil both roles. The guard in the implementation uses the
+      // same `as unknown` cast to perform the identity check.
+
+      it("preserves httpOnly, secure, domain, sameSite, and maxAge on __FC_N cookies when stores are aliased", async () => {
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          ...baseSession(Math.floor(Date.now() / 1000)),
+          connectionTokenSets: [
+            {
+              connection: "google-oauth2",
+              accessToken: "fc_g",
+              expiresAt: 9999999999
+            }
+          ]
+        };
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          cookieOptions: {
+            domain: ".example.com",
+            secure: true,
+            sameSite: "lax"
+          }
+        });
+
+        const sharedStore = new ResponseCookies(new Headers());
+        const setSpy = vi.spyOn(sharedStore, "set");
+
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          session
+        );
+
+        // The first set() call for __FC_0 with a non-empty value must carry
+        // all security attributes. Without the guard a second naked set() call
+        // would overwrite it and strip them.
+        const fc0Call = setSpy.mock.calls.find(
+          (c) => c[0] === "__FC_0" && c[1] !== ""
+        );
+        expect(fc0Call).toBeDefined();
+        expect(fc0Call?.[2]).toMatchObject({
+          domain: ".example.com",
+          httpOnly: true,
+          secure: true,
+          sameSite: "lax"
+        });
+        expect((fc0Call?.[2] as { maxAge?: number })?.maxAge).toBeGreaterThan(
+          0
+        );
+      });
+
+      it("preserves Domain on orphan __FC_N deletion when stores are aliased", async () => {
+        const secret = await generateSecret(32);
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          cookieOptions: {
+            domain: ".example.com",
+            secure: true,
+            sameSite: "lax"
+          }
+        });
+
+        // Write two connections into the shared store.
+        const sharedStore = new ResponseCookies(new Headers());
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          {
+            ...baseSession(Math.floor(Date.now() / 1000)),
+            connectionTokenSets: [
+              {
+                connection: "google-oauth2",
+                accessToken: "fc_g",
+                expiresAt: 9999999999
+              },
+              {
+                connection: "github",
+                accessToken: "fc_gh",
+                expiresAt: 9999999999
+              }
+            ]
+          }
+        );
+
+        // Shrink to one connection and spy to capture the orphan-sweep deletion
+        // of __FC_1. deleteCookie() calls resCookies.set(name, "", { maxAge: 0,
+        // domain, ... }); domain must be present so the browser matches the
+        // right cookie to expire.
+        const setSpy = vi.spyOn(sharedStore, "set");
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          {
+            ...baseSession(Math.floor(Date.now() / 1000)),
+            connectionTokenSets: [
+              {
+                connection: "google-oauth2",
+                accessToken: "fc_g",
+                expiresAt: 9999999999
+              }
+            ]
+          }
+        );
+
+        const fc1Deletion = setSpy.mock.calls.find(
+          (c) => c[0] === "__FC_1" && c[1] === ""
+        );
+        expect(fc1Deletion).toBeDefined();
+        expect(fc1Deletion?.[2]).toMatchObject({
+          maxAge: 0,
+          domain: ".example.com"
+        });
+      });
+    });
   });
 
   describe("set — session size warning emitted only once per process", async () => {
