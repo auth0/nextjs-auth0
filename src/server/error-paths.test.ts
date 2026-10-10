@@ -5,7 +5,7 @@
  * 2. MFA mfaChallenge / mfaAssociate unexpected_error catch wrapping non-MfaError throws
  * 3. MFA mfaVerify chained-MFA path (mfa_required from verify → MfaRequiredError re-encryption)
  * 4. Passwordless DB — invalid_issuer / invalid_audience JWT claim errors
- * 5. Transaction store — duplicate-transaction warning when enableParallelTransactions: false
+ * 5. Transaction store — single-transaction mode (enableParallelTransactions: false) overwrites a stale cookie
  * 6. Resolver mode — missing openid scope guard in startInteractiveLogin
  * 7. beforeSessionSaved removing internal.mcd guard (resolver mode)
  * 8. Server-side passkeyRegister / passkeyChallenge unexpected_error and SdkError fallbacks
@@ -14,6 +14,7 @@
  */
 
 import { NextRequest } from "next/server.js";
+import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import * as jose from "jose";
 import { describe, expect, it, vi } from "vitest";
 
@@ -594,8 +595,8 @@ describe("passwordlessDbGetToken — JWT claim mismatch errors", () => {
 // 5. Transaction store — duplicate-transaction warning (enableParallelTransactions: false)
 // ---------------------------------------------------------------------------
 
-describe("TransactionStore.save — duplicate transaction guard", () => {
-  it("logs a warning and returns without setting a new cookie when a transaction already exists and parallel is disabled", async () => {
+describe("TransactionStore.save — single-transaction mode", () => {
+  it("overwrites an existing transaction cookie when parallel is disabled", async () => {
     const secret = await generateSecret(32);
     const store = new TransactionStore({
       secret,
@@ -610,29 +611,24 @@ describe("TransactionStore.save — duplicate transaction guard", () => {
       codeVerifier: "cv"
     };
 
-    // Create a fake existing cookie in the request
+    // A stale cookie from an abandoned login sits in the request
     const expiration = Math.floor(Date.now() / 1000) + 3600;
     const existingJwe = await encrypt(txn, secret, expiration);
-
-    // Build a minimal RequestCookies-like object
-    const reqCookies = {
-      get: (name: string) =>
-        name === "__txn_" ? { name: "__txn_", value: existingJwe } : undefined
-    } as any;
-
-    const resCookies = {
-      set: vi.fn()
-    } as any;
+    const reqCookies = new RequestCookies(
+      new Headers({ cookie: `__txn_=${existingJwe}` })
+    );
+    const resCookies = new ResponseCookies(new Headers());
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await store.save(resCookies, txn, reqCookies);
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("transaction is already in progress")
-    );
-    // No new cookie should have been written
-    expect(resCookies.set).not.toHaveBeenCalled();
+    // A stale in-request cookie must not block a fresh login
+    expect(warnSpy).not.toHaveBeenCalled();
+    const written = resCookies.get("__txn_");
+    expect(written?.value).toBeTruthy();
+    expect(written?.value).not.toBe(existingJwe);
+    expect(written?.maxAge).not.toBe(0);
 
     warnSpy.mockRestore();
   });
@@ -653,7 +649,7 @@ describe("TransactionStore.save — duplicate transaction guard", () => {
     };
 
     // Empty request cookies — no existing transaction
-    const reqCookies = { get: () => undefined } as any;
+    const reqCookies = new RequestCookies(new Headers());
     const resCookies = { set: vi.fn() } as any;
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

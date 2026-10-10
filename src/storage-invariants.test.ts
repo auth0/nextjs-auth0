@@ -109,9 +109,16 @@ describe("Chunked cookie round-trip", () => {
       resCookies
     );
 
-    const resNames = [...(resCookies as any)._parsed.keys()];
-    expect(resNames).toContain("__session");
-    expect(resNames).not.toContain("__session__0");
+    const parsed: Map<string, any> = (resCookies as any)._parsed;
+    expect(parsed.get("__session")?.value).toBe(smallValue);
+    // A single-cookie write also sweeps stale chunks (`__session__0..N`) with
+    // deletions; none of them may carry session data.
+    for (const [name, cookie] of parsed) {
+      if (name.startsWith("__session__")) {
+        expect(cookie.value).toBe("");
+        expect(cookie.maxAge).toBe(0);
+      }
+    }
   });
 
   it("large payload (>3500 bytes) is split into chunks with __ separator", async () => {
@@ -190,7 +197,7 @@ describe("Transaction cookie name format", () => {
         responseType: RESPONSE_TYPES.CODE,
         codeVerifier: "cv"
       },
-      { get: () => undefined } as any
+      new RequestCookies(new Headers())
     );
 
     const cookieNames = [...(resCookies as any)._parsed.keys()];
@@ -213,7 +220,7 @@ describe("Transaction cookie name format", () => {
         responseType: RESPONSE_TYPES.CODE,
         codeVerifier: "cv"
       },
-      { get: () => undefined } as any
+      new RequestCookies(new Headers())
     );
 
     const cookie = (resCookies as any)._parsed.get(`__txn_${state}`);
@@ -237,7 +244,7 @@ describe("Transaction cookie name format", () => {
         responseType: RESPONSE_TYPES.CODE,
         codeVerifier: "cv"
       },
-      { get: () => undefined } as any
+      new RequestCookies(new Headers())
     );
 
     // Build request cookies from the Set-Cookie header
