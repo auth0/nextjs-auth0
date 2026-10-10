@@ -211,7 +211,13 @@ export class StatelessSessionStore extends AbstractSessionStore {
         // Mirror the deletion into reqCookies so a subsequent get()/set() in the
         // same request does not re-assemble the orphaned `__FC_i` into the
         // session (storeInCookie writes reqCookies for read-after-write too).
-        reqCookies.delete(cookie.name);
+        // Alias guard: when both stores point at the same cookies() instance
+        // (Server Actions / Route Handlers) a naked delete() drops Domain and
+        // other security attributes from the deletion Set-Cookie header, undoing
+        // the domain-correct deleteCookie() call above.
+        if ((reqCookies as unknown) !== (resCookies as unknown)) {
+          reqCookies.delete(cookie.name);
+        }
       }
     }
 
@@ -293,8 +299,14 @@ export class StatelessSessionStore extends AbstractSessionStore {
       ...this.cookieConfig,
       maxAge
     });
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(cookieName, cookieValue);
+    // Enable read-after-write in the same request for middleware. Skip when
+    // both stores alias the same cookies() instance (Server Actions / Route
+    // Handlers): the resCookies write above already applied the full security
+    // attributes; a second naked set() without options would overwrite and drop
+    // HttpOnly, Secure, Domain, SameSite, and Max-Age from the Set-Cookie header.
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.set(cookieName, cookieValue);
+    }
 
     // Measure the encoded `Set-Cookie` string for the per-cookie size check.
     const cookieJarSizeTest = new cookies.ResponseCookies(new Headers());
