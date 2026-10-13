@@ -3669,7 +3669,7 @@ CORS headers from the upstream API are forwarded to the client transparently.
 
 The proxy handler returns appropriate HTTP status codes:
 
-- `401 Unauthorized` - No active session or token refresh failed
+- `401 Unauthorized` - No active session, or the access token could not be obtained (for example a missing, expired or revoked refresh token). The user must re-authenticate
 - `4xx Client Error` - Forwarded from upstream API
 - `5xx Server Error` - Forwarded from upstream API or proxy internal error
 
