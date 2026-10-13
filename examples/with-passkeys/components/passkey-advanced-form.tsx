@@ -3,11 +3,28 @@
 import { useState } from "react";
 
 import { getLoginChallenge, getSignupChallenge, verifyPasskey } from "@/app/actions/passkey";
-import type { PasskeyChallengeResponse, PasskeyCreationOptionsJSON, PasskeyRegisterResponse, PasskeyRequestOptionsJSON } from "@auth0/nextjs-auth0/types";
+import { mfa, serializeCredential } from "@auth0/nextjs-auth0/client";
+import type {
+  PasskeyAuthResponse,
+  PasskeyChallengeResponse,
+  PasskeyCreationOptionsJSON,
+  PasskeyRegisterResponse,
+  PasskeyRequestOptionsJSON,
+  PasskeyVerificationCodes,
+  PasskeyVerificationIdentifier
+} from "@auth0/nextjs-auth0/types";
+
+import { QrCode } from "./qr-code";
 
 type Mode = "login" | "signup";
-type Step = "form" | "ceremony" | "done";
+type Step = "form" | "verify" | "ceremony" | "mfa";
 
+const IDENTIFIER_LABELS: Record<PasskeyVerificationIdentifier, string> = {
+  email: "Code sent to your email",
+  phone: "Code sent to your phone"
+};
+
+// authnParamsPublicKey carries base64url fields. The SDK does not export a decoder.
 function base64urlDecode(value: string): ArrayBuffer {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");
   const padding = (4 - (padded.length % 4)) % 4;
@@ -15,13 +32,6 @@ function base64urlDecode(value: string): ArrayBuffer {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
-}
-
-function base64urlEncode(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
 function decodeCreationOptions(raw: PasskeyCreationOptionsJSON): PublicKeyCredentialCreationOptions {
@@ -49,38 +59,23 @@ function decodeRequestOptions(raw: PasskeyRequestOptionsJSON): PublicKeyCredenti
   };
 }
 
-function serializeCredential(credential: PublicKeyCredential) {
-  const response = credential.response as any;
-  return {
-    id: credential.id,
-    rawId: base64urlEncode(credential.rawId),
-    type: "public-key" as const,
-    authenticatorAttachment: credential.authenticatorAttachment ?? null,
-    response: {
-      clientDataJSON: base64urlEncode(response.clientDataJSON),
-      ...(response.attestationObject !== undefined && {
-        attestationObject: base64urlEncode(response.attestationObject)
-      }),
-      ...(response.authenticatorData !== undefined && {
-        authenticatorData: base64urlEncode(response.authenticatorData)
-      }),
-      ...(response.signature !== undefined && {
-        signature: base64urlEncode(response.signature)
-      }),
-      ...(response.userHandle !== undefined && {
-        userHandle: response.userHandle ? base64urlEncode(response.userHandle) : null
-      })
-    },
-    clientExtensionResults: credential.getClientExtensionResults() as Record<string, unknown>
-  };
-}
-
 export function PasskeyAdvancedForm() {
   const [mode, setMode] = useState<Mode>("signup");
   const [step, setStep] = useState<Step>("form");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [challenge, setChallenge] = useState<PasskeyRegisterResponse | PasskeyChallengeResponse | null>(null);
+  // Identifier verification: identifiers still needing a code, and the codes entered.
+  const [pending, setPending] = useState<PasskeyVerificationIdentifier[]>([]);
+  const [codes, setCodes] = useState<PasskeyVerificationCodes>({});
+  // The serialized passkey, kept so a wrong code is retried without a second prompt.
+  const [authResponse, setAuthResponse] = useState<PasskeyAuthResponse | null>(null);
+  // MFA state
+  const [mfaToken, setMfaToken] = useState("");
+  const [oobCode, setOobCode] = useState("");
+  const [barcodeUri, setBarcodeUri] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +83,19 @@ export function PasskeyAdvancedForm() {
     "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50";
   const btnPrimary =
     "w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2";
+
+  function reset(message: string | null = null) {
+    setStep("form");
+    setChallenge(null);
+    setPending([]);
+    setCodes({});
+    setAuthResponse(null);
+    setMfaToken("");
+    setOobCode("");
+    setBarcodeUri("");
+    setMfaCode("");
+    setError(message);
+  }
 
   // Step 1 — Server Action: validate + get challenge
   async function handleGetChallenge(e: React.FormEvent) {
@@ -98,21 +106,59 @@ export function PasskeyAdvancedForm() {
     try {
       const result =
         mode === "signup"
-          ? await getSignupChallenge({ email, name: displayName || email })
+          ? await getSignupChallenge({
+              email,
+              name: displayName || email,
+              ...(phoneNumber && { phoneNumber })
+            })
           : await getLoginChallenge();
 
-      setChallenge(result);
-      setStep("ceremony");
-    } catch (err: any) {
-      setError(err?.error_description ?? "Failed to get passkey challenge.");
+      if (!result.ok) {
+        setError(
+          result.error === "too_many_requests"
+            ? "Too many attempts. Wait a moment and try again."
+            : result.error_description
+        );
+        return;
+      }
+
+      setChallenge(result.challenge);
+      const required =
+        "verificationRequired" in result.challenge ? result.challenge.verificationRequired : undefined;
+      if (required?.length) {
+        // Collect the codes before creating the passkey.
+        setPending(required);
+        setCodes({});
+        setStep("verify");
+      } else {
+        // Nothing to verify: go straight to the passkey prompt. The ceremony
+        // step stays on screen as the retry point if the prompt is cancelled.
+        setStep("ceremony");
+        await handleCeremony(result.challenge);
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  // Codes entered: go straight to the passkey prompt, or resubmit the kept
+  // passkey after a wrong code. Submitting the code form is the user gesture
+  // the browser needs, so no extra "Create passkey" click is required.
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    await handleCeremony();
+  }
+
   // Step 2 — Browser: run the WebAuthn ceremony
-  async function handleCeremony() {
-    if (!challenge) return;
+  // `current` is passed when the challenge was just fetched, because state
+  // has not updated yet in the same handler.
+  async function handleCeremony(current = challenge) {
+    if (!current) return;
+    if (authResponse) {
+      // Already created (e.g. after a rate limit): resubmit, never prompt twice.
+      await submit(authResponse, current);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -120,14 +166,15 @@ export function PasskeyAdvancedForm() {
     try {
       if (mode === "signup") {
         credential = (await navigator.credentials.create({
-          publicKey: decodeCreationOptions(challenge.authnParamsPublicKey as PasskeyCreationOptionsJSON)
+          publicKey: decodeCreationOptions(current.authnParamsPublicKey as PasskeyCreationOptionsJSON)
         })) as PublicKeyCredential | null;
       } else {
         credential = (await navigator.credentials.get({
-          publicKey: decodeRequestOptions(challenge.authnParamsPublicKey as PasskeyRequestOptionsJSON)
+          publicKey: decodeRequestOptions(current.authnParamsPublicKey as PasskeyRequestOptionsJSON)
         })) as PublicKeyCredential | null;
       }
     } catch (err: any) {
+      // NotAllowedError: the user cancelled or the prompt timed out.
       setError(err?.message ?? "Passkey operation was cancelled or not supported.");
       setLoading(false);
       return;
@@ -139,19 +186,203 @@ export function PasskeyAdvancedForm() {
       return;
     }
 
-    // Step 3 — Server Action: verify + create session
+    const response = serializeCredential(credential);
+    if (mode === "signup") setAuthResponse(response);
+    await submit(response, current);
+  }
+
+  // Step 3 — Server Action: verify + create session
+  async function submit(response: PasskeyAuthResponse, current = challenge) {
+    if (!current) return;
+    setLoading(true);
+    setError(null);
+
     try {
-      await verifyPasskey({
-        authSession: challenge.authSession,
-        authResponse: serializeCredential(credential)
-      });
-      setStep("done");
-      window.location.href = "/dashboard";
-    } catch (err: any) {
-      setError(err?.error_description ?? "Verification failed. Please try again.");
+      const result = await verifyPasskey(
+        current.authSession,
+        response,
+        pending.length ? codes : undefined
+      );
+
+      if (result.ok) {
+        window.location.href = "/dashboard";
+      } else if (result.error === "mfa_required" && "mfaToken" in result) {
+        await startMfa(result.mfaToken);
+      } else if ("retryable" in result && result.retryable && result.verificationRequired?.length) {
+        // A code was wrong. Keep the passkey; ask only for the identifiers still listed.
+        setChallenge({ ...current, authSession: result.authSession ?? current.authSession });
+        setPending(result.verificationRequired);
+        setCodes({});
+        setStep("verify");
+        setError("That code was not right. Try again.");
+      } else if (result.error === "too_many_requests") {
+        // Keep the state so the user can resubmit after a pause.
+        setError("Too many attempts. Wait a moment and try again.");
+      } else {
+        // Too many wrong codes, an expired session, or the passkey was rejected.
+        reset(
+          ("error_description" in result && result.error_description) ||
+            "Could not complete the passkey flow. Please start again."
+        );
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  // MFA after a passkey: no session exists yet. The client `mfa` helper calls
+  // the SDK's /auth/mfa/* routes, and mfa.verify() creates the session.
+  async function startMfa(token: string) {
+    try {
+      const authenticators = await mfa.getAuthenticators({ mfaToken: token });
+      const active = authenticators.find((a) => a.active);
+      if (!active) {
+        const enrollment = await mfa.enroll({ mfaToken: token, authenticatorTypes: ["otp"] });
+        if ("barcodeUri" in enrollment && enrollment.barcodeUri) {
+          setBarcodeUri(enrollment.barcodeUri);
+        }
+      } else {
+        const challengeRes = await mfa.challenge({
+          mfaToken: token,
+          challengeType: active.authenticatorType,
+          authenticatorId: active.id
+        });
+        if (challengeRes.oobCode) setOobCode(challengeRes.oobCode);
+      }
+      setMfaToken(token);
+      setStep("mfa");
+    } catch (err: any) {
+      reset(err?.error_description ?? "Failed to start MFA. Please try again.");
+    }
+  }
+
+  async function handleMfa(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (oobCode) {
+        await mfa.verify({ mfaToken, oobCode, bindingCode: mfaCode });
+      } else {
+        await mfa.verify({ mfaToken, otp: mfaCode });
+      }
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      setMfaCode("");
+      setError(err?.error_description ?? "Invalid code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const errorBox = error && (
+    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {error}
+    </div>
+  );
+
+  const backButton = (
+    <button
+      type="button"
+      onClick={() => reset()}
+      className="w-full text-center text-sm text-gray-400 hover:text-gray-600"
+    >
+      Back
+    </button>
+  );
+
+  if (step === "verify") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <p className="font-medium">Verify your details</p>
+          <p className="mt-1 text-blue-600">
+            {authResponse
+              ? "Enter the code again. Your passkey is kept, so you will not be prompted twice."
+              : "Enter the one-time code we sent. You will create your passkey next."}
+          </p>
+        </div>
+
+        <form onSubmit={handleVerify} className="space-y-4">
+          {pending.map((identifier, i) => (
+            <div key={identifier}>
+              <label htmlFor={`adv-code-${identifier}`} className="mb-1 block text-sm font-medium text-gray-700">
+                {IDENTIFIER_LABELS[identifier]}
+              </label>
+              <input
+                id={`adv-code-${identifier}`}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={codes[identifier] ?? ""}
+                onChange={(e) => setCodes({ ...codes, [identifier]: e.target.value })}
+                placeholder="000000"
+                required
+                autoFocus={i === 0}
+                disabled={loading}
+                className={inputClass + " text-center text-lg tracking-widest"}
+              />
+            </div>
+          ))}
+
+          {errorBox}
+
+          <button type="submit" disabled={loading} className={btnPrimary}>
+            {loading ? "Verifying…" : authResponse ? "Verify" : "Continue to passkey setup"}
+          </button>
+        </form>
+
+        {backButton}
+      </div>
+    );
+  }
+
+  if (step === "mfa") {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-800">Two-factor authentication</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            {barcodeUri
+              ? "Scan this QR code with your authenticator app, then enter the 6-digit code."
+              : oobCode
+                ? "Enter the code sent to your phone."
+                : "Enter the 6-digit code from your authenticator app."}
+          </p>
+        </div>
+
+        {barcodeUri && (
+          <div className="flex justify-center rounded-lg border border-gray-200 bg-white p-4">
+            <QrCode value={barcodeUri} />
+          </div>
+        )}
+
+        <form onSubmit={handleMfa} className="space-y-4">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value)}
+            placeholder="000000"
+            required
+            autoFocus
+            disabled={loading}
+            className={inputClass + " text-center text-lg tracking-widest"}
+          />
+
+          {errorBox}
+
+          <button type="submit" disabled={loading || mfaCode.length < 6} className={btnPrimary}>
+            {loading ? "Verifying…" : "Verify"}
+          </button>
+        </form>
+
+        {backButton}
+      </div>
+    );
   }
 
   if (step === "ceremony") {
@@ -164,23 +395,14 @@ export function PasskeyAdvancedForm() {
           </p>
         </div>
 
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        {errorBox}
 
-        <button onClick={handleCeremony} disabled={loading} className={btnPrimary}>
+        <button onClick={() => handleCeremony()} disabled={loading} className={btnPrimary}>
           <span>🔑</span>
           {loading ? "Waiting for device…" : mode === "signup" ? "Create passkey" : "Verify passkey"}
         </button>
 
-        <button
-          onClick={() => { setStep("form"); setChallenge(null); setError(null); }}
-          className="w-full text-center text-sm text-gray-400 hover:text-gray-600"
-        >
-          Back
-        </button>
+        {backButton}
       </div>
     );
   }
@@ -243,14 +465,29 @@ export function PasskeyAdvancedForm() {
                 className={inputClass}
               />
             </div>
+            <div>
+              <label htmlFor="adv-phone" className="mb-1 block text-sm font-medium text-gray-700">
+                Phone number{" "}
+                <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="adv-phone"
+                type="tel"
+                autoComplete="tel"
+                placeholder="+15551234567"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                disabled={loading}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                E.164 format. Needed if your connection verifies phone numbers.
+              </p>
+            </div>
           </>
         )}
 
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        {errorBox}
 
         <button type="submit" disabled={loading} className={btnPrimary}>
           <span>🔑</span>
@@ -266,8 +503,9 @@ export function PasskeyAdvancedForm() {
         <p className="font-medium text-gray-500">Step-by-step flow</p>
         <ol className="mt-1 list-decimal pl-4 space-y-0.5">
           <li>Server validates inputs &amp; fetches challenge from Auth0</li>
+          <li>Browser collects one-time codes, if the connection verifies email or phone</li>
           <li>Browser runs WebAuthn ceremony (biometric / PIN)</li>
-          <li>Server verifies credential &amp; creates session</li>
+          <li>Server verifies credential and codes &amp; creates session</li>
         </ol>
       </div>
     </div>
