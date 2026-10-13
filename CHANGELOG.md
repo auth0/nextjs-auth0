@@ -7,6 +7,9 @@
 - fix: preserve cookie attributes when refreshing from a Server Action [\#2893](https://github.com/auth0/nextjs-auth0/pull/2893) ([Piyush-85](https://github.com/Piyush-85))
 - fix: return 401 instead of 500 when /me and /my-org token refresh fails [\#2907](https://github.com/auth0/nextjs-auth0/pull/2907) ([Piyush-85](https://github.com/Piyush-85))
 
+**Security**
+- fix: prevent open redirect in createRouteUrl via cross-origin origin check [GHSA-5vvp-h2v6-59j6](https://github.com/auth0/nextjs-auth0/security/advisories/GHSA-5vvp-h2v6-59j6) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.31.1](https://github.com/auth0/nextjs-auth0/tree/v4.31.1) (2026-10-07)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.31.0...v4.31.1)
 
