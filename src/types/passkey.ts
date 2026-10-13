@@ -96,6 +96,34 @@ export interface PasskeyAuthResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Identifier verification (signup)
+// ---------------------------------------------------------------------------
+
+/**
+ * Identifier Auth0 can require a one-time code for during passkey signup.
+ * Note the phone identifier is `"phone"` here, not `"phone_number"`.
+ */
+export type PasskeyVerificationIdentifier = "email" | "phone";
+
+/**
+ * Channel used to deliver the phone verification code during passkey signup.
+ */
+export type PasskeyDeliveryMethod = "text" | "voice";
+
+/**
+ * One-time codes entered by the user, keyed by the identifiers listed in
+ * `verificationRequired`. Blank codes are treated as not provided.
+ *
+ * @example
+ * ```typescript
+ * { email: "123456" }
+ * ```
+ */
+export type PasskeyVerificationCodes = Partial<
+  Record<PasskeyVerificationIdentifier, string>
+>;
+
+// ---------------------------------------------------------------------------
 // Register flow (signup)
 // ---------------------------------------------------------------------------
 
@@ -126,6 +154,25 @@ export interface PasskeyRegisterOptions {
   connection?: string;
   /** Auth0 organization ID. */
   organization?: string;
+  /**
+   * Channel for the phone verification code, `"text"` or `"voice"`.
+   * Only used when the connection requires phone verification.
+   */
+  deliveryMethod?: PasskeyDeliveryMethod;
+  /**
+   * Browser `passkey.signup()` only; ignored by the server `register()`.
+   *
+   * Called when the connection requires identifier verification. Resolve with
+   * the codes the user entered. It is called before the passkey is created,
+   * and again with the remaining identifiers if a code is rejected. The same
+   * passkey is resubmitted, so the user is not prompted for it twice.
+   *
+   * Without this callback a signup that requires verification fails with
+   * `PasskeyGetTokenError` code `verification_required`.
+   */
+  onVerificationRequired?: (
+    context: PasskeyVerificationContext
+  ) => Promise<PasskeyVerificationCodes>;
 }
 
 /**
@@ -150,6 +197,12 @@ export interface PasskeyRegisterResponse {
    * Binary fields are Base64URL-encoded strings.
    */
   authnParamsPublicKey: PasskeyCreationOptionsJSON;
+  /**
+   * Identifiers the user must verify with a one-time code before the passkey
+   * is created, e.g. `["email"]`. Absent when no verification is required.
+   * Pass the codes to `getToken()` as `verification`.
+   */
+  verificationRequired?: PasskeyVerificationIdentifier[];
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +256,11 @@ export interface PasskeyGetTokenOptions {
   scope?: string;
   /** Requested API audience. */
   audience?: string;
+  /**
+   * One-time codes for the identifiers in `verificationRequired`, signup only.
+   * Keys must be `"email"` or `"phone"`.
+   */
+  verification?: PasskeyVerificationCodes;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +352,20 @@ export interface PasskeyEnrollmentVerifyResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Browser signup options
+// ---------------------------------------------------------------------------
+
+/**
+ * Context passed to `onVerificationRequired` during a browser passkey signup.
+ */
+export interface PasskeyVerificationContext {
+  /** Identifiers that still need a one-time code. */
+  verificationRequired: PasskeyVerificationIdentifier[];
+  /** `true` when a previously entered code was rejected. */
+  isRetry: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Client interfaces
 // ---------------------------------------------------------------------------
 
@@ -360,9 +432,11 @@ export interface PasskeyClient {
 export interface PasskeyBrowserClient {
   /**
    * Complete a full passkey signup in one call.
-   * Fetches the challenge, runs `navigator.credentials.create()`, then exchanges for a session.
+   * Fetches the challenge, collects any required verification codes, runs
+   * `navigator.credentials.create()`, then exchanges for a session.
    *
-   * @param options - User profile and optional connection/organization.
+   * @param options - User profile, optional connection/organization and
+   * `onVerificationRequired` for connections that require identifier verification.
    */
   signup(options?: PasskeyRegisterOptions): Promise<void>;
 

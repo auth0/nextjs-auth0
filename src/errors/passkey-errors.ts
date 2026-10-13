@@ -1,3 +1,4 @@
+import type { PasskeyVerificationIdentifier } from "../types/passkey.js";
 import { SdkError } from "./sdk-error.js";
 
 /**
@@ -88,17 +89,56 @@ export class PasskeyChallengeError extends PasskeyError {
 }
 
 /**
+ * Error response from the passkey token exchange, as returned by Auth0 and by the
+ * SDK's `/auth/passkey/get-token` route.
+ */
+export interface PasskeyGetTokenApiErrorResponse extends PasskeyApiErrorResponse {
+  /**
+   * The auth session to retry with. Present only when the session is still alive
+   * after a wrong verification code.
+   */
+  auth_session?: string;
+  /** Identifiers that still need a valid verification code. Present with `auth_session`. */
+  verification_required?: PasskeyVerificationIdentifier[];
+  /** Set by the `/auth/passkey/get-token` route. Mirrors `PasskeyGetTokenError.isRetryable`. */
+  is_retryable?: boolean;
+}
+
+/**
  * Thrown when passkey token exchange (POST /oauth/token with WebAuthn grant) fails.
  *
  * Common causes:
  * - Invalid or expired auth_session
  * - Credential assertion rejected by Auth0
  * - Passkey not recognized
+ * - Wrong identifier verification code (check `isRetryable`)
+ *
+ * During a signup with identifier verification, `isRetryable` is `true` only
+ * when a code was wrong and the session is still alive: ask the user for the
+ * codes in `verificationRequired` again and resubmit with `authSession` and the
+ * same credential. `false` only means a new code will not help. It does not
+ * mean the request can never be retried: a `too_many_requests` or server error
+ * can succeed later. A missing or terminal session needs a new flow.
  */
 export class PasskeyGetTokenError extends PasskeyError {
   public readonly error: string;
   public readonly error_description: string;
-  public readonly cause?: PasskeyApiErrorResponse;
+  public readonly cause?: PasskeyGetTokenApiErrorResponse;
+  /**
+   * `true` when Auth0 returned `invalid_grant` with an `auth_session`: a
+   * verification code was wrong but the session is alive. `false` for every
+   * other failure, including a missing code (`invalid_request`), which carries
+   * no `auth_session`. Branch on this, never on HTTP status or `error_description`,
+   * which are identical on retryable and terminal `invalid_grant` responses.
+   */
+  public readonly isRetryable: boolean;
+  /**
+   * Session to resubmit against, set when Auth0 keeps it alive after a wrong
+   * verification code. Never included in the message or `toJSON()`.
+   */
+  public readonly authSession?: string;
+  /** Identifiers whose verification codes are still unverified. */
+  public readonly verificationRequired?: PasskeyVerificationIdentifier[];
 
   public get code(): string {
     return "passkey_get_token_error";
@@ -107,13 +147,16 @@ export class PasskeyGetTokenError extends PasskeyError {
   constructor(
     error: string,
     error_description: string,
-    cause?: PasskeyApiErrorResponse
+    cause?: PasskeyGetTokenApiErrorResponse
   ) {
     super(error_description);
     this.name = "PasskeyGetTokenError";
     this.error = error;
     this.error_description = error_description;
     this.cause = cause;
+    this.authSession = cause?.auth_session;
+    this.verificationRequired = cause?.verification_required;
+    this.isRetryable = error === "invalid_grant" && !!cause?.auth_session;
     Object.setPrototypeOf(this, PasskeyGetTokenError.prototype);
   }
 }

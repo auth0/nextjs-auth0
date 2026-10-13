@@ -930,3 +930,154 @@ describe("ServerPasskeyClient.enrollmentVerify()", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// identifier verification (Pages Router)
+// ---------------------------------------------------------------------------
+
+describe("Pages Router identifier verification", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  function pagesRequest(path: string) {
+    return new NextRequest(new URL(path, DEFAULT.appBaseUrl), {
+      method: "POST"
+    });
+  }
+
+  it("register forwards deliveryMethod and returns verificationRequired", async () => {
+    let body: any;
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/passkey/register`,
+        async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: { challenge: "abc123" },
+            verification_required: ["phone"]
+          });
+        }
+      )
+    );
+
+    const result = await (
+      await makePasskeyClient()
+    ).register(pagesRequest("/api/passkey/register"), {
+      phoneNumber: "+15551234567",
+      deliveryMethod: "voice"
+    });
+
+    expect(body.delivery_method).toBe("voice");
+    expect(result.verificationRequired).toEqual(["phone"]);
+  });
+
+  it("register raises too_many_requests on a 429", async () => {
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/passkey/register`,
+        () => new HttpResponse("Too Many Requests", { status: 429 })
+      )
+    );
+
+    await expect(
+      (await makePasskeyClient()).register(
+        pagesRequest("/api/passkey/register"),
+        { email: "user@example.com" }
+      )
+    ).rejects.toMatchObject({
+      name: "PasskeyRegisterError",
+      error: "too_many_requests"
+    });
+  });
+
+  it("getToken sends the non-blank codes and writes the session cookie to res", async () => {
+    let body: any;
+    const idToken = await makeIdToken();
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/oauth/token`,
+        async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({
+            access_token: "new-access-token",
+            token_type: "Bearer",
+            expires_in: 86400,
+            id_token: idToken
+          });
+        }
+      )
+    );
+    const res = new NextResponse();
+
+    await (
+      await makePasskeyClient()
+    ).getToken(pagesRequest("/api/passkey/get-token"), res, {
+      authSession: DEFAULT.authSession,
+      authResponse: MOCK_AUTH_RESPONSE,
+      verification: { email: "123456", phone: "" }
+    });
+
+    expect(body.verification).toEqual({ email: "123456" });
+    expect(res.headers.get("set-cookie")).toContain("__session=");
+  });
+
+  it("getToken marks a wrong code as retryable and sets no cookie", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+        HttpResponse.json(
+          {
+            error: "invalid_grant",
+            error_description: "Invalid or expired session",
+            auth_session: "retry-session",
+            verification_required: ["phone"]
+          },
+          { status: 403 }
+        )
+      )
+    );
+    const res = new NextResponse();
+
+    await expect(
+      (await makePasskeyClient()).getToken(
+        pagesRequest("/api/passkey/get-token"),
+        res,
+        {
+          authSession: DEFAULT.authSession,
+          authResponse: MOCK_AUTH_RESPONSE,
+          verification: { email: "123456", phone: "000000" }
+        }
+      )
+    ).rejects.toMatchObject({
+      name: "PasskeyGetTokenError",
+      isRetryable: true,
+      authSession: "retry-session",
+      verificationRequired: ["phone"]
+    });
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("getToken rejects an unknown verification key before any request", async () => {
+    let called = false;
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+        called = true;
+        return HttpResponse.json({});
+      })
+    );
+
+    await expect(
+      (await makePasskeyClient()).getToken(
+        pagesRequest("/api/passkey/get-token"),
+        new NextResponse(),
+        {
+          authSession: DEFAULT.authSession,
+          authResponse: MOCK_AUTH_RESPONSE,
+          verification: { phone_number: "123456" } as any
+        }
+      )
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    expect(called).toBe(false);
+  });
+});
