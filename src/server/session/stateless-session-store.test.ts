@@ -1191,7 +1191,6 @@ describe("Stateless Session Store", async () => {
         });
 
         const sharedStore = new ResponseCookies(new Headers());
-        const setSpy = vi.spyOn(sharedStore, "set");
 
         await sessionStore.set(
           sharedStore as unknown as RequestCookies,
@@ -1199,22 +1198,16 @@ describe("Stateless Session Store", async () => {
           session
         );
 
-        // The first set() call for __FC_0 with a non-empty value must carry
-        // all security attributes. Without the guard a second naked set() call
-        // would overwrite it and strip them.
-        const fc0Call = setSpy.mock.calls.find(
-          (c) => c[0] === "__FC_0" && c[1] !== ""
-        );
-        expect(fc0Call).toBeDefined();
-        expect(fc0Call?.[2]).toMatchObject({
-          domain: ".example.com",
-          httpOnly: true,
-          secure: true,
-          sameSite: "lax"
-        });
-        expect((fc0Call?.[2] as { maxAge?: number })?.maxAge).toBeGreaterThan(
-          0
-        );
+        // Assert the final state of the shared store: without the guard a
+        // second naked set() would overwrite __FC_0 and strip its attributes.
+        const cookie = sharedStore.get("__FC_0");
+        expect(cookie).toBeDefined();
+        expect(cookie?.value).not.toBe("");
+        expect(cookie?.domain).toBe(".example.com");
+        expect(cookie?.httpOnly).toBe(true);
+        expect(cookie?.secure).toBe(true);
+        expect(cookie?.sameSite).toBe("lax");
+        expect(cookie?.maxAge).toBeGreaterThan(0);
       });
 
       it("preserves Domain on orphan __FC_N deletion when stores are aliased", async () => {
@@ -1250,11 +1243,10 @@ describe("Stateless Session Store", async () => {
           }
         );
 
-        // Shrink to one connection and spy to capture the orphan-sweep deletion
-        // of __FC_1. deleteCookie() calls resCookies.set(name, "", { maxAge: 0,
-        // domain, ... }); domain must be present so the browser matches the
-        // right cookie to expire.
-        const setSpy = vi.spyOn(sharedStore, "set");
+        // Shrink to one connection so the orphan sweep deletes __FC_1. The
+        // final deletion cookie must keep its domain so the browser matches
+        // the right cookie to expire; without the guard a naked delete() would
+        // overwrite it with a host-only tombstone.
         await sessionStore.set(
           sharedStore as unknown as RequestCookies,
           sharedStore,
@@ -1270,14 +1262,11 @@ describe("Stateless Session Store", async () => {
           }
         );
 
-        const fc1Deletion = setSpy.mock.calls.find(
-          (c) => c[0] === "__FC_1" && c[1] === ""
-        );
+        const fc1Deletion = sharedStore.get("__FC_1");
         expect(fc1Deletion).toBeDefined();
-        expect(fc1Deletion?.[2]).toMatchObject({
-          maxAge: 0,
-          domain: ".example.com"
-        });
+        expect(fc1Deletion?.value).toBe("");
+        expect(fc1Deletion?.maxAge).toBe(0);
+        expect(fc1Deletion?.domain).toBe(".example.com");
       });
     });
   });
