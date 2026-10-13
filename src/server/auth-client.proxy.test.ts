@@ -13,6 +13,7 @@ import {
   vi
 } from "vitest";
 
+import { AccessTokenError, AccessTokenErrorCode } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import { SessionData } from "../types/index.js";
@@ -480,7 +481,7 @@ describe("Authentication Client", async () => {
       expect(text).toBeFalsy();
     });
 
-    it("should handle when oauth/token throws", async () => {
+    it("should return 401 when oauth/token returns an error", async () => {
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
       const request = new NextRequest(
@@ -508,10 +509,73 @@ describe("Authentication Client", async () => {
       );
 
       const response = await authClient.handler(request);
-      expect(response.status).toEqual(500);
+      expect(response.status).toEqual(401);
 
       const text = await response.text();
-      expect(text).toEqual("OAuth2Error: An error from within the unit test.");
+      expect(text).toEqual(
+        "The access token has expired and there was an error while trying to refresh it."
+      );
+    });
+
+    it("should return 401 and delete the session when getTokenSet returns SESSION_EXPIRED", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            scope: "foo:bar"
+          }
+        }
+      );
+
+      authClient.getTokenSet = vi
+        .fn()
+        .mockResolvedValue([
+          new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          ),
+          null
+        ]);
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(401);
+
+      const text = await response.text();
+      expect(text).toEqual(
+        "The session has expired and the user must re-authenticate."
+      );
+
+      const sessionCookie = response.cookies.get("__session");
+      expect(sessionCookie?.value).toBe("");
+      expect(sessionCookie?.maxAge).toBe(0);
+    });
+
+    it("should return 500, not 401, when the upstream request fails after a successful token retrieval", async () => {
+      server.use(
+        http.get(`https://${DEFAULT.domain}/me/v1/foo-bar/12`, () => {
+          return HttpResponse.error();
+        })
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            scope: "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(500);
     });
 
     it("should handle when getTokenSet throws", async () => {
@@ -1083,7 +1147,7 @@ describe("Authentication Client", async () => {
       expect(text).toBeFalsy();
     });
 
-    it("should handle when oauth/token throws", async () => {
+    it("should return 401 when oauth/token returns an error", async () => {
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
       const request = new NextRequest(
@@ -1111,10 +1175,73 @@ describe("Authentication Client", async () => {
       );
 
       const response = await authClient.handler(request);
-      expect(response.status).toEqual(500);
+      expect(response.status).toEqual(401);
 
       const text = await response.text();
-      expect(text).toEqual("OAuth2Error: An error from within the unit test.");
+      expect(text).toEqual(
+        "The access token has expired and there was an error while trying to refresh it."
+      );
+    });
+
+    it("should return 401 and delete the session when getTokenSet returns SESSION_EXPIRED", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            scope: "foo:bar"
+          }
+        }
+      );
+
+      authClient.getTokenSet = vi
+        .fn()
+        .mockResolvedValue([
+          new AccessTokenError(
+            AccessTokenErrorCode.SESSION_EXPIRED,
+            "The session has expired and the user must re-authenticate."
+          ),
+          null
+        ]);
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(401);
+
+      const text = await response.text();
+      expect(text).toEqual(
+        "The session has expired and the user must re-authenticate."
+      );
+
+      const sessionCookie = response.cookies.get("__session");
+      expect(sessionCookie?.value).toBe("");
+      expect(sessionCookie?.maxAge).toBe(0);
+    });
+
+    it("should return 500, not 401, when the upstream request fails after a successful token retrieval", async () => {
+      server.use(
+        http.get(`https://${DEFAULT.domain}/my-org/foo-bar/12`, () => {
+          return HttpResponse.error();
+        })
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            scope: "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(500);
     });
 
     it("should handle when getTokenSet throws", async () => {

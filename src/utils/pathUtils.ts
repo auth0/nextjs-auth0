@@ -32,10 +32,20 @@ export function createRouteUrl(path: string, baseUrl?: string): URL {
       "appBaseUrl is required for this operation. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
     );
   }
-  return new URL(
-    ensureNoLeadingSlash(normalizeWithBasePath(path)),
-    ensureTrailingSlash(baseUrl)
-  );
+  const base = ensureTrailingSlash(baseUrl);
+  const url = new URL(ensureNoLeadingSlash(normalizeWithBasePath(path)), base);
+
+  // Defense-in-depth: a path such as "/https://evil.com" survives upstream
+  // same-origin validation but, once the leading slash is stripped above, is
+  // re-parsed by the URL constructor as an absolute URL that ignores `base`.
+  // Refuse any result that escapes the application's origin.
+  if (url.origin !== new URL(base).origin) {
+    throw new InvalidConfigurationError(
+      "Refusing to build a cross-origin route URL."
+    );
+  }
+
+  return url;
 }
 
 export const normalizeWithBasePath = (path: string) => {
