@@ -1872,6 +1872,56 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       expect(response.headers.get("set-cookie")).toContain("__session=");
       expect(upstreamCallCount).toBe(0);
     });
+
+    it("9.5 should return 401 when refresh token is stale or revoked (invalid_grant)", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const session = createInitialSessionData({
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: now - 10,
+          scope: "read:data",
+          token_type: "Bearer"
+        }
+      });
+      const cookie = await createSessionCookie(session, secret);
+      let upstreamCallCount = 0;
+
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          return HttpResponse.json(
+            {
+              error: "invalid_grant",
+              error_description: "Unknown or invalid refresh token."
+            },
+            { status: 403 }
+          );
+        }),
+        http.get(`${DEFAULT.upstreamBaseUrl}/data`, () => {
+          upstreamCallCount++;
+          return HttpResponse.json({ success: true });
+        })
+      );
+
+      const request = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie }
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toBe(401);
+      const text = await response.text();
+      expect(text).toBe(
+        "The access token has expired and there was an error while trying to refresh it."
+      );
+      // The Auth0 error_description must not be forwarded to the client
+      expect(text).not.toContain("Unknown or invalid refresh token.");
+      expect(upstreamCallCount).toBe(0);
+    });
   });
 
   describe("Category 10: Concurrent Request Handling", () => {

@@ -7732,6 +7732,9 @@ export class AuthClient {
     };
 
     let tokenSetSideEffect!: GetTokenSetResponse;
+    // Error returned by getTokenSet(), kept so the catch block can tell token
+    // failures (user must re-authenticate) apart from other proxy failures.
+    let tokenSetError: SdkError | undefined;
 
     const getAccessToken: AccessTokenFactory = async (authParams) => {
       const cacheKey = JSON.stringify([
@@ -7752,6 +7755,7 @@ export class AuthClient {
       });
 
       if (error) {
+        tokenSetError = error;
         throw error;
       }
 
@@ -7826,12 +7830,16 @@ export class AuthClient {
         return this.#createMfaRequiredResponse(req, requestSession, e);
       }
 
-      // Return 401 for missing refresh token (cannot refresh expired token)
-      if (
-        e instanceof AccessTokenError &&
-        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
-      ) {
-        return new NextResponse(e.message, { status: 401 });
+      // Return 401 for any error returned by getTokenSet() (e.g. missing,
+      // stale or revoked refresh token), matching handleAccessToken.
+      if (tokenSetError && e === tokenSetError) {
+        const errorRes = new NextResponse(e.message, { status: 401 });
+
+        if (e.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+          await this.sessionStore.delete(req.cookies, errorRes.cookies);
+        }
+
+        return errorRes;
       }
 
       // Generic error handling for other errors
