@@ -27,10 +27,10 @@ A Next.js App Router example demonstrating passkey (WebAuthn) authentication usi
 
 1. Go to **Applications → Create Application**.
 2. Choose **Regular Web Application**.
-3. Under **Settings**, add the following:
-   - **Allowed Callback URLs**: `http://localhost:3000/auth/callback`
-   - **Allowed Logout URLs**: `http://localhost:3000`
-   - **Allowed Web Origins**: `http://localhost:3000`
+3. Under **Settings**, add the following, where `https://{your-app-domain}` is the URL the app is served from (your custom domain or a subdomain of it, see [Enable passkeys](#2-enable-passkeys)):
+   - **Allowed Callback URLs**: `https://{your-app-domain}/auth/callback`
+   - **Allowed Logout URLs**: `https://{your-app-domain}`
+   - **Allowed Web Origins**: `https://{your-app-domain}`
 4. Save changes and note down the **Domain**, **Client ID**, and **Client Secret**.
 
 ### 2. Enable passkeys
@@ -62,7 +62,7 @@ cp .env.local.example .env.local
 Fill in the following variables:
 
 ```bash
-# Auth0 tenant domain — e.g. dev-abc123.us.auth0.com
+# Your Auth0 custom domain, e.g. login.example.com (not *.auth0.com)
 AUTH0_DOMAIN=
 
 # Application credentials (from Auth0 Dashboard → Applications → your app → Settings)
@@ -73,8 +73,8 @@ AUTH0_CLIENT_SECRET=
 # Generate one with: openssl rand -hex 32
 AUTH0_SECRET=
 
-# Base URL of this app
-APP_BASE_URL=http://localhost:3000
+# Base URL of this app: HTTPS, on your custom domain or a subdomain of it
+APP_BASE_URL=https://{your-app-domain}
 ```
 
 ## Running Locally
@@ -84,7 +84,7 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Choose **Sign up** to register a new passkey or **Sign in** to authenticate with an existing one. After a successful ceremony you are redirected to `/dashboard` where you can also enroll additional passkeys.
+Open `https://{your-app-domain}` (the `APP_BASE_URL` above). Choose **Sign up** to register a new passkey or **Sign in** to authenticate with an existing one. After a successful ceremony you are redirected to `/dashboard` where you can also enroll additional passkeys.
 
 > **Note:** Passkeys require HTTPS and an origin on your custom domain (see [Enable passkeys](#2-enable-passkeys)). Serve the app from that domain, or a subdomain of it, and use that URL for `APP_BASE_URL` and the Allowed URLs above.
 
