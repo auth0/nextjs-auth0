@@ -178,11 +178,13 @@ const toRequestOptions = (pk: PasskeyRequestOptionsJSON) =>
 // Signup, step by step
 const signup = await getSignupChallenge({ email: "user@example.com", name: "Jane" });
 const created = await navigator.credentials.create({ publicKey: toCreationOptions(signup.authnParamsPublicKey) });
+if (!created) throw new Error("No passkey was created");
 await verifyPasskey(signup.authSession, serializeCredential(created as PublicKeyCredential));
 
 // Login, step by step
 const login = await getLoginChallenge();
 const asserted = await navigator.credentials.get({ publicKey: toRequestOptions(login.authnParamsPublicKey) });
+if (!asserted) throw new Error("No passkey was selected");
 await verifyPasskey(login.authSession, serializeCredential(asserted as PublicKeyCredential));
 ```
 
@@ -430,6 +432,10 @@ export function SignupForm() {
         setMessage("Passkey creation was cancelled. Try again.");
         return;
       }
+      if (!credential) {
+        setMessage("No passkey was created. Try again.");
+        return;
+      }
       response = serializeCredential(credential as PublicKeyCredential);
       setAuthResponse(response);
     }
@@ -559,7 +565,7 @@ Authenticated users can enroll additional passkeys, useful for backup devices or
 1. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application:
    - **Audience**: `https://{your-domain}/me/`
    - **Scope**: `create:me:authentication_methods`
-3. The SDK exchanges the session refresh token for a MyAccount-scoped access token automatically at call time.
+2. The SDK exchanges the session refresh token for a MyAccount-scoped access token automatically at call time.
 
 ### Enrollment Route Handlers
 

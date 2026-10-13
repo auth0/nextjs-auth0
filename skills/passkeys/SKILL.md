@@ -68,6 +68,7 @@ const publicKey: PublicKeyCredentialCreationOptions = {
   })),
 };
 const credential = await navigator.credentials.create({ publicKey });
+if (!credential) throw new Error("No passkey was created"); // can be null
 const authResponse = serializeCredential(credential as PublicKeyCredential);
 // POST { authSession, authResponse } back to a server action / route
 ```
@@ -140,6 +141,7 @@ const publicKey: PublicKeyCredentialRequestOptions = {
   })),
 };
 const credential = await navigator.credentials.get({ publicKey });
+if (!credential) throw new Error("No passkey was selected"); // can be null
 const authResponse = serializeCredential(credential as PublicKeyCredential);
 // POST { authSession, authResponse } back to server
 ```
@@ -161,7 +163,7 @@ const { authenticationMethodId, authSession, authnParamsPublicKey } =
 ```
 
 ```tsx
-// browser: same decode + navigator.credentials.create + serializeCredential as signup
+// browser: same decode + navigator.credentials.create + null check + serializeCredential as signup
 const authResponse = serializeCredential(credential as PublicKeyCredential);
 // POST { authenticationMethodId, authSession, authResponse } back to server
 ```

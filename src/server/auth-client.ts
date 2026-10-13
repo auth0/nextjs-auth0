@@ -8444,17 +8444,23 @@ function normalizePasskeyVerification(
     throw new InvalidRequestError("verification must be an object");
   }
 
-  const codes: PasskeyVerificationCodes = {};
-  for (const [identifier, code] of Object.entries(verification)) {
+  for (const key of Object.keys(verification)) {
     if (
       !PASSKEY_VERIFICATION_IDENTIFIERS.includes(
-        identifier as PasskeyVerificationIdentifier
+        key as PasskeyVerificationIdentifier
       )
     ) {
       throw new InvalidRequestError(
         "verification keys must be 'email' or 'phone'"
       );
     }
+  }
+
+  // Keys come from the fixed identifier list, never from the request.
+  const input = verification as Record<string, unknown>;
+  const codes: PasskeyVerificationCodes = {};
+  for (const identifier of PASSKEY_VERIFICATION_IDENTIFIERS) {
+    const code = input[identifier];
     if (code === undefined || code === null) continue;
     if (typeof code !== "string") {
       throw new InvalidRequestError(
@@ -8462,7 +8468,7 @@ function normalizePasskeyVerification(
       );
     }
     if (code.trim()) {
-      codes[identifier as PasskeyVerificationIdentifier] = code;
+      codes[identifier] = code;
     }
   }
   return Object.keys(codes).length > 0 ? codes : undefined;
