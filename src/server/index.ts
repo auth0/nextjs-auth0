@@ -1,3 +1,8 @@
+/**
+ * Server-side API: `Auth0Client`, session and transaction stores, and route protection.
+ *
+ * @module @auth0/nextjs-auth0/server
+ */
 export { Auth0Client } from "./client.js";
 
 export { TransactionStore } from "./transaction-store.js";

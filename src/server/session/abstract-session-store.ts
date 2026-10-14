@@ -22,11 +22,14 @@ import {
  * (a warning is logged).
  *
  * Default: `undefined` (the session is always rolled).
+ *
+ * @category Configuration
  */
 export type BeforeSessionRolledHook = (
   req: NextRequest
 ) => boolean | Promise<boolean>;
 
+/** @category Configuration */
 export interface SessionCookieOptions {
   /**
    * The name of the session cookie.
@@ -62,6 +65,7 @@ export interface SessionCookieOptions {
   transient?: boolean;
 }
 
+/** @category Configuration */
 export interface SessionConfiguration {
   /**
    * A boolean indicating whether rolling sessions should be used or not.
@@ -107,6 +111,7 @@ export interface SessionConfiguration {
   cookie?: SessionCookieOptions;
 }
 
+/** @category Session */
 export interface SessionStoreOptions extends SessionConfiguration {
   secret: string;
   store?: SessionDataStore;
@@ -116,6 +121,7 @@ export interface SessionStoreOptions extends SessionConfiguration {
 
 const SESSION_COOKIE_NAME = "__session";
 
+/** @category Session */
 export abstract class AbstractSessionStore {
   public secret: string;
   public sessionCookieName: string;

@@ -52,6 +52,8 @@ async function fetchAnonymousSession(
  * Fetcher: standard fetch, returns null on 204 status, throws on !ok
  *
  * Test: T7 (hook + provider)
+ *
+ * @category Session
  */
 export function useAnonymousSession(options: UseAnonymousSessionOptions = {}): {
   anonymous: AnonymousSession | null;

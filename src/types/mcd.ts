@@ -56,6 +56,8 @@ import type { SessionData } from "./index.js";
  * });
  *
  * @public
+ *
+ * @category Configuration
  */
 export type DomainResolver = (config: {
   headers: Headers;
@@ -81,6 +83,8 @@ export type DomainResolver = (config: {
  * ```
  *
  * @public
+ *
+ * @category Configuration
  */
 export interface DiscoveryCacheOptions {
   ttl?: number;
@@ -94,6 +98,8 @@ export interface DiscoveryCacheOptions {
  * @property domain - The Auth0 domain that authenticated the user
  * @property issuer - The OIDC issuer URL for the domain
  * @internal
+ *
+ * @category Configuration
  */
 export interface MCDMetadata {
   domain: string;

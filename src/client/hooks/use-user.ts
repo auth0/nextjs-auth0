@@ -7,6 +7,8 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 /**
  * Options for the useUser hook.
+ *
+ * @category Session
  */
 export type UseUserOptions = {
   /**
@@ -19,6 +21,7 @@ export type UseUserOptions = {
   route?: string;
 };
 
+/** @category Getting Started */
 export function useUser(options: UseUserOptions = {}) {
   const { data, error, isLoading, mutate } = useSWR<User, Error, string>(
     normalizeWithBasePath(

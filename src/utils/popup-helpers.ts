@@ -21,6 +21,8 @@ export {
  *
  * Security: Never contains raw access tokens. Only user metadata (`sub`, `email`)
  * is sent via postMessage. Tokens remain server-side in the encrypted session.
+ *
+ * @category MFA
  */
 export type AuthCompleteMessage =
   | {

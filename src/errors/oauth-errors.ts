@@ -3,6 +3,8 @@ import { SdkError } from "./sdk-error.js";
 /**
  * Errors that come from Auth0 in the `redirect_uri` callback may contain reflected user input via the OpenID Connect `error` and `error_description` query parameter.
  * You should **not** render the error `message`, or `error` and `error_description` properties without properly escaping them first.
+ *
+ * @category Errors
  */
 export class OAuth2Error extends SdkError {
   public code: string;
@@ -17,6 +19,7 @@ export class OAuth2Error extends SdkError {
   }
 }
 
+/** @category Configuration */
 export class DiscoveryError extends SdkError {
   public code: string = "discovery_error";
 
@@ -26,6 +29,7 @@ export class DiscoveryError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class MissingStateError extends SdkError {
   public code: string = "missing_state";
 
@@ -35,6 +39,7 @@ export class MissingStateError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class InvalidStateError extends SdkError {
   public code: string = "invalid_state";
 
@@ -44,6 +49,7 @@ export class InvalidStateError extends SdkError {
   }
 }
 
+/** @category Configuration */
 export class InvalidConfigurationError extends SdkError {
   public code: string = "invalid_configuration";
 
@@ -53,6 +59,7 @@ export class InvalidConfigurationError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class EnterpriseConnectError extends InvalidConfigurationError {
   public override code: string = "enterprise_connect_not_supported";
 
@@ -64,6 +71,7 @@ export class EnterpriseConnectError extends InvalidConfigurationError {
   }
 }
 
+/** @category Login & Logout */
 export class AuthorizationError extends SdkError {
   public code: string = "authorization_error";
   public cause: OAuth2Error;
@@ -75,6 +83,7 @@ export class AuthorizationError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class AuthorizationCodeGrantRequestError extends SdkError {
   public code: string = "authorization_code_grant_request_error";
 
@@ -87,6 +96,7 @@ export class AuthorizationCodeGrantRequestError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class AuthorizationCodeGrantError extends SdkError {
   public code: string = "authorization_code_grant_error";
   public cause: OAuth2Error;
@@ -103,6 +113,8 @@ export class AuthorizationCodeGrantError extends SdkError {
 
 /**
  * Error thrown when backchannel logout processing fails.
+ *
+ * @category Login & Logout
  */
 export class BackchannelLogoutError extends SdkError {
   public code: string = "backchannel_logout_error";
@@ -116,6 +128,7 @@ export class BackchannelLogoutError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class BackchannelAuthenticationNotSupportedError extends SdkError {
   public code: string = "backchannel_authentication_not_supported_error";
 
@@ -127,6 +140,7 @@ export class BackchannelAuthenticationNotSupportedError extends SdkError {
   }
 }
 
+/** @category Login & Logout */
 export class BackchannelAuthenticationError extends SdkError {
   public code: string = "backchannel_authentication_error";
   public cause?: OAuth2Error;
@@ -140,6 +154,7 @@ export class BackchannelAuthenticationError extends SdkError {
   }
 }
 
+/** @category Access Tokens */
 export enum AccessTokenErrorCode {
   MISSING_SESSION = "missing_session",
   MISSING_REFRESH_TOKEN = "missing_refresh_token",
@@ -147,6 +162,7 @@ export enum AccessTokenErrorCode {
   SESSION_EXPIRED = "session_expired"
 }
 
+/** @category Access Tokens */
 export class AccessTokenError extends SdkError {
   public code: string;
   public cause?: OAuth2Error;
@@ -161,6 +177,8 @@ export class AccessTokenError extends SdkError {
 
 /**
  * Enum representing error codes related to access tokens for connections.
+ *
+ * @category Access Tokens
  */
 export enum AccessTokenForConnectionErrorCode {
   /**
@@ -182,6 +200,8 @@ export enum AccessTokenForConnectionErrorCode {
 /**
  * Error class representing an access token for connection error.
  * Extends the `SdkError` class.
+ *
+ * @category Access Tokens
  */
 export class AccessTokenForConnectionError extends SdkError {
   /**
@@ -207,6 +227,8 @@ export class AccessTokenForConnectionError extends SdkError {
 
 /**
  * Error codes for refresh token revocation errors.
+ *
+ * @category Access Tokens
  */
 export enum TokenRevocationErrorCode {
   /**
@@ -230,6 +252,8 @@ export enum TokenRevocationErrorCode {
  * Extends the `SdkError` class.
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc7009 RFC 7009 Token Revocation}
+ *
+ * @category Access Tokens
  */
 export class TokenRevocationError extends SdkError {
   /**
@@ -258,6 +282,8 @@ export class TokenRevocationError extends SdkError {
 
 /**
  * Error codes for Custom Token Exchange errors.
+ *
+ * @category Access Tokens
  */
 export enum CustomTokenExchangeErrorCode {
   /**
@@ -313,6 +339,8 @@ export enum CustomTokenExchangeErrorCode {
  * such as validation errors or server-side token exchange failures.
  *
  * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 Custom Token Exchange Documentation}
+ *
+ * @category Access Tokens
  */
 export class CustomTokenExchangeError extends SdkError {
   /**

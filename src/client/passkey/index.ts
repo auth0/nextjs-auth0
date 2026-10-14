@@ -89,6 +89,7 @@ function decodeRequestOptions(
 // Converts all ArrayBuffers back to base64url strings for JSON transport.
 // ---------------------------------------------------------------------------
 
+/** @category Passkeys */
 export function serializeCredential(
   credential: PublicKeyCredential
 ): PasskeyAuthResponse {
@@ -412,5 +413,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
  * // ... run navigator.credentials.create() yourself ...
  * await passkey.enrollmentVerify({ authenticationMethodId: challenge.authenticationMethodId, authSession: challenge.authSession, authResponse: credential });
  * ```
+ *
+ * @category Passkeys
  */
 export const passkey: PasskeyBrowserClient = new ClientPasskeyClient();

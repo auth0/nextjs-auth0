@@ -92,6 +92,7 @@ import {
   TransactionStore
 } from "./transaction-store.js";
 
+/** @category Configuration */
 export interface Auth0ClientOptions {
   // authorization server configuration
   /**
@@ -541,10 +542,13 @@ export interface Auth0ClientOptions {
   anonymousSession?: AnonymousSessionConfig;
 }
 
+/** @category Session */
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
+/** @category Session */
 export type PagesRouterResponse =
   ServerResponse<IncomingMessage> | NextApiResponse;
 
+/** @category Getting Started */
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -555,6 +559,7 @@ export class Auth0Client {
   private _passkey?: ServerPasskeyClient;
   #options: Auth0ClientOptions;
 
+  /** @category Getting Started */
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
 
@@ -924,6 +929,8 @@ export class Auth0Client {
 
   /**
    * middleware mounts the SDK routes to run as a middleware function.
+   *
+   * @category Getting Started
    */
   async middleware(req: Request | NextRequest): Promise<NextResponse> {
     const nextReq = toNextRequest(req);
@@ -938,6 +945,8 @@ export class Auth0Client {
    * getSession returns the session data for the current request.
    *
    * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
+   *
+   * @category Getting Started
    */
   async getSession(): Promise<SessionData | null>;
 
@@ -982,6 +991,8 @@ export class Auth0Client {
    * expired cookie. Mirrors {@link getSession}.
    *
    * Use in Server Components, Server Actions, and Route Handlers in the **App Router**.
+   *
+   * @category Session
    */
   async getAnonymousSession(): Promise<AnonymousSession | null>;
 
@@ -1029,6 +1040,8 @@ export class Auth0Client {
    *
    * For reading an existing session in any context, use {@link getAnonymousSession},
    * which is read-only and never creates or sets a cookie.
+   *
+   * @category Session
    */
   async createAnonymousSession(options?: {
     metadata?: Record<string, unknown>;
@@ -1162,6 +1175,8 @@ export class Auth0Client {
   /**
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
+   *
+   * @category Access Tokens
    */
   async getAccessToken(options?: GetAccessTokenOptions): Promise<{
     token: string;
@@ -1336,6 +1351,8 @@ export class Auth0Client {
    *
    * NOTE: Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
+   *
+   * @category Access Tokens
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions
@@ -1520,6 +1537,8 @@ export class Auth0Client {
    * ```
    *
    * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 CTE Documentation}
+   *
+   * @category Access Tokens
    */
   async customTokenExchange(
     options: CustomTokenExchangeOptions
@@ -1550,6 +1569,8 @@ export class Auth0Client {
    * @throws {TokenRevocationError} If no session or refresh token exists, or the revocation request fails.
    *
    * @see {@link https://datatracker.ietf.org/doc/html/rfc7009 RFC 7009 Token Revocation}
+   *
+   * @category Access Tokens
    */
   async revokeRefreshToken(options?: {
     req?: PagesRouterRequest | NextRequest;
@@ -1621,6 +1642,8 @@ export class Auth0Client {
    * });
    * return auth0.buildSessionTransferRedirect("https://app.example.com/auth/login", result);
    * ```
+   *
+   * @category Session
    */
   async requestSessionTransferToken(
     options: SessionTransferTokenOptions
@@ -1717,6 +1740,8 @@ export class Auth0Client {
    * const result = await auth0.requestSessionTransferToken({ subjectToken, subjectTokenType });
    * return auth0.buildSessionTransferRedirect("https://app.example.com/auth/login", result);
    * ```
+   *
+   * @category Session
    */
   buildSessionTransferRedirect(
     targetLoginUrl: string,
@@ -1780,6 +1805,8 @@ export class Auth0Client {
    *   }
    * }
    * ```
+   *
+   * @category MFA
    */
   get mfa(): ServerMfaClient {
     if (!this._mfa) {
@@ -1792,6 +1819,8 @@ export class Auth0Client {
    * Access server-side passwordless authentication operations.
    * Use `auth0.passwordless.start()` to send an OTP, and
    * `auth0.passwordless.verify()` to verify the code and log the user in.
+   *
+   * @category Passwordless
    */
   get passwordless(): ServerPasswordlessClient {
     if (!this._passwordless) {
@@ -1805,6 +1834,8 @@ export class Auth0Client {
    *
    * Authentication: `auth0.passkey.register()`, `auth0.passkey.challenge()`, `auth0.passkey.getToken()`
    * Enrollment: `auth0.passkey.enrollmentChallenge()`, `auth0.passkey.enrollmentVerify()`
+   *
+   * @category Passkeys
    */
   get passkey(): ServerPasskeyClient {
     if (!this._passkey) {
@@ -1817,6 +1848,8 @@ export class Auth0Client {
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    *
    * This method can be used in middleware and `getServerSideProps`, API routes, and middleware in the **Pages Router**.
+   *
+   * @category Session
    */
   async updateSession(
     req: PagesRouterRequest | NextRequest | Request,
@@ -2098,6 +2131,8 @@ export class Auth0Client {
    * is how an active anonymous session is linked to the login transaction. In a
    * Server Action, where there is no request object, cookies are read through
    * `next/headers` instead.
+   *
+   * @category Login & Logout
    */
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
@@ -2152,6 +2187,8 @@ export class Auth0Client {
    * ```
    *
    * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
+   *
+   * @category Login & Logout
    */
   async startEnterpriseLogin(
     options: StartEnterpriseLoginOptions
@@ -2194,6 +2231,8 @@ export class Auth0Client {
    *
    * Using Client-Initiated Backchannel Authentication requires the feature to be enabled in the Auth0 dashboard.
    * @see https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow
+   *
+   * @category Login & Logout
    */
   async getTokenByBackchannelAuth(options: BackchannelAuthenticationOptions) {
     const reqHeaders = await getHeaders();
@@ -2213,6 +2252,8 @@ export class Auth0Client {
    * Initiates the Connect Account flow to connect a third-party account to the user's profile.
    *
    * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   *
+   * @category Connected Accounts
    */
   async connectAccount(options: ConnectAccountOptions): Promise<NextResponse>;
 
@@ -2343,6 +2384,8 @@ export class Auth0Client {
    * Disconnects (unlinks) all connected accounts for the given connection.
    *
    * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   *
+   * @category Connected Accounts
    */
   async disconnectAccount(options: DisconnectAccountOptions): Promise<void>;
 
@@ -2493,6 +2536,8 @@ export class Auth0Client {
    * Lists the connected accounts for the current user from the My Account API.
    *
    * This method can be used in Server Actions and Route Handlers in the **App Router**.
+   *
+   * @category Connected Accounts
    */
   async getConnectedAccounts(): Promise<ConnectedAccount[]>;
 
@@ -2624,6 +2669,7 @@ export class Auth0Client {
   }
 
   // Pages Router overload - no arguments
+  /** @category Route Protection */
   withPageAuthRequired(): PageRoute<{ [key: string]: any }, ParsedUrlQuery>;
   // Pages Router overload - with options
   withPageAuthRequired<
@@ -2655,6 +2701,7 @@ export class Auth0Client {
     return pageRouteHandler(fnOrOpts);
   }
 
+  /** @category Route Protection */
   withApiAuthRequired(
     apiRoute: withApiAuthRequired.AppRouteHandlerFn | NextApiHandler
   ) {
@@ -2855,6 +2902,8 @@ export class Auth0Client {
    *
    * @see {@link Fetcher} for details on using the returned fetcher instance
    * @see {@link FetcherMinimalConfig} for available configuration options
+   *
+   * @category Access Tokens
    */
   public async createFetcher<TOutput extends Response = Response>(
     req: PagesRouterRequest | NextRequest | Request | undefined,

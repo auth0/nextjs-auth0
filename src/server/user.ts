@@ -2,6 +2,8 @@ import type { User } from "../types/index.js";
 
 /**
  * Default claims for the ID token.
+ *
+ * @category Session
  */
 export const DEFAULT_ID_TOKEN_CLAIMS = [
   "sub",
@@ -21,6 +23,8 @@ export const DEFAULT_ID_TOKEN_CLAIMS = [
  * Filters the claims to only include those that are considered default.
  * @param claims The claims to filter.
  * @returns The filtered claims containing only default ID token claims.
+ *
+ * @category Session
  */
 export function filterDefaultIdTokenClaims(claims: { [key: string]: any }) {
   return Object.keys(claims).reduce((acc, key) => {

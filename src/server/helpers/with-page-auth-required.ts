@@ -22,12 +22,16 @@ import { Auth0Client } from "../client.js";
  *
  * export const getServerSideProps = auth0.withPageAuthRequired();
  * ```
+ *
+ * @category Route Protection
  */
 export type GetServerSidePropsResultWithSession<P = any> =
   GetServerSidePropsResult<P & { user: User }>;
 
 /**
  * A page route that has been augmented with {@link WithPageAuthRequired}.
+ *
+ * @category Route Protection
  */
 export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
   ctx: GetServerSidePropsContext<Q>
@@ -35,6 +39,8 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
 
 /**
  * Objects containing the route parameters and search parameters of the page.
+ *
+ * @category Route Protection
  */
 export type AppRouterPageRouteOpts = {
   params?: Promise<Record<string, string | string[]>>;
@@ -56,6 +62,8 @@ export type AppRouterPageRouteOpts = {
  *   }
  * );
  * ```
+ *
+ * @category Route Protection
  */
 export type AppRouterPageRoute<
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
@@ -89,6 +97,8 @@ export type AppRouterPageRoute<
  *   }
  * });
  * ```
+ *
+ * @category Route Protection
  */
 export type WithPageAuthRequiredPageRouterOptions<
   P extends { [key: string]: any } = { [key: string]: any },
@@ -115,6 +125,8 @@ export type WithPageAuthRequiredPageRouterOptions<
  *
  * If the user visits `/protected-page` without a valid session, it will redirect the user to the
  * login page. Then they will be returned to `/protected-page` after login.
+ *
+ * @category Route Protection
  */
 export type WithPageAuthRequiredPageRouter = <
   P extends { [key: string]: any } = { [key: string]: any },
@@ -128,6 +140,8 @@ export type WithPageAuthRequiredPageRouter = <
  * won't know the URL of the page.
  * * @template P The type of the page or layout props, extending {@link AppRouterPageRouteOpts}.
  * This allows the `returnTo` callback to access strongly-typed route parameters.
+ *
+ * @category Route Protection
  */
 export type WithPageAuthRequiredAppRouterOptions<
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
@@ -185,6 +199,8 @@ export type WithPageAuthRequiredAppRouterOptions<
  *
  * export default ProtectedPage;
  * ```
+ *
+ * @category Route Protection
  */
 export type WithPageAuthRequiredAppRouter = <
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
@@ -196,6 +212,8 @@ export type WithPageAuthRequiredAppRouter = <
 /**
  * Protects Page router pages {@link WithPageAuthRequiredPageRouter} or
  * App router pages {@link WithPageAuthRequiredAppRouter}
+ *
+ * @category Route Protection
  */
 export type WithPageAuthRequired = WithPageAuthRequiredPageRouter &
   WithPageAuthRequiredAppRouter;

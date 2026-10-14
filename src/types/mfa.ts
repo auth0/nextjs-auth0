@@ -15,6 +15,8 @@ import type { MfaRequirements } from "../errors/index.js";
 /**
  * Authenticator response from Auth0 API (snake_case).
  * Maps to {@link Authenticator} in SDK-facing interface.
+ *
+ * @category MFA
  */
 export interface AuthenticatorApiResponse {
   /** Authenticator ID */
@@ -40,6 +42,8 @@ export interface AuthenticatorApiResponse {
 /**
  * Challenge response from Auth0 API (snake_case).
  * Maps to {@link ChallengeResponse} in SDK-facing interface.
+ *
+ * @category MFA
  */
 export interface ChallengeApiResponse {
   /** Challenge type (otp, oob) */
@@ -53,6 +57,8 @@ export interface ChallengeApiResponse {
 /**
  * Enrollment response from Auth0 API (snake_case).
  * Maps to {@link EnrollmentResponse} in SDK-facing interface.
+ *
+ * @category MFA
  */
 export interface EnrollmentApiResponse {
   /** Authenticator type discriminator */
@@ -95,6 +101,8 @@ export interface VerifyCredentialBody {
  * Used in token endpoint requests to exchange an mfa_token for access/refresh tokens.
  *
  * @see https://auth0.com/docs/api/authentication#verify-with-one-time-password-otp-
+ *
+ * @category MFA
  */
 export const GRANT_TYPE_MFA_OTP = "http://auth0.com/oauth/grant-type/mfa-otp";
 
@@ -102,6 +110,8 @@ export const GRANT_TYPE_MFA_OTP = "http://auth0.com/oauth/grant-type/mfa-otp";
  * Grant type for MFA OOB (SMS/Email/Push) verification.
  *
  * @see https://auth0.com/docs/api/authentication#verify-with-oob
+ *
+ * @category MFA
  */
 export const GRANT_TYPE_MFA_OOB = "http://auth0.com/oauth/grant-type/mfa-oob";
 
@@ -109,6 +119,8 @@ export const GRANT_TYPE_MFA_OOB = "http://auth0.com/oauth/grant-type/mfa-oob";
  * Grant type for MFA recovery code verification.
  *
  * @see https://auth0.com/docs/api/authentication#verify-with-recovery-code
+ *
+ * @category MFA
  */
 export const GRANT_TYPE_MFA_RECOVERY_CODE =
   "http://auth0.com/oauth/grant-type/mfa-recovery-code";
@@ -125,6 +137,8 @@ export const GRANT_TYPE_MFA_RECOVERY_CODE =
  * compatibility only and will always be `undefined` at runtime. They are
  * deprecated at the field level and will be removed in the next major version.
  * Use `getAccessToken()` after `mfa.verify()` to retrieve the resulting token.
+ *
+ * @category MFA
  */
 export interface MfaVerifyResponse {
   /** Always `true` on a successful verification. */
@@ -183,11 +197,15 @@ export interface MfaTokenEndpointResponse {
 
 /**
  * Factor types for MFA enrollment.
+ *
+ * @category MFA
  */
 export type FactorType = "otp" | "sms" | "voice" | "email" | "push";
 
 /**
  * Enroll OTP authenticator using factorType.
+ *
+ * @category MFA
  */
 export interface EnrollFactorTypeOtpOptions {
   /** Encrypted MFA token */
@@ -198,6 +216,8 @@ export interface EnrollFactorTypeOtpOptions {
 
 /**
  * Enroll OOB authenticator using factorType.
+ *
+ * @category MFA
  */
 export interface EnrollFactorTypeOobOptions {
   /** Encrypted MFA token */
@@ -212,6 +232,8 @@ export interface EnrollFactorTypeOobOptions {
 
 /**
  * Enroll OTP authenticator (TOTP app like Authy/Google Authenticator).
+ *
+ * @category MFA
  */
 export interface EnrollOtpOptions {
   /** Encrypted MFA token */
@@ -222,6 +244,8 @@ export interface EnrollOtpOptions {
 
 /**
  * Enroll OOB authenticator (SMS/Voice/Push/Email).
+ *
+ * @category MFA
  */
 export interface EnrollOobOptions {
   /** Encrypted MFA token */
@@ -238,6 +262,8 @@ export interface EnrollOobOptions {
 
 /**
  * MFA enrollment options (discriminated union).
+ *
+ * @category MFA
  */
 export type EnrollOptions =
   | EnrollFactorTypeOtpOptions
@@ -285,11 +311,15 @@ export interface OobEnrollmentResponse {
 
 /**
  * MFA enrollment response (discriminated union).
+ *
+ * @category MFA
  */
 export type EnrollmentResponse = OtpEnrollmentResponse | OobEnrollmentResponse;
 
 /**
  * MFA client interface available in both server and client contexts.
+ *
+ * @category MFA
  */
 export interface MfaClient {
   /**
@@ -342,6 +372,8 @@ export interface MfaClient {
  * const otpAuth = authenticators.find(a => a.authenticatorType === 'otp');
  * const smsAuth = authenticators.find(a => a.oobChannel === 'sms');
  * ```
+ *
+ * @category MFA
  */
 export interface Authenticator {
   /** Authenticator ID */
@@ -380,6 +412,8 @@ export interface Authenticator {
  * console.log(`OOB code: ${response.oobCode}`);
  * console.log(`Binding method: ${response.bindingMethod}`); // 'prompt'
  * ```
+ *
+ * @category MFA
  */
 export interface ChallengeResponse {
   /** Challenge type (otp, oob) */
@@ -392,6 +426,8 @@ export interface ChallengeResponse {
 
 /**
  * Base options for MFA verify.
+ *
+ * @category MFA
  */
 export interface VerifyMfaOptionsBase {
   /** Encrypted MFA token */
@@ -418,6 +454,8 @@ export interface VerifyMfaOptionsBase {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export interface VerifyMfaWithOtpOptions extends VerifyMfaOptionsBase {
   otp: string;
@@ -442,6 +480,8 @@ export interface VerifyMfaWithOtpOptions extends VerifyMfaOptionsBase {
  *   bindingCode: '543210'
  * });
  * ```
+ *
+ * @category MFA
  */
 export interface VerifyMfaWithOobOptions extends VerifyMfaOptionsBase {
   oobCode: string;
@@ -460,6 +500,8 @@ export interface VerifyMfaWithOobOptions extends VerifyMfaOptionsBase {
  * });
  * // Recovery code is single-use and invalidated after verification
  * ```
+ *
+ * @category MFA
  */
 export interface VerifyMfaWithRecoveryCodeOptions extends VerifyMfaOptionsBase {
   recoveryCode: string;
@@ -467,6 +509,8 @@ export interface VerifyMfaWithRecoveryCodeOptions extends VerifyMfaOptionsBase {
 
 /**
  * MFA verification options (union type).
+ *
+ * @category MFA
  */
 export type VerifyMfaOptions =
   | VerifyMfaWithOtpOptions
@@ -476,6 +520,8 @@ export type VerifyMfaOptions =
 /**
  * MFA context embedded in encrypted token.
  * Self-contained with all information needed for challenge completion.
+ *
+ * @category MFA
  */
 export interface MfaContext {
   /** Raw mfa_token from Auth0 */
