@@ -124,7 +124,7 @@ export type {
   Auth0ClientOptions,
   PagesRouterRequest,
   PagesRouterResponse
-} from "../server/client.js";
+} from "../server/types/options.js";
 
 export type {
   BeforeSessionSavedHook,
@@ -132,26 +132,26 @@ export type {
   RoutesOptions,
   OnCallbackContext,
   Routes
-} from "../server/auth-client.js";
+} from "../server/types/index.js";
 
-export type { TransactionCookieOptions } from "../server/transaction-store.js";
+export type { TransactionCookieOptions } from "../server/types/transaction.js";
 
 export type {
   BeforeSessionRolledHook,
   SessionConfiguration,
   SessionCookieOptions,
   SessionStoreOptions
-} from "../server/session/abstract-session-store.js";
+} from "../server/types/session.js";
 
 export type {
   CookieOptions,
   ReadonlyRequestCookies
-} from "../server/cookies.js";
+} from "../server/types/cookies.js";
 
 export type {
   TransactionStoreOptions,
   TransactionState
-} from "../server/transaction-store.js";
+} from "../server/types/transaction.js";
 
 /**
  * Logout strategy options for controlling logout endpoint selection.

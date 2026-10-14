@@ -1,4 +1,3 @@
-import { headers as getHeaders } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import type {
@@ -10,14 +9,6 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
-import {
-  buildEnrollmentResponse,
-  camelizeAuthenticator,
-  camelizeChallengeResponse,
-  normalizeEnrollOptions
-} from "../../utils/mfa-transform-utils.js";
-import type { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client.js";
 
 /**
  * Server-side MFA API.
@@ -51,14 +42,6 @@ import type { AuthClient } from "../auth-client.js";
  * ```
  */
 export class ServerMfaClient implements MfaClient {
-  constructor(private provider: AuthClientProvider) {}
-
-  private async getAuthClient(req?: NextRequest): Promise<AuthClient> {
-    const reqHeaders = req ? req.headers : await getHeaders();
-    const url = req?.nextUrl;
-    return this.provider.forRequest(reqHeaders, url);
-  }
-
   /**
    * List enrolled MFA authenticators.
    *
@@ -94,9 +77,7 @@ export class ServerMfaClient implements MfaClient {
   async getAuthenticators(options: {
     mfaToken: string;
   }): Promise<Authenticator[]> {
-    const authClient = await this.getAuthClient();
-    const apiResponse = await authClient.mfaGetAuthenticators(options.mfaToken);
-    return apiResponse.map(camelizeAuthenticator);
+    throw new Error("not implemented");
   }
 
   /**
@@ -127,13 +108,7 @@ export class ServerMfaClient implements MfaClient {
     challengeType: string;
     authenticatorId?: string;
   }): Promise<ChallengeResponse> {
-    const authClient = await this.getAuthClient();
-    const apiResponse = await authClient.mfaChallenge(
-      options.mfaToken,
-      options.challengeType,
-      options.authenticatorId
-    );
-    return camelizeChallengeResponse(apiResponse);
+    throw new Error("not implemented");
   }
 
   /**
@@ -165,13 +140,7 @@ export class ServerMfaClient implements MfaClient {
    * ```
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
-    // Normalize factorType variants to standard authenticatorTypes format
-    const normalizedOptions = normalizeEnrollOptions(options);
-
-    const { mfaToken, ...enrollOptions } = normalizedOptions;
-    const authClient = await this.getAuthClient();
-    const apiResponse = await authClient.mfaAssociate(mfaToken, enrollOptions);
-    return buildEnrollmentResponse(apiResponse);
+    throw new Error("not implemented");
   }
 
   /**
@@ -213,56 +182,6 @@ export class ServerMfaClient implements MfaClient {
     arg2?: NextResponse,
     arg3?: VerifyMfaOptions
   ): Promise<MfaVerifyResponse> {
-    // Determine which overload based on arg types
-    if (arg1 instanceof NextRequest) {
-      // Pages Router/Middleware: verify(req, res, options)
-      // req is passed so MCD resolver can pick the correct Auth0 domain
-      if (!arg2 || !arg3) {
-        throw new TypeError(
-          "verify(req, res, options): All three arguments required for Pages Router"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      const tokenResponse = await authClient.mfaVerify(arg3);
-      await authClient.cacheTokenFromMfaVerify(
-        tokenResponse,
-        arg3.mfaToken,
-        arg1.cookies,
-        arg2.cookies
-      );
-      // Tokens stay in the session cookie. recovery_code is the one exception —
-      // it's a one-time backup credential the user must write down immediately.
-      return {
-        success: true as const,
-        ...(tokenResponse.recovery_code !== undefined && {
-          recovery_code: tokenResponse.recovery_code
-        })
-      };
-    } else {
-      // App Router: verify(options)
-      if (arg2 !== undefined || arg3 !== undefined) {
-        throw new TypeError(
-          "verify(options): Only one argument allowed for App Router"
-        );
-      }
-      const authClient = await this.getAuthClient();
-      const tokenResponse = await authClient.mfaVerify(arg1);
-      const { cookies: cookiesLib } = await import("next/headers.js");
-      const cookies = await cookiesLib();
-      await authClient.cacheTokenFromMfaVerify(
-        tokenResponse,
-        arg1.mfaToken,
-        cookies as any,
-        cookies as any
-      );
-      // Tokens stay in the session cookie. recovery_code is the one exception —
-      // it's a one-time backup credential the user must write down immediately.
-      return {
-        success: true as const,
-        ...(tokenResponse.recovery_code !== undefined && {
-          recovery_code: tokenResponse.recovery_code
-        })
-      };
-    }
+    throw new Error("not implemented");
   }
 }

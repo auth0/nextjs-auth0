@@ -1,4 +1,3 @@
-import { cookies as getCookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import type {
@@ -10,8 +9,6 @@ import type {
   PasswordlessStartOptions,
   PasswordlessVerifyOptions
 } from "../../types/index.js";
-import type { AuthClientProvider } from "../auth-client-provider.js";
-import type { AuthClient } from "../auth-client.js";
 
 /**
  * Server-side passwordless authentication API.
@@ -53,15 +50,6 @@ import type { AuthClient } from "../auth-client.js";
  * ```
  */
 export class ServerPasswordlessClient implements PasswordlessClient {
-  constructor(private provider: AuthClientProvider) {}
-
-  private async getAuthClient(req?: NextRequest): Promise<AuthClient> {
-    const { headers } = await import("next/headers.js");
-    const reqHeaders = req ? req.headers : await headers();
-    const url = req?.nextUrl;
-    return this.provider.forRequest(reqHeaders, url);
-  }
-
   /**
    * Initiate a passwordless flow by sending an OTP or magic link to the user's email or phone.
    * App Router overload — reads headers from `next/headers`.
@@ -91,26 +79,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse | PasswordlessStartOptions,
     arg3?: PasswordlessStartOptions
   ): Promise<void> {
-    // Pages Router: start(req, res, options)
-    if (arg1 instanceof NextRequest) {
-      if (!(arg2 instanceof NextResponse) || !arg3) {
-        throw new TypeError(
-          "start(req, res, options): All three arguments required for Pages Router"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      return authClient.passwordlessStart(arg3, arg2.cookies, arg1);
-    }
-
-    // App Router: start(options)
-    // Only read next/headers cookies for magic link — OTP flows don't write cookies.
-    const authClient = await this.getAuthClient();
-    const isMagicLink = arg1.connection === "email" && arg1.send === "link";
-    // `as any`: ReadonlyRequestCookies is typed as Omit<RequestCookies, 'set'|'clear'|'delete'>
-    // & Pick<ResponseCookies, 'set'|'delete'>, so it does expose .set() at runtime despite
-    // the name. The cast suppresses the TS mismatch against the ResponseCookies parameter type.
-    const cookiesLib = isMagicLink ? await getCookies() : undefined;
-    return authClient.passwordlessStart(arg1, cookiesLib as any);
+    throw new Error("not implemented");
   }
 
   /**
@@ -140,36 +109,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse,
     arg3?: PasswordlessVerifyOptions
   ): Promise<void> {
-    if (arg1 instanceof NextRequest) {
-      // Pages Router / Middleware: verify(req, res, options)
-      if (!arg2 || !arg3) {
-        throw new TypeError(
-          "verify(req, res, options): All three arguments required for Pages Router"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      const tokenResponse = await authClient.passwordlessVerify(arg3);
-      await authClient.createSessionFromPasswordlessVerify(
-        tokenResponse,
-        arg1.cookies,
-        arg2.cookies
-      );
-    } else {
-      // App Router: verify(options)
-      if (arg2 !== undefined || arg3 !== undefined) {
-        throw new TypeError(
-          "verify(options): Only one argument allowed for App Router"
-        );
-      }
-      const authClient = await this.getAuthClient();
-      const tokenResponse = await authClient.passwordlessVerify(arg1);
-      const cookiesLib = await getCookies();
-      await authClient.createSessionFromPasswordlessVerify(
-        tokenResponse,
-        cookiesLib as any,
-        cookiesLib as any
-      );
-    }
+    throw new Error("not implemented");
   }
 
   /**
@@ -193,17 +133,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg1: PasswordlessDbChallengeEmailOptions | NextRequest,
     arg2?: PasswordlessDbChallengeEmailOptions
   ): Promise<PasswordlessDbChallenge> {
-    if (arg1 instanceof NextRequest) {
-      if (!arg2) {
-        throw new TypeError(
-          "challengeWithEmail(req, options): Both arguments required for Pages Router"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      return authClient.passwordlessDbOtpChallenge(arg2);
-    }
-    const authClient = await this.getAuthClient();
-    return authClient.passwordlessDbOtpChallenge(arg1);
+    throw new Error("not implemented");
   }
 
   /**
@@ -227,17 +157,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg1: PasswordlessDbChallengePhoneOptions | NextRequest,
     arg2?: PasswordlessDbChallengePhoneOptions
   ): Promise<PasswordlessDbChallenge> {
-    if (arg1 instanceof NextRequest) {
-      if (!arg2) {
-        throw new TypeError(
-          "challengeWithPhoneNumber(req, options): Both arguments required for Pages Router"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      return authClient.passwordlessDbOtpChallenge(arg2);
-    }
-    const authClient = await this.getAuthClient();
-    return authClient.passwordlessDbOtpChallenge(arg1);
+    throw new Error("not implemented");
   }
 
   /**
@@ -261,28 +181,6 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse,
     arg3?: PasswordlessDbGetTokenOptions
   ): Promise<void> {
-    if (arg1 instanceof NextRequest) {
-      if (!arg2 || !arg3) {
-        throw new TypeError(
-          "loginWithOtp(req, res, options): All three arguments required for Pages Router"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      const tokenResponse = await authClient.passwordlessDbGetToken(arg3);
-      await authClient.createSessionFromPasswordlessVerify(
-        tokenResponse,
-        arg1.cookies,
-        arg2.cookies
-      );
-      return;
-    }
-    const authClient = await this.getAuthClient();
-    const tokenResponse = await authClient.passwordlessDbGetToken(arg1);
-    const cookiesLib = await getCookies();
-    await authClient.createSessionFromPasswordlessVerify(
-      tokenResponse,
-      cookiesLib as any,
-      cookiesLib as any
-    );
+    throw new Error("not implemented");
   }
 }

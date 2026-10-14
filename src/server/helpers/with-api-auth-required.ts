@@ -2,7 +2,7 @@ import { NextApiHandler } from "next";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import { Auth0Client } from "../client.js";
-import { toNextRequest } from "../next-compat.js";
+import { toNextRequest } from "../http/next-compat.js";
 
 /**
  * This contains `param`s, which is a Promise that resolves to an object

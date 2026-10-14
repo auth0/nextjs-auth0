@@ -1,7 +1,6 @@
+import { RequestCookies } from "@edge-runtime/cookies";
 import * as oauth from "oauth4webapi";
 import { vi } from "vitest";
-
-import { RequestCookies } from "../server/cookies.js";
 
 /**
  * Creates a mock factory for next/headers.js
