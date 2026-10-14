@@ -68,6 +68,7 @@ const publicKey: PublicKeyCredentialCreationOptions = {
   })),
 };
 const credential = await navigator.credentials.create({ publicKey });
+if (!credential) throw new Error("No passkey was created"); // can be null
 const authResponse = serializeCredential(credential as PublicKeyCredential);
 // POST { authSession, authResponse } back to a server action / route
 ```
@@ -76,6 +77,50 @@ const authResponse = serializeCredential(credential as PublicKeyCredential);
 // server: exchange credential for a session
 await auth0.passkey.getToken({ authSession, authResponse }); // → Promise<void>
 ```
+
+### Signup with identifier verification (OTP)
+
+If the connection requires email or phone verification, `register()` returns `verificationRequired` (e.g. `["email"]`). Collect the one-time codes **before** `navigator.credentials.create`, then pass them to `getToken` as `verification`:
+
+The OTP screen and the passkey prompt run in the browser between the two server calls, so use **two Server Actions** called from a `"use client"` component. The browser holds `authSession` and the serialized `authResponse` between calls.
+
+```ts
+"use server";
+// Both actions return plain objects: error properties thrown from a Server Action do not reach the browser.
+// Action 1: challenge = { authSession, authnParamsPublicKey, verificationRequired? }
+export async function startSignup(email: string, phoneNumber?: string) {
+  try {
+    // deliveryMethod ("text" | "voice") is the phone code channel: send it only with phoneNumber
+    const challenge = await auth0.passkey.register({ email, ...(phoneNumber && { phoneNumber, deliveryMethod: "text" as const }) });
+    return { ok: true as const, challenge };
+  } catch (err) {
+    if (err instanceof PasskeyRegisterError) return { ok: false as const, error: err.error }; // e.g. too_many_requests
+    throw err;
+  }
+}
+
+// Action 2
+export async function completeSignup(authSession: string, authResponse: PasskeyAuthResponse, verification?: PasskeyVerificationCodes) {
+  try {
+    await auth0.passkey.getToken({ authSession, authResponse, verification });
+    return { ok: true as const };
+  } catch (err) {
+    if (err instanceof MfaRequiredError) {
+      // codes accepted, MFA needed. mfa_token is SDK-encrypted, safe to return; the browser
+      // continues with the client `mfa` helper (getAuthenticators/challenge/verify), which creates the session
+      return { ok: false as const, error: "mfa_required", mfaToken: err.mfa_token };
+    }
+    if (err instanceof PasskeyGetTokenError) {
+      return { ok: false as const, error: err.error, retryable: err.isRetryable, authSession: err.authSession, verificationRequired: err.verificationRequired };
+    }
+    throw err;
+  }
+}
+```
+
+Client component order: `startSignup`, then show OTP inputs for `verificationRequired`, then `navigator.credentials.create` once, then `completeSignup(authSession, authResponse, codes)` with one code per identifier in `verificationRequired` (e.g. `{ email, phone }`). If `retryable`, re-prompt for `verificationRequired` and call `completeSignup` again with the returned `authSession` (falls back to the original) + the SAME `authResponse`, sending codes only for identifiers still listed (no second biometric prompt). Otherwise a new code will not help: on `too_many_requests` wait and resubmit, on a terminal session restart from `startSignup`. On `mfa_required`, run `mfa.getAuthenticators/challenge/verify({ mfaToken })` in the browser.
+
+With the client wrapper, pass `onVerificationRequired: async ({ verificationRequired, isRetry }) => codes` to `passkey.signup()`, returning one code per listed identifier. It runs before the passkey prompt and again on a wrong code.
 
 ### Sign-in
 
@@ -96,6 +141,7 @@ const publicKey: PublicKeyCredentialRequestOptions = {
   })),
 };
 const credential = await navigator.credentials.get({ publicKey });
+if (!credential) throw new Error("No passkey was selected"); // can be null
 const authResponse = serializeCredential(credential as PublicKeyCredential);
 // POST { authSession, authResponse } back to server
 ```
@@ -117,7 +163,7 @@ const { authenticationMethodId, authSession, authnParamsPublicKey } =
 ```
 
 ```tsx
-// browser: same decode + navigator.credentials.create + serializeCredential as signup
+// browser: same decode + navigator.credentials.create + null check + serializeCredential as signup
 const authResponse = serializeCredential(credential as PublicKeyCredential);
 // POST { authenticationMethodId, authSession, authResponse } back to server
 ```
@@ -132,9 +178,9 @@ await auth0.passkey.enrollmentVerify({ authenticationMethodId, authSession, auth
 
 | Method | Signature | Returns |
 |---|---|---|
-| `auth0.passkey.register(options?)` | `PasskeyRegisterOptions?` | `PasskeyRegisterResponse` — `{ authSession, authnParamsPublicKey }` |
+| `auth0.passkey.register(options?)` | `PasskeyRegisterOptions?` (incl. `deliveryMethod?: "text" \| "voice"`, phone code channel, send only with `phoneNumber`) | `PasskeyRegisterResponse`: `{ authSession, authnParamsPublicKey, verificationRequired? }` |
 | `auth0.passkey.challenge(options?)` | `PasskeyChallengeOptions?` | `PasskeyChallengeResponse` — `{ authSession, authnParamsPublicKey }` |
-| `auth0.passkey.getToken(options)` | `{ authSession, authResponse, connection?, organization?, scope?, audience? }` | `Promise<void>` — sets session |
+| `auth0.passkey.getToken(options)` | `{ authSession, authResponse, connection?, organization?, scope?, audience?, verification? }` | `Promise<void>`: sets session |
 | `auth0.passkey.enrollmentChallenge(options?)` | `{ connection?, userIdentityId? }?` | `PasskeyEnrollmentChallengeResponse` — `{ authenticationMethodId, authSession, authnParamsPublicKey }` |
 | `auth0.passkey.enrollmentVerify(options)` | `{ authenticationMethodId, authSession, authResponse }` | `PasskeyEnrollmentVerifyResponse` |
 | `serializeCredential(credential)` | `PublicKeyCredential` | `PasskeyAuthResponse` — JSON-safe, base64url-encoded |
@@ -146,7 +192,10 @@ await auth0.passkey.enrollmentVerify({ authenticationMethodId, authSession, auth
 - **`getToken` credential field is `authResponse`**, not `credential`.
 - **No public decoder for `authnParamsPublicKey`** — the SDK doesn't export one; write the tiny base64url helper shown above. Do **not** use `@simplewebauthn` — it double-encodes and breaks the token exchange.
 - **Confidential client required** — the server token exchange authenticates with the client secret.
-- **Custom domain required in production** — it becomes the passkey `rpId`. For local dev `rpId` is `localhost`, which works without a custom domain.
+- **Custom domain required**: passkeys will not work on the default `*.auth0.com` domain. The custom domain becomes the passkey `rpId`, and the app must be served from that domain or a subdomain of it (also in local dev; plain `localhost` fails the WebAuthn ceremony).
 - **Enrollment requires MRRT** — without the Multi-Resource Refresh Token policy, `enrollmentChallenge` cannot mint the My Account access token.
-- **`getToken` can throw `mfa_required`** — continue with the MFA flow (`mfa/SKILL.md`) using the `mfa_token`.
+- **Never spread a request body into `register()` / `getToken()`** from a Server Action or route: the browser could set `connection`, `organization`, `userMetadata`, `audience` or `scope`. Pass only validated fields.
+- **`verification` keys are `email` / `phone`**, not `phoneNumber`. Other keys or non-string codes throw `InvalidRequestError` before any request.
+- **Only `invalid_grant` with `authSession` is retryable** (`err.isRetryable`, also `is_retryable` in the `/auth/passkey/get-token` error body). `invalid_request` (missing code) is NOT retryable: send a code for every identifier. Never branch on status or `error_description`. On retry reuse the same `authResponse`; never re-run `navigator.credentials.create`.
+- **`getToken` can throw `mfa_required`**: continue with the client `mfa` helper (`mfa/SKILL.md`) using the `mfa_token`. The user has no session yet, so `mfa.verify()` (route `/auth/mfa/verify`) creates it; a step-up MFA page or server `auth0.mfa.verify()` fails with no session.
 - Do **not** call the server `register`/`challenge` methods from a client component — they are server-only.
