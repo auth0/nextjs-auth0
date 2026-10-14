@@ -1,7 +1,8 @@
 /**
- * Error classes thrown by the SDK. Check `error.code` rather than `instanceof`.
+ * Error classes thrown by the SDK, imported from `@auth0/nextjs-auth0/errors`.
+ * Check `error.code` rather than `instanceof`.
  *
- * @module @auth0/nextjs-auth0/errors
+ * @packageDocumentation
  */
 export { SdkError } from "./sdk-error.js";
 

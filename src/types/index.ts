@@ -1,7 +1,8 @@
 /**
- * Types for SDK options, sessions, tokens and feature APIs.
+ * Types for SDK options, sessions, tokens and feature APIs, imported from
+ * `@auth0/nextjs-auth0/types`.
  *
- * @module @auth0/nextjs-auth0/types
+ * @packageDocumentation
  */
 import { AuthorizationParameters } from "./authorize.js";
 import { ConnectionTokenSet, type ActClaim } from "./token-vault.js";

@@ -1,7 +1,8 @@
 /**
- * Server-side API: `Auth0Client`, session and transaction stores, and route protection.
+ * Server-side API, imported from `@auth0/nextjs-auth0/server`: `Auth0Client`,
+ * session and transaction stores, and route protection.
  *
- * @module @auth0/nextjs-auth0/server
+ * @packageDocumentation
  */
 export { Auth0Client } from "./client.js";
 

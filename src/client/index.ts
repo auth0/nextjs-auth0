@@ -1,7 +1,8 @@
 /**
- * React hooks, providers and helpers for Client Components.
+ * React hooks, providers and helpers for Client Components, imported from
+ * `@auth0/nextjs-auth0`.
  *
- * @module @auth0/nextjs-auth0
+ * @packageDocumentation
  */
 export { useUser, type UseUserOptions } from "./hooks/use-user.js";
 export { useAnonymousSession } from "./hooks/use-anonymous-session.js";
