@@ -37,9 +37,11 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { toNextRequest } from "./http/next-compat.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
+import { dispatch } from "./routes/dispatch.js";
 import type {
   Auth0ClientOptions,
   PagesRouterRequest,
@@ -59,7 +61,7 @@ export class Auth0Client {
    * middleware mounts the SDK routes to run as a middleware function.
    */
   async middleware(req: Request | NextRequest): Promise<NextResponse> {
-    throw new Error("not implemented");
+    return dispatch(toNextRequest(req), this.#setup);
   }
 
   /**

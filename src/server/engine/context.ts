@@ -1,3 +1,4 @@
+import type { NextRequest, NextResponse } from "next/server.js";
 import type { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 
 import type { ReadonlyRequestCookies } from "../types/cookies.js";
@@ -30,4 +31,19 @@ export interface CookieContext {
    * Request URL, passed to the user's domain resolver. Absent in Server Components and Server Actions.
    */
   url?: URL;
+}
+
+/**
+ * The context for a middleware call: reads from the request, writes to the response returned.
+ */
+export function middlewareContext(
+  req: NextRequest,
+  res: NextResponse
+): CookieContext {
+  return {
+    reqCookies: req.cookies,
+    resCookies: res.cookies,
+    headers: req.headers,
+    url: req.nextUrl
+  };
 }

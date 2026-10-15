@@ -35,6 +35,7 @@ const DEFAULT_HTTP_TIMEOUT = 5000;
 
 export type Engine = ServerClient<CookieContext>;
 type GetEngine = () => Promise<Engine>;
+type CurrentDomain = (ctx?: CookieContext) => Promise<string>;
 type BuildEngine = (
   domain: string | EngineDomainResolver<CookieContext>
 ) => Engine;
@@ -45,6 +46,11 @@ export interface EngineSetup {
    * construction.
    */
   getEngine: GetEngine;
+  /**
+   * The domain for a call, normalized as the engine gets it. In resolver mode this calls the
+   * user's resolver.
+   */
+  currentDomain: CurrentDomain;
   errors: ErrorMapper;
   cookieHandler: NextCookieHandler;
   sessionStore: NextStatelessStateStore | NextStatefulStateStore;
@@ -103,7 +109,7 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
   };
 
   return {
-    getEngine: selectGetEngine(config, build),
+    ...selectEngine(config, build),
     errors,
     cookieHandler,
     sessionStore,
@@ -167,10 +173,15 @@ function createStores(config: EngineConfig, sessionMapper: SessionMapper) {
   return { cookieHandler, sessionStore, transactionStore };
 }
 
+interface EngineAccess {
+  getEngine: GetEngine;
+  currentDomain: CurrentDomain;
+}
+
 /**
  * Picks how the engine is built from the domain setup.
  */
-function selectGetEngine(config: EngineConfig, build: BuildEngine): GetEngine {
+function selectEngine(config: EngineConfig, build: BuildEngine): EngineAccess {
   const { domain, options } = config;
   if (typeof domain === "function") {
     return resolverEngine(domain, build);
@@ -188,9 +199,10 @@ function staticEngine(
   domain: string,
   allowInsecureRequests: boolean | undefined,
   build: BuildEngine
-): GetEngine {
-  const engine = build(staticDomain(domain, allowInsecureRequests));
-  return async () => engine;
+): EngineAccess {
+  const host = staticDomain(domain, allowInsecureRequests);
+  const engine = build(host);
+  return { getEngine: async () => engine, currentDomain: async () => host };
 }
 
 /**
@@ -199,9 +211,10 @@ function staticEngine(
 function resolverEngine(
   resolver: DomainResolver,
   build: BuildEngine
-): GetEngine {
-  const engine = build((ctx) => resolveDomain(resolver, ctx));
-  return async () => engine;
+): EngineAccess {
+  const currentDomain: CurrentDomain = (ctx) => resolveDomain(resolver, ctx);
+  const engine = build(currentDomain);
+  return { getEngine: async () => engine, currentDomain };
 }
 
 /**
@@ -211,11 +224,11 @@ function resolverEngine(
 function lazyEngine(
   allowInsecureRequests: boolean | undefined,
   build: BuildEngine
-): GetEngine {
-  let engine: Engine | undefined;
-  return async () => {
-    if (engine) {
-      return engine;
+): EngineAccess {
+  let current: { engine: Engine; host: string } | undefined;
+  const load = () => {
+    if (current) {
+      return current;
     }
     const domain = process.env.AUTH0_DOMAIN;
     if (!domain) {
@@ -226,8 +239,13 @@ function lazyEngine(
         )
       );
     }
-    engine = build(staticDomain(domain, allowInsecureRequests));
-    return engine;
+    const host = staticDomain(domain, allowInsecureRequests);
+    current = { engine: build(host), host };
+    return current;
+  };
+  return {
+    getEngine: async () => load().engine,
+    currentDomain: async () => load().host
   };
 }
 

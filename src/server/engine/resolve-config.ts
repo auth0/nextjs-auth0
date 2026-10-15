@@ -18,6 +18,7 @@ import {
 } from "../../utils/scope-helpers.js";
 import { isUrl } from "../../utils/url-helpers.js";
 import type { Auth0ClientOptions } from "../types/options.js";
+import type { Routes } from "../types/routes.js";
 import type { SessionCookieOptions } from "../types/session.js";
 import type { TransactionCookieOptions } from "../types/transaction.js";
 
@@ -62,6 +63,9 @@ export interface EngineConfig {
   tokenRefreshBuffer: number;
   signInReturnToPath: string;
   logoutStrategy: LogoutStrategy;
+  routes: Routes;
+  enableAccessTokenEndpoint: boolean;
+  enableConnectAccountEndpoint: boolean;
 }
 
 /**
@@ -118,7 +122,10 @@ export function resolveConfig(options: Auth0ClientOptions): EngineConfig {
     mfaTokenTtl,
     tokenRefreshBuffer: options.tokenRefreshBuffer ?? 0,
     signInReturnToPath: options.signInReturnToPath || "/",
-    logoutStrategy
+    logoutStrategy,
+    routes: resolveRoutes(options),
+    enableAccessTokenEndpoint: options.enableAccessTokenEndpoint ?? true,
+    enableConnectAccountEndpoint: options.enableConnectAccountEndpoint ?? false
   };
 }
 
@@ -408,6 +415,58 @@ function assertAppBaseUrls(appBaseUrl: string | string[] | undefined) {
       `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
     );
   }
+}
+
+/**
+ * Defaults, then the `NEXT_PUBLIC_*_ROUTE` env vars, then `options.routes` spread last, as on `main`
+ * (an explicit `undefined` in `options.routes` overrides a default).
+ */
+function resolveRoutes(options: Auth0ClientOptions): Routes {
+  const env = process.env;
+  return {
+    login: env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
+    logout: "/auth/logout",
+    callback: "/auth/callback",
+    backChannelLogout: "/auth/backchannel-logout",
+    profile: env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+    accessToken: env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+    federatedDomain:
+      env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE || "/auth/federated-domain",
+    connectAccount: "/auth/connect",
+    mfaAuthenticators:
+      env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE || "/auth/mfa/authenticators",
+    mfaChallenge: env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
+    mfaVerify: env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
+    mfaAssociate: env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
+    passwordlessStart:
+      env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE || "/auth/passwordless/start",
+    passwordlessVerify:
+      env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE || "/auth/passwordless/verify",
+    passwordlessDbOtpChallenge:
+      env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
+      "/auth/passwordless/otp/challenge",
+    passwordlessDbGetToken:
+      env.NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE ||
+      "/auth/passwordless/otp/token",
+    passkeyRegister:
+      env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE || "/auth/passkey/register",
+    passkeyChallenge:
+      env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE || "/auth/passkey/challenge",
+    passkeyGetToken:
+      env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE || "/auth/passkey/get-token",
+    passkeyEnrollmentChallenge:
+      env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE ||
+      "/auth/passkey/enrollment-challenge",
+    passkeyEnrollmentVerify:
+      env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
+      "/auth/passkey/enrollment-verify",
+    anonymousSession:
+      env.NEXT_PUBLIC_ANONYMOUS_SESSION_ROUTE || "/auth/anonymous-session",
+    anonymousSessionLogout:
+      env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
+      "/auth/anonymous-session/logout",
+    ...options.routes
+  };
 }
 
 /**
