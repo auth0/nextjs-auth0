@@ -23,6 +23,7 @@ import {
   StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions
 } from "../types/index.js";
+import { createEngine, type EngineSetup } from "./engine/create-engine.js";
 import {
   AccessTokenFactory,
   CustomFetchImpl,
@@ -47,9 +48,11 @@ import type {
 
 export class Auth0Client {
   #options: Auth0ClientOptions;
+  #setup: EngineSetup;
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
+    this.#setup = createEngine(options);
   }
 
   /**

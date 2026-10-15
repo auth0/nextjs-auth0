@@ -22,4 +22,12 @@ export interface CookieContext {
    * Set by the cookie handler when a write was ignored because of `ignoreWriteErrors`.
    */
   writeFailed?: boolean;
+  /**
+   * Request headers, passed to the user's domain resolver.
+   */
+  headers?: Headers;
+  /**
+   * Request URL, passed to the user's domain resolver. Absent in Server Components and Server Actions.
+   */
+  url?: URL;
 }

@@ -279,6 +279,37 @@ const featureMappings: Partial<Record<EngineOperation, FeatureMapping>> = {
 const ACCESS_TOKEN_MISSING_SESSION =
   "The user does not have an active session.";
 
+// Rows that apply to every operation.
+function fromAnyOperation(e: unknown, code: string | undefined) {
+  switch (code) {
+    case "invalid_configuration_error":
+    case "missing_required_argument_error":
+    case "missing_client_auth_error":
+      return new InvalidConfigurationError((e as EngineError).message);
+    case "mtls_without_custom_fetch_not_supported":
+      return new MtlsError(
+        MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
+        "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
+          "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
+          "The standard fetch global has no client certificate API. " +
+          "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
+      );
+    case "enterprise_connect_not_supported":
+      return new EnterpriseConnectError();
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Today's error for an error thrown while building the engine. Synchronous, so it can be used in
+ * the `Auth0Client` constructor. Errors it does not recognize are returned unchanged.
+ */
+export function toSetupError(e: unknown): unknown {
+  if (typeof e !== "object" || e === null || e instanceof SdkError) return e;
+  return fromAnyOperation(e, codeOf(e)) ?? e;
+}
+
 /**
  * Turns engine errors into today's error classes, codes and messages (`main`'s text), so
  * `error.code` checks and `instanceof` checks on our classes keep working.
@@ -321,28 +352,6 @@ export function createErrorMapper({
       cause?.mfa_requirements,
       oauth2ErrorFrom(e, "mfa_required")
     );
-  }
-
-  // Rows that apply to every operation.
-  function fromAnyOperation(e: unknown, code: string | undefined) {
-    switch (code) {
-      case "invalid_configuration_error":
-      case "missing_required_argument_error":
-      case "missing_client_auth_error":
-        return new InvalidConfigurationError((e as EngineError).message);
-      case "mtls_without_custom_fetch_not_supported":
-        return new MtlsError(
-          MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
-          "useMtls requires the customFetch option (Auth0Client) or the fetch option (AuthClient) " +
-            "to be set with a TLS-aware implementation (e.g. Node.js undici with a client certificate). " +
-            "The standard fetch global has no client certificate API. " +
-            "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
-        );
-      case "enterprise_connect_not_supported":
-        return new EnterpriseConnectError();
-      default:
-        return undefined;
-    }
   }
 
   async function fromFeature(
