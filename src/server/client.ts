@@ -1171,8 +1171,7 @@ export class Auth0Client {
    *
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
-   */
-  /**
+   *
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
    *

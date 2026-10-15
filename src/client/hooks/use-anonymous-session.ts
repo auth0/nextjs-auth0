@@ -51,8 +51,6 @@ async function fetchAnonymousSession(
  * Uses SWR key: resolved route (option, env var, or default "/auth/anonymous-session")
  * Fetcher: standard fetch, returns null on 204 status, throws on !ok
  *
- * Test: T7 (hook + provider)
- *
  * @category Session
  */
 export function useAnonymousSession(options: UseAnonymousSessionOptions = {}): {

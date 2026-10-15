@@ -1,6 +1,8 @@
 /**
  * Types for SDK options, sessions, tokens and feature APIs, imported from
- * `@auth0/nextjs-auth0/types`.
+ * `@auth0/nextjs-auth0/types`. This entry point ships types only, so import
+ * with `import type`. Constants listed here cannot be imported as values from
+ * this path.
  *
  * @packageDocumentation
  */
@@ -251,6 +253,7 @@ export {
   StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions
 } from "./authorize.js";
+/** @primaryExport */
 export {
   AccessTokenForConnectionOptions,
   ActClaim,
@@ -298,6 +301,7 @@ export {
   EnrollmentApiResponse
 } from "./mfa.js";
 
+/** @primaryExport */
 export type {
   DomainResolver,
   DiscoveryCacheOptions,

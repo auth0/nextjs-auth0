@@ -11,6 +11,7 @@
   "json": "mintlify/nextjs-auth0.json",
   "tsconfig": "tsconfig.json",
   "includeVersion": true,
+  "gitRevision": "main",
   "readme": "README.md",
   "hideGenerator": true,
   "excludePrivate": true,

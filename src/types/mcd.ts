@@ -27,7 +27,7 @@ import type { SessionData } from "./index.js";
  *
  * @returns The Auth0 custom domain hostname (e.g., `"auth.brand1.com"`).
  *   Can be returned synchronously or as a Promise.
- *   Must throw on resolution failure — the SDK wraps thrown errors in {@link DomainResolutionError}.
+ *   Must throw on resolution failure — the SDK wraps thrown errors in {@link errors!DomainResolutionError}.
  *
  * @security The resolver is responsible for preventing Host Header injection attacks.
  *   The SDK validates the resolver's output via `normalizeDomain` (hostname format validation),
