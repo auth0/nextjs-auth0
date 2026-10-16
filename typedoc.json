@@ -1,19 +1,44 @@
 {
   "entryPoints": [
     "./src/client/index.ts",
-    "./src/types/index.ts",
     "./src/server/index.ts",
-    "./src/testing/index.ts",
+    "./src/types/index.ts",
     "./src/errors/index.ts",
-],
+    "./src/testing/index.ts"
+  ],
+  "sortEntryPoints": false,
   "out": "docs",
+  "json": "mintlify/nextjs-auth0.json",
   "tsconfig": "tsconfig.json",
   "includeVersion": true,
+  "gitRevision": "main",
   "readme": "README.md",
   "hideGenerator": true,
   "excludePrivate": true,
   "excludeExternals": true,
   "exclude": ["**/node_modules/**", "**/test/**", "**/examples/**", "**/e2e/**"],
   "categorizeByGroup": false,
+  "defaultCategory": "Other",
+  "categoryOrder": [
+    "Getting Started",
+    "Configuration",
+    "Login & Logout",
+    "Session",
+    "Access Tokens",
+    "Route Protection",
+    "MFA",
+    "Passkeys",
+    "Passwordless",
+    "Connected Accounts",
+    "Errors",
+    "Testing",
+    "*"
+  ],
+  "navigation": {
+    "includeCategories": true,
+    "includeFolders": false,
+    "compactFolders": false
+  },
+  "excludeReferences": true,
   "theme": "default"
 }

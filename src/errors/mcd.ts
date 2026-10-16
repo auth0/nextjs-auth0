@@ -17,6 +17,8 @@ import { SdkError } from "./sdk-error.js";
  * This error is public and may be caught by application code.
  *
  * @public
+ *
+ * @category Configuration
  */
 export class DomainResolutionError extends SdkError {
   public code: string = "domain_resolution_error";
@@ -43,6 +45,8 @@ export class DomainResolutionError extends SdkError {
  * This error is public and may be caught by application code.
  *
  * @public
+ *
+ * @category Configuration
  */
 export class DomainValidationError extends SdkError {
   public code: string = "domain_validation_error";
@@ -64,6 +68,8 @@ export class DomainValidationError extends SdkError {
  * This error is public and may be caught by application code.
  *
  * @public
+ *
+ * @category Configuration
  */
 export class IssuerValidationError extends SdkError {
   public code: string = "issuer_validation_error";
@@ -92,6 +98,8 @@ export class IssuerValidationError extends SdkError {
  * created for a different domain.
  *
  * @public
+ *
+ * @category Configuration
  */
 export class SessionDomainMismatchError extends SdkError {
   public code: string = "session_domain_mismatch";

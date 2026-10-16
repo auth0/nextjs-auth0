@@ -5,6 +5,8 @@ import { SdkError } from "./sdk-error.js";
  *
  * These error codes categorize different types of failures that can occur
  * during DPoP (Demonstrating Proof-of-Possession) operations.
+ *
+ * @category Access Tokens
  */
 export enum DPoPErrorCode {
   /**
@@ -82,6 +84,8 @@ export enum DPoPErrorCode {
  * ```
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc9449 | RFC 9449: OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)}
+ *
+ * @category Access Tokens
  */
 export class DPoPError extends SdkError {
   /** The specific DPoP error code indicating the type of failure */

@@ -236,11 +236,13 @@ import {
 } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
 
+/** @category Configuration */
 export type BeforeSessionSavedHook = (
   session: SessionData,
   idToken: string | null
 ) => Promise<SessionData>;
 
+/** @category Configuration */
 export type OnCallbackContext = {
   /**
    * The type of response expected from the authorization server.
@@ -274,6 +276,7 @@ export type OnCallbackContext = {
    */
   anonymousSessionLinked?: boolean;
 };
+/** @category Configuration */
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
@@ -313,6 +316,7 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
 const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "http://auth0.com/oauth/token-type/federated-connection-access-token";
 
+/** @category Configuration */
 export interface Routes {
   login: string;
   logout: string;
@@ -338,6 +342,7 @@ export interface Routes {
   anonymousSession?: string;
   anonymousSessionLogout?: string;
 }
+/** @category Configuration */
 export type RoutesOptions = Partial<Routes>;
 
 /**

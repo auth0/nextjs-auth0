@@ -1,6 +1,15 @@
+/**
+ * Types for SDK options, sessions, tokens and feature APIs, imported from
+ * `@auth0/nextjs-auth0/types`. This entry point ships types only, so import
+ * with `import type`. Constants listed here cannot be imported as values from
+ * this path.
+ *
+ * @packageDocumentation
+ */
 import { AuthorizationParameters } from "./authorize.js";
 import { ConnectionTokenSet, type ActClaim } from "./token-vault.js";
 
+/** @category Access Tokens */
 export interface TokenSet {
   accessToken: string;
   idToken?: string;
@@ -12,6 +21,7 @@ export interface TokenSet {
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
+/** @category Access Tokens */
 export interface AccessTokenSet {
   accessToken: string;
   scope?: string;
@@ -21,6 +31,7 @@ export interface AccessTokenSet {
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
+/** @category Session */
 export interface SessionData {
   user: User;
   tokenSet: TokenSet;
@@ -45,6 +56,8 @@ export interface SessionData {
  *
  * **TTL contract:** every successful write method (`set`, `update`) must reset the session
  * TTL/expiry so that active sessions are not silently expired between requests.
+ *
+ * @category Session
  */
 export interface SessionDataStore {
   /**
@@ -81,8 +94,10 @@ export interface SessionDataStore {
   deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>;
 }
 
+/** @category Login & Logout */
 export type LogoutToken = { sub?: string; sid?: string; iss?: string };
 
+/** @category Session */
 export interface User {
   sub: string;
   name?: string;
@@ -155,9 +170,12 @@ export type {
 
 /**
  * Logout strategy options for controlling logout endpoint selection.
+ *
+ * @category Login & Logout
  */
 export type LogoutStrategy = "auto" | "oidc" | "v2";
 
+/** @category Login & Logout */
 export interface BackchannelAuthenticationOptions {
   /**
    * Human-readable message to be displayed at the consumption device and authentication device.
@@ -188,17 +206,20 @@ export interface BackchannelAuthenticationOptions {
   authorizationParams?: AuthorizationParameters;
 }
 
+/** @category Login & Logout */
 export interface BackchannelAuthenticationResponse {
   tokenSet: TokenSet;
   idTokenClaims?: { [key: string]: any };
   authorizationDetails?: AuthorizationDetails[];
 }
 
+/** @category Login & Logout */
 export interface AuthorizationDetails {
   readonly type: string;
   readonly [parameter: string]: unknown;
 }
 
+/** @category Access Tokens */
 export type GetAccessTokenOptions = {
   refresh?: boolean | null;
   scope?: string | null;
@@ -217,6 +238,7 @@ export type GetAccessTokenOptions = {
   mergeScopes?: boolean;
 };
 
+/** @category Access Tokens */
 export type ProxyOptions = {
   proxyPath: string;
   targetBaseUrl: string;
@@ -231,6 +253,7 @@ export {
   StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions
 } from "./authorize.js";
+/** @primaryExport */
 export {
   AccessTokenForConnectionOptions,
   ActClaim,
@@ -278,6 +301,7 @@ export {
   EnrollmentApiResponse
 } from "./mfa.js";
 
+/** @primaryExport */
 export type {
   DomainResolver,
   DiscoveryCacheOptions,

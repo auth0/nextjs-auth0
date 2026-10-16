@@ -253,5 +253,7 @@ class ClientPasswordlessClient implements PasswordlessClient {
  * await passwordless.start({ connection: 'email', email: 'user@example.com', send: 'code' });
  * await passwordless.verify({ connection: 'email', email: 'user@example.com', verificationCode: '123456' });
  * ```
+ *
+ * @category Passwordless
  */
 export const passwordless: PasswordlessClient = new ClientPasswordlessClient();

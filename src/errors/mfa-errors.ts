@@ -3,6 +3,8 @@ import { SdkError } from "./sdk-error.js";
 /**
  * Interface for Auth0 MFA API error responses.
  * All MFA errors from Auth0 follow this shape (snake_case).
+ *
+ * @category MFA
  */
 export interface MfaApiErrorResponse {
   error: string;
@@ -53,6 +55,8 @@ abstract class MfaError extends SdkError {
 /**
  * Thrown when request validation fails (missing/invalid params).
  * Mapped to 400 Bad Request.
+ *
+ * @category MFA
  */
 export class InvalidRequestError extends SdkError {
   public code = "invalid_request";
@@ -85,6 +89,8 @@ export class InvalidRequestError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class MfaGetAuthenticatorsError extends MfaError {
   public readonly error: string;
@@ -124,6 +130,8 @@ export class MfaGetAuthenticatorsError extends MfaError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class MfaChallengeError extends MfaError {
   public readonly error: string;
@@ -162,6 +170,8 @@ export class MfaChallengeError extends MfaError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class MfaVerifyError extends MfaError {
   public readonly error: string;
@@ -185,6 +195,8 @@ export class MfaVerifyError extends MfaError {
 /**
  * Error thrown when no MFA factors are available for challenge.
  * SDK-generated error (no Auth0 API equivalent).
+ *
+ * @category MFA
  */
 export class MfaNoAvailableFactorsError extends SdkError {
   public readonly code: string = "mfa_no_available_factors";
@@ -217,6 +229,8 @@ export class MfaNoAvailableFactorsError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class MfaEnrollmentError extends MfaError {
   public readonly error: string;
@@ -241,6 +255,8 @@ export class MfaEnrollmentError extends MfaError {
  * MFA requirements from an mfa_required error response.
  * Indicates which MFA methods are available for the user.
  * Matches Auth0 API response shape and auth0-spa-js type.
+ *
+ * @category MFA
  */
 export interface MfaRequirements {
   /** Required enrollment types (user needs to enroll new authenticator) */
@@ -280,6 +296,8 @@ export interface MfaRequirements {
  * ```
  *
  * @see {@link https://auth0.com/docs/api/authentication#multi-factor-authentication Auth0 MFA API}
+ *
+ * @category MFA
  */
 export class MfaRequiredError extends SdkError {
   public readonly code: string = "mfa_required";
@@ -365,6 +383,8 @@ export class MfaRequiredError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class MfaTokenExpiredError extends SdkError {
   public readonly code: string = "mfa_token_expired";
@@ -382,6 +402,8 @@ export class MfaTokenExpiredError extends SdkError {
  * - The token was tampered with
  * - The token is malformed (not valid JWE)
  * - The token was encrypted with a different secret
+ *
+ * @category MFA
  */
 export class MfaTokenInvalidError extends SdkError {
   public readonly code: string = "mfa_token_invalid";

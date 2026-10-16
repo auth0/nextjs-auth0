@@ -9,6 +9,8 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 /**
  * Props for the Auth0Provider component.
  * Adds anonymousSession prop for seeding SWR cache (SSR fallback, no loading flash).
+ *
+ * @category Configuration
  */
 export type Auth0ProviderProps = {
   /**
@@ -42,6 +44,7 @@ export type Auth0ProviderProps = {
   anonymousSessionRoute?: string;
 };
 
+/** @category Getting Started */
 export function Auth0Provider({
   user,
   anonymousSession,
