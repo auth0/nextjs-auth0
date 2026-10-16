@@ -6,10 +6,37 @@ import {
   decryptMfaToken,
   encryptMfaToken,
   extractMfaErrorDetails,
-  isMfaRequiredError
+  isMfaRequiredError,
+  toAuth0ChallengeType
 } from "./mfa-utils.js";
 
 describe("mfa-utils", () => {
+  describe("toAuth0ChallengeType", () => {
+    it.each(["oob", "phone", "sms", "voice", "email", "push-notification"])(
+      "maps %s to oob",
+      (type) => {
+        expect(toAuth0ChallengeType(type)).toBe("oob");
+      }
+    );
+
+    it("keeps otp as otp", () => {
+      expect(toAuth0ChallengeType("otp")).toBe("otp");
+    });
+
+    it("is case-insensitive and trims whitespace", () => {
+      expect(toAuth0ChallengeType("  Email ")).toBe("oob");
+      expect(toAuth0ChallengeType("OTP")).toBe("otp");
+    });
+
+    it("does not map recovery-code (not a valid challenge_type)", () => {
+      expect(toAuth0ChallengeType("recovery-code")).toBe("recovery-code");
+    });
+
+    it("passes unknown values through for Auth0 to reject", () => {
+      expect(toAuth0ChallengeType("future-type")).toBe("future-type");
+    });
+  });
+
   describe("encryptMfaToken/decryptMfaToken", async () => {
     const secret = await generateSecret(32);
     const incorrectSecret = await generateSecret(32);
