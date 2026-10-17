@@ -381,7 +381,7 @@ export const auth0 = new Auth0Client({
   authorizationParameters: {
     audience: "urn:your-api-identifier",
     scope: {
-      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "profile:read profile:write",
+      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "read:me:profile update:me:profile",
       [`https://${process.env.AUTH0_DOMAIN}/my-org/`]: "org:read org:write"
     }
   }
@@ -395,7 +395,7 @@ Make requests through the proxy paths:
 ```tsx
 // My Account API
 const response = await fetch("/me/v1/profile", {
-  headers: { "scope": "profile:read" }
+  headers: { "scope": "read:me:profile" }
 });
 
 // My Organization API
@@ -406,7 +406,7 @@ const response = await fetch("/my-org/organizations", {
 
 The `scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
 
-For complete documentation, examples, and integration patterns with UI Components, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis).
+For complete documentation and examples, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis). For My Account API examples, including managing the user's profile and `user_metadata` and integration with UI Components, see [My Account API in guides/my-account.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/my-account.md).
 
 ## Base Path
 
