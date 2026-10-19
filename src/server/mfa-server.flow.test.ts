@@ -305,6 +305,96 @@ describe("AuthClient MFA Methods", () => {
       });
     });
 
+    // Regression: mfa_requirements.challenge holds factor names (phone, email,
+    // push-notification) while /mfa/challenge only accepts otp/oob.
+    it.each([
+      ["oob", "phone", "oob"],
+      ["oob", "email", "oob"],
+      ["oob", "push-notification", "oob"],
+      ["phone", "phone", "oob"],
+      ["sms", "phone", "oob"],
+      ["voice", "phone", "oob"],
+      ["email", "email", "oob"],
+      ["push-notification", "push-notification", "oob"],
+      ["otp", "otp", "otp"],
+      ["OOB", "phone", "oob"]
+    ])(
+      "sends challenge_type for %s with requirement %s as %s",
+      async (requested, required, expectedSent) => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "https://api.example.com",
+          "openid profile",
+          { challenge: [{ type: required }] },
+          secret,
+          300
+        );
+
+        let sent: string | undefined;
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/mfa/challenge`,
+            async ({ request }) => {
+              sent = ((await request.json()) as any).challenge_type;
+              return HttpResponse.json({ challenge_type: expectedSent });
+            }
+          )
+        );
+
+        await authClient.mfaChallenge(encryptedToken, requested);
+        expect(sent).toBe(expectedSent);
+      }
+    );
+
+    it("should send the challenge when mfa_requirements is absent", async () => {
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      let sent: string | undefined;
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/mfa/challenge`,
+          async ({ request }) => {
+            sent = ((await request.json()) as any).challenge_type;
+            return HttpResponse.json({ challenge_type: "oob" });
+          }
+        )
+      );
+
+      await authClient.mfaChallenge(encryptedToken, "oob");
+      expect(sent).toBe("oob");
+    });
+
+    it("should not call Auth0 when mfa_requirements has no challenge types", async () => {
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [] },
+        secret,
+        300
+      );
+
+      let called = false;
+      server.use(
+        http.post(`https://${DEFAULT.domain}/mfa/challenge`, () => {
+          called = true;
+          return HttpResponse.json({ challenge_type: "oob" });
+        })
+      );
+
+      await expect(
+        authClient.mfaChallenge(encryptedToken, "oob")
+      ).rejects.toMatchObject({ code: "mfa_no_available_factors" });
+      expect(called).toBe(false);
+    });
+
     it("should pass empty authenticatorId as undefined", async () => {
       const encryptedToken = await encryptMfaToken(
         DEFAULT.mfaToken,
@@ -1404,6 +1494,49 @@ describe("AuthClient MFA Methods", () => {
         // Route handler returns snake_case response
         const result = await response.json();
         expect(result.challenge_type).toBe("otp");
+      });
+
+      it("should accept oob when mfa_requirements lists a channel type (email)", async () => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "https://api.example.com",
+          "openid profile",
+          { challenge: [{ type: "email" }] },
+          secret,
+          300
+        );
+
+        let sent: string | undefined;
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/mfa/challenge`,
+            async ({ request }) => {
+              sent = ((await request.json()) as any).challenge_type;
+              return HttpResponse.json({
+                challenge_type: "oob",
+                oob_code: "abc123",
+                binding_method: "prompt"
+              });
+            }
+          )
+        );
+
+        const request = new NextRequest(
+          new URL("/auth/mfa/challenge", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              mfa_token: encryptedToken,
+              challenge_type: "oob"
+            }),
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+
+        const response = await authClient.handleChallenge(request);
+        expect(response.status).toBe(200);
+        expect(sent).toBe("oob");
+        expect((await response.json()).oob_code).toBe("abc123");
       });
 
       it("should return 400 for invalid JSON", async () => {

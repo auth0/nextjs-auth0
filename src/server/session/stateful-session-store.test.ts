@@ -1213,6 +1213,79 @@ describe("Stateful Session Store", async () => {
       await sessionStore.set(requestCookies, responseCookies, session);
       expect(deleteSpy).not.toHaveBeenCalled();
     });
+
+    describe("alias guard — aliased req/res stores (Server Action context)", async () => {
+      // In Server Actions and Route Handlers, Next.js returns one shared store
+      // for every cookies() call. The SDK must not overwrite the full-attribute
+      // resCookies.set() with a naked reqCookies.set() when both point at the
+      // same object. The `as unknown as RequestCookies` cast mirrors the
+      // `as unknown` identity check in the implementation.
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      it("preserves httpOnly, secure, domain, sameSite, and maxAge on the session cookie when stores are aliased", async () => {
+        const secret = await generateSecret(32);
+        const store = {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          cookieOptions: {
+            domain: ".example.com",
+            secure: true,
+            sameSite: "lax"
+          }
+        });
+
+        const sharedStore = new ResponseCookies(new Headers());
+
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          session
+        );
+
+        const cookie = sharedStore.get("__session");
+        expect(cookie).toBeDefined();
+        expect(cookie?.domain).toBe(".example.com");
+        expect(cookie?.httpOnly).toBe(true);
+        expect(cookie?.secure).toBe(true);
+        expect(cookie?.sameSite).toBe("lax");
+        expect(cookie?.maxAge).toBeGreaterThan(0);
+      });
+
+      it("still mirrors the session cookie into reqCookies when stores are distinct", async () => {
+        const secret = await generateSecret(32);
+        const store = {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const sessionStore = new StatefulSessionStore({ secret, store });
+
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(requestCookies.get("__session")?.value).toBe(
+          responseCookies.get("__session")?.value
+        );
+      });
+    });
   });
 
   describe("delete", async () => {

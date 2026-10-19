@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createRouteUrl,
   ensureLeadingSlash,
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -64,6 +65,46 @@ describe("pathUtils", () => {
 
     it("should return the same string if it is empty", () => {
       expect(ensureLeadingSlash("")).toBe("");
+    });
+  });
+
+  describe("createRouteUrl", () => {
+    const baseUrl = "https://app.example.com";
+
+    it("should throw if baseUrl is missing", () => {
+      expect(() => createRouteUrl("/dashboard")).toThrow(
+        "appBaseUrl is required"
+      );
+    });
+
+    it("should build a same-origin URL for a normal path", () => {
+      expect(createRouteUrl("/dashboard", baseUrl).href).toBe(
+        "https://app.example.com/dashboard"
+      );
+    });
+
+    it("should build the root URL", () => {
+      expect(createRouteUrl("/", baseUrl).href).toBe(
+        "https://app.example.com/"
+      );
+    });
+
+    it.each([
+      "/https://evil.com/",
+      "/http://evil.com/",
+      "///evil.com/",
+      "/https://evil.com/path?x=1#y"
+    ])("should refuse cross-origin escape via %s", (path) => {
+      expect(() => createRouteUrl(path, baseUrl)).toThrow(
+        "Refusing to build a cross-origin route URL."
+      );
+    });
+
+    it("should keep a protocol-relative-looking path same-origin", () => {
+      // "//evil.com/" loses one slash -> "/evil.com/", stays on the app origin.
+      expect(createRouteUrl("//evil.com/", baseUrl).href).toBe(
+        "https://app.example.com/evil.com/"
+      );
     });
   });
 
