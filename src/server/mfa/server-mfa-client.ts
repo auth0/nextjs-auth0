@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import type {
+  AuthenticatorResponse,
+  EnrollmentResponse as EngineEnrollmentResponse
+} from "@auth0/auth0-auth-js";
 
 import type {
   Authenticator,
@@ -9,6 +13,17 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import { normalizeEnrollOptions } from "../../utils/mfa-transform-utils.js";
+import { withCallContext } from "../engine/call-context.js";
+import { readContext } from "../engine/context.js";
+import type { EngineSetup } from "../engine/create-engine.js";
+import {
+  challengeAuthenticator,
+  enrollAuthenticator,
+  listAuthenticators,
+  toVerifyResponse,
+  verifyMfa
+} from "./mfa-operations.js";
 
 /**
  * Server-side MFA API.
@@ -42,6 +57,15 @@ import type {
  * ```
  */
 export class ServerMfaClient implements MfaClient {
+  #setup: EngineSetup;
+
+  /**
+   * @internal Reached through `Auth0Client.mfa`.
+   */
+  constructor(setup: EngineSetup) {
+    this.#setup = setup;
+  }
+
   /**
    * List enrolled MFA authenticators.
    *
@@ -77,7 +101,13 @@ export class ServerMfaClient implements MfaClient {
   async getAuthenticators(options: {
     mfaToken: string;
   }): Promise<Authenticator[]> {
-    throw new Error("not implemented");
+    const { ctx } = await readContext();
+    const authenticators = await listAuthenticators(
+      this.#setup,
+      ctx,
+      options.mfaToken
+    );
+    return authenticators.map(toAuthenticator);
   }
 
   /**
@@ -108,7 +138,19 @@ export class ServerMfaClient implements MfaClient {
     challengeType: string;
     authenticatorId?: string;
   }): Promise<ChallengeResponse> {
-    throw new Error("not implemented");
+    const { ctx } = await readContext();
+    const result = await challengeAuthenticator(
+      this.#setup,
+      ctx,
+      options.mfaToken,
+      options.challengeType,
+      options.authenticatorId
+    );
+    return {
+      challengeType: result.challengeType,
+      oobCode: result.oobCode,
+      bindingMethod: result.bindingMethod
+    };
   }
 
   /**
@@ -140,7 +182,16 @@ export class ServerMfaClient implements MfaClient {
    * ```
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
-    throw new Error("not implemented");
+    // `factorType` variants to the `authenticatorTypes` form, checked before the token.
+    const { mfaToken, ...enrollOptions } = normalizeEnrollOptions(options);
+    const { ctx } = await readContext();
+    const result = await enrollAuthenticator(
+      this.#setup,
+      ctx,
+      mfaToken,
+      enrollOptions
+    );
+    return toEnrollmentResponse(result);
   }
 
   /**
@@ -182,6 +233,77 @@ export class ServerMfaClient implements MfaClient {
     arg2?: NextResponse,
     arg3?: VerifyMfaOptions
   ): Promise<MfaVerifyResponse> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let res: NextResponse | undefined;
+    let options: VerifyMfaOptions;
+    if (arg1 instanceof NextRequest) {
+      // Middleware: verify(req, res, options); the session is written to `res`.
+      if (!arg2 || !arg3) {
+        throw new TypeError(
+          "verify(req, res, options): All three arguments required for Pages Router"
+        );
+      }
+      [req, res, options] = [arg1, arg2, arg3];
+    } else {
+      // App Router: verify(options); the session is written to `cookies()`.
+      if (arg2 !== undefined || arg3 !== undefined) {
+        throw new TypeError(
+          "verify(options): Only one argument allowed for App Router"
+        );
+      }
+      options = arg1;
+    }
+
+    // A write Next refuses (a Server Component) throws, as on `main`: the code is already spent.
+    const result = await withCallContext(
+      req,
+      res,
+      (ctx) =>
+        verifyMfa(this.#setup, ctx, options, { checkSessionDomain: true }),
+      { ignoreWriteErrors: false }
+    );
+    return toVerifyResponse(result);
   }
+}
+
+/**
+ * `main`'s authenticator shape from the engine's fields. Auth0's docs name the channel
+ * `oob_channels` and type it as a string; the engine types it as a list, so both are read.
+ */
+function toAuthenticator(auth: AuthenticatorResponse): Authenticator {
+  const channels = auth.oobChannels as string[] | string | undefined;
+  return {
+    id: auth.id,
+    authenticatorType: auth.authenticatorType,
+    type: auth.type,
+    active: auth.active,
+    name: auth.name,
+    oobChannel: Array.isArray(channels) ? channels[0] : channels
+  };
+}
+
+/**
+ * `main`'s enrollment shape from the engine's fields.
+ */
+function toEnrollmentResponse(
+  result: EngineEnrollmentResponse
+): EnrollmentResponse {
+  if (result.authenticatorType === "otp") {
+    return {
+      authenticatorType: "otp",
+      id: result.id as string,
+      recoveryCodes: result.recoveryCodes,
+      secret: result.secret,
+      barcodeUri: result.barcodeUri
+    };
+  }
+  return {
+    authenticatorType: "oob",
+    id: result.id as string,
+    recoveryCodes: result.recoveryCodes,
+    oobChannel: result.oobChannel,
+    oobCode: result.oobCode,
+    bindingMethod: result.bindingMethod,
+    barcodeUri: result.barcodeUri
+  };
 }

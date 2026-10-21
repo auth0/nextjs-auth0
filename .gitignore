@@ -140,6 +140,8 @@ dist
 # local development files
 .memory/
 .dev-files/
+examples/migration-validation/
+/migration/
 *.env.*
 !**/.env.example
 *.tmp

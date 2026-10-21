@@ -23,7 +23,13 @@ export interface SessionMapperOptions {
 export interface SessionMapper {
   toStateData(session: SessionData): StateData;
   toSessionData(stateData: StateData): SessionData;
+  /**
+   * The audience the engine files the login token under: the configured one, else its own key.
+   */
+  defaultAudienceKey: string;
 }
+
+type TokenEntry = Record<string, unknown>;
 
 /**
  * Converts between today's `SessionData` (the public shape: `getSession()`, `updateSession()`,
@@ -60,11 +66,13 @@ export function createSessionMapper({
 
     // Today's login writes no audience on the primary token; file it under the engine's key so
     // the engine finds it (`||`, as in `main`'s rule). Entries keep fields the engine does not
-    // read (`requestedScope`, `token_type`); the engine type has no index signature.
+    // read; the engine type has no index signature.
     const tokenSets = [
       { ...primary, audience: primary.audience || defaultAudienceKey },
       ...(accessTokens ?? [])
-    ] as EngineTokenSet[];
+    ].map((entry) =>
+      toEngineEntry(entry as unknown as TokenEntry)
+    ) as unknown as EngineTokenSet[];
 
     return {
       ...rest,
@@ -104,7 +112,12 @@ export function createSessionMapper({
       ...internalRest
     } = internal as SessionData["internal"];
 
-    const entries = tokenSets ?? [];
+    const entries = (tokenSets ?? []).map(
+      (entry) =>
+        toSessionEntry(
+          entry as unknown as TokenEntry
+        ) as unknown as EngineTokenSet
+    );
     const defaultIndex = entries.findIndex(
       (entry) => entry.audience === defaultAudienceKey
     );
@@ -149,5 +162,24 @@ export function createSessionMapper({
     };
   }
 
-  return { toStateData, toSessionData };
+  return { toStateData, toSessionData, defaultAudienceKey };
+}
+
+/**
+ * Today's `token_type` on a token entry is the engine's `tokenType`.
+ */
+function toEngineEntry(entry: TokenEntry): TokenEntry {
+  const { token_type, tokenType: _tokenType, ...rest } = entry;
+  return {
+    ...rest,
+    ...(token_type !== undefined && { tokenType: token_type })
+  };
+}
+
+function toSessionEntry(entry: TokenEntry): TokenEntry {
+  const { tokenType, token_type: _tokenType, ...rest } = entry;
+  return {
+    ...rest,
+    ...(tokenType !== undefined && { token_type: tokenType })
+  };
 }

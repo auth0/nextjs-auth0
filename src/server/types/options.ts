@@ -178,8 +178,14 @@ export interface Auth0ClientOptions {
   allowInsecureRequests?: boolean;
 
   /**
-   * Integer value for the HTTP timeout in milliseconds for authentication requests.
-   * Defaults to `5000` ms.
+   * Time limit, in milliseconds, for each HTTP request the SDK makes to Auth0 and to the APIs reached
+   * through the Fetcher and the proxy. It applies to every individual request, not to a whole
+   * operation.
+   *
+   * When not set, the SDK adds no limit and the underlying libraries keep their own: OIDC discovery
+   * has 30 seconds, the logout token key fetch has 5 seconds, and the other requests have none.
+   *
+   * Must be an integer between 1 and 2147483647, otherwise an `InvalidConfigurationError` is thrown.
    */
   httpTimeout?: number;
 

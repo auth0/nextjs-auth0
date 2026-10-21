@@ -7,7 +7,8 @@ import type { CookieContext } from "./context.js";
 
 export interface NextCookieHandlerOptions {
   /**
-   * The session cookie name (`session.cookie.name`, default `__session`).
+   * The session cookie name (`session.cookie.name`, default `__session`). The anonymous store's
+   * handler gets the anonymous cookie name here (`anonymousSession.cookie.name`).
    */
   sessionName: string;
   /**

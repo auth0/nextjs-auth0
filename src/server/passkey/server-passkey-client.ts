@@ -12,10 +12,21 @@ import type {
   PasskeyRegisterOptions,
   PasskeyRegisterResponse
 } from "../../types/index.js";
+import { withCallContext } from "../engine/call-context.js";
+import { readContext } from "../engine/context.js";
+import type { EngineSetup } from "../engine/create-engine.js";
+import {
+  challengePasskey,
+  enrollmentChallenge,
+  enrollmentVerify,
+  getPasskeyToken,
+  registerPasskey
+} from "./passkey-operations.js";
 
 /**
  * Server-side passkey authentication API.
- * Delegates all operations to AuthClient business logic.
+ * The engine sends the signup, login and token requests and saves the session; enrollment is
+ * `main`'s MyAccount code.
  * Provides overload support for App Router and Pages Router.
  *
  * Authentication flow (signup / login):
@@ -45,6 +56,15 @@ import type {
  * ```
  */
 export class ServerPasskeyClient implements PasskeyClient {
+  #setup: EngineSetup;
+
+  /**
+   * @internal Reached through `Auth0Client.passkey`.
+   */
+  constructor(setup: EngineSetup) {
+    this.#setup = setup;
+  }
+
   // ---------------------------------------------------------------------------
   // register
   // ---------------------------------------------------------------------------
@@ -64,7 +84,10 @@ export class ServerPasskeyClient implements PasskeyClient {
     arg1?: PasskeyRegisterOptions | NextRequest,
     arg2?: PasskeyRegisterOptions
   ): Promise<PasskeyRegisterResponse> {
-    throw new Error("not implemented");
+    const [req, options] =
+      arg1 instanceof NextRequest ? [arg1, arg2] : [undefined, arg1];
+    const { ctx } = await readContext(req);
+    return registerPasskey(this.#setup, ctx, options);
   }
 
   // ---------------------------------------------------------------------------
@@ -86,7 +109,10 @@ export class ServerPasskeyClient implements PasskeyClient {
     arg1?: PasskeyChallengeOptions | NextRequest,
     arg2?: PasskeyChallengeOptions
   ): Promise<PasskeyChallengeResponse> {
-    throw new Error("not implemented");
+    const [req, options] =
+      arg1 instanceof NextRequest ? [arg1, arg2] : [undefined, arg1];
+    const { ctx } = await readContext(req);
+    return challengePasskey(this.#setup, ctx, options);
   }
 
   // ---------------------------------------------------------------------------
@@ -108,7 +134,34 @@ export class ServerPasskeyClient implements PasskeyClient {
     arg2?: NextResponse,
     arg3?: PasskeyGetTokenOptions
   ): Promise<void> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let res: NextResponse | undefined;
+    let options: PasskeyGetTokenOptions;
+    if (arg1 instanceof NextRequest) {
+      // Middleware: getToken(req, res, options); the session is written to `res`.
+      if (!arg2 || !arg3) {
+        throw new TypeError(
+          "getToken(req, res, options): All three arguments required for Pages Router"
+        );
+      }
+      [req, res, options] = [arg1, arg2, arg3];
+    } else {
+      // App Router: getToken(options); the session is written to `cookies()`.
+      if (arg2 !== undefined || arg3 !== undefined) {
+        throw new TypeError(
+          "getToken(options): Only one argument allowed for App Router"
+        );
+      }
+      options = arg1;
+    }
+
+    // A write Next refuses (a Server Component) throws, as on `main`: the credential is spent.
+    await withCallContext(
+      req,
+      res,
+      (ctx) => getPasskeyToken(this.#setup, ctx, options),
+      { ignoreWriteErrors: false }
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -130,7 +183,12 @@ export class ServerPasskeyClient implements PasskeyClient {
     arg1?: PasskeyEnrollmentChallengeOptions | NextRequest,
     arg2?: PasskeyEnrollmentChallengeOptions
   ): Promise<PasskeyEnrollmentChallengeResponse> {
-    throw new Error("not implemented");
+    const [req, options] =
+      arg1 instanceof NextRequest ? [arg1, arg2] : [undefined, arg1];
+    // A refreshed MyAccount token is saved where the call form allows (D6).
+    return withCallContext(req, undefined, (ctx) =>
+      enrollmentChallenge(this.#setup, ctx, options)
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -152,6 +210,21 @@ export class ServerPasskeyClient implements PasskeyClient {
     arg1: PasskeyEnrollmentVerifyOptions | NextRequest,
     arg2?: PasskeyEnrollmentVerifyOptions
   ): Promise<PasskeyEnrollmentVerifyResponse> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let options: PasskeyEnrollmentVerifyOptions;
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "enrollmentVerify(req, options): Both arguments required for Pages Router"
+        );
+      }
+      [req, options] = [arg1, arg2];
+    } else {
+      options = arg1;
+    }
+    // A refreshed MyAccount token is saved where the call form allows (D6).
+    return withCallContext(req, undefined, (ctx) =>
+      enrollmentVerify(this.#setup, ctx, options)
+    );
   }
 }

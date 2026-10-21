@@ -2,9 +2,40 @@ import { NextRequest, NextResponse } from "next/server.js";
 
 import { removeTrailingSlash } from "../../utils/pathUtils.js";
 import { isNonNavigationalRequest } from "../../utils/request.js";
+import {
+  handleAnonymousSession,
+  handleAnonymousSessionLogout
+} from "../anonymous/anonymous-routes.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import type { EngineConfig } from "../engine/resolve-config.js";
+import {
+  handleMfaAssociate,
+  handleMfaAuthenticators,
+  handleMfaChallenge,
+  handleMfaVerify
+} from "../mfa/mfa-routes.js";
+import {
+  handlePasskeyChallenge,
+  handlePasskeyEnrollmentChallenge,
+  handlePasskeyEnrollmentVerify,
+  handlePasskeyGetToken,
+  handlePasskeyRegister
+} from "../passkey/passkey-routes.js";
+import {
+  handlePasswordlessDbGetToken,
+  handlePasswordlessDbOtpChallenge,
+  handlePasswordlessStart,
+  handlePasswordlessVerify
+} from "../passwordless/passwordless-routes.js";
 import type { Routes } from "../types/routes.js";
+import { handleAccessToken } from "./access-token.js";
+import { handleBackChannelLogout } from "./backchannel-logout.js";
+import { handleCallback } from "./callback.js";
+import { handleFederatedDomain } from "./federated-domain.js";
+import { handleLogin } from "./login.js";
+import { handleLogout } from "./logout.js";
+import { handleProfile } from "./profile.js";
+import { handleMyAccount, handleMyOrg } from "./proxy.js";
 import { rollSession } from "./roll-session.js";
 
 type RouteHandler = (
@@ -34,26 +65,26 @@ const notImplemented: RouteHandler = async () =>
 
 // `main`'s order (`auth-client.ts` `handler`): the first match wins.
 const ROUTES: RouteEntry[] = [
-  { method: "GET", route: { key: "login" }, handle: notImplemented },
-  { method: "GET", route: { key: "logout" }, handle: notImplemented },
-  { method: "GET", route: { key: "callback" }, handle: notImplemented },
-  { method: "GET", route: { key: "profile" }, handle: notImplemented },
+  { method: "GET", route: { key: "login" }, handle: handleLogin },
+  { method: "GET", route: { key: "logout" }, handle: handleLogout },
+  { method: "GET", route: { key: "callback" }, handle: handleCallback },
+  { method: "GET", route: { key: "profile" }, handle: handleProfile },
   {
     method: "GET",
     route: { key: "accessToken" },
     enabled: (config) => config.enableAccessTokenEndpoint,
-    handle: notImplemented
+    handle: handleAccessToken
   },
   {
     method: "POST",
     route: { key: "federatedDomain" },
     enabled: (config) => !!config.options.enterpriseConnect,
-    handle: notImplemented
+    handle: handleFederatedDomain
   },
   {
     method: "POST",
     route: { key: "backChannelLogout" },
-    handle: notImplemented
+    handle: handleBackChannelLogout
   },
   {
     method: "GET",
@@ -64,58 +95,78 @@ const ROUTES: RouteEntry[] = [
   {
     method: "GET",
     route: { key: "mfaAuthenticators" },
-    handle: notImplemented
+    handle: handleMfaAuthenticators
   },
-  { method: "POST", route: { key: "mfaChallenge" }, handle: notImplemented },
-  { method: "POST", route: { key: "mfaAssociate" }, handle: notImplemented },
-  { method: "POST", route: { key: "mfaVerify" }, handle: notImplemented },
+  {
+    method: "POST",
+    route: { key: "mfaChallenge" },
+    handle: handleMfaChallenge
+  },
+  {
+    method: "POST",
+    route: { key: "mfaAssociate" },
+    handle: handleMfaAssociate
+  },
+  { method: "POST", route: { key: "mfaVerify" }, handle: handleMfaVerify },
   {
     method: "POST",
     route: { key: "passwordlessStart" },
-    handle: notImplemented
+    handle: handlePasswordlessStart
   },
   {
     method: "POST",
     route: { key: "passwordlessVerify" },
-    handle: notImplemented
+    handle: handlePasswordlessVerify
   },
   {
     method: "POST",
     route: { key: "passwordlessDbOtpChallenge" },
-    handle: notImplemented
+    handle: handlePasswordlessDbOtpChallenge
   },
   {
     method: "POST",
     route: { key: "passwordlessDbGetToken" },
-    handle: notImplemented
+    handle: handlePasswordlessDbGetToken
   },
-  { method: "POST", route: { key: "passkeyRegister" }, handle: notImplemented },
+  {
+    method: "POST",
+    route: { key: "passkeyRegister" },
+    handle: handlePasskeyRegister
+  },
   {
     method: "POST",
     route: { key: "passkeyChallenge" },
-    handle: notImplemented
+    handle: handlePasskeyChallenge
   },
-  { method: "POST", route: { key: "passkeyGetToken" }, handle: notImplemented },
+  {
+    method: "POST",
+    route: { key: "passkeyGetToken" },
+    handle: handlePasskeyGetToken
+  },
   {
     method: "POST",
     route: { key: "passkeyEnrollmentChallenge" },
-    handle: notImplemented
+    handle: handlePasskeyEnrollmentChallenge
   },
   {
     method: "POST",
     route: { key: "passkeyEnrollmentVerify" },
-    handle: notImplemented
+    handle: handlePasskeyEnrollmentVerify
   },
   // The anonymous routes have no gate: each answers 404 itself when the feature is off, as on
   // `main`, instead of falling through to the app.
-  { method: "GET", route: { key: "anonymousSession" }, handle: notImplemented },
+  {
+    method: "GET",
+    route: { key: "anonymousSession" },
+    handle: handleAnonymousSession
+  },
   {
     method: "POST",
     route: { key: "anonymousSessionLogout" },
-    handle: notImplemented
+    handle: handleAnonymousSessionLogout
   },
-  { route: { prefix: "/me/" }, handle: notImplemented },
-  { route: { prefix: "/my-org/" }, handle: notImplemented }
+  { route: { prefix: "/me/" }, handle: handleMyAccount },
+  { route: { prefix: "/my-org/" }, handle: handleMyOrg }
 ];
 
 /**

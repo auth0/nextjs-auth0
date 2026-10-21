@@ -1,4 +1,9 @@
 import {
+  HTTP_TIMEOUT_MESSAGE,
+  isValidHttpTimeout
+} from "@auth0/auth0-server-js";
+
+import {
   InvalidConfigurationError,
   MtlsError,
   MtlsErrorCode
@@ -93,6 +98,7 @@ export function resolveConfig(options: Auth0ClientOptions): EngineConfig {
     process.env.AUTH0_MFA_TOKEN_TTL
   );
   assertTokenRefreshBuffer(options.tokenRefreshBuffer);
+  assertHttpTimeout(options.httpTimeout);
   const cookies = resolveCookies(options);
   applySecureRules(cookies, appBaseUrl);
   warnInsecureRequestsInProduction(options);
@@ -231,6 +237,18 @@ function assertTokenRefreshBuffer(value: unknown) {
     throw new TypeError(
       "tokenRefreshBuffer must be a non-negative number of seconds."
     );
+  }
+}
+
+/**
+ * The engine's rule and message for `httpTimeout` (an integer from 1 to 2147483647 milliseconds),
+ * raised as our error. Checked here as well because the engine is built lazily when there is no
+ * domain at construction, and the SDK's own requests (Fetcher, proxy, My Account) never reach the
+ * engine's check. `null` from an untyped caller counts as not set, as `??` did on `main`.
+ */
+function assertHttpTimeout(value: unknown) {
+  if (value != null && !isValidHttpTimeout(value)) {
+    throw new InvalidConfigurationError(HTTP_TIMEOUT_MESSAGE);
   }
 }
 

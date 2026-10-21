@@ -50,6 +50,7 @@ export type EngineOperation =
   | "refresh"
   | "connectionToken"
   | "revoke"
+  | "logout"
   | "customTokenExchange"
   | "sessionTransfer"
   | "backchannelAuthentication"
@@ -276,6 +277,18 @@ const featureMappings: Partial<Record<EngineOperation, FeatureMapping>> = {
   }
 };
 
+// A blank `organization`, or an ID token whose organization differs (the engine checks both).
+function organizationErrorFrom(e: unknown) {
+  return new CustomTokenExchangeError(
+    CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+    (e as EngineError).message ?? "",
+    new OAuth2Error({
+      code: "organization_validation_error",
+      message: (e as EngineError).message
+    })
+  );
+}
+
 const ACCESS_TOKEN_MISSING_SESSION =
   "The user does not have an active session.";
 
@@ -362,6 +375,14 @@ export function createErrorMapper({
     chainedMfa: boolean
   ): Promise<unknown> {
     const { ErrorClass } = mapping;
+    // A login whose ID token `session_expiry` has already passed: the engine saves nothing.
+    // Today's error for it, as on the callback.
+    if (mapping.tokenEndpoint && code === "session_expired") {
+      return new AccessTokenError(
+        AccessTokenErrorCode.SESSION_EXPIRED,
+        "The session has expired and the user must re-authenticate."
+      );
+    }
     if (code === mapping.engineCode) {
       // Step-up only when Auth0 gave an `mfa_token`, except on MFA verify (chained MFA).
       if (
@@ -410,6 +431,18 @@ export function createErrorMapper({
     const anyMapped = fromAnyOperation(e, code);
     if (anyMapped) return anyMapped;
 
+    // A blank `organization`, or an ID token whose organization differs (the engine checks both;
+    // `main` did neither): our passkey class with the engine's message (D7).
+    if (
+      operation === "passkeyGetToken" &&
+      code === "organization_validation_error"
+    ) {
+      return new PasskeyGetTokenError(
+        "organization_validation_error",
+        (e as EngineError).message ?? ""
+      );
+    }
+
     const feature = featureMappings[operation];
     if (feature) {
       return fromFeature(e, code, feature, ctx, operation === "mfaVerify");
@@ -451,6 +484,13 @@ export function createErrorMapper({
       case "callback": {
         if (code === "missing_transaction_error")
           return new InvalidStateError();
+        // A magic link whose `state` does not match its transaction (D8): `main`'s
+        // `validateAuthResponse` result.
+        if (code === "passwordless_verify_error") {
+          return new AuthorizationError({
+            cause: new OAuth2Error({ code: "unknown_error" })
+          });
+        }
         if (code === "token_by_code_error") {
           const authError = ctx?.callbackUrl?.searchParams.get("error");
           if (authError) {
@@ -524,7 +564,7 @@ export function createErrorMapper({
           );
         }
         // The engine throws this when it finds no refresh token, with or without a session. The
-        // caller checks for a session first (3.4.3), so here the session has no refresh token.
+        // caller checks for a session first (3.4.4), so here the session has no refresh token.
         if (code === "missing_session_error") {
           return new TokenRevocationError(
             TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
@@ -534,6 +574,9 @@ export function createErrorMapper({
         break;
 
       case "customTokenExchange":
+        if (code === "organization_validation_error") {
+          return organizationErrorFrom(e);
+        }
         if (code === "token_exchange_error") {
           return new CustomTokenExchangeError(
             CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
@@ -560,11 +603,25 @@ export function createErrorMapper({
         return e;
 
       case "sessionTransfer":
+        // MFA asked on the refresh of the agent's ID token.
+        if (code === "actor_unavailable" && isEngineMfaRequired(e)) {
+          return mfaRequiredFrom(e, ctx);
+        }
         if (code === "actor_unavailable") {
           return new CustomTokenExchangeError(
             CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
             (e as EngineError).message ?? ""
           );
+        }
+        // Auth0 answered with a token that is not a session transfer token (`main`'s text).
+        if (code === "unexpected_issued_token_type") {
+          return new CustomTokenExchangeError(
+            CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+            (e as EngineError).message ?? ""
+          );
+        }
+        if (code === "organization_validation_error") {
+          return organizationErrorFrom(e);
         }
         if (code === "token_exchange_error") {
           const errorCode = causeOf(e)?.error || "unknown_error";

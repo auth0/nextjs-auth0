@@ -9,10 +9,20 @@ import type {
   PasswordlessStartOptions,
   PasswordlessVerifyOptions
 } from "../../types/index.js";
+import { withCallContext } from "../engine/call-context.js";
+import { readContext } from "../engine/context.js";
+import type { EngineSetup } from "../engine/create-engine.js";
+import {
+  challengeDbConnection,
+  loginWithDbOtp,
+  startPasswordless,
+  verifyPasswordless
+} from "./passwordless-operations.js";
 
 /**
  * Server-side passwordless authentication API.
- * Delegates all operations to AuthClient business logic.
+ * The engine sends the start, challenge and token requests and saves the session; a magic link is
+ * completed by the callback route.
  * Provides overload support for App Router and Pages Router.
  *
  * @example App Router — OTP start
@@ -50,6 +60,15 @@ import type {
  * ```
  */
 export class ServerPasswordlessClient implements PasswordlessClient {
+  #setup: EngineSetup;
+
+  /**
+   * @internal Reached through `Auth0Client.passwordless`.
+   */
+  constructor(setup: EngineSetup) {
+    this.#setup = setup;
+  }
+
   /**
    * Initiate a passwordless flow by sending an OTP or magic link to the user's email or phone.
    * App Router overload — reads headers from `next/headers`.
@@ -79,7 +98,29 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse | PasswordlessStartOptions,
     arg3?: PasswordlessStartOptions
   ): Promise<void> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let res: NextResponse | undefined;
+    let options: PasswordlessStartOptions;
+    if (arg1 instanceof NextRequest) {
+      // Pages Router: start(req, res, options); a magic link's transaction is written to `res`.
+      if (!(arg2 instanceof NextResponse) || !arg3) {
+        throw new TypeError(
+          "start(req, res, options): All three arguments required for Pages Router"
+        );
+      }
+      [req, res, options] = [arg1, arg2, arg3];
+    } else {
+      // App Router: start(options); a magic link's transaction is written to `cookies()`.
+      options = arg1;
+    }
+
+    // A write Next refuses (a Server Component) throws, as on `main`: the link would not work.
+    await withCallContext(
+      req,
+      res,
+      (ctx) => startPasswordless(this.#setup, ctx, req, options),
+      { ignoreWriteErrors: false }
+    );
   }
 
   /**
@@ -109,7 +150,34 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse,
     arg3?: PasswordlessVerifyOptions
   ): Promise<void> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let res: NextResponse | undefined;
+    let options: PasswordlessVerifyOptions;
+    if (arg1 instanceof NextRequest) {
+      // Pages Router / Middleware: verify(req, res, options); the session is written to `res`.
+      if (!arg2 || !arg3) {
+        throw new TypeError(
+          "verify(req, res, options): All three arguments required for Pages Router"
+        );
+      }
+      [req, res, options] = [arg1, arg2, arg3];
+    } else {
+      // App Router: verify(options); the session is written to `cookies()`.
+      if (arg2 !== undefined || arg3 !== undefined) {
+        throw new TypeError(
+          "verify(options): Only one argument allowed for App Router"
+        );
+      }
+      options = arg1;
+    }
+
+    // A write Next refuses (a Server Component) throws, as on `main`: the code is spent.
+    await withCallContext(
+      req,
+      res,
+      (ctx) => verifyPasswordless(this.#setup, ctx, options),
+      { ignoreWriteErrors: false }
+    );
   }
 
   /**
@@ -133,7 +201,20 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg1: PasswordlessDbChallengeEmailOptions | NextRequest,
     arg2?: PasswordlessDbChallengeEmailOptions
   ): Promise<PasswordlessDbChallenge> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let options: PasswordlessDbChallengeEmailOptions;
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "challengeWithEmail(req, options): Both arguments required for Pages Router"
+        );
+      }
+      [req, options] = [arg1, arg2];
+    } else {
+      options = arg1;
+    }
+    const { ctx } = await readContext(req);
+    return challengeDbConnection(this.#setup, ctx, options);
   }
 
   /**
@@ -157,7 +238,20 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg1: PasswordlessDbChallengePhoneOptions | NextRequest,
     arg2?: PasswordlessDbChallengePhoneOptions
   ): Promise<PasswordlessDbChallenge> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let options: PasswordlessDbChallengePhoneOptions;
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "challengeWithPhoneNumber(req, options): Both arguments required for Pages Router"
+        );
+      }
+      [req, options] = [arg1, arg2];
+    } else {
+      options = arg1;
+    }
+    const { ctx } = await readContext(req);
+    return challengeDbConnection(this.#setup, ctx, options);
   }
 
   /**
@@ -181,6 +275,29 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse,
     arg3?: PasswordlessDbGetTokenOptions
   ): Promise<void> {
-    throw new Error("not implemented");
+    let req: NextRequest | undefined;
+    let res: NextResponse | undefined;
+    let options: PasswordlessDbGetTokenOptions;
+    if (arg1 instanceof NextRequest) {
+      // Pages Router / Middleware: loginWithOtp(req, res, options); the session is written to
+      // `res`.
+      if (!arg2 || !arg3) {
+        throw new TypeError(
+          "loginWithOtp(req, res, options): All three arguments required for Pages Router"
+        );
+      }
+      [req, res, options] = [arg1, arg2, arg3];
+    } else {
+      // App Router: loginWithOtp(options); the session is written to `cookies()`.
+      options = arg1;
+    }
+
+    // A write Next refuses (a Server Component) throws, as on `main`: the code is spent.
+    await withCallContext(
+      req,
+      res,
+      (ctx) => loginWithDbOtp(this.#setup, ctx, options),
+      { ignoreWriteErrors: false }
+    );
   }
 }

@@ -1,5 +1,6 @@
 import {
   ServerClient,
+  StatelessAnonymousStore,
   type CookieSerializeOptions,
   type AuthorizationParameters as EngineAuthorizationParameters,
   type DomainResolver as EngineDomainResolver
@@ -11,6 +12,7 @@ import {
   InvalidConfigurationError
 } from "../../errors/index.js";
 import type { DomainResolver } from "../../types/mcd.js";
+import { DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME } from "../../utils/anonymous-session-constants.js";
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { normalizeDomain } from "../../utils/normalize.js";
 import type { Auth0ClientOptions } from "../types/options.js";
@@ -30,8 +32,9 @@ import { NextTransactionStore } from "./stores/transaction-store.js";
 
 // Maximum response body size (1 MB), as on `main`: guards against oversized discovery, JWKS or
 // token responses.
-const MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
-const DEFAULT_HTTP_TIMEOUT = 5000;
+export const MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
+// `main`'s default anonymous cookie lifetime (30 days).
+const DEFAULT_ANONYMOUS_COOKIE_MAX_AGE = 2592000;
 
 export type Engine = ServerClient<CookieContext>;
 type GetEngine = () => Promise<Engine>;
@@ -52,6 +55,10 @@ export interface EngineSetup {
    */
   currentDomain: CurrentDomain;
   errors: ErrorMapper;
+  /**
+   * The fetch used for engine calls (timeout, size limit, user agent), also used for WebFinger.
+   */
+  fetch: typeof fetch;
   cookieHandler: NextCookieHandler;
   sessionStore: NextStatelessStateStore | NextStatefulStateStore;
   transactionStore: NextTransactionStore;
@@ -75,6 +82,7 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
     config,
     sessionMapper
   );
+  const anonymous = createAnonymousStore(config);
   const customFetch = createFetch(options);
 
   const build: BuildEngine = (domain) => {
@@ -94,9 +102,12 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
         stateIdentifier: config.sessionCookie.name,
         enableParallelTransactions: config.enableParallelTransactions,
         customFetch,
+        httpTimeout: options.httpTimeout ?? undefined,
         transactionStore,
         stateStore: sessionStore,
+        ...anonymous,
         useMtls: config.useMtls,
+        tokenRefreshBuffer: config.tokenRefreshBuffer,
         telemetry:
           options.enableTelemetry === false
             ? { enabled: false }
@@ -111,6 +122,7 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
   return {
     ...selectEngine(config, build),
     errors,
+    fetch: customFetch,
     cookieHandler,
     sessionStore,
     transactionStore,
@@ -171,6 +183,41 @@ function createStores(config: EngineConfig, sessionMapper: SessionMapper) {
   });
 
   return { cookieHandler, sessionStore, transactionStore };
+}
+
+/**
+ * The engine's anonymous session options, only when `anonymousSession.enabled`. Without a store
+ * the engine never mints a transfer ticket and never clears an anonymous session, as on `main`
+ * with the feature off.
+ *
+ * The store has its own cookie handler for the anonymous name: it hides that name's look-alikes
+ * (`main`'s `auth0_anon` / `auth0_anon__N`), and keeps the session's filter out of the way when
+ * one name starts with the other.
+ */
+function createAnonymousStore({ anonymousSession, secret }: EngineConfig) {
+  if (!anonymousSession?.enabled) {
+    return {};
+  }
+  const { cookie } = anonymousSession;
+  const name = cookie?.name ?? DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME;
+  const anonymousStore = new StatelessAnonymousStore<CookieContext>(
+    {
+      secret,
+      sessionTokenLifetime: cookie?.maxAge ?? DEFAULT_ANONYMOUS_COOKIE_MAX_AGE,
+      cookie: {
+        sameSite: cookie?.sameSite ?? "lax",
+        secure: cookie?.secure ?? true,
+        path: "/"
+      }
+    },
+    new NextCookieHandler({ sessionName: name })
+  );
+  return {
+    anonymousStore,
+    anonymousSessionIdentifier: name,
+    clearAnonymousSessionOnLogin:
+      anonymousSession.clearAnonymousSessionOnLogin ?? true
+  };
 }
 
 interface EngineAccess {
@@ -304,12 +351,12 @@ function assertEngineIssuer(
 }
 
 /**
- * The `fetch` given to the engine: today's timeout, `User-Agent` and 1 MB response limit, with
- * network errors recorded for the error mapper.
+ * The `fetch` given to the engine: `User-Agent` and 1 MB response limit, with network errors
+ * recorded for the error mapper. The time limit is not set here: `httpTimeout` goes to the engine,
+ * which applies it to every request it makes (and adds none when it is not set).
  */
 function createFetch(options: Auth0ClientOptions): typeof fetch {
   const baseFetch = options.customFetch ?? fetch;
-  const httpTimeout = options.httpTimeout ?? DEFAULT_HTTP_TIMEOUT;
   const userAgent =
     options.enableTelemetry === false
       ? undefined
@@ -323,12 +370,7 @@ function createFetch(options: Auth0ClientOptions): typeof fetch {
     if (userAgent) {
       headers.set("User-Agent", userAgent);
     }
-    const timeout = AbortSignal.timeout(httpTimeout);
-    return baseFetch(input, {
-      ...init,
-      headers,
-      signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout
-    });
+    return baseFetch(input, { ...init, headers });
   };
 
   return wrapFetch(

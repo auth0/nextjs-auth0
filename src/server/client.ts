@@ -23,7 +23,23 @@ import {
   StartEnterpriseLoginOptions,
   StartInteractiveLoginOptions
 } from "../types/index.js";
+import { isRequest } from "../utils/request.js";
+import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
+import { isFederatedDomain } from "../utils/webfingerCache.js";
+import {
+  createAnonymousSession as createAnonymous,
+  readAnonymousSession,
+  type CreateAnonymousSessionOptions
+} from "./anonymous/anonymous-operations.js";
+import { withCallContext } from "./engine/call-context.js";
+import {
+  readContext,
+  requestContext,
+  type CookieContext
+} from "./engine/context.js";
 import { createEngine, type EngineSetup } from "./engine/create-engine.js";
+import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
+import { createFetcher as buildFetcher } from "./fetcher/create-fetcher.js";
 import {
   AccessTokenFactory,
   CustomFetchImpl,
@@ -31,17 +47,27 @@ import {
 } from "./fetcher/fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
+  appRouteHandlerFactory,
   AppRouterPageRoute,
   AppRouterPageRouteOpts,
   PageRoute,
+  pageRouteHandlerFactory,
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
 import { toNextRequest } from "./http/next-compat.js";
+import { startLogin } from "./login/start-login.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import { dispatch } from "./routes/dispatch.js";
+import { getSession as loadSession } from "./session/get-session.js";
+import { updateSession as saveSession } from "./session/update-session.js";
+import { backchannelAuthentication } from "./token/backchannel-auth.js";
+import { customTokenExchange as exchangeCustomToken } from "./token/custom-token-exchange.js";
+import { getAccessToken as fetchAccessToken } from "./token/get-access-token.js";
+import { revokeRefreshToken as revokeSessionRefreshToken } from "./token/revoke-refresh-token.js";
+import { requestSessionTransferToken as requestTransferToken } from "./token/session-transfer.js";
 import type {
   Auth0ClientOptions,
   PagesRouterRequest,
@@ -51,10 +77,18 @@ import type {
 export class Auth0Client {
   #options: Auth0ClientOptions;
   #setup: EngineSetup;
+  #mfa?: ServerMfaClient;
+  #passkey?: ServerPasskeyClient;
+  #passwordless?: ServerPasswordlessClient;
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
     this.#setup = createEngine(options);
+
+    if (options.enterpriseConnect) {
+      // No Auth0 session exists in this mode: the session members throw instead.
+      applyEnterpriseConnectRestrictions(this);
+    }
   }
 
   /**
@@ -86,7 +120,7 @@ export class Auth0Client {
   async getSession(
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
-    throw new Error("not implemented");
+    return loadSession(this.#setup, req);
   }
 
   /**
@@ -110,7 +144,8 @@ export class Auth0Client {
   async getAnonymousSession(
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<AnonymousSession | null> {
-    throw new Error("not implemented");
+    const { ctx } = await readContext(req);
+    return readAnonymousSession(this.#setup, ctx);
   }
 
   /**
@@ -174,7 +209,33 @@ export class Auth0Client {
       scope?: string;
     }
   ): Promise<AnonymousSession> {
-    throw new Error("not implemented");
+    let request: Request | PagesRouterRequest | NextRequest | undefined;
+    let opts: CreateAnonymousSessionOptions | undefined;
+    if (req && typeof req === "object" && !("url" in req)) {
+      // Zero-arg form: createAnonymousSession(options)
+      opts = req as CreateAnonymousSessionOptions;
+    } else {
+      request = req as Request | PagesRouterRequest | NextRequest | undefined;
+      opts = options;
+    }
+
+    const create = (ctx: CookieContext) =>
+      createAnonymous(this.#setup, ctx, opts);
+
+    if (!request) {
+      // Server Action: reads and writes go to `cookies()`; a refused write throws, as on `main`.
+      return withCallContext(undefined, undefined, create, {
+        ignoreWriteErrors: false
+      });
+    }
+    if (!res) {
+      throw new TypeError(
+        "createAnonymousSession(req, res): The 'res' argument is missing. Both 'req' and 'res' must be provided together for Route Handler or Pages Router usage."
+      );
+    }
+    // Read from `req` (a Pages Router request included), write to the `NextResponse`.
+    const { ctx } = await readContext(request);
+    return create({ ...ctx, resCookies: res.cookies });
   }
 
   /**
@@ -240,7 +301,36 @@ export class Auth0Client {
     token_type?: string;
     audience?: string;
   }> {
-    throw new Error("not implemented");
+    let req: PagesRouterRequest | NextRequest | undefined;
+    let res: PagesRouterResponse | NextResponse | undefined;
+    let options: GetAccessTokenOptions;
+
+    // The call form and its errors are `main`'s.
+    if (
+      arg1 &&
+      (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
+    ) {
+      req = arg1 as PagesRouterRequest | NextRequest;
+      res = arg2;
+      options = { refresh: false, ...(arg3 ?? {}) };
+      if (!res) {
+        throw new TypeError(
+          "getAccessToken(req, res): The 'res' argument is missing. Both 'req' and 'res' must be provided together for Pages Router or middleware usage."
+        );
+      }
+    } else {
+      if (arg2 !== undefined || arg3 !== undefined) {
+        throw new TypeError(
+          "getAccessToken: Invalid arguments. Valid signatures are getAccessToken(), getAccessToken(options), or getAccessToken(req, res, options)."
+        );
+      }
+      options = {
+        refresh: false,
+        ...((arg1 as GetAccessTokenOptions) ?? {})
+      };
+    }
+
+    return fetchAccessToken(this.#setup, req, res, options);
   }
 
   /**
@@ -322,7 +412,7 @@ export class Auth0Client {
   async customTokenExchange(
     options: CustomTokenExchangeOptions
   ): Promise<CustomTokenExchangeResponse> {
-    throw new Error("not implemented");
+    return exchangeCustomToken(this.#setup, options);
   }
 
   /**
@@ -343,7 +433,7 @@ export class Auth0Client {
   async revokeRefreshToken(options?: {
     req?: PagesRouterRequest | NextRequest;
   }): Promise<void> {
-    throw new Error("not implemented");
+    return revokeSessionRefreshToken(this.#setup, options?.req);
   }
 
   /**
@@ -416,7 +506,23 @@ export class Auth0Client {
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: SessionTransferTokenOptions
   ): Promise<SessionTransferTokenResult> {
-    throw new Error("not implemented");
+    let req: PagesRouterRequest | NextRequest | undefined;
+    let res: PagesRouterResponse | NextResponse | undefined;
+    let options: SessionTransferTokenOptions;
+
+    // The call form is `main`'s (as `getAccessToken`, without its argument errors).
+    if (
+      arg1 &&
+      (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
+    ) {
+      req = arg1 as PagesRouterRequest | NextRequest;
+      res = arg2;
+      options = arg3 as SessionTransferTokenOptions;
+    } else {
+      options = arg1 as SessionTransferTokenOptions;
+    }
+
+    return requestTransferToken(this.#setup, req, res, options);
   }
 
   /**
@@ -440,7 +546,14 @@ export class Auth0Client {
     result: SessionTransferTokenResult,
     opts?: { organization?: string }
   ): NextResponse {
-    throw new Error("not implemented");
+    // `main`'s builder: its errors, and an empty `organization` left out.
+    return NextResponse.redirect(
+      buildSessionTransferRedirectUrl(
+        targetLoginUrl,
+        result.sessionTransferToken,
+        opts
+      )
+    );
   }
 
   /**
@@ -481,7 +594,10 @@ export class Auth0Client {
    * ```
    */
   get mfa(): ServerMfaClient {
-    throw new Error("not implemented");
+    if (!this.#mfa) {
+      this.#mfa = new ServerMfaClient(this.#setup);
+    }
+    return this.#mfa;
   }
 
   /**
@@ -490,7 +606,10 @@ export class Auth0Client {
    * `auth0.passwordless.verify()` to verify the code and log the user in.
    */
   get passwordless(): ServerPasswordlessClient {
-    throw new Error("not implemented");
+    if (!this.#passwordless) {
+      this.#passwordless = new ServerPasswordlessClient(this.#setup);
+    }
+    return this.#passwordless;
   }
 
   /**
@@ -500,7 +619,10 @@ export class Auth0Client {
    * Enrollment: `auth0.passkey.enrollmentChallenge()`, `auth0.passkey.enrollmentVerify()`
    */
   get passkey(): ServerPasskeyClient {
-    throw new Error("not implemented");
+    if (!this.#passkey) {
+      this.#passkey = new ServerPasskeyClient(this.#setup);
+    }
+    return this.#passkey;
   }
 
   /**
@@ -529,7 +651,7 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse | Response,
     sessionData?: SessionData
   ): Promise<void> {
-    throw new Error("not implemented");
+    return saveSession(this.#setup, reqOrSession, res, sessionData);
   }
 
   /**
@@ -545,7 +667,7 @@ export class Auth0Client {
     options: StartInteractiveLoginOptions = {},
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<NextResponse> {
-    throw new Error("not implemented");
+    return startLogin(this.#setup, options, req);
   }
 
   /**
@@ -582,7 +704,26 @@ export class Auth0Client {
   async startEnterpriseLogin(
     options: StartEnterpriseLoginOptions
   ): Promise<NextResponse | null> {
-    throw new Error("not implemented");
+    const emailDomain = options.email.split("@")[1]?.toLowerCase();
+    if (!emailDomain) {
+      return null;
+    }
+
+    const { ctx } = await requestContext();
+    const federated = await isFederatedDomain(
+      await this.#setup.currentDomain(ctx),
+      emailDomain,
+      { customFetch: this.#setup.fetch }
+    );
+    if (!federated) {
+      return null;
+    }
+
+    const { email, authorizationParameters, ...rest } = options;
+    return startLogin(this.#setup, {
+      ...rest,
+      authorizationParameters: { ...authorizationParameters, login_hint: email }
+    });
   }
 
   /**
@@ -596,7 +737,7 @@ export class Auth0Client {
   async getTokenByBackchannelAuth(
     options: BackchannelAuthenticationOptions
   ): Promise<BackchannelAuthenticationResponse> {
-    throw new Error("not implemented");
+    return backchannelAuthentication(this.#setup, options);
   }
 
   /**
@@ -783,7 +924,11 @@ export class Auth0Client {
     fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
     opts?: WithPageAuthRequiredAppRouterOptions
   ): any {
-    throw new Error("not implemented");
+    const config = { loginUrl: this.#setup.config.routes.login };
+    if (typeof fnOrOpts === "function") {
+      return appRouteHandlerFactory(this, config)(fnOrOpts, opts);
+    }
+    return pageRouteHandlerFactory(this, config)(fnOrOpts);
   }
 
   withApiAuthRequired(
@@ -792,7 +937,25 @@ export class Auth0Client {
     req: NextRequest | NextApiRequest,
     resOrParams: withApiAuthRequired.AppRouteHandlerFnContext | NextApiResponse
   ) => unknown {
-    throw new Error("not implemented");
+    const pageRouteHandler = withApiAuthRequired.pageRouteHandlerFactory(this);
+    const appRouteHandler = withApiAuthRequired.appRouteHandlerFactory(this);
+
+    return (req, resOrParams) => {
+      if (isRequest(req)) {
+        return appRouteHandler(
+          apiRoute as withApiAuthRequired.AppRouteHandlerFn
+        )(
+          req as NextRequest,
+          resOrParams as withApiAuthRequired.AppRouteHandlerFnContext
+        );
+      }
+      return (
+        pageRouteHandler as withApiAuthRequired.WithApiAuthRequiredPageRoute
+      )(apiRoute as NextApiHandler)(
+        req as NextApiRequest,
+        resOrParams as NextApiResponse
+      );
+    };
   }
 
   /**
@@ -847,6 +1010,6 @@ export class Auth0Client {
       fetch?: CustomFetchImpl<TOutput>;
     }
   ): Promise<Fetcher<TOutput>> {
-    throw new Error("not implemented");
+    return buildFetcher(this.#setup, req, options);
   }
 }
