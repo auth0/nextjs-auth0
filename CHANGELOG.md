@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.32.1](https://github.com/auth0/nextjs-auth0/tree/v4.32.1) (2026-10-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.32.0...v4.32.1)
+
+**Fixed**
+- fix(mfa): map channel factor names to oob in mfaChallenge [\#2911](https://github.com/auth0/nextjs-auth0/pull/2911) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.32.0](https://github.com/auth0/nextjs-auth0/tree/v4.32.0) (2026-10-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.31.1...v4.32.0)
 

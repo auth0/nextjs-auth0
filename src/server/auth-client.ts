@@ -160,7 +160,8 @@ import {
   encryptMfaToken,
   extractMfaErrorDetails,
   handleMfaError,
-  isMfaRequiredError
+  isMfaRequiredError,
+  toAuth0ChallengeType
 } from "../utils/mfa-utils.js";
 import {
   extractMfaToken,
@@ -6007,7 +6008,7 @@ export class AuthClient {
    * Initiate an MFA challenge.
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
-   * @param challengeType - Challenge type (otp, oob)
+   * @param challengeType - `otp` or `oob`; factor names from mfa_requirements (phone, email, push-notification, ...) are mapped to `oob`
    * @param authenticatorId - Optional authenticator ID
    * @returns Challenge response (snake_case ApiResponse format)
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
@@ -6026,23 +6027,18 @@ export class AuthClient {
       this.sessionStore.secret
     );
 
-    // Validate mfaRequirements has challenge types only when requirements are present.
-    // When mfa_requirements is absent (e.g. webauthn grant), all challenge types are allowed.
-    if (context.mfaRequirements?.challenge) {
-      const allowedTypes = new Set(
-        context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
+    // When mfa_requirements is present it must offer at least one challenge type.
+    // When absent (e.g. webauthn grant) there is nothing to check.
+    // The requested type is deliberately not compared against mfa_requirements:
+    // that list holds factor names (phone, email, push-notification, ...) while
+    // /mfa/challenge only accepts otp/oob. Auth0 enforces the allowed set itself.
+    if (
+      context.mfaRequirements?.challenge &&
+      context.mfaRequirements.challenge.length === 0
+    ) {
+      throw new MfaNoAvailableFactorsError(
+        "No MFA challenge types available in mfa_requirements"
       );
-
-      if (allowedTypes.size === 0) {
-        throw new MfaNoAvailableFactorsError(
-          "No MFA challenge types available in mfa_requirements"
-        );
-      }
-      if (!allowedTypes.has(challengeType.toLowerCase())) {
-        throw new MfaNoAvailableFactorsError(
-          `Challenge type "${challengeType}" is not allowed by mfa_requirements. Allowed: ${[...allowedTypes].join(", ")}`
-        );
-      }
     }
 
     // Extract raw mfaToken for Auth0 API call
@@ -6055,7 +6051,7 @@ export class AuthClient {
     try {
       const body: any = {
         client_id: this.clientMetadata.client_id,
-        challenge_type: challengeType,
+        challenge_type: toAuth0ChallengeType(challengeType),
         mfa_token: mfaToken
       };
 
