@@ -199,8 +199,14 @@ export class StatefulSessionStore extends AbstractSessionStore {
       maxAge
     });
 
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.sessionCookieName, jwe.toString());
+    // Enable read-after-write in the same request for middleware. Skip when
+    // both stores alias the same cookies() instance (Server Actions / Route
+    // Handlers): the resCookies write above already applied the full security
+    // attributes; a second naked set() without options would overwrite and drop
+    // HttpOnly, Secure, Domain, SameSite, and Max-Age from the Set-Cookie header.
+    if ((reqCookies as unknown) !== (resCookies as unknown)) {
+      reqCookies.set(this.sessionCookieName, jwe.toString());
+    }
 
     // Any existing v3 cookie can also be deleted once we have set a v4 cookie.
     // In stateful sessions, we do not have to worry about chunking.

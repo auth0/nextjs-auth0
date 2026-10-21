@@ -291,45 +291,32 @@ export const challengeScenarios: MfaTestScenario<
       if (!error.message.includes("available"))
         throw new Error("Expected 'available' in error");
     }
-  },
-  {
-    // Server validates locally before the network call — expects mfa_no_available_factors
-    name: "Auth0 400 error",
-    input: {
-      mfaToken: "encrypted-token",
-      challengeType: "invalid",
-      mfaRequirements: { challenge: [{ type: "otp" }] }
-    },
-    expectError: (error: any) => {
-      if (error.code !== "mfa_no_available_factors")
-        throw new Error("Expected mfa_no_available_factors");
-    }
   }
 ];
 
-// Client-specific challenge scenarios where validation happens server-side via HTTP route
-export const challengeScenariosClient: typeof challengeScenarios = [
-  ...challengeScenarios.filter((s) => s.name !== "Auth0 400 error"),
-  {
-    name: "Auth0 400 error",
-    input: {
-      mfaToken: "encrypted-token",
-      challengeType: "invalid",
-      mfaRequirements: { challenge: [{ type: "otp" }] }
-    },
-    mswResponse: {
-      status: 400,
-      body: {
-        error: "invalid_request",
-        error_description: "Invalid challenge type"
-      }
-    },
-    expectError: (error: any) => {
-      if (error.code !== "invalid_request")
-        throw new Error("Expected invalid_request");
+// Challenge types are not validated locally; Auth0 rejects unsupported ones.
+challengeScenarios.push({
+  name: "Auth0 400 error",
+  input: {
+    mfaToken: "encrypted-token",
+    challengeType: "invalid",
+    mfaRequirements: { challenge: [{ type: "otp" }] }
+  },
+  mswResponse: {
+    status: 400,
+    body: {
+      error: "invalid_request",
+      error_description: "Invalid challenge type"
     }
+  },
+  expectError: (error: any) => {
+    if (error.code !== "invalid_request")
+      throw new Error("Expected invalid_request");
   }
-];
+});
+
+// Kept for the client flow test, which imports this name.
+export const challengeScenariosClient = challengeScenarios;
 
 // ============================================================================
 // verify Scenarios

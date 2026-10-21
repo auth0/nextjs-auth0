@@ -17,6 +17,36 @@ import { decrypt, encrypt } from "../server/cookies.js";
 import type { MfaContext } from "../types/index.js";
 
 /**
+ * Values that Auth0's `/mfa/challenge` expects as `challenge_type: "oob"`.
+ * `mfa_requirements.challenge[].type` reports factor names (phone, email,
+ * push-notification) instead, and every out-of-band channel maps to `oob`.
+ */
+const OOB_CHANNEL_FACTORS = new Set([
+  "oob",
+  "phone",
+  "sms",
+  "voice",
+  "email",
+  "push-notification"
+]);
+
+/**
+ * Convert a challenge type to the value Auth0's `/mfa/challenge` endpoint expects.
+ *
+ * Callers may pass either the API vocabulary (`otp`, `oob`) or a factor name taken
+ * from `mfa_requirements.challenge` (`phone`, `email`, `push-notification`, ...).
+ * Other values are only lowercased and trimmed, so Auth0 remains the source of truth
+ * and new challenge types do not require an SDK release.
+ *
+ * @param challengeType - Challenge type or factor name provided by the caller
+ * @returns The `challenge_type` to send to Auth0
+ */
+export function toAuth0ChallengeType(challengeType: string): string {
+  const normalized = challengeType.trim().toLowerCase();
+  return OOB_CHANNEL_FACTORS.has(normalized) ? "oob" : normalized;
+}
+
+/**
  * Encrypt mfa_token with full context before exposing to application.
  * Uses same encryption as session cookies (JWE with AES-256-GCM).
  * The encrypted token is self-contained with audience, scope, and requirements.
