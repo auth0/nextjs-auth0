@@ -62,6 +62,7 @@ import {
   IssuerValidationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
+import { readPasskeyRateLimitError } from "../errors/passkey-errors.js";
 import {
   isRecoverableAnonymousError,
   type AnonymousCookiePayload,
@@ -6441,10 +6442,9 @@ export class AuthClient {
 
       // The limiter can answer with a plain-text body, so check before parsing.
       if (response.status === 429) {
-        throw new PasskeyRegisterError(
-          "too_many_requests",
-          await readRateLimitDescription(response)
-        );
+        const { error, error_description, cause } =
+          await readPasskeyRateLimitError(response);
+        throw new PasskeyRegisterError(error, error_description, cause);
       }
 
       if (!response.ok) {
@@ -6461,13 +6461,12 @@ export class AuthClient {
       }
 
       const result = await response.json();
-      const verificationRequired = parseVerificationRequired(
-        result.verification_required
-      );
       return {
         authSession: result.auth_session,
         authnParamsPublicKey: result.authn_params_public_key,
-        ...(verificationRequired && { verificationRequired })
+        ...(result.verification_required && {
+          verificationRequired: result.verification_required
+        })
       };
     } catch (e) {
       if (e instanceof PasskeyRegisterError) throw e;
@@ -6509,10 +6508,9 @@ export class AuthClient {
       });
 
       if (response.status === 429) {
-        throw new PasskeyChallengeError(
-          "too_many_requests",
-          await readRateLimitDescription(response)
-        );
+        const { error, error_description, cause } =
+          await readPasskeyRateLimitError(response);
+        throw new PasskeyChallengeError(error, error_description, cause);
       }
 
       if (!response.ok) {
@@ -6673,16 +6671,16 @@ export class AuthClient {
         }
       }
 
-      const status =
-        err?.status ??
-        (err?.cause instanceof Response ? err.cause.status : undefined);
-      if (status === 429) {
-        throw new PasskeyGetTokenError(
-          "too_many_requests",
-          rateLimitDescription(
-            err?.cause instanceof Response ? undefined : err?.cause
-          )
-        );
+      // A 429 is identified by its status. oauth4webapi reports it with the parsed
+      // JSON error body as `cause`, or with the raw Response when it could not
+      // read an OAuth error body (plain text, for example).
+      if (
+        err?.status === 429 ||
+        (err?.cause instanceof Response && err.cause.status === 429)
+      ) {
+        const { error, error_description, cause } =
+          await readPasskeyRateLimitError(err.cause);
+        throw new PasskeyGetTokenError(error, error_description, cause);
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
@@ -6697,9 +6695,6 @@ export class AuthClient {
       // auth_session and verification_required when a verification code is wrong.
       const errorBody =
         err?.cause && !(err.cause instanceof Response) ? err.cause : undefined;
-      const verificationRequired = parseVerificationRequired(
-        errorBody?.verification_required
-      );
       throw new PasskeyGetTokenError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
@@ -6709,11 +6704,11 @@ export class AuthClient {
           ? {
               error: oauthErr.error,
               error_description: oauthErr.error_description ?? "",
-              ...(typeof errorBody?.auth_session === "string" && {
+              ...(errorBody?.auth_session != null && {
                 auth_session: errorBody.auth_session
               }),
-              ...(verificationRequired && {
-                verification_required: verificationRequired
+              ...(errorBody?.verification_required != null && {
+                verification_required: errorBody.verification_required
               })
             }
           : undefined
@@ -6914,7 +6909,9 @@ export class AuthClient {
           return NextResponse.json(e.toJSON(), { status: 429 });
         }
         // The browser needs these to re-prompt for codes and resubmit the session.
-        const body: PasskeyGetTokenApiErrorResponse = {
+        const body: PasskeyGetTokenApiErrorResponse & {
+          is_retryable: boolean;
+        } = {
           ...e.toJSON(),
           is_retryable: e.isRetryable,
           ...(e.authSession && { auth_session: e.authSession }),
@@ -8396,41 +8393,6 @@ function extractIssuerDomainFromToken(
 
 const PASSKEY_VERIFICATION_IDENTIFIERS: readonly PasskeyVerificationIdentifier[] =
   ["email", "phone"];
-
-/**
- * Reads `verification_required` from an Auth0 passkey response.
- * Returns `undefined` when absent or empty so callers can omit the field.
- */
-function parseVerificationRequired(
-  value: unknown
-): PasskeyVerificationIdentifier[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const identifiers = value.filter((v): v is PasskeyVerificationIdentifier =>
-    PASSKEY_VERIFICATION_IDENTIFIERS.includes(v)
-  );
-  return identifiers.length > 0 ? identifiers : undefined;
-}
-
-/**
- * Returns Auth0's `error_description` from a 429 body when it has one, and a
- * generic message otherwise (the limiter can answer with plain text).
- */
-function rateLimitDescription(body: unknown): string {
-  const description = (body as { error_description?: unknown } | undefined)
-    ?.error_description;
-  return typeof description === "string" && description
-    ? description
-    : "Too many requests. Please try again later.";
-}
-
-async function readRateLimitDescription(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
-  try {
-    return rateLimitDescription(JSON.parse(text));
-  } catch {
-    return rateLimitDescription(undefined);
-  }
-}
 
 /**
  * Validates passkey signup verification codes before they are sent.

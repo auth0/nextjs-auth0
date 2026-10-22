@@ -164,23 +164,12 @@ describe("passkey identifier verification", () => {
   describe("passkeyRegister", () => {
     it.each([
       ["absent", {}, undefined],
-      ["empty", { verification_required: [] }, undefined],
       ["email only", { verification_required: ["email"] }, ["email"]],
       ["phone only", { verification_required: ["phone"] }, ["phone"]],
       [
         "email and phone",
         { verification_required: ["email", "phone"] },
         ["email", "phone"]
-      ],
-      [
-        "it has unknown values",
-        { verification_required: ["email", "username", 1] },
-        ["email"]
-      ],
-      [
-        "only unknown values",
-        { verification_required: ["username"] },
-        undefined
       ]
     ])(
       "maps verification_required when %s",
@@ -266,30 +255,93 @@ describe("passkey identifier verification", () => {
     it.each([
       [
         "plain text",
+        "too_many_requests",
         () => new HttpResponse("Too Many Requests", { status: 429 }),
         "Too many requests. Please try again later."
       ],
       [
+        "JSON without an error",
+        "too_many_requests",
+        () =>
+          HttpResponse.json(
+            { message: "slow down", error_description: "slow down" },
+            { status: 429 }
+          ),
+        "slow down"
+      ],
+      [
         "JSON",
+        "too_many_requests",
         () =>
           HttpResponse.json(
             { error: "too_many_requests", error_description: "slow down" },
             { status: 429 }
           ),
         "slow down"
+      ],
+      [
+        "JSON access_denied",
+        "too_many_requests",
+        () =>
+          HttpResponse.json(
+            {
+              error: "access_denied",
+              error_description: "Global rate limit exceeded"
+            },
+            { status: 429 }
+          ),
+        "Global rate limit exceeded"
+      ],
+      [
+        "JSON too_many_attempts",
+        "too_many_attempts",
+        () =>
+          HttpResponse.json(
+            {
+              error: "too_many_attempts",
+              error_description: "Your account has been blocked"
+            },
+            { status: 429 }
+          ),
+        "Your account has been blocked"
       ]
-    ])(
-      "raises too_many_requests on a %s 429",
-      async (_label, respond, description) => {
-        server.use(http.post(REGISTER_URL, respond));
+    ])("raises a %s 429 as %s", async (_label, error, respond, description) => {
+      server.use(http.post(REGISTER_URL, respond));
 
-        await expect(authClient.passkeyRegister()).rejects.toMatchObject({
-          name: "PasskeyRegisterError",
-          error: "too_many_requests",
-          error_description: description
-        });
-      }
-    );
+      await expect(authClient.passkeyRegister()).rejects.toMatchObject({
+        name: "PasskeyRegisterError",
+        error,
+        error_description: description
+      });
+    });
+
+    it("keeps Auth0's JSON error body as cause on a 429", async () => {
+      const body = {
+        error: "access_denied",
+        error_description: "Global rate limit exceeded"
+      };
+      server.use(
+        http.post(REGISTER_URL, () => HttpResponse.json(body, { status: 429 }))
+      );
+
+      const err = await authClient.passkeyRegister().catch((e) => e);
+
+      expect(err.error).toBe("too_many_requests");
+      expect(err.cause).toEqual(body);
+    });
+
+    it("has no cause on a plain-text 429", async () => {
+      server.use(
+        http.post(
+          REGISTER_URL,
+          () => new HttpResponse("Too Many Requests", { status: 429 })
+        )
+      );
+
+      const err = await authClient.passkeyRegister().catch((e) => e);
+
+      expect(err.cause).toBeUndefined();
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -310,6 +362,23 @@ describe("passkey identifier verification", () => {
         error: "too_many_requests",
         error_description: "Too many requests. Please try again later."
       });
+    });
+
+    it("raises a JSON 429 as too_many_requests and keeps the body as cause", async () => {
+      const body = {
+        error: "too_many_requests",
+        error_description: "Global rate limit exceeded"
+      };
+      server.use(
+        http.post(CHALLENGE_URL, () => HttpResponse.json(body, { status: 429 }))
+      );
+
+      const err = await authClient.passkeyChallenge().catch((e) => e);
+
+      expect(err.name).toBe("PasskeyChallengeError");
+      expect(err.error).toBe("too_many_requests");
+      expect(err.error_description).toBe("Global rate limit exceeded");
+      expect(err.cause).toEqual(body);
     });
   });
 
@@ -486,11 +555,19 @@ describe("passkey identifier verification", () => {
     it.each([
       [
         "plain text",
+        "too_many_requests",
         () => new HttpResponse("Too Many Requests", { status: 429 }),
         "Too many requests. Please try again later."
       ],
       [
-        "JSON",
+        "JSON without an error",
+        "too_many_requests",
+        () => HttpResponse.json({ message: "slow down" }, { status: 429 }),
+        "Too many requests. Please try again later."
+      ],
+      [
+        "JSON access_denied",
+        "too_many_requests",
         () =>
           HttpResponse.json(
             {
@@ -500,19 +577,43 @@ describe("passkey identifier verification", () => {
             { status: 429 }
           ),
         "Global rate limit exceeded"
+      ],
+      [
+        "JSON too_many_attempts",
+        "too_many_attempts",
+        () =>
+          HttpResponse.json(
+            {
+              error: "too_many_attempts",
+              error_description: "Your account has been blocked"
+            },
+            { status: 429 }
+          ),
+        "Your account has been blocked"
       ]
-    ])(
-      "raises too_many_requests on a %s 429",
-      async (_label, respond, description) => {
-        mockToken(respond);
+    ])("raises a %s 429 as %s", async (_label, error, respond, description) => {
+      mockToken(respond);
 
-        const err = await getTokenError();
+      const err = await getTokenError();
 
-        expect(err.error).toBe("too_many_requests");
-        expect(err.error_description).toBe(description);
-        expect(err.isRetryable).toBe(false);
-      }
-    );
+      expect(err.error).toBe(error);
+      expect(err.error_description).toBe(description);
+      expect(err.isRetryable).toBe(false);
+      expect(err.authSession).toBeUndefined();
+    });
+
+    it("keeps Auth0's JSON error body as cause on a 429", async () => {
+      const body = {
+        error: "access_denied",
+        error_description: "Too Many Requests"
+      };
+      mockToken(() => HttpResponse.json(body, { status: 429 }));
+
+      const err = await getTokenError();
+
+      expect(err.error).toBe("too_many_requests");
+      expect(err.cause).toEqual(body);
+    });
 
     it("succeeds on the same session after a wrong code is corrected", async () => {
       let call = 0;
@@ -682,6 +783,25 @@ describe("passkey identifier verification", () => {
 
     it("get-token returns 429 when rate limited", async () => {
       mockToken(() => new HttpResponse("Too Many Requests", { status: 429 }));
+
+      const res = await authClient.handler(
+        postRequest("/auth/passkey/get-token", {
+          authSession: DEFAULT.authSession,
+          authResponse: MOCK_AUTH_RESPONSE
+        })
+      );
+
+      expect(res.status).toBe(429);
+      expect((await res.json()).error).toBe("too_many_requests");
+    });
+
+    it("get-token returns 429 for a JSON access_denied rate limit", async () => {
+      mockToken(() =>
+        HttpResponse.json(
+          { error: "access_denied", error_description: "Too Many Requests" },
+          { status: 429 }
+        )
+      );
 
       const res = await authClient.handler(
         postRequest("/auth/passkey/get-token", {

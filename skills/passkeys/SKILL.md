@@ -80,6 +80,8 @@ await auth0.passkey.getToken({ authSession, authResponse }); // → Promise<void
 
 ### Signup with identifier verification (OTP)
 
+> **Note:** Identifier verification on passkey signup is in Early Access. Please contact Auth0 Support to get it enabled for your tenant.
+
 If the connection requires email or phone verification, `register()` returns `verificationRequired` (e.g. `["email"]`). Collect the one-time codes **before** `navigator.credentials.create`, then pass them to `getToken` as `verification`:
 
 The OTP screen and the passkey prompt run in the browser between the two server calls, so use **two Server Actions** called from a `"use client"` component. The browser holds `authSession` and the serialized `authResponse` between calls.

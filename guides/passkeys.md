@@ -254,6 +254,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
 ## Signup with Identifier Verification
 
+> **Note:** Identifier verification on passkey signup is in Early Access. Please contact Auth0 Support to get it enabled for your tenant.
+
 When a database connection requires the user's email or phone to be verified, Auth0 asks for a one-time code during passkey signup. The signup challenge lists the identifiers to verify in `verificationRequired` (`"email"`, `"phone"` or both). Collect the codes **before** creating the passkey, then send them with the token exchange. If no verification is required, `verificationRequired` is absent and the flow is unchanged.
 
 **Prerequisites:** identifier verification on passkey signup must be enabled for your tenant (it is off by default), and verification must be turned on for the `email` and/or `phone` identifier of a database connection that has passkeys enabled (**Authentication → Database →** your connection **→ Attributes →** the identifier **→ Configure**: set the email Verification Method to **One-Time Password (OTP)** and turn on **Verify email on sign up**, or **Verify phone on signup**, which needs a phone provider). While it is off, `register()` never returns `verificationRequired` and the flow is unchanged, so you can ship this code first.
