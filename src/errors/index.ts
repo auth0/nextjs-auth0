@@ -91,7 +91,8 @@ export {
   PasskeyGetTokenError,
   PasskeyEnrollmentChallengeError,
   PasskeyEnrollmentVerifyError,
-  type PasskeyApiErrorResponse
+  type PasskeyApiErrorResponse,
+  type PasskeyGetTokenApiErrorResponse
 } from "./passkey-errors.js";
 
 export {

@@ -350,7 +350,11 @@ export {
   PasskeyBrowserClient,
   PasskeyCreationOptionsJSON,
   PasskeyRequestOptionsJSON,
-  PasskeyCredentialDescriptorJSON
+  PasskeyCredentialDescriptorJSON,
+  PasskeyVerificationIdentifier,
+  PasskeyDeliveryMethod,
+  PasskeyVerificationCodes,
+  PasskeyVerificationContext
 } from "./passkey.js";
 
 export type {

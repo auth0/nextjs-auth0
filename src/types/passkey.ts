@@ -106,6 +106,29 @@ export interface PasskeyAuthResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Identifier verification (signup)
+// ---------------------------------------------------------------------------
+
+/**
+ * An identifier that Auth0 can ask the user to verify with a one-time code during passkey signup,
+ * as listed in `verificationRequired`. The phone identifier is `'phone'`, not `'phoneNumber'`.
+ */
+export type PasskeyVerificationIdentifier = "email" | "phone";
+
+/**
+ * How Auth0 delivers the one-time code for the phone number during passkey signup: `'text'` (SMS) or `'voice'`.
+ */
+export type PasskeyDeliveryMethod = "text" | "voice";
+
+/**
+ * The one-time codes the user entered during passkey signup, keyed by identifier, for example
+ * `{ email: '123456' }`. Pass them to `passkey.getToken()` as `verification`.
+ */
+export type PasskeyVerificationCodes = Partial<
+  Record<PasskeyVerificationIdentifier, string>
+>;
+
+// ---------------------------------------------------------------------------
 // Register flow (signup)
 // ---------------------------------------------------------------------------
 
@@ -138,6 +161,26 @@ export interface PasskeyRegisterOptions {
   connection?: string;
   /** Auth0 organization ID. */
   organization?: string;
+  /**
+   * Phone OTP delivery channel. Only relevant when the connection requires phone
+   * identifier verification. Omit for email-only verification or when no
+   * verification is required.
+   */
+  deliveryMethod?: PasskeyDeliveryMethod;
+  /**
+   * Browser `passkey.signup()` only; ignored by the server `register()`.
+   *
+   * Called when the connection requires identifier verification. Resolve with
+   * the codes the user entered. It is called before the passkey is created,
+   * and again with the remaining identifiers if a code is rejected. The same
+   * passkey is resubmitted, so the user is not prompted for it twice.
+   *
+   * Without this callback a signup that requires verification fails with
+   * `PasskeyGetTokenError` code `verification_required`.
+   */
+  onVerificationRequired?: (
+    context: PasskeyVerificationContext
+  ) => Promise<PasskeyVerificationCodes>;
 }
 
 /**
@@ -164,6 +207,12 @@ export interface PasskeyRegisterResponse {
    * Binary fields are Base64URL-encoded strings.
    */
   authnParamsPublicKey: PasskeyCreationOptionsJSON;
+  /**
+   * Identifiers the user must verify with a one-time code before the passkey
+   * is created, e.g. `["email"]`. Absent when no verification is required.
+   * Pass the codes to `getToken()` as `verification`.
+   */
+  verificationRequired?: PasskeyVerificationIdentifier[];
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +272,11 @@ export interface PasskeyGetTokenOptions {
   scope?: string;
   /** Requested API audience. */
   audience?: string;
+  /**
+   * One-time codes for the identifiers in `verificationRequired`, signup only.
+   * Keys must be `"email"` or `"phone"`.
+   */
+  verification?: PasskeyVerificationCodes;
 }
 
 // ---------------------------------------------------------------------------
@@ -322,6 +376,20 @@ export interface PasskeyEnrollmentVerifyResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Browser signup options
+// ---------------------------------------------------------------------------
+
+/**
+ * Context passed to `onVerificationRequired` during a browser passkey signup.
+ */
+export interface PasskeyVerificationContext {
+  /** Identifiers that still need a one-time code. */
+  verificationRequired: PasskeyVerificationIdentifier[];
+  /** `true` when a previously entered code was rejected. */
+  isRetry: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Client interfaces
 // ---------------------------------------------------------------------------
 
@@ -337,7 +405,25 @@ export interface PasskeyClient {
    * Request a WebAuthn credential creation challenge for a new user signup.
    * Calls Auth0 `POST /passkey/register`.
    *
-   * @param options - User profile and optional connection/organization.
+   * When the connection requires the user's email address or phone number to be
+   * verified, the response includes `verificationRequired` (for example
+   * `['email', 'phone']`), and Auth0 sends a one-time code to each listed
+   * identifier during this call. `verificationRequired` is absent when no
+   * verification is required.
+   *
+   * `deliveryMethod` (`'text'` or `'voice'`) chooses how the phone code is
+   * delivered. Leave it out to let Auth0 use the channel the connection supports
+   * (SMS when it supports both or none). Auth0 rejects a channel that the
+   * connection does not support with `invalid_request`.
+   *
+   * Every call starts a separate attempt with its own `authSession` and, when
+   * verification is required, sends new codes. To recover from a wrong code,
+   * retry `getToken()` instead of calling this again. Do not rely only on Auth0's
+   * limits: rate-limit the route that calls this method yourself, per IP address
+   * and per email address or phone number.
+   *
+   * @param options - User profile, optional connection/organization, and an optional `deliveryMethod` for the phone code.
+   * @throws {PasskeyRegisterError} If there was an issue requesting the signup challenge, for example when a one-time code could not be sent.
    * @returns Challenge with `authSession` and `authnParamsPublicKey`.
    */
   register(options?: PasskeyRegisterOptions): Promise<PasskeyRegisterResponse>;
@@ -358,7 +444,17 @@ export interface PasskeyClient {
    * for an Auth0 session. Calls Auth0 `POST /oauth/token` with the WebAuthn grant.
    * Session cookie is set automatically by the SDK.
    *
-   * @param options - `authSession` from the challenge + serialised credential.
+   * For a signup where `register()` returned `verificationRequired`, pass the codes
+   * the user entered in `verification`, for example `{ email: '123456' }`. Omit it
+   * otherwise, including on login.
+   *
+   * On a wrong code this throws a `PasskeyGetTokenError` whose `isRetryable` is
+   * `true`, whose `authSession` is set and whose `verificationRequired` lists the
+   * identifiers still needing a code. Call again with the same `authSession` and
+   * credential, sending codes only for those identifiers.
+   *
+   * @param options - `authSession` from the challenge + serialised credential, and the `verification` codes when `register()` returned `verificationRequired`.
+   * @throws {PasskeyGetTokenError} If there was an issue exchanging the credential for tokens. No session is persisted. When `isRetryable` is `true`, retry as described above. Otherwise the attempt is usually over, so start again with `register()` or `challenge()`. A temporary failure, such as rate limiting, can leave it open.
    */
   getToken(options: PasskeyGetTokenOptions): Promise<void>;
 
@@ -392,9 +488,11 @@ export interface PasskeyClient {
 export interface PasskeyBrowserClient {
   /**
    * Complete a full passkey signup in one call.
-   * Fetches the challenge, runs `navigator.credentials.create()`, then exchanges for a session.
+   * Fetches the challenge, collects any required verification codes, runs
+   * `navigator.credentials.create()`, then exchanges for a session.
    *
-   * @param options - User profile and optional connection/organization.
+   * @param options - User profile, optional connection/organization and
+   * `onVerificationRequired` for connections that require identifier verification.
    */
   signup(options?: PasskeyRegisterOptions): Promise<void>;
 

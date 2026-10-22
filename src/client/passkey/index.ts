@@ -17,7 +17,8 @@ import type {
   PasskeyEnrollmentVerifyResponse,
   PasskeyRegisterOptions,
   PasskeyRegisterResponse,
-  PasskeyRequestOptionsJSON
+  PasskeyRequestOptionsJSON,
+  PasskeyVerificationCodes
 } from "../../types/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
@@ -172,6 +173,24 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
  * window.location.href = '/dashboard';
  * ```
  *
+ * @example Signup with identifier verification
+ * ```typescript
+ * 'use client';
+ * import { passkey } from '@auth0/nextjs-auth0/client';
+ *
+ * await passkey.signup({
+ *   email,
+ *   onVerificationRequired: async ({ verificationRequired, isRetry }) => {
+ *     // Ask for one code per identifier still pending, e.g. ["email", "phone"]
+ *     const codes: Record<string, string> = {};
+ *     for (const identifier of verificationRequired) {
+ *       codes[identifier] = await promptForCode(identifier, isRetry);
+ *     }
+ *     return codes;
+ *   }
+ * });
+ * ```
+ *
  * @example Login
  * ```typescript
  * 'use client';
@@ -217,10 +236,15 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
 
   /**
    * Complete a full passkey signup in one call.
-   * Fetches the challenge, runs navigator.credentials.create(), then verifies.
+   * Fetches the challenge, collects any required verification codes through
+   * `onVerificationRequired`, runs navigator.credentials.create(), then verifies.
+   * A rejected code re-prompts for the remaining identifiers and resubmits the
+   * same credential.
    *
    * @throws {PasskeyGetTokenError} If WebAuthn is not supported in this browser
    * @throws {PasskeyRegisterError} If the challenge request fails
+   * @throws {PasskeyGetTokenError} With `verification_required` if verification
+   * is required and no `onVerificationRequired` callback was provided
    * @throws {PasskeyGetTokenError} If the WebAuthn ceremony or token exchange fails
    */
   async signup(options?: PasskeyRegisterOptions): Promise<void> {
@@ -228,12 +252,13 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     const challengeUrl = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE || "/auth/passkey/register"
     );
+    const { onVerificationRequired, ...registerOptions } = options ?? {};
 
     let challenge: PasskeyRegisterResponse;
     try {
       challenge = await postJson<PasskeyRegisterResponse>(
         challengeUrl,
-        options ?? {}
+        registerOptions
       );
     } catch (err: any) {
       throw new PasskeyRegisterError(
@@ -241,6 +266,22 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         err?.error_description ?? "Failed to get passkey signup challenge",
         err?.error ? err : undefined
       );
+    }
+
+    // Collect codes before creating the passkey, so a user who never verifies
+    // is not left with a credential on their device for an account that doesn't exist.
+    let verification: PasskeyVerificationCodes | undefined;
+    if (challenge.verificationRequired?.length) {
+      if (!onVerificationRequired) {
+        throw new PasskeyGetTokenError(
+          "verification_required",
+          "Identifier verification is required. Provide onVerificationRequired to collect the codes."
+        );
+      }
+      verification = await onVerificationRequired({
+        verificationRequired: challenge.verificationRequired,
+        isRetry: false
+      });
     }
 
     let credential: PublicKeyCredential | null;
@@ -266,7 +307,30 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     }
 
-    await this._verify(challenge.authSession, credential);
+    // Serialise once so retries resubmit the same credential without a second prompt.
+    const authResponse = serializeCredential(credential);
+    let authSession = challenge.authSession;
+    for (;;) {
+      try {
+        await this._verify(authSession, authResponse, verification);
+        return;
+      } catch (err) {
+        if (
+          !(err instanceof PasskeyGetTokenError) ||
+          !err.isRetryable ||
+          !err.verificationRequired?.length ||
+          !onVerificationRequired
+        ) {
+          throw err;
+        }
+        // Auth0 echoes the session today; use the returned one in case that changes.
+        authSession = err.authSession ?? authSession;
+        verification = await onVerificationRequired({
+          verificationRequired: err.verificationRequired,
+          isRetry: true
+        });
+      }
+    }
   }
 
   /**
@@ -321,13 +385,14 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     }
 
-    await this._verify(challenge.authSession, credential);
+    await this._verify(challenge.authSession, serializeCredential(credential));
   }
 
   // Shared verify step used by both signup() and login()
   private async _verify(
     authSession: string,
-    credential: PublicKeyCredential
+    authResponse: PasskeyAuthResponse,
+    verification?: PasskeyVerificationCodes
   ): Promise<void> {
     const verifyUrl = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
@@ -337,7 +402,8 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     try {
       await postJson(verifyUrl, {
         authSession,
-        authResponse: serializeCredential(credential)
+        authResponse,
+        ...(verification && { verification })
       });
     } catch (err: any) {
       if (err?.error === "mfa_required") {
