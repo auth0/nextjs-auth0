@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { mfa, passkey } from "@auth0/nextjs-auth0/client";
 import type {
+  PasskeyDeliveryMethod,
   PasskeyVerificationCodes,
   PasskeyVerificationIdentifier
 } from "@auth0/nextjs-auth0/types";
@@ -24,6 +25,8 @@ export function PasskeyForm() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  // How to send the phone code. "" lets Auth0 use the channel the connection supports.
+  const [deliveryMethod, setDeliveryMethod] = useState<"" | PasskeyDeliveryMethod>("");
   // Identifier verification: identifiers still needing a code, and the codes entered.
   const [pending, setPending] = useState<PasskeyVerificationIdentifier[]>([]);
   const [codes, setCodes] = useState<PasskeyVerificationCodes>({});
@@ -54,9 +57,12 @@ export function PasskeyForm() {
     try {
       if (mode === "signup") {
         await passkey.signup({
-          email,
-          name: displayName || email,
-          ...(phoneNumber && { phoneNumber, deliveryMethod: "text" as const }),
+          // Pass the identifiers your connection accepts. Only those are verified.
+          ...(email && { email }),
+          ...(phoneNumber && { phoneNumber }),
+          // Pass deliveryMethod only when the user picked one.
+          ...(phoneNumber && deliveryMethod && { deliveryMethod }),
+          name: displayName || email || phoneNumber,
           // Called before the passkey prompt when the connection requires
           // verification, and again with the remaining identifiers after a
           // wrong code. The same passkey is resubmitted on a retry.
@@ -112,7 +118,7 @@ export function PasskeyForm() {
         }
       } else if (e.error === "too_many_requests") {
         setError("Too many attempts. Wait a moment and try again.");
-      } else if (e.error === "invalid_grant") {
+      } else if (mode === "signup" && e.error === "invalid_grant") {
         // Too many wrong codes, an expired code or session: start a new signup.
         setError("Verification could not be completed. Please sign up again.");
       } else if (e.error === "webauthn_error") {
@@ -367,7 +373,7 @@ export function PasskeyForm() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                required={!phoneNumber}
                 disabled={loading}
                 className={inputClass}
               />
@@ -391,8 +397,7 @@ export function PasskeyForm() {
             </div>
             <div>
               <label htmlFor="phoneNumber" className="mb-1 block text-sm font-medium text-gray-700">
-                Phone number{" "}
-                <span className="font-normal text-gray-400">(optional)</span>
+                Phone number
               </label>
               <input
                 id="phoneNumber"
@@ -401,13 +406,32 @@ export function PasskeyForm() {
                 placeholder="+15551234567"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
+                required={!email}
                 disabled={loading}
                 className={inputClass}
               />
               <p className="mt-1 text-xs text-gray-400">
-                E.164 format. Needed if your connection verifies phone numbers.
+                E.164 format. Enter it with or instead of an email, depending on your connection.
               </p>
             </div>
+            {phoneNumber && (
+              <div>
+                <label htmlFor="deliveryMethod" className="mb-1 block text-sm font-medium text-gray-700">
+                  Send the code by
+                </label>
+                <select
+                  id="deliveryMethod"
+                  value={deliveryMethod}
+                  onChange={(e) => setDeliveryMethod(e.target.value as "" | PasskeyDeliveryMethod)}
+                  disabled={loading}
+                  className={inputClass}
+                >
+                  <option value="">Default</option>
+                  <option value="text">Text message</option>
+                  <option value="voice">Voice call</option>
+                </select>
+              </div>
+            )}
           </>
         )}
 

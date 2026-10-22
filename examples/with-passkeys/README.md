@@ -120,13 +120,13 @@ All `ArrayBuffer ↔ base64url` conversion required by the WebAuthn API is handl
 
 If your database connection requires the user's email or phone to be verified, Auth0 asks for a one-time code during passkey signup. Identifier verification on passkey signup must be enabled for your tenant (it is off by default), and verification must be turned on for the `email` and/or `phone` identifier of the connection. While it is off the flows below are unchanged.
 
-Both signup forms collect the codes **before** the passkey is created, so a user who never verifies is not left with a passkey for an account that does not exist. Enter a phone number (E.164, e.g. `+15551234567`) on the signup form if your connection verifies phone numbers; the code is sent by text.
+Both signup forms collect the codes **before** the passkey is created, so a user who never verifies is not left with a passkey for an account that does not exist. The signup forms take an email, a phone number (E.164, e.g. `+15551234567`), or both, depending on which identifiers your connection uses. Only the identifiers you enter are verified. When a phone number is entered you can choose to receive the code by text or voice call, or keep **Default** to use the channel your connection supports.
 
 **One-call flow (`/`, `components/passkey-form.tsx`):** `passkey.signup()` calls `onVerificationRequired` with the identifiers to verify. The form shows one code input per identifier and resolves the codes when the user submits. On a wrong code the SDK calls it again with `isRetry: true` and only the identifiers still pending, then resubmits the same passkey.
 
 ```tsx
 await passkey.signup({
-  email,
+  email, // and/or phoneNumber, depending on your connection
   onVerificationRequired: ({ verificationRequired, isRetry }) =>
     showCodeScreen(verificationRequired, isRetry) // resolves { email: "123456", phone: "654321" }
 });

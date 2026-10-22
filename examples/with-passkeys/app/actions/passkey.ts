@@ -4,7 +4,8 @@ import { auth0 } from "@/lib/auth0";
 import {
   PasskeyChallengeError,
   PasskeyGetTokenError,
-  PasskeyRegisterError
+  PasskeyRegisterError,
+  SdkError
 } from "@auth0/nextjs-auth0/errors";
 import { MfaRequiredError } from "@auth0/nextjs-auth0/server";
 import type {
@@ -20,6 +21,15 @@ import type {
 // Server Action do not reach the browser.
 type ActionError = { ok: false; error: string; error_description: string };
 
+// Any other SDK error (for example an InvalidRequestError for a malformed
+// `verification`) becomes a plain object too. Anything else is unexpected.
+function toActionError(err: unknown): ActionError {
+  if (err instanceof SdkError) {
+    return { ok: false, error: err.code, error_description: err.message };
+  }
+  throw err;
+}
+
 /**
  * Step 1 — run any server-side validation, then fetch the signup challenge.
  *
@@ -32,34 +42,52 @@ type ActionError = { ok: false; error: string; error_description: string };
  * Every call sends new codes, so rate-limit it in production.
  */
 export async function getSignupChallenge(
-  options: Pick<PasskeyRegisterOptions, "email" | "name" | "phoneNumber">
+  options: Pick<
+    PasskeyRegisterOptions,
+    "email" | "name" | "phoneNumber" | "username" | "deliveryMethod"
+  >
 ): Promise<{ ok: true; challenge: PasskeyRegisterResponse } | ActionError> {
   // A Server Action is a public endpoint: take only the fields this form
   // collects, never the whole object. Spreading client input would let a caller
   // set `connection`, `organization`, `userMetadata` and the like.
-  const { email, name, phoneNumber } = options ?? {};
-  if (typeof email !== "string" || !email) {
-    return { ok: false, error: "invalid_request", error_description: "Email is required." };
+  const { email, name, phoneNumber, username, deliveryMethod } = options ?? {};
+  // Which identifiers a connection accepts (email, phone number, username) depends
+  // on its configuration, so require at least one instead of an email. Only the
+  // identifiers you pass are verified.
+  const hasEmail = typeof email === "string" && email !== "";
+  const hasPhone = typeof phoneNumber === "string" && phoneNumber !== "";
+  const hasUsername = typeof username === "string" && username !== "";
+  if (!hasEmail && !hasPhone && !hasUsername) {
+    return {
+      ok: false,
+      error: "invalid_request",
+      error_description: "Enter an email address or a phone number."
+    };
   }
 
   // Add your own pre-challenge logic here, e.g.:
-  // const exists = await db.users.findByEmail(email);
+  // const exists = hasEmail && (await db.users.findByEmail(email));
   // if (exists) return { ok: false, error: "email_taken", error_description: "Account already exists." };
 
   try {
     const challenge = await auth0.passkey.register({
-      email,
+      ...(hasEmail && { email }),
+      ...(hasPhone && { phoneNumber }),
+      ...(hasUsername && { username }),
       ...(typeof name === "string" && name && { name }),
-      // deliveryMethod is the channel for the phone code, "text" or "voice".
-      ...(typeof phoneNumber === "string" &&
-        phoneNumber && { phoneNumber, deliveryMethod: "text" as const })
+      // deliveryMethod is the channel for the phone code. Pass it only when the
+      // user picked "text" or "voice"; without it Auth0 uses the channel the
+      // connection supports.
+      ...((deliveryMethod === "text" || deliveryMethod === "voice") && {
+        deliveryMethod
+      })
     });
     return { ok: true, challenge };
   } catch (err) {
     if (err instanceof PasskeyRegisterError) {
       return { ok: false, error: err.error, error_description: err.error_description };
     }
-    throw err;
+    return toActionError(err);
   }
 }
 
@@ -76,13 +104,14 @@ export async function getLoginChallenge(): Promise<
     if (err instanceof PasskeyChallengeError) {
       return { ok: false, error: err.error, error_description: err.error_description };
     }
-    throw err;
+    return toActionError(err);
   }
 }
 
 export type VerifyPasskeyResult =
   | { ok: true }
   | { ok: false; error: "mfa_required"; mfaToken: string }
+  | ActionError
   | (ActionError & {
       // A verification code was wrong and the session is still alive.
       retryable: boolean;
@@ -128,6 +157,6 @@ export async function verifyPasskey(
         verificationRequired: err.verificationRequired
       };
     }
-    throw err;
+    return toActionError(err);
   }
 }

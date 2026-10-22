@@ -8,6 +8,7 @@ import type {
   PasskeyAuthResponse,
   PasskeyChallengeResponse,
   PasskeyCreationOptionsJSON,
+  PasskeyDeliveryMethod,
   PasskeyRegisterResponse,
   PasskeyRequestOptionsJSON,
   PasskeyVerificationCodes,
@@ -65,6 +66,8 @@ export function PasskeyAdvancedForm() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  // How to send the phone code. "" lets Auth0 use the channel the connection supports.
+  const [deliveryMethod, setDeliveryMethod] = useState<"" | PasskeyDeliveryMethod>("");
   const [challenge, setChallenge] = useState<PasskeyRegisterResponse | PasskeyChallengeResponse | null>(null);
   // Identifier verification: identifiers still needing a code, and the codes entered.
   const [pending, setPending] = useState<PasskeyVerificationIdentifier[]>([]);
@@ -107,9 +110,12 @@ export function PasskeyAdvancedForm() {
       const result =
         mode === "signup"
           ? await getSignupChallenge({
-              email,
-              name: displayName || email,
-              ...(phoneNumber && { phoneNumber })
+              // Pass the identifiers your connection accepts. Only those are verified.
+              ...(email && { email }),
+              ...(phoneNumber && { phoneNumber }),
+              // Pass deliveryMethod only when the user picked one.
+              ...(phoneNumber && deliveryMethod && { deliveryMethod }),
+              name: displayName || email || phoneNumber
             })
           : await getLoginChallenge();
 
@@ -136,6 +142,8 @@ export function PasskeyAdvancedForm() {
         setStep("ceremony");
         await handleCeremony(result.challenge);
       }
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -225,6 +233,9 @@ export function PasskeyAdvancedForm() {
             "Could not complete the passkey flow. Please start again."
         );
       }
+    } catch {
+      // The Server Action failed unexpectedly. Keep the state so the user can retry.
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -444,7 +455,7 @@ export function PasskeyAdvancedForm() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                required={!phoneNumber}
                 disabled={loading}
                 className={inputClass}
               />
@@ -467,8 +478,7 @@ export function PasskeyAdvancedForm() {
             </div>
             <div>
               <label htmlFor="adv-phone" className="mb-1 block text-sm font-medium text-gray-700">
-                Phone number{" "}
-                <span className="font-normal text-gray-400">(optional)</span>
+                Phone number
               </label>
               <input
                 id="adv-phone"
@@ -477,13 +487,32 @@ export function PasskeyAdvancedForm() {
                 placeholder="+15551234567"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
+                required={!email}
                 disabled={loading}
                 className={inputClass}
               />
               <p className="mt-1 text-xs text-gray-400">
-                E.164 format. Needed if your connection verifies phone numbers.
+                E.164 format. Enter it with or instead of an email, depending on your connection.
               </p>
             </div>
+            {phoneNumber && (
+              <div>
+                <label htmlFor="adv-delivery" className="mb-1 block text-sm font-medium text-gray-700">
+                  Send the code by
+                </label>
+                <select
+                  id="adv-delivery"
+                  value={deliveryMethod}
+                  onChange={(e) => setDeliveryMethod(e.target.value as "" | PasskeyDeliveryMethod)}
+                  disabled={loading}
+                  className={inputClass}
+                >
+                  <option value="">Default</option>
+                  <option value="text">Text message</option>
+                  <option value="voice">Voice call</option>
+                </select>
+              </div>
+            )}
           </>
         )}
 
