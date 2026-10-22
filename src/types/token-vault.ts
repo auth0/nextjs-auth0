@@ -1,6 +1,8 @@
 /**
  * Token type URNs for Custom Token Exchange and Session Transfer flows (RFC 8693).
  *
+ * Import it as a value from `@auth0/nextjs-auth0/server`.
+ *
  * @category Access Tokens
  */
 export enum TOKEN_TYPES {

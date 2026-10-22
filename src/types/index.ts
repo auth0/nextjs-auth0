@@ -31,7 +31,12 @@ export interface AccessTokenSet {
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
-/** @category Session */
+/**
+ * Data stored in the session: the user profile, the token set and any
+ * per-audience access tokens.
+ *
+ * @category Session
+ */
 export interface SessionData {
   user: User;
   tokenSet: TokenSet;
@@ -97,7 +102,11 @@ export interface SessionDataStore {
 /** @category Login & Logout */
 export type LogoutToken = { sub?: string; sid?: string; iss?: string };
 
-/** @category Session */
+/**
+ * Profile of the logged-in user, built from the ID token claims.
+ *
+ * @category Session
+ */
 export interface User {
   sub: string;
   name?: string;

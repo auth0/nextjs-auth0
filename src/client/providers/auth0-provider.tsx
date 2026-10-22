@@ -44,7 +44,12 @@ export type Auth0ProviderProps = {
   anonymousSessionRoute?: string;
 };
 
-/** @category Getting Started */
+/**
+ * Seeds `useUser` (and the anonymous session hook) with data fetched on the
+ * server, so client components render without a loading flash.
+ *
+ * @category Getting Started
+ */
 export function Auth0Provider({
   user,
   anonymousSession,

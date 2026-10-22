@@ -21,7 +21,12 @@ export type UseUserOptions = {
   route?: string;
 };
 
-/** @category Getting Started */
+/**
+ * React hook that fetches the logged-in user from the profile route. Returns
+ * `user`, `isLoading`, `error` and `invalidate()` to refetch.
+ *
+ * @category Getting Started
+ */
 export function useUser(options: UseUserOptions = {}) {
   const { data, error, isLoading, mutate } = useSWR<User, Error, string>(
     normalizeWithBasePath(

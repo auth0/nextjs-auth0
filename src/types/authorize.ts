@@ -17,7 +17,7 @@ export interface StartInteractiveLoginOptions {
 }
 
 /**
- * Options for {@link Auth0Client.startEnterpriseLogin}.
+ * Options for {@link server!Auth0Client.startEnterpriseLogin}.
  *
  * Mirrors {@link StartInteractiveLoginOptions} (so `authorizationParameters`,
  * `returnTo` are all supported as passthrough) and adds the required `email`.

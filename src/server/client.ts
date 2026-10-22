@@ -386,7 +386,7 @@ export interface Auth0ClientOptions {
    * ```
    *
    * @see {@link DpopKeyPair} for the key pair interface
-   * @see {@link generateDpopKeyPair} for generating new key pairs
+   * @see {@link server!generateDpopKeyPair} for generating new key pairs
    */
   dpopKeyPair?: DpopKeyPair;
 
@@ -548,7 +548,12 @@ export type PagesRouterRequest = IncomingMessage | NextApiRequest;
 export type PagesRouterResponse =
   ServerResponse<IncomingMessage> | NextApiResponse;
 
-/** @category Getting Started */
+/**
+ * Main server-side entry point of the SDK. Create one instance per app and use
+ * it to mount the auth routes, read the session and get access tokens.
+ *
+ * @category Getting Started
+ */
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -1169,7 +1174,7 @@ export class Auth0Client {
    *
    * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
    *
-   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    *
    * @param options Optional configuration for getting the access token.
@@ -1214,7 +1219,7 @@ export class Auth0Client {
    * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
    * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token | See Auth0 Documentation on Multi-resource Refresh Tokens}
    *
-   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
@@ -1348,7 +1353,7 @@ export class Auth0Client {
    *
    * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
    *
-   * NOTE: Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * NOTE: Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not be persisted.
    * It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    *
    * @category Access Tokens
@@ -2157,7 +2162,7 @@ export class Auth0Client {
   }
 
   /**
-   * Login entry point for {@link Auth0Client.enterpriseConnect} mode.
+   * Login entry point for {@link Auth0ClientOptions.enterpriseConnect} mode.
    *
    * Runs Home Realm Discovery on the email domain. Returns a `NextResponse`
    * redirect (with `login_hint` set) when the domain is federated, or `null`
@@ -2900,7 +2905,7 @@ export class Auth0Client {
    * ```
    *
    * @see {@link Fetcher} for details on using the returned fetcher instance
-   * @see {@link FetcherMinimalConfig} for available configuration options
+   * @see `FetcherMinimalConfig` for available configuration options
    *
    * @category Access Tokens
    */

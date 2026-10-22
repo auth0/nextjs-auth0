@@ -266,7 +266,7 @@ export interface MfaRequirements {
 }
 
 /**
- * Thrown when {@link getAccessToken} requires MFA step-up authentication.
+ * Thrown when {@link server!Auth0Client.getAccessToken} requires MFA step-up authentication.
  *
  * This error is thrown during token refresh when Auth0 returns `mfa_required`.
  * The {@link mfa_token} property contains an encrypted token that can be used
