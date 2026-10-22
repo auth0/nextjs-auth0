@@ -112,7 +112,7 @@ export function PasskeyForm() {
         }
       } else if (e.error === "too_many_requests") {
         setError("Too many attempts. Wait a moment and try again.");
-      } else if (e.error === "invalid_grant" || e.error === "invalid_request") {
+      } else if (e.error === "invalid_grant") {
         // Too many wrong codes, an expired code or session: start a new signup.
         setError("Verification could not be completed. Please sign up again.");
       } else if (e.error === "webauthn_error") {
