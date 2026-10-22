@@ -7,7 +7,13 @@ import {
 
 import type { CookieContext } from "../context.js";
 import type { NextCookieHandler } from "../cookie-handler.js";
-import { deleteLegacyAnonymousCookies } from "../legacy/legacy-cookies.js";
+import { isLegacyJwe } from "../legacy/legacy-cookies.js";
+import {
+  clearChunks,
+  countWrittenChunks,
+  getClearUpTo,
+  withChunkCookieNames
+} from "./chunk-cookies.js";
 
 export interface NextAnonymousStoreOptions extends StatelessAnonymousStoreOptions {
   cookieHandler: NextCookieHandler;
@@ -16,16 +22,18 @@ export interface NextAnonymousStoreOptions extends StatelessAnonymousStoreOption
    */
   name: string;
   /**
-   * Attributes used to delete nextjs's anonymous cookies (`httpOnly`, `secure`, `sameSite`, `path`).
+   * Attributes used to delete anonymous cookies (`httpOnly`, `secure`, `sameSite`, `path`).
    */
   deleteOptions: CookieSerializeOptions;
 }
 
 /**
- * The engine's anonymous store, plus: on save and on delete, deletes nextjs's anonymous cookies
- * (`name` and `name__N`) present in the request. Create, renew, logout, clear on login and a
- * session Auth0 says is gone all end in `set` or `delete`, so the old cookies go at the first of
- * them. A plain read leaves them alone.
+ * The engine's anonymous store, plus:
+ * - writes the chunks under nextjs's names, `name__0`, `name__1`, ... (see `withChunkCookieNames`)
+ * - on save and delete, clears the unused chunks and the unchunked `name` the way nextjs did.
+ *   Create, renew, logout, clear on login and a session Auth0 says is gone all end in `set` or
+ *   `delete`, so nextjs's own `name` / `name__N` cookies also go at the first of them. A plain
+ *   read leaves them alone.
  */
 export class NextAnonymousStore extends StatelessAnonymousStore<CookieContext> {
   readonly #cookieHandler: NextCookieHandler;
@@ -38,7 +46,7 @@ export class NextAnonymousStore extends StatelessAnonymousStore<CookieContext> {
     deleteOptions,
     ...options
   }: NextAnonymousStoreOptions) {
-    super(options, cookieHandler);
+    super(options, withChunkCookieNames(cookieHandler, name));
 
     this.#cookieHandler = cookieHandler;
     this.#name = name;
@@ -51,24 +59,40 @@ export class NextAnonymousStore extends StatelessAnonymousStore<CookieContext> {
     removeIfExists?: boolean,
     ctx?: CookieContext
   ): Promise<void> {
+    const clearUpTo = getClearUpTo(this.#name, ctx);
     await super.set(identifier, anonymousStateData, removeIfExists, ctx);
-    this.#deleteLegacyCookies(ctx);
+    this.#clearChunks(countWrittenChunks(this.#name, ctx), clearUpTo, ctx);
   }
 
   override async delete(
     identifier: string,
     ctx?: CookieContext
   ): Promise<void> {
+    const clearUpTo = getClearUpTo(this.#name, ctx);
     await super.delete(identifier, ctx);
-    this.#deleteLegacyCookies(ctx);
+    this.#clearChunks(0, clearUpTo, ctx);
   }
 
-  #deleteLegacyCookies(ctx?: CookieContext): void {
-    if (!ctx) {
-      return;
+  /**
+   * nextjs's anonymous cookie (a JWE without `kid`, in `name__N`, which are also the engine's chunk
+   * names here) is treated as no anonymous session, where the engine throws. It is not read: the
+   * visitor gets a new anonymous session once.
+   */
+  protected override async decrypt<TData>(
+    identifier: string,
+    encryptedStateData: string
+  ): Promise<TData | undefined> {
+    if (isLegacyJwe(encryptedStateData)) {
+      return undefined;
     }
-    deleteLegacyAnonymousCookies(this.#cookieHandler, ctx, {
+    return super.decrypt<TData>(identifier, encryptedStateData);
+  }
+
+  #clearChunks(from: number, clearUpTo: number, ctx?: CookieContext): void {
+    clearChunks(this.#cookieHandler, ctx, {
       name: this.#name,
+      from,
+      clearUpTo,
       deleteOptions: this.#deleteOptions
     });
   }

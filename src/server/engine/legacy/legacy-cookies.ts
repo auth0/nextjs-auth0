@@ -136,12 +136,16 @@ function isCompactJwe(value: string): boolean {
 }
 
 /**
- * Deletes every old-format cookie present in the request, by exact name.
+ * Deletes every old-format cookie present in the request that is not the session's own name, by
+ * exact name.
  *
- * - stateless: `name`, `name__N`, `__FC_<n>`
- * - both modes: `appSession`, `appSession.N` (skipped when the session name is `appSession`)
+ * - stateless: `__FC_<n>`
+ * - both modes: `appSession` (skipped when the session name is `appSession`), `appSession.N`
  *
- * In stateful mode the engine writes the session name itself, so it is never deleted here.
+ * `name` and `name__N` are not deleted here. The stateless store writes `name__N` itself and
+ * clears `name` and the unused `name__N` the way nextjs did; in stateful mode the engine writes
+ * `name` itself. Deleting a name written in this response would replace the write, because the
+ * response keeps one entry per cookie name.
  */
 export function deleteLegacyCookies(
   handler: NextCookieHandler,
@@ -160,12 +164,6 @@ export function deleteLegacyCookies(
   const names: string[] = [];
 
   if (!stateful) {
-    if (reqCookies.has(sessionName)) {
-      names.push(sessionName);
-    }
-    for (const cookie of getAllChunkedCookies(reqCookies, sessionName)) {
-      names.push(cookie.name);
-    }
     for (const cookie of reqCookies.getAll()) {
       if (CONNECTION_TOKEN_SET_COOKIE_REGEX.test(cookie.name)) {
         names.push(cookie.name);
@@ -173,48 +171,21 @@ export function deleteLegacyCookies(
     }
   }
 
-  if (sessionName !== LEGACY_COOKIE_NAME) {
-    if (reqCookies.has(LEGACY_COOKIE_NAME)) {
-      names.push(LEGACY_COOKIE_NAME);
-    }
-    for (const cookie of getAllChunkedCookies(
-      reqCookies,
-      LEGACY_COOKIE_NAME,
-      true
-    )) {
-      names.push(cookie.name);
-    }
+  if (
+    sessionName !== LEGACY_COOKIE_NAME &&
+    reqCookies.has(LEGACY_COOKIE_NAME)
+  ) {
+    names.push(LEGACY_COOKIE_NAME);
+  }
+  for (const cookie of getAllChunkedCookies(
+    reqCookies,
+    LEGACY_COOKIE_NAME,
+    true
+  )) {
+    names.push(cookie.name);
   }
 
   for (const name of names) {
     handler.deleteCookie(name, ctx, deleteOptions);
-  }
-}
-
-/**
- * Deletes nextjs's anonymous session cookies present in the request, by exact name: `name` and
- * `name__N`. The engine's anonymous store writes `name.N`, so these are never its own, and nothing
- * else removes them. They are not read either (the visitor gets a new anonymous session once).
- */
-export function deleteLegacyAnonymousCookies(
-  handler: NextCookieHandler,
-  ctx: CookieContext,
-  {
-    name,
-    deleteOptions
-  }: { name: string; deleteOptions: CookieSerializeOptions }
-): void {
-  const { reqCookies } = ctx;
-  const names: string[] = [];
-
-  if (reqCookies.has(name)) {
-    names.push(name);
-  }
-  for (const cookie of getAllChunkedCookies(reqCookies, name)) {
-    names.push(cookie.name);
-  }
-
-  for (const cookieName of names) {
-    handler.deleteCookie(cookieName, ctx, deleteOptions);
   }
 }

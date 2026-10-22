@@ -192,9 +192,9 @@ function createStores(config: EngineConfig, sessionMapper: SessionMapper) {
  *
  * The store shares the session's cookie handler. That handler only adds `domain` and `transient`
  * to the session cookie's own names, so the anonymous cookie passes through unchanged (nextjs gave
- * it neither). The engine matches its chunks strictly as `name.<number>`, so nextjs's `auth0_anon` /
- * `auth0_anon__N` cookies are not read, and so is any session cookie whose name starts with this
- * one. Those old cookies are deleted on the first save or delete of the anonymous session.
+ * it neither). The store writes its chunks as `auth0_anon__N`, nextjs's names, and clears them the
+ * way nextjs did. nextjs's own anonymous cookies are not read (different encryption) and are
+ * replaced on the first save or delete of the anonymous session.
  */
 function createAnonymousStore(
   { anonymousSession, secret }: EngineConfig,

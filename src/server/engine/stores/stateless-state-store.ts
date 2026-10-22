@@ -14,6 +14,12 @@ import {
   isLegacyJwe,
   readLegacySession
 } from "../legacy/legacy-cookies.js";
+import {
+  clearChunks,
+  countWrittenChunks,
+  getClearUpTo,
+  withChunkCookieNames
+} from "./chunk-cookies.js";
 
 // Encrypted session size above which we warn. A large session is the main remaining cause of
 // `431 Request Header Fields Too Large`: combined with transaction and application cookies the
@@ -22,10 +28,6 @@ const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
 
 // Under rolling sessions set() runs on almost every request, so warn once per process.
 let sessionSizeWarningEmitted = false;
-
-// The chunk slots `name.0` to `name.4` that every save and delete clears, as nextjs did
-// (`MAX_CHUNKS`). See `#sweepChunkSlots`.
-const CHUNK_SLOTS_SWEPT = 5;
 
 export interface NextStatelessStateStoreOptions extends SessionConfiguration {
   secret: string;
@@ -46,9 +48,11 @@ export interface NextStatelessStateStoreOptions extends SessionConfiguration {
 
 /**
  * The engine's stateless store, plus:
+ * - writes the chunks under nextjs's names, `name__0`, `name__1`, ... (see `withChunkCookieNames`)
+ * - on save and delete, clears the unused chunks and the unchunked `name` the way nextjs did
  * - on read, falls back to old v4 / v3 cookies (and `__FC_*` connection tokens) when the engine
  *   finds no session
- * - on save and delete, deletes every old-format cookie present in the request
+ * - on save and delete, deletes every other old-format cookie present in the request
  * - warns once per process when the session is large
  */
 export class NextStatelessStateStore extends StatelessStateStore<CookieContext> {
@@ -65,7 +69,7 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
     fromLegacySession,
     ...options
   }: NextStatelessStateStoreOptions) {
-    super(options, cookieHandler);
+    super(options, withChunkCookieNames(cookieHandler, sessionName));
 
     this.#secret = options.secret;
     this.#cookieHandler = cookieHandler;
@@ -97,8 +101,13 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
     removeIfExists?: boolean,
     ctx?: CookieContext
   ): Promise<void> {
+    const clearUpTo = getClearUpTo(this.#sessionName, ctx);
     await super.set(identifier, stateData, removeIfExists, ctx);
-    this.#sweepChunkSlots(identifier, ctx);
+    this.#clearChunks(
+      countWrittenChunks(this.#sessionName, ctx),
+      clearUpTo,
+      ctx
+    );
     this.#deleteLegacyCookies(ctx);
   }
 
@@ -106,8 +115,9 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
     identifier: string,
     ctx?: CookieContext
   ): Promise<void> {
+    const clearUpTo = getClearUpTo(this.#sessionName, ctx);
     await super.delete(identifier, ctx);
-    this.#sweepChunkSlots(identifier, ctx);
+    this.#clearChunks(0, clearUpTo, ctx);
     this.#deleteLegacyCookies(ctx);
   }
 
@@ -140,8 +150,8 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
    * Treated as no session, as on nextjs, where the engine throws:
    * - an expired cookie (`JWTExpired`): the browser can still send one when the cookie is
    *   `transient` (no `Max-Age`)
-   * - an old-format JWE (no `kid`) under the engine's chunk names, for example v3 `appSession.N`
-   *   when the session name is `appSession`; `get` then falls back to the old-cookie reader
+   * - an old-format JWE (no `kid`): a v4 session in `name__N`, which are also the engine's chunk
+   *   names here; `get` then falls back to the old-cookie reader
    */
   protected override async decrypt<TData>(
     identifier: string,
@@ -160,23 +170,13 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
     }
   }
 
-  /**
-   * Deletes the chunk slots that hold no value after the engine's save or delete, whether or not
-   * this request saw them, as nextjs did. The engine only deletes the chunks it finds in the
-   * request, so a chunk written by a parallel save (two tabs, a bigger session saved a moment
-   * earlier) would stay behind, the pieces would no longer join into a valid session, and the user
-   * would have to log in again. A slot that was just written holds a value and is skipped.
-   */
-  #sweepChunkSlots(identifier: string, ctx?: CookieContext): void {
-    if (!ctx) {
-      return;
-    }
-    for (let slot = 0; slot < CHUNK_SLOTS_SWEPT; slot++) {
-      const name = `${identifier}.${slot}`;
-      if (!ctx.reqCookies.get(name)?.value) {
-        this.#cookieHandler.deleteCookie(name, ctx, this.#deleteOptions);
-      }
-    }
+  #clearChunks(from: number, clearUpTo: number, ctx?: CookieContext): void {
+    clearChunks(this.#cookieHandler, ctx, {
+      name: this.#sessionName,
+      from,
+      clearUpTo,
+      deleteOptions: this.#deleteOptions
+    });
   }
 
   #deleteLegacyCookies(ctx?: CookieContext): void {

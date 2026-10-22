@@ -27,9 +27,11 @@ export interface NextCookieHandlerOptions {
  * - Adds the cookie settings the engine cannot set itself (`domain`, `transient`) to session cookies.
  * - Every other cookie (for example `__txn_*`) is passed through unchanged.
  *
- * `getCookies()` returns every request cookie. The engine's stores match their own chunks strictly
- * (`name.<number>`), so old v4 `__session` / `__session__N` cookies and unrelated cookies are never
- * joined into the session or deleted.
+ * Session cookies are `name` and its chunks `name__<number>`, the names nextjs uses: the stateless
+ * store stores the engine's `name.<number>` chunks under them (`withChunkCookieNames`).
+ *
+ * `getCookies()` returns every request cookie. The engine's stores match their own chunks strictly,
+ * so unrelated cookies are never joined into the session or deleted.
  */
 export class NextCookieHandler implements CookieHandler<CookieContext> {
   readonly #sessionName: string;
@@ -40,7 +42,7 @@ export class NextCookieHandler implements CookieHandler<CookieContext> {
   constructor({ sessionName, domain, transient }: NextCookieHandlerOptions) {
     this.#sessionName = sessionName;
     this.#chunkRegex = new RegExp(
-      `^${sessionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\d+$`
+      `^${sessionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}__\\d+$`
     );
     this.#domain = domain;
     this.#transient = transient ?? false;
