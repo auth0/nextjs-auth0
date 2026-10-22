@@ -1,5 +1,5 @@
-<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>PasskeyClient | @auth0/nextjs-auth0 - v4.32.1</title><meta name="description" content="Documentation for @auth0/nextjs-auth0"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
-<div class="tsd-toolbar-contents container"><a href="../index.html" class="title">@auth0/nextjs-auth0 - v4.32.1</a>
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>PasskeyClient | @auth0/nextjs-auth0 - v4.33.0</title><meta name="description" content="Documentation for @auth0/nextjs-auth0"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
+<div class="tsd-toolbar-contents container"><a href="../index.html" class="title">@auth0/nextjs-auth0 - v4.33.0</a>
 <div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/>
 <ul role="listbox" id="tsd-search-results"></ul>
 <div id="tsd-search-status" aria-live="polite" aria-atomic="true">
@@ -18,7 +18,7 @@ Each method maps directly to one Auth0 API call.</p>
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">PasskeyClient</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-call-signature" href="#challenge-1">challenge</a><span class="tsd-signature-symbol">(</span><br/>        <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <a href="types.PasskeyChallengeOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyChallengeOptions</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyChallengeResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyChallengeResponse</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-call-signature" href="#enrollmentchallenge-1">enrollmentChallenge</a><span class="tsd-signature-symbol">(</span><br/>        <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <a href="types.PasskeyEnrollmentChallengeOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentChallengeOptions</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyEnrollmentChallengeResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentChallengeResponse</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-call-signature" href="#enrollmentverify-1">enrollmentVerify</a><span class="tsd-signature-symbol">(</span><br/>        <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">:</span> <a href="types.PasskeyEnrollmentVerifyOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentVerifyOptions</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyEnrollmentVerifyResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentVerifyResponse</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-call-signature" href="#gettoken-1">getToken</a><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">:</span> <a href="types.PasskeyGetTokenOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyGetTokenOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-call-signature" href="#register-1">register</a><span class="tsd-signature-symbol">(</span><br/>        <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <a href="types.PasskeyRegisterOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyRegisterOptions</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyRegisterResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyRegisterResponse</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/57806417078d36f97e00e39ebf7bfd334911b12a/src/types/passkey.ts#L305">src/types/passkey.ts:305</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/01d183dac99ed747ccf6b4c1b61cbfc87db91f34/src/types/passkey.ts#L373">src/types/passkey.ts:373</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -53,7 +53,7 @@ Calls Auth0 <code>POST /passkey/challenge</code>.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyChallengeResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyChallengeResponse</a><span class="tsd-signature-symbol">&gt;</span></h4><p>Challenge with <code>authSession</code> and <code>authnParamsPublicKey</code>.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/57806417078d36f97e00e39ebf7bfd334911b12a/src/types/passkey.ts#L322">src/types/passkey.ts:322</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/01d183dac99ed747ccf6b4c1b61cbfc87db91f34/src/types/passkey.ts#L408">src/types/passkey.ts:408</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="enrollmentchallenge"><span>enrollment<wbr/>Challenge</span><a href="#enrollmentchallenge" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -71,7 +71,7 @@ Requires an active session.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">options</span>: <a href="types.PasskeyEnrollmentChallengeOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentChallengeOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyEnrollmentChallengeResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentChallengeResponse</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/57806417078d36f97e00e39ebf7bfd334911b12a/src/types/passkey.ts#L341">src/types/passkey.ts:341</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/01d183dac99ed747ccf6b4c1b61cbfc87db91f34/src/types/passkey.ts#L437">src/types/passkey.ts:437</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="enrollmentverify"><span>enrollment<wbr/>Verify</span><a href="#enrollmentverify" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -88,7 +88,7 @@ Requires an active session.</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="types.PasskeyEnrollmentVerifyOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentVerifyOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyEnrollmentVerifyResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyEnrollmentVerifyResponse</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/57806417078d36f97e00e39ebf7bfd334911b12a/src/types/passkey.ts#L350">src/types/passkey.ts:350</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/01d183dac99ed747ccf6b4c1b61cbfc87db91f34/src/types/passkey.ts#L446">src/types/passkey.ts:446</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="gettoken"><span>get<wbr/>Token</span><a href="#gettoken" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -98,16 +98,27 @@ Requires an active session.</p>
 <div class="tsd-comment tsd-typography"><p>Complete a passkey signup or login by exchanging the WebAuthn assertion
 for an Auth0 session. Calls Auth0 <code>POST /oauth/token</code> with the WebAuthn grant.
 Session cookie is set automatically by the SDK.</p>
+<p>For a signup where <code>register()</code> returned <code>verificationRequired</code>, pass the codes
+the user entered in <code>verification</code>, for example <code>{ email: '123456' }</code>. Omit it
+otherwise, including on login.</p>
+<p>On a wrong code this throws a <code>PasskeyGetTokenError</code> whose <code>isRetryable</code> is
+<code>true</code>, whose <code>authSession</code> is set and whose <code>verificationRequired</code> lists the
+identifiers still needing a code. Call again with the same <code>authSession</code> and
+credential, sending codes only for those identifiers.</p>
 </div>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="types.PasskeyGetTokenOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyGetTokenOptions</a></span>
-<div class="tsd-comment tsd-typography"><p><code>authSession</code> from the challenge + serialised credential.</p>
+<div class="tsd-comment tsd-typography"><p><code>authSession</code> from the challenge + serialised credential, and the <code>verification</code> codes when <code>register()</code> returned <code>verificationRequired</code>.</p>
 </div></li></ul></div>
-<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
+<div class="tsd-comment tsd-typography">
+<div class="tsd-tag-throws">
+<h4 class="tsd-anchor-link" id="throws">Throws<a href="#throws" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><p>If there was an issue exchanging the credential for tokens. No session is persisted. When <code>isRetryable</code> is <code>true</code>, retry as described above. Otherwise the attempt is usually over, so start again with <code>register()</code> or <code>challenge()</code>. A temporary failure, such as rate limiting, can leave it open.</p>
+</div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/57806417078d36f97e00e39ebf7bfd334911b12a/src/types/passkey.ts#L333">src/types/passkey.ts:333</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/01d183dac99ed747ccf6b4c1b61cbfc87db91f34/src/types/passkey.ts#L429">src/types/passkey.ts:429</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="register"><span>register</span><a href="#register" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -116,17 +127,35 @@ Session cookie is set automatically by the SDK.</p>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Request a WebAuthn credential creation challenge for a new user signup.
 Calls Auth0 <code>POST /passkey/register</code>.</p>
+<p>When the connection requires the user's email address or phone number to be
+verified, the response includes <code>verificationRequired</code> (for example
+<code>['email', 'phone']</code>), and Auth0 sends a one-time code to each listed
+identifier during this call. <code>verificationRequired</code> is absent when no
+verification is required.</p>
+<p><code>deliveryMethod</code> (<code>'text'</code> or <code>'voice'</code>) chooses how the phone code is
+delivered. Leave it out to let Auth0 use the channel the connection supports
+(SMS when it supports both or none). Auth0 rejects a channel that the
+connection does not support with <code>invalid_request</code>.</p>
+<p>Every call starts a separate attempt with its own <code>authSession</code> and, when
+verification is required, sends new codes. To recover from a wrong code,
+retry <code>getToken()</code> instead of calling this again. Do not rely only on Auth0's
+limits: rate-limit the route that calls this method yourself, per IP address
+and per email address or phone number.</p>
 </div>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">options</span>: <a href="types.PasskeyRegisterOptions.html" class="tsd-signature-type tsd-kind-interface">PasskeyRegisterOptions</a></span>
-<div class="tsd-comment tsd-typography"><p>User profile and optional connection/organization.</p>
+<div class="tsd-comment tsd-typography"><p>User profile, optional connection/organization, and an optional <code>deliveryMethod</code> for the phone code.</p>
 </div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="types.PasskeyRegisterResponse.html" class="tsd-signature-type tsd-kind-interface">PasskeyRegisterResponse</a><span class="tsd-signature-symbol">&gt;</span></h4><p>Challenge with <code>authSession</code> and <code>authnParamsPublicKey</code>.</p>
-<aside class="tsd-sources">
+
+<div class="tsd-comment tsd-typography">
+<div class="tsd-tag-throws">
+<h4 class="tsd-anchor-link" id="throws-1">Throws<a href="#throws-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><p>If there was an issue requesting the signup challenge, for example when a one-time code could not be sent.</p>
+</div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/57806417078d36f97e00e39ebf7bfd334911b12a/src/types/passkey.ts#L313">src/types/passkey.ts:313</a></li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/01d183dac99ed747ccf6b4c1b61cbfc87db91f34/src/types/passkey.ts#L399">src/types/passkey.ts:399</a></li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -144,7 +173,7 @@ Calls Auth0 <code>POST /passkey/register</code>.</p>
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Methods</summary>
 <div><a href="#challenge"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>challenge</span></a><a href="#enrollmentchallenge"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>enrollment<wbr/>Challenge</span></a><a href="#enrollmentverify"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>enrollment<wbr/>Verify</span></a><a href="#gettoken"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>get<wbr/>Token</span></a><a href="#register"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>register</span></a></div></details></div></details></div>
 <div class="site-menu">
-<nav class="tsd-navigation"><a href="../modules.html">@auth0/nextjs-auth0 - v4.32.1</a>
+<nav class="tsd-navigation"><a href="../modules.html">@auth0/nextjs-auth0 - v4.33.0</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
 <li>Loading...</li></ul></nav></div></div></div><footer></footer>
 <div class="overlay"></div></body></html>
