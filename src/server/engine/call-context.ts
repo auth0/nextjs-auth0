@@ -21,11 +21,11 @@ import {
 } from "./context.js";
 
 /**
- * Runs `run` with the cookies of `main`'s call forms (`saveToSession`):
+ * Runs `run` with the cookies of nextjs's call forms (`saveToSession`):
  * - no `res`: the App Router form; writes go to `cookies()`, and a write Next refuses (a Server
- *   Component) is skipped with `main`'s dev warning, so the result is still returned. With a
+ *   Component) is skipped with nextjs's dev warning, so the result is still returned. With a
  *   `req` (`requestSessionTransferToken(req, undefined, options)`), the session is read from it.
- *   With `ignoreWriteErrors: false` that write throws instead (`mfa.verify`, as on `main`).
+ *   With `ignoreWriteErrors: false` that write throws instead (`mfa.verify`, as on nextjs).
  * - `NextRequest` / `Request` and a `NextResponse`: middleware; writes go to the response.
  * - otherwise the Pages Router: writes are appended to `res` as `Set-Cookie`.
  */
@@ -38,7 +38,7 @@ export async function withCallContext<T>(
   if (!req || !res) {
     let ctx: CookieContext;
     // Writes to here only when `cookies()` is not available (the Pages Router); they are lost,
-    // as on `main`.
+    // as on nextjs.
     const dropped = new Headers();
     if (req) {
       const { ctx: read } = await readContext(req);

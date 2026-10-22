@@ -26,7 +26,7 @@ import {
 /**
  * Server-side passkey authentication API.
  * The engine sends the signup, login and token requests and saves the session; enrollment is
- * `main`'s MyAccount code.
+ * nextjs's MyAccount code.
  * Provides overload support for App Router and Pages Router.
  *
  * Authentication flow (signup / login):
@@ -155,7 +155,7 @@ export class ServerPasskeyClient implements PasskeyClient {
       options = arg1;
     }
 
-    // A write Next refuses (a Server Component) throws, as on `main`: the credential is spent.
+    // A write Next refuses (a Server Component) throws, as on nextjs: the credential is spent.
     await withCallContext(
       req,
       res,

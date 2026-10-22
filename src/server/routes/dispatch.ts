@@ -63,7 +63,7 @@ interface RouteEntry {
 const notImplemented: RouteHandler = async () =>
   NextResponse.json({ error: "not_implemented" }, { status: 501 });
 
-// `main`'s order (`auth-client.ts` `handler`): the first match wins.
+// nextjs's order (`auth-client.ts` `handler`): the first match wins.
 const ROUTES: RouteEntry[] = [
   { method: "GET", route: { key: "login" }, handle: handleLogin },
   { method: "GET", route: { key: "logout" }, handle: handleLogout },
@@ -154,7 +154,7 @@ const ROUTES: RouteEntry[] = [
     handle: handlePasskeyEnrollmentVerify
   },
   // The anonymous routes have no gate: each answers 404 itself when the feature is off, as on
-  // `main`, instead of falling through to the app.
+  // nextjs, instead of falling through to the app.
   {
     method: "GET",
     route: { key: "anonymousSession" },
@@ -205,7 +205,7 @@ async function matchRoute(
     entry.route.key === "login" &&
     isNonNavigationalRequest(req)
   ) {
-    // A prefetch: 204 "intentionally did nothing", as on `main`. `no-store`, because a 204 is
+    // A prefetch: 204 "intentionally did nothing", as on nextjs. `no-store`, because a 204 is
     // heuristically cacheable (RFC 9111) and a cached one would break real logins.
     return new NextResponse(null, {
       status: 204,

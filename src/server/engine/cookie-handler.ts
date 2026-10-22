@@ -97,7 +97,7 @@ export class NextCookieHandler implements CookieHandler<CookieContext> {
       : options;
 
     // Deleted by writing an empty value with `maxAge: 0` and the cookie's own attributes, as on
-    // `main`: browsers only delete a cookie when `Domain` and `Path` match the original write.
+    // nextjs: browsers only delete a cookie when `Domain` and `Path` match the original write.
     if (this.#write(ctx, name, "", { ...finalOptions, maxAge: 0 })) {
       // Same guard as setCookie: a bare delete() would drop the domain from the deletion.
       if (!isSameStore(ctx!)) {

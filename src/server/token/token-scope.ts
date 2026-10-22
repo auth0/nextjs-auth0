@@ -3,9 +3,9 @@ import { mergeScopes } from "../../utils/token-set-helpers.js";
 import type { EngineConfig } from "../engine/resolve-config.js";
 
 /**
- * The scope an access token is looked up and refreshed with, as `main` computes it
+ * The scope an access token is looked up and refreshed with, as nextjs computes it
  * (`getTokenSet`): the configured scope for the audience merged with `scope`, or `scope` alone
- * with `mergeScopes: false`. A scope map without an audience throws, as on `main`.
+ * with `mergeScopes: false`. A scope map without an audience throws, as on nextjs.
  */
 export function tokenScope(
   config: EngineConfig,

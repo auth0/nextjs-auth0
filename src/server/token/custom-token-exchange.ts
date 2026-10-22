@@ -12,9 +12,9 @@ import { checkActor, checkSubject, toExtra } from "./exchange-options.js";
 
 /**
  * Custom Token Exchange (RFC 8693), nothing saved. The engine sends the request (DPoP when on);
- * around it, `main`'s rules:
- * 1. `main`'s checks first, for `main`'s codes and texts
- * 2. the scope is `main`'s defaults merged with the caller's; `audience` and `organization` only
+ * around it, nextjs's rules:
+ * 1. nextjs's checks first, for nextjs's codes and texts
+ * 2. the scope is nextjs's defaults merged with the caller's; `audience` and `organization` only
  *    when given
  * 3. `act` from the ID token whenever there is one, `tokenType` defaults to `Bearer`
  */
@@ -27,7 +27,7 @@ export async function customTokenExchange(
     throw error;
   }
 
-  // Domain from the request headers (resolver mode), as `main`'s `forRequest(headers())`.
+  // Domain from the request headers (resolver mode), as nextjs's `forRequest(headers())`.
   const { ctx } = await readContext();
   const dpopKeyPair = await getDpopKeyPair(setup.config);
   const response = await setup.errors.callEngine(
@@ -54,10 +54,10 @@ export async function customTokenExchange(
     idToken: response.idToken,
     refreshToken: response.refreshToken,
     tokenType: response.tokenType ?? "Bearer",
-    // `main` gave `Number(expires_in)`, so `NaN` when Auth0 sent none.
+    // nextjs gave `Number(expires_in)`, so `NaN` when Auth0 sent none.
     expiresIn: response.expiresIn ?? NaN,
     scope: response.scope,
-    // `main`'s rule (the ID token's `act`), and the engine's from the access token when the
+    // nextjs's rule (the ID token's `act`), and the engine's from the access token when the
     // request had an actor token and the ID token has none.
     act: (response.claims?.act as ActClaim | undefined) ?? response.act
   };

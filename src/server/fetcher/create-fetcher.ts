@@ -46,11 +46,11 @@ interface FetcherFactoryOptions<
 }
 
 /**
- * `createFetcher(req, options)`, `main`'s code with the token from the engine:
- * 1. no session: `missing_session`, as on `main` (a session for another domain throws its error)
+ * `createFetcher(req, options)`, nextjs's code with the token from the engine:
+ * 1. no session: `missing_session`, as on nextjs (a session for another domain throws its error)
  * 2. each `fetchWithAuth` gets its token with `retrieveAccessToken` (the engine refreshes and
  *    saves where cookies can be written; a Server Component skips the save with a dev warning)
- * 3. a `getAccessToken` passed in `options` is not used, as on `main`
+ * 3. a `getAccessToken` passed in `options` is not used, as on nextjs
  */
 export async function createFetcher<TOutput extends Response>(
   setup: EngineSetup,
@@ -82,7 +82,7 @@ export async function createFetcher<TOutput extends Response>(
 }
 
 /**
- * `main`'s `fetcherFactory`, without its discovery check (the fetcher does not use the metadata).
+ * nextjs's `fetcherFactory`, without its discovery check (the fetcher does not use the metadata).
  * DPoP on with no key pair throws `dpop_configuration_error`.
  */
 export async function fetcherFactory<TOutput extends Response>(
@@ -130,7 +130,7 @@ export async function fetcherFactory<TOutput extends Response>(
 }
 
 /**
- * A DPoP handle with `main`'s client metadata (`clockSkew` / `clockTolerance` from the resolved
+ * A DPoP handle with nextjs's client metadata (`clockSkew` / `clockTolerance` from the resolved
  * DPoP options).
  */
 export async function createDpopHandle(
@@ -161,7 +161,7 @@ function newDpopHandle(
 }
 
 /**
- * `main`'s `httpOptions` headers (oauth4webapi uses only the signal for resource requests, so they
+ * nextjs's `httpOptions` headers (oauth4webapi uses only the signal for resource requests, so they
  * are kept for parity). The time limit is not here: it is on the fetch, see `fetcherFactory`.
  */
 function httpOptions(options: EngineConfig["options"]) {
@@ -176,7 +176,7 @@ function httpOptions(options: EngineConfig["options"]) {
 }
 
 /**
- * The fields the fetcher reads (`accessToken`, `token_type`), in `main`'s `TokenSet` shape.
+ * The fields the fetcher reads (`accessToken`, `token_type`), in nextjs's `TokenSet` shape.
  */
 export function toTokenSet(accessToken: AccessToken): TokenSet {
   return {

@@ -26,7 +26,7 @@ import type { PagesRouterRequest } from "../types/index.js";
 import { resolveReturnTo } from "./return-to.js";
 
 // Parameters of the authorize request that the caller cannot set (also dropped for CIBA, as on
-// `main`).
+// nextjs).
 export const INTERNAL_AUTHORIZE_PARAMS = [
   "client_id",
   "redirect_uri",
@@ -116,7 +116,7 @@ export async function startLogin(
       )
     );
   } catch (e) {
-    // A failing domain resolver or bad configuration is thrown, as on `main`.
+    // A failing domain resolver or bad configuration is thrown, as on nextjs.
     if (e instanceof SdkError) {
       throw e;
     }
@@ -133,7 +133,7 @@ export async function startLogin(
 
 /**
  * In resolver mode `openid` must be in the scope: from the configuration and the call together,
- * as on `main`. A scope map counts as its value for the audience.
+ * as on nextjs. A scope map counts as its value for the audience.
  */
 function assertOpenIdScope(
   setup: EngineSetup,

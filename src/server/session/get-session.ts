@@ -6,7 +6,7 @@ import { readSession } from "./read-session.js";
 
 /**
  * The session of the current request, or `null`. A session stored for another domain throws
- * `SessionDomainMismatchError`, as on `main`. A read never writes a cookie.
+ * `SessionDomainMismatchError`, as on nextjs. A read never writes a cookie.
  */
 export async function getSession(
   setup: EngineSetup,

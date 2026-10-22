@@ -7,7 +7,7 @@ import { finalizeSession } from "../session/finalize-session.js";
 export interface RefreshHook {
   /**
    * For the engine's `beforeSessionSaved` on a refresh: the new ID token claims go to `user`,
-   * then `beforeSessionSaved` (or the default claim filter) runs, as on `main`.
+   * then `beforeSessionSaved` (or the default claim filter) runs, as on nextjs.
    */
   beforeSessionSaved: NonNullable<GetAccessTokenHooks["beforeSessionSaved"]>;
   /**

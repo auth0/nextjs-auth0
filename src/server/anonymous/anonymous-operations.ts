@@ -25,8 +25,8 @@ export function isAnonymousSessionEnabled({ config }: EngineSetup): boolean {
 
 /**
  * The stored anonymous session, or `null`. Read-only: an expired access token is returned as
- * stored, as on `main`. A cookie the engine cannot read, or a token whose `sub` is not
- * anonymous, gives `null`; only a domain resolver failure is thrown (`main`'s request context).
+ * stored, as on nextjs. A cookie the engine cannot read, or a token whose `sub` is not
+ * anonymous, gives `null`; only a domain resolver failure is thrown (nextjs's request context).
  */
 export async function readAnonymousSession(
   setup: EngineSetup,
@@ -90,13 +90,13 @@ export async function fetchAnonymousSession(
   try {
     return toAnonymousSession(found.tokenSet, found.metadata);
   } catch {
-    // `main`'s read path: an unusable token is no session.
+    // nextjs's read path: an unusable token is no session.
     return null;
   }
 }
 
 /**
- * Creates an anonymous session; the engine sends the request and writes the cookie. `main`'s
+ * Creates an anonymous session; the engine sends the request and writes the cookie. nextjs's
  * checks come first, before any request: the feature is on, and the metadata is a plain object
  * of at most 1KB. Audience and scope: the call's, else the configured ones.
  */
@@ -123,7 +123,7 @@ export async function createAnonymousSession(
       {
         audience: options?.audience || audience,
         scope: options?.scope || scope,
-        // The engine types metadata as strings; `main` accepts any JSON value and sends it as is.
+        // The engine types metadata as strings; nextjs accepts any JSON value and sends it as is.
         ...(metadata && { metadata: metadata as Record<string, string> })
       },
       ctx
@@ -150,7 +150,7 @@ function pickTokenSet(
 }
 
 /**
- * `main`'s public session: the `id` is the access token's `sub`, which must be anonymous.
+ * nextjs's public session: the `id` is the access token's `sub`, which must be anonymous.
  */
 function toAnonymousSession(
   tokenSet: TokenSet,

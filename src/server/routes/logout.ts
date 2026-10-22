@@ -15,12 +15,12 @@ const RP_INITIATED_LOGOUT_NOT_SUPPORTED =
 
 /**
  * Route: GET /auth/logout?returnTo=&state=&federated=. The engine revokes the refresh token,
- * deletes the session and builds the Auth0 logout URL; around it, `main`'s behavior:
+ * deletes the session and builds the Auth0 logout URL; around it, nextjs's behavior:
  * - a session stored for another domain is not cleared and gives no hints
  * - `id_token_hint` (unless `includeIdTokenHintInOIDCLogoutUrl: false`), `logout_hint`, `state`
  *   and `logoutStrategy` are passed to the engine
  * - transaction cookies are always deleted
- * - discovery failure, or `"oidc"` without RP-initiated logout: `main`'s 500 text
+ * - discovery failure, or `"oidc"` without RP-initiated logout: nextjs's 500 text
  */
 export async function handleLogout(
   req: NextRequest,

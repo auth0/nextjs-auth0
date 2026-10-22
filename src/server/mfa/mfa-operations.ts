@@ -32,7 +32,7 @@ type EngineCredential = EngineVerifyOptions extends infer O
 
 /**
  * The authenticators enrolled by the user. The engine sends the request; the list is then
- * filtered by the challenge types of the `mfa_requirements` sealed in the token, as on `main`
+ * filtered by the challenge types of the `mfa_requirements` sealed in the token, as on nextjs
  * (none: all are returned).
  */
 export async function listAuthenticators(
@@ -65,7 +65,7 @@ export async function listAuthenticators(
 
 /**
  * Starts an MFA challenge. When the token carries `mfa_requirements`, only their challenge types
- * are allowed (`main`'s check, before any request); without them, any type is.
+ * are allowed (nextjs's check, before any request); without them, any type is.
  */
 export async function challengeAuthenticator(
   setup: EngineSetup,
@@ -130,7 +130,7 @@ export async function enrollAuthenticator(
 
 /**
  * Verifies an MFA code. The engine sends the grant and saves the session: on a step-up the new
- * tokens are merged into it, with no session one is started. Around it, `main`'s rules:
+ * tokens are merged into it, with no session one is started. Around it, nextjs's rules:
  * 1. the audience and scope come from the sealed token; the audience is sent to Auth0
  * 2. a credential is `otp`, `oobCode` with `bindingCode`, or `recoveryCode`; otherwise
  *    `invalid_request`
@@ -182,7 +182,7 @@ export async function verifyMfa(
 }
 
 /**
- * `main`'s verify result: tokens stay in the session; only a new recovery code is returned.
+ * nextjs's verify result: tokens stay in the session; only a new recovery code is returned.
  */
 export function toVerifyResponse(
   result: EngineVerifyResult

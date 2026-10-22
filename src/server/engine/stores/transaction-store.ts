@@ -15,7 +15,7 @@ const DEFAULT_TRANSACTION_MAX_AGE = 60 * 60;
 // Maximum total byte size of all transaction cookies combined. When the projected total meets or
 // exceeds this, the oldest cookies are evicted (FIFO by the `{ts}:` value prefix) before the new
 // one is written. A JWE is ~450-555 bytes, so this allows ~6 concurrent in-flight logins while
-// staying well under browser and proxy request header limits. Same limit as `main`.
+// staying well under browser and proxy request header limits. Same limit as nextjs.
 const MAX_TRANSACTION_COOKIE_BYTES = 3500;
 
 // Under prefetch or bot traffic set() runs repeatedly, so warn once per process. Separate flags so
@@ -61,7 +61,7 @@ export class NextTransactionStore extends AbstractTransactionStore<CookieContext
 
     this.#cookieHandler = cookieHandler;
     this.#prefix = cookieOptions?.prefix ?? TRANSACTION_COOKIE_PREFIX;
-    // `||`, as on `main`: a `maxAge` of 0 gives the default.
+    // `||`, as on nextjs: a `maxAge` of 0 gives the default.
     this.#maxAge = cookieOptions?.maxAge || DEFAULT_TRANSACTION_MAX_AGE;
     this.#deleteOptions = {
       httpOnly: true,
@@ -145,7 +145,7 @@ export class NextTransactionStore extends AbstractTransactionStore<CookieContext
   /**
    * Evicts the oldest transaction cookies so that all of them, including the one about to be
    * written, stay under {@link MAX_TRANSACTION_COOKIE_BYTES}. The cookie about to be (re)written
-   * is never evicted. Same logic and warnings as `main`.
+   * is never evicted. Same logic and warnings as nextjs.
    */
   #evictOldest(ctx: CookieContext, newName: string, newValue: string): void {
     const txnCookies = this.#transactionCookies(ctx);

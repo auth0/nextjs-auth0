@@ -2,7 +2,7 @@ import type { PagesRouterResponse } from "../types/index.js";
 
 /**
  * Puts the cookies a call wrote onto a Pages Router response. The header is set, not appended, as
- * on `main`: a `set-cookie` the app already put on that response is replaced.
+ * on nextjs: a `set-cookie` the app already put on that response is replaced.
  */
 export function setPagesRouterCookies(
   res: PagesRouterResponse,
@@ -15,7 +15,7 @@ export function setPagesRouterCookies(
 }
 
 /**
- * Like {@link setPagesRouterCookies}, but appended, as `main`'s `getAccessToken` does: a
+ * Like {@link setPagesRouterCookies}, but appended, as nextjs's `getAccessToken` does: a
  * `set-cookie` the app already put on that response is kept.
  */
 export function appendPagesRouterCookies(

@@ -9,7 +9,7 @@ import { NextStatefulStateStore } from "../engine/stores/stateful-state-store.js
 
 /**
  * Route: POST /auth/backchannel-logout. Auth0 posts a `logout_token`; the engine verifies it and
- * calls the session store's `deleteByLogoutToken({ sid, sub, iss })`. `main`'s checks and
+ * calls the session store's `deleteByLogoutToken({ sid, sub, iss })`. nextjs's checks and
  * responses around it:
  * - no session store, or one without `deleteByLogoutToken`: 500
  * - no token: 400
@@ -92,7 +92,7 @@ export async function handleBackChannelLogout(
       403
     );
   }
-  // A store error is thrown, as on `main`.
+  // A store error is thrown, as on nextjs.
   return verifyAndDelete();
 }
 

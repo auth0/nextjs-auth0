@@ -17,7 +17,7 @@ import type { EngineSetup } from "../engine/create-engine.js";
 import { createLoginHook } from "../session/login-hook.js";
 
 // The engine sets these on the magic link itself; the configured ones are dropped (D9), as on
-// `main`.
+// nextjs.
 const MAGIC_LINK_EXCLUDED_PARAMS = [
   "client_id",
   "redirect_uri",

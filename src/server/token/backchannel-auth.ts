@@ -13,7 +13,7 @@ import { INTERNAL_AUTHORIZE_PARAMS } from "../login/start-login.js";
 
 /**
  * CIBA: the engine's auth client sends the request to Auth0 and polls until the user approves,
- * then the tokens are returned. Nothing is saved, as on `main`. `main`'s checks and parameter
+ * then the tokens are returned. Nothing is saved, as on nextjs. nextjs's checks and parameter
  * rules come first: the tenant supports CIBA, and internal or `null` parameters are not sent.
  */
 export async function backchannelAuthentication(
@@ -46,7 +46,7 @@ export async function backchannelAuthentication(
       params.set("scope", DEFAULT_SCOPES);
     }
     // The engine adds the configured parameters underneath; a key set to `undefined` is not sent,
-    // so the request has only what `main` sent.
+    // so the request has only what nextjs sent.
     const authorizationParams = {
       ...Object.fromEntries(
         Object.keys(config.authorizationParameters).map((key) => [
@@ -57,7 +57,7 @@ export async function backchannelAuthentication(
       ...Object.fromEntries(params)
     };
 
-    // No DPoP, as on `main`.
+    // No DPoP, as on nextjs.
     const response = await authClient.backchannelAuthentication({
       bindingMessage: options.bindingMessage,
       loginHint: options.loginHint,

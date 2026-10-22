@@ -143,7 +143,7 @@ export class NextStatefulStateStore extends StatefulStateStore<CookieContext> {
     const v3SessionId = await this.#readV3SessionId(ctx);
 
     // The new ID cookie may not reach the browser (read-only call, or a Server Component where
-    // the write fails). The browser keeps the v3 cookie, so update the v3 row in place, as `main`
+    // the write fails). The browser keeps the v3 cookie, so update the v3 row in place, as nextjs
     // does, instead of moving the session to a new ID and deleting the row it points to.
     if (v3SessionId && !removeIfExists && !canWriteCookies(ctx)) {
       await this.#updateRow(v3SessionId, stateData);
@@ -165,7 +165,7 @@ export class NextStatefulStateStore extends StatefulStateStore<CookieContext> {
 
   /**
    * Deletes the session row (and a v3 row) found from the request cookies, without writing or
-   * deleting any cookie. Used when the session ceiling is reached on a read, as on `main`.
+   * deleting any cookie. Used when the session ceiling is reached on a read, as on nextjs.
    */
   deleteByReqCookies(
     identifier: string,
@@ -179,7 +179,7 @@ export class NextStatefulStateStore extends StatefulStateStore<CookieContext> {
    * A v4 ID cookie is a JWE without `kid`, which the engine cannot decrypt (it throws instead of
    * returning nothing). Decrypt it the v4 way and hand the ID to the engine.
    *
-   * An expired cookie is treated as no session, as on `main`; the engine throws `JWTExpired`.
+   * An expired cookie is treated as no session, as on nextjs; the engine throws `JWTExpired`.
    * The browser can still send one when the cookie is `transient` (no `Max-Age`).
    */
   protected override async decrypt<TData>(

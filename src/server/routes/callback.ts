@@ -36,7 +36,7 @@ interface LoginAppState {
 
 /**
  * Route: GET /auth/callback. The engine exchanges the code and builds the session; just before it
- * saves, it calls the hook below, which runs `onCallback` and `beforeSessionSaved` in `main`'s
+ * saves, it calls the hook below, which runs `onCallback` and `beforeSessionSaved` in nextjs's
  * order. Anything thrown there stops the save.
  *
  * A passwordless magic link returns here too (D8): its transaction has no PKCE verifier (the
@@ -57,7 +57,7 @@ export async function handleCallback(
   const scratch = NextResponse.next();
   const ctx = middlewareContext(req, scratch);
 
-  // Read the transaction here too, so errors can carry `returnTo` as on `main`.
+  // Read the transaction here too, so errors can carry `returnTo` as on nextjs.
   const found = await findTransaction(setup, state, ctx);
   if (!found) {
     return onCallbackOf(setup)(new InvalidStateError(), {}, null);
@@ -68,7 +68,7 @@ export async function handleCallback(
   const appBaseUrl = resolveAppBaseUrl(config.appBaseUrl, req);
   const callbackCtx = (): OnCallbackContext => ({
     responseType: RESPONSE_TYPES.CODE,
-    // The engine's magic-link transaction has no `returnTo`; `main` stored this one (D11).
+    // The engine's magic-link transaction has no `returnTo`; nextjs stored this one (D11).
     returnTo: magicLink ? config.signInReturnToPath : appState?.returnTo,
     challengeMode: appState?.challengeMode || "redirect",
     appBaseUrl
@@ -141,7 +141,7 @@ export async function handleCallback(
       }
     }
   } catch (e) {
-    // `onCallback` and `beforeSessionSaved` errors reach the app as thrown, as on `main`.
+    // `onCallback` and `beforeSessionSaved` errors reach the app as thrown, as on nextjs.
     if (hookFailed) {
       throw e;
     }

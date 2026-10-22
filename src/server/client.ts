@@ -223,7 +223,7 @@ export class Auth0Client {
       createAnonymous(this.#setup, ctx, opts);
 
     if (!request) {
-      // Server Action: reads and writes go to `cookies()`; a refused write throws, as on `main`.
+      // Server Action: reads and writes go to `cookies()`; a refused write throws, as on nextjs.
       return withCallContext(undefined, undefined, create, {
         ignoreWriteErrors: false
       });
@@ -305,7 +305,7 @@ export class Auth0Client {
     let res: PagesRouterResponse | NextResponse | undefined;
     let options: GetAccessTokenOptions;
 
-    // The call form and its errors are `main`'s.
+    // The call form and its errors are nextjs's.
     if (
       arg1 &&
       (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
@@ -510,7 +510,7 @@ export class Auth0Client {
     let res: PagesRouterResponse | NextResponse | undefined;
     let options: SessionTransferTokenOptions;
 
-    // The call form is `main`'s (as `getAccessToken`, without its argument errors).
+    // The call form is nextjs's (as `getAccessToken`, without its argument errors).
     if (
       arg1 &&
       (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
@@ -546,7 +546,7 @@ export class Auth0Client {
     result: SessionTransferTokenResult,
     opts?: { organization?: string }
   ): NextResponse {
-    // `main`'s builder: its errors, and an empty `organization` left out.
+    // nextjs's builder: its errors, and an empty `organization` left out.
     return NextResponse.redirect(
       buildSessionTransferRedirectUrl(
         targetLoginUrl,

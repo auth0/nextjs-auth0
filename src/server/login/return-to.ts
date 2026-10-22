@@ -1,12 +1,12 @@
 import { toSafeRedirect } from "../../utils/url-helpers.js";
 
-// `returnTo` is stored in the transaction cookie, so it is capped as on `main`.
+// `returnTo` is stored in the transaction cookie, so it is capped as on nextjs.
 const MAX_RETURN_TO_BYTES = 2048;
 let clampWarned = false;
 
 /**
  * The path to go to after login: `returnTo` when it stays on the app's origin, else the default.
- * An unsafe or oversized value silently becomes the default, as on `main`.
+ * An unsafe or oversized value silently becomes the default, as on nextjs.
  */
 export function resolveReturnTo(
   returnTo: string | undefined,

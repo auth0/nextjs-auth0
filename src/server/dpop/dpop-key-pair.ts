@@ -11,8 +11,8 @@ const loaded = new WeakMap<EngineConfig, Promise<DpopConfig>>();
 
 /**
  * The DPoP key pair for engine calls (`requestOptions.dpopKeyPair`), or `undefined` when DPoP is
- * off or could not be set up (bearer is used then, with the warnings `main` prints). Loaded on
- * first use, as on `main`, so the key code is only loaded when DPoP is on.
+ * off or could not be set up (bearer is used then, with the warnings nextjs prints). Loaded on
+ * first use, as on nextjs, so the key code is only loaded when DPoP is on.
  */
 export async function getDpopKeyPair(
   config: EngineConfig
@@ -21,7 +21,7 @@ export async function getDpopKeyPair(
 }
 
 /**
- * The key pair and `main`'s resolved DPoP options (`retry`, `clockSkew`, `clockTolerance`), from
+ * The key pair and nextjs's resolved DPoP options (`retry`, `clockSkew`, `clockTolerance`), from
  * the same single validation as {@link getDpopKeyPair}.
  */
 export function getDpopConfig(config: EngineConfig): Promise<DpopConfig> {

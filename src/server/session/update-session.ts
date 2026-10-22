@@ -19,7 +19,7 @@ import { getSession } from "./get-session.js";
 
 /**
  * Replaces the session of the signed-in user, keeping the SDK's own `internal` (id, created time,
- * domain, ceiling). The three call forms and their errors are `main`'s.
+ * domain, ceiling). The three call forms and their errors are nextjs's.
  */
 export async function updateSession(
   setup: EngineSetup,

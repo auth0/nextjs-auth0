@@ -17,13 +17,13 @@ import {
 
 // Encrypted session size above which we warn. A large session is the main remaining cause of
 // `431 Request Header Fields Too Large`: combined with transaction and application cookies the
-// total `Cookie` header can exceed typical 8 KB proxy limits. Same threshold as `main`.
+// total `Cookie` header can exceed typical 8 KB proxy limits. Same threshold as nextjs.
 const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
 
 // Under rolling sessions set() runs on almost every request, so warn once per process.
 let sessionSizeWarningEmitted = false;
 
-// The chunk slots `name.0` to `name.4` that every save and delete clears, as `main` did
+// The chunk slots `name.0` to `name.4` that every save and delete clears, as nextjs did
 // (`MAX_CHUNKS`). See `#sweepChunkSlots`.
 const CHUNK_SLOTS_SWEPT = 5;
 
@@ -137,7 +137,7 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
   }
 
   /**
-   * Treated as no session, as on `main`, where the engine throws:
+   * Treated as no session, as on nextjs, where the engine throws:
    * - an expired cookie (`JWTExpired`): the browser can still send one when the cookie is
    *   `transient` (no `Max-Age`)
    * - an old-format JWE (no `kid`) under the engine's chunk names, for example v3 `appSession.N`
@@ -162,7 +162,7 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
 
   /**
    * Deletes the chunk slots that hold no value after the engine's save or delete, whether or not
-   * this request saw them, as `main` did. The engine only deletes the chunks it finds in the
+   * this request saw them, as nextjs did. The engine only deletes the chunks it finds in the
    * request, so a chunk written by a parallel save (two tabs, a bigger session saved a moment
    * earlier) would stay behind, the pieces would no longer join into a valid session, and the user
    * would have to log in again. A slot that was just written holds a value and is skipped.

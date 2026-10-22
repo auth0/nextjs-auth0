@@ -33,7 +33,7 @@ export interface AccessToken {
 }
 
 /**
- * The outcome of {@link retrieveAccessToken}. A token error is returned, not thrown, as `main`'s
+ * The outcome of {@link retrieveAccessToken}. A token error is returned, not thrown, as nextjs's
  * `getTokenSet` does, so the route can answer it while anything else (a hook error) propagates.
  */
 export type AccessTokenResult =
@@ -58,10 +58,10 @@ export async function getAccessToken(
 
 /**
  * The access token for the signed-in user. The engine looks it up, refreshes it when needed and
- * saves the session; around it, `main`'s rules (`executeGetAccessToken`, `getTokenSet`):
+ * saves the session; around it, nextjs's rules (`executeGetAccessToken`, `getTokenSet`):
  * 1. no session (or a ceiling reached): `missing_session`; stored for another domain: the
  *    `SessionDomainMismatchError`
- * 2. the scope is computed as on `main` and always passed, so the engine sends it to Auth0
+ * 2. the scope is computed as on nextjs and always passed, so the engine sends it to Auth0
  * 3. no refresh token and a token that has not expired: served, even with `refresh` or inside
  *    `tokenRefreshBuffer` (the engine would refuse)
  * 4. on a refresh, just before the save, the new ID token claims go to `user`, then
@@ -120,7 +120,7 @@ export async function retrieveAccessToken(
       { beforeSessionSaved: hook.beforeSessionSaved }
     );
   } catch (e) {
-    // `beforeSessionSaved` errors reach the app as thrown, as on `main`; nothing was saved.
+    // `beforeSessionSaved` errors reach the app as thrown, as on nextjs; nothing was saved.
     if (hook.failed) {
       throw e;
     }
@@ -186,7 +186,7 @@ function toAccessToken(
     scope: tokenSet.scope,
     expiresAt: tokenSet.expiresAt,
     token_type: tokenSet.tokenType,
-    // The login token is filed under the engine's key; `main` returns the audience asked for.
+    // The login token is filed under the engine's key; nextjs returns the audience asked for.
     audience:
       tokenSet.audience === sessionMapper.defaultAudienceKey
         ? audience

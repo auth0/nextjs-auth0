@@ -14,7 +14,7 @@ export interface ReadSessionResult {
 }
 
 /**
- * Reads the stored session with `main`'s checks (`getSessionWithDomainCheck`), keeping `internal`
+ * Reads the stored session with nextjs's checks (`getSessionWithDomainCheck`), keeping `internal`
  * so the state can be saved again:
  * 1. no session stored: no session
  * 2. session ceiling reached: no session, and the stateful row is deleted
@@ -58,7 +58,7 @@ export async function readSession(
     return { state };
   }
 
-  // Static mode: no domain is stored, which keeps the cookie small (`main` #2595).
+  // Static mode: no domain is stored, which keeps the cookie small (nextjs #2595).
   if (typeof config.domain !== "function") {
     return { state };
   }

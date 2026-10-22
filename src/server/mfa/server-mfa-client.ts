@@ -254,7 +254,7 @@ export class ServerMfaClient implements MfaClient {
       options = arg1;
     }
 
-    // A write Next refuses (a Server Component) throws, as on `main`: the code is already spent.
+    // A write Next refuses (a Server Component) throws, as on nextjs: the code is already spent.
     const result = await withCallContext(
       req,
       res,
@@ -267,7 +267,7 @@ export class ServerMfaClient implements MfaClient {
 }
 
 /**
- * `main`'s authenticator shape from the engine's fields. Auth0's docs name the channel
+ * nextjs's authenticator shape from the engine's fields. Auth0's docs name the channel
  * `oob_channels` and type it as a string; the engine types it as a list, so both are read.
  */
 function toAuthenticator(auth: AuthenticatorResponse): Authenticator {
@@ -283,7 +283,7 @@ function toAuthenticator(auth: AuthenticatorResponse): Authenticator {
 }
 
 /**
- * `main`'s enrollment shape from the engine's fields.
+ * nextjs's enrollment shape from the engine's fields.
  */
 function toEnrollmentResponse(
   result: EngineEnrollmentResponse

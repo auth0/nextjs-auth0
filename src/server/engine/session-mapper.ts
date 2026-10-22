@@ -65,7 +65,7 @@ export function createSessionMapper({
     const { mcd, sessionExpiresAt, ...internalRest } = internal;
 
     // Today's login writes no audience on the primary token; file it under the engine's key so
-    // the engine finds it (`||`, as in `main`'s rule). Entries keep fields the engine does not
+    // the engine finds it (`||`, as in nextjs's rule). Entries keep fields the engine does not
     // read; the engine type has no index signature.
     const tokenSets = [
       { ...primary, audience: primary.audience || defaultAudienceKey },
@@ -156,7 +156,7 @@ export function createSessionMapper({
         ...internalRest,
         ...(sessionExpiresAt !== undefined && { sessionExpiresAt }),
         // The engine stores the domain as a bare host; on Auth0 the issuer is always
-        // `https://{domain}/`, as `main` fills it for sessions without `mcd`.
+        // `https://{domain}/`, as nextjs fills it for sessions without `mcd`.
         ...(domain && { mcd: { domain, issuer: `https://${domain}/` } })
       }
     };

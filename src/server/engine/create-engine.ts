@@ -30,10 +30,10 @@ import { NextStatefulStateStore } from "./stores/stateful-state-store.js";
 import { NextStatelessStateStore } from "./stores/stateless-state-store.js";
 import { NextTransactionStore } from "./stores/transaction-store.js";
 
-// Maximum response body size (1 MB), as on `main`: guards against oversized discovery, JWKS or
+// Maximum response body size (1 MB), as on nextjs: guards against oversized discovery, JWKS or
 // token responses.
 export const MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
-// `main`'s default anonymous cookie lifetime (30 days).
+// nextjs's default anonymous cookie lifetime (30 days).
 const DEFAULT_ANONYMOUS_COOKIE_MAX_AGE = 2592000;
 
 export type Engine = ServerClient<CookieContext>;
@@ -187,12 +187,12 @@ function createStores(config: EngineConfig, sessionMapper: SessionMapper) {
 
 /**
  * The engine's anonymous session options, only when `anonymousSession.enabled`. Without a store
- * the engine never mints a transfer ticket and never clears an anonymous session, as on `main`
+ * the engine never mints a transfer ticket and never clears an anonymous session, as on nextjs
  * with the feature off.
  *
  * The store shares the session's cookie handler. That handler only adds `domain` and `transient`
- * to the session cookie's own names, so the anonymous cookie passes through unchanged (`main` gave
- * it neither). The engine matches its chunks strictly as `name.<number>`, so `main`'s `auth0_anon` /
+ * to the session cookie's own names, so the anonymous cookie passes through unchanged (nextjs gave
+ * it neither). The engine matches its chunks strictly as `name.<number>`, so nextjs's `auth0_anon` /
  * `auth0_anon__N` cookies are not read, and so is any session cookie whose name starts with this
  * one. Those old cookies are deleted on the first save or delete of the anonymous session.
  */
@@ -303,7 +303,7 @@ function lazyEngine(
 }
 
 /**
- * Validates a static domain as `main` does and returns the host given to the engine.
+ * Validates a static domain as nextjs does and returns the host given to the engine.
  */
 function staticDomain(domain: string, allowInsecureRequests?: boolean) {
   const normalized = normalizeDomain(domain, {

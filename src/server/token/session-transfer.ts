@@ -35,13 +35,13 @@ export async function requestSessionTransferToken(
  * A session transfer token for the signed-in agent. The engine resolves the actor (the explicit
  * one, else the session ID token, refreshed first when it has expired: our `beforeSessionSaved`
  * runs and the session is saved), sends the exchange and checks the issued token type. Around it,
- * `main`'s rules:
- * 1. the session is read with `main`'s checks; stored for another domain: the
+ * nextjs's rules:
+ * 1. the session is read with nextjs's checks; stored for another domain: the
  *    `SessionDomainMismatchError`, even with an explicit actor
- * 2. `main`'s subject checks
- * 3. no session (or a ceiling reached) and no explicit actor: `main`'s `actor_unavailable`, before
+ * 2. nextjs's subject checks
+ * 3. no session (or a ceiling reached) and no explicit actor: nextjs's `actor_unavailable`, before
  *    the engine, whose own read has no ceiling check
- * 4. the scope is `main`'s defaults merged with the caller's; `organization` and `reason` only
+ * 4. the scope is nextjs's defaults merged with the caller's; `organization` and `reason` only
  *    when given
  * 5. MFA asked on the actor refresh: `MfaRequiredError`
  */
@@ -83,11 +83,11 @@ async function transfer(
       dpopKeyPair ? { dpopKeyPair } : undefined
     );
   } catch (e) {
-    // `beforeSessionSaved` errors reach the app as thrown, as on `main`; nothing was saved.
+    // `beforeSessionSaved` errors reach the app as thrown, as on nextjs; nothing was saved.
     if (hook.failed) {
       throw e;
     }
-    // `main` encrypts the MFA token of the actor refresh with no audience and the login scope.
+    // nextjs encrypts the MFA token of the actor refresh with no audience and the login scope.
     throw await setup.errors.toSdkError(e, "sessionTransfer", {
       audience: "",
       scope: DEFAULT_SCOPES

@@ -117,7 +117,7 @@ export async function getPasskeyToken(
 }
 
 /**
- * Starts enrolling a passkey for the signed-in user (MyAccount API, `main`'s code: the engine has
+ * Starts enrolling a passkey for the signed-in user (MyAccount API, nextjs's code: the engine has
  * no enrollment). The authentication method ID is the last segment of the `Location` header.
  */
 export async function enrollmentChallenge(
@@ -174,7 +174,7 @@ export async function enrollmentChallenge(
 }
 
 /**
- * Completes a passkey enrollment (MyAccount API, `main`'s code). Auth0's body is returned as is.
+ * Completes a passkey enrollment (MyAccount API, nextjs's code). Auth0's body is returned as is.
  */
 export async function enrollmentVerify(
   setup: EngineSetup,
@@ -221,7 +221,7 @@ export async function enrollmentVerify(
 /**
  * The signed-in user's MyAccount token. No session (or one for another domain):
  * `not_authenticated`. The token comes from `retrieveAccessToken`, so the engine refreshes it when
- * needed and saves it in the session (D6; `main` never saved it); any token error: `token_error`.
+ * needed and saves it in the session (D6; nextjs never saved it); any token error: `token_error`.
  */
 async function myAccountToken(
   setup: EngineSetup,

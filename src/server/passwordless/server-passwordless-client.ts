@@ -114,7 +114,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
       options = arg1;
     }
 
-    // A write Next refuses (a Server Component) throws, as on `main`: the link would not work.
+    // A write Next refuses (a Server Component) throws, as on nextjs: the link would not work.
     await withCallContext(
       req,
       res,
@@ -171,7 +171,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
       options = arg1;
     }
 
-    // A write Next refuses (a Server Component) throws, as on `main`: the code is spent.
+    // A write Next refuses (a Server Component) throws, as on nextjs: the code is spent.
     await withCallContext(
       req,
       res,
@@ -292,7 +292,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
       options = arg1;
     }
 
-    // A write Next refuses (a Server Component) throws, as on `main`: the code is spent.
+    // A write Next refuses (a Server Component) throws, as on nextjs: the code is spent.
     await withCallContext(
       req,
       res,

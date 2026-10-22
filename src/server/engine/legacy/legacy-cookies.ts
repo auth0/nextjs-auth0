@@ -31,7 +31,7 @@ type RequestCookieSource = CookieContext["reqCookies"];
 /**
  * Reads a v4 (`name` / `name__N`) or v3 (`appSession` / `appSession.N`) stateless session,
  * plus any v4 `__FC_<n>` connection token set cookies. Returns `null` when nothing readable is
- * present. Same order and checks as `StatelessSessionStore.get` on `main`.
+ * present. Same order and checks as `StatelessSessionStore.get` on nextjs.
  */
 export async function readLegacySession(
   reqCookies: RequestCookieSource,
@@ -77,7 +77,7 @@ export async function readLegacySession(
 
 /**
  * Reads the session ID from a v4 stateful cookie value (JWE `{ id }`). Returns `null` when the
- * value cannot be decrypted. Same checks as `StatefulSessionStore.get` on `main`.
+ * value cannot be decrypted. Same checks as `StatefulSessionStore.get` on nextjs.
  */
 export async function decryptLegacySessionId(
   value: string,
@@ -100,7 +100,7 @@ export async function decryptLegacySessionId(
  * Reads the session ID from a v3 signed stateful cookie, under the session name or `appSession`.
  * Returns `null` when no ID can be recovered, including when the cookie is a JWE (v4 or engine
  * format, read through `decryptLegacySessionId` or the engine). Same checks as
- * `StatefulSessionStore.get` on `main`.
+ * `StatefulSessionStore.get` on nextjs.
  */
 export async function readV3SessionId(
   reqCookies: RequestCookieSource,
@@ -192,7 +192,7 @@ export function deleteLegacyCookies(
 }
 
 /**
- * Deletes `main`'s anonymous session cookies present in the request, by exact name: `name` and
+ * Deletes nextjs's anonymous session cookies present in the request, by exact name: `name` and
  * `name__N`. The engine's anonymous store writes `name.N`, so these are never its own, and nothing
  * else removes them. They are not read either (the visitor gets a new anonymous session once).
  */

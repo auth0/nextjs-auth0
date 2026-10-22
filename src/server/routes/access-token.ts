@@ -9,7 +9,7 @@ import { retrieveAccessToken } from "../token/get-access-token.js";
 
 /**
  * Route: GET /auth/access-token?audience=&scope=&mergeScopes=. `getAccessToken` for the browser,
- * with `main`'s responses: 200 with the token, 403 with the MFA body, 401 with
+ * with nextjs's responses: 200 with the token, 403 with the MFA body, 401 with
  * `{ error: { message, code } }` for any other token error. The cookies the engine wrote (a
  * refresh, a session expired) are put on the response.
  */
@@ -55,7 +55,7 @@ export async function handleAccessToken(
       expires_in: expiresIn,
       ...(accessToken.token_type && { token_type: accessToken.token_type })
     });
-    // As on `main`: no-cache only when the session cookie changed.
+    // As on nextjs: no-cache only when the session cookie changed.
     if (refreshed) {
       addCacheControlHeadersForSession(res);
     }

@@ -324,7 +324,7 @@ export function toSetupError(e: unknown): unknown {
 }
 
 /**
- * Turns engine errors into today's error classes, codes and messages (`main`'s text), so
+ * Turns engine errors into today's error classes, codes and messages (nextjs's text), so
  * `error.code` checks and `instanceof` checks on our classes keep working.
  *
  * - Engine errors are matched on `code`, and Auth0's error is read from `cause`.
@@ -432,7 +432,7 @@ export function createErrorMapper({
     if (anyMapped) return anyMapped;
 
     // A blank `organization`, or an ID token whose organization differs (the engine checks both;
-    // `main` did neither): our passkey class with the engine's message (D7).
+    // nextjs did neither): our passkey class with the engine's message (D7).
     if (
       operation === "passkeyGetToken" &&
       code === "organization_validation_error"
@@ -484,7 +484,7 @@ export function createErrorMapper({
       case "callback": {
         if (code === "missing_transaction_error")
           return new InvalidStateError();
-        // A magic link whose `state` does not match its transaction (D8): `main`'s
+        // A magic link whose `state` does not match its transaction (D8): nextjs's
         // `validateAuthResponse` result.
         if (code === "passwordless_verify_error") {
           return new AuthorizationError({
@@ -613,7 +613,7 @@ export function createErrorMapper({
             (e as EngineError).message ?? ""
           );
         }
-        // Auth0 answered with a token that is not a session transfer token (`main`'s text).
+        // Auth0 answered with a token that is not a session transfer token (nextjs's text).
         if (code === "unexpected_issued_token_type") {
           return new CustomTokenExchangeError(
             CustomTokenExchangeErrorCode.EXCHANGE_FAILED,

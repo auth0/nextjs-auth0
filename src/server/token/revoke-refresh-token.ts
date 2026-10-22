@@ -8,7 +8,7 @@ import { readSession } from "../session/read-session.js";
 import type { PagesRouterRequest } from "../types/index.js";
 
 /**
- * Revokes the session's refresh token at Auth0, with `main`'s errors: no session, a session stored
+ * Revokes the session's refresh token at Auth0, with nextjs's errors: no session, a session stored
  * for another domain (`SessionDomainMismatchError`), no refresh token. The session is not changed
  * and no cookie is written.
  */

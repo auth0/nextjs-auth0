@@ -16,7 +16,7 @@ import {
 
 /**
  * Route: GET /auth/anonymous-session. 200 with `{ id, accessToken, expiresAt, metadata? }`, or
- * 204 when there is none; the engine renews an expired token first. Errors: `main`'s
+ * 204 when there is none; the engine renews an expired token first. Errors: nextjs's
  * `{ error, error_description }` and status. The cookies the engine wrote (a renewed token, a
  * deleted session) go on every response.
  */
@@ -52,7 +52,7 @@ export async function handleAnonymousSession(
 
 /**
  * Route: POST /auth/anonymous-session/logout. The engine deletes the anonymous cookie; no
- * request to Auth0. Always 200 with `{ ok: true }`, as on `main`.
+ * request to Auth0. Always 200 with `{ ok: true }`, as on nextjs.
  */
 export async function handleAnonymousSessionLogout(
   req: NextRequest,

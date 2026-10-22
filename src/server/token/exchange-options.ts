@@ -4,7 +4,7 @@ import {
 } from "../../errors/index.js";
 
 /**
- * `main`'s subject token checks (custom token exchange and session transfer), with `main`'s codes
+ * nextjs's subject token checks (custom token exchange and session transfer), with nextjs's codes
  * and texts. They run before the engine, whose own checks give `EXCHANGE_FAILED`.
  */
 export function checkSubject(options: {
@@ -35,7 +35,7 @@ export function checkSubject(options: {
 }
 
 /**
- * `main`'s actor token checks for custom token exchange: a type with an actor token, as a URI.
+ * nextjs's actor token checks for custom token exchange: a type with an actor token, as a URI.
  */
 export function checkActor(options: {
   actorToken?: string;
@@ -82,7 +82,7 @@ function checkTokenTypeUri(
 
 /**
  * `additionalParameters` as the engine's `extra`: null and undefined dropped, every other value
- * sent as `String(value)`, as on `main`. The engine skips the parameters it sets itself.
+ * sent as `String(value)`, as on nextjs. The engine skips the parameters it sets itself.
  */
 export function toExtra(
   additionalParameters: Record<string, unknown> | undefined

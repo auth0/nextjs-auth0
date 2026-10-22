@@ -31,7 +31,7 @@ import {
   registerPasskey
 } from "./passkey-operations.js";
 
-// Copied from the body when truthy, as on `main`.
+// Copied from the body when truthy, as on nextjs.
 const REGISTER_FIELDS = [
   "email",
   "username",

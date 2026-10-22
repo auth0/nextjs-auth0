@@ -35,7 +35,7 @@ const VALID_LOGOUT_STRATEGIES: readonly LogoutStrategy[] = [
 ];
 
 /**
- * Options resolved once at construction, as `main` does. Later steps read these instead of the raw
+ * Options resolved once at construction, as nextjs does. Later steps read these instead of the raw
  * options, so env var fallbacks and defaults live in one place.
  */
 export interface EngineConfig {
@@ -74,7 +74,7 @@ export interface EngineConfig {
 }
 
 /**
- * Reads options and env vars exactly as `main` does (`client.ts`, `auth-client.ts` constructors),
+ * Reads options and env vars exactly as nextjs does (`client.ts`, `auth-client.ts` constructors),
  * in the same order, with the same warnings and errors.
  */
 export function resolveConfig(options: Auth0ClientOptions): EngineConfig {
@@ -181,7 +181,7 @@ function warnMissingRequiredOptions(
 }
 
 /**
- * The key pair itself is loaded lazily on first use, as on `main`, so the crypto code is only
+ * The key pair itself is loaded lazily on first use, as on nextjs, so the crypto code is only
  * bundled when DPoP is on.
  */
 function warnDpopWithoutKeyPair(options: Auth0ClientOptions) {
@@ -244,7 +244,7 @@ function assertTokenRefreshBuffer(value: unknown) {
  * The engine's rule and message for `httpTimeout` (an integer from 1 to 2147483647 milliseconds),
  * raised as our error. Checked here as well because the engine is built lazily when there is no
  * domain at construction, and the SDK's own requests (Fetcher, proxy, My Account) never reach the
- * engine's check. `null` from an untyped caller counts as not set, as `??` did on `main`.
+ * engine's check. `null` from an untyped caller counts as not set, as `??` did on nextjs.
  */
 function assertHttpTimeout(value: unknown) {
   if (value != null && !isValidHttpTimeout(value)) {
@@ -328,7 +328,7 @@ function resolveCookies(options: Auth0ClientOptions): ResolvedCookies {
 }
 
 /**
- * When cookies are forced to `secure`, as on `main`:
+ * When cookies are forced to `secure`, as on nextjs:
  * - every `appBaseUrl` is https: forced on;
  * - no `appBaseUrl` in production (the request host is used at runtime): forced on, and a cookie
  *   explicitly marked insecure throws;
@@ -396,7 +396,7 @@ function warnInsecureRequestsInProduction(options: Auth0ClientOptions) {
 }
 
 /**
- * The resolved scope is written back into the caller's `authorizationParameters`, as on `main`.
+ * The resolved scope is written back into the caller's `authorizationParameters`, as on nextjs.
  * `loginScope` is the scope for the configured audience, which must include `openid`.
  */
 function resolveScope(options: Auth0ClientOptions) {
@@ -436,7 +436,7 @@ function assertAppBaseUrls(appBaseUrl: string | string[] | undefined) {
 }
 
 /**
- * Defaults, then the `NEXT_PUBLIC_*_ROUTE` env vars, then `options.routes` spread last, as on `main`
+ * Defaults, then the `NEXT_PUBLIC_*_ROUTE` env vars, then `options.routes` spread last, as on nextjs
  * (an explicit `undefined` in `options.routes` overrides a default).
  */
 function resolveRoutes(options: Auth0ClientOptions): Routes {

@@ -32,7 +32,7 @@ import {
   type AccessToken
 } from "../token/get-access-token.js";
 
-// DPoP handles per audience, kept across proxied requests so nonces carry over, as on `main`.
+// DPoP handles per audience, kept across proxied requests so nonces carry over, as on nextjs.
 const dpopHandles = new WeakMap<EngineSetup, Map<string, DPoPHandle>>();
 
 /**
@@ -87,7 +87,7 @@ async function withScratch(
 }
 
 /**
- * `main`'s `#handleProxy`, with the token from `retrieveAccessToken` (the engine refreshes and
+ * nextjs's `#handleProxy`, with the token from `retrieveAccessToken` (the engine refreshes and
  * saves the session before the API call):
  * 1. no session, or one for another domain: 401, text body
  * 2. a CORS preflight: forwarded without a token
@@ -97,7 +97,7 @@ async function withScratch(
  * 6. MFA required: 403 with the MFA body, no-cache; any other token error: 401, text body;
  *    anything else (a `beforeSessionSaved` error too): 500, text body
  *
- * A `DiscoveryError` leaves the middleware, as on `main`.
+ * A `DiscoveryError` leaves the middleware, as on nextjs.
  */
 async function handleProxy(
   req: NextRequest,
@@ -116,7 +116,7 @@ async function handleProxy(
     );
   }
 
-  // `main`'s `this.fetch`: no `User-Agent` and no timeout, so the browser's allowed headers go
+  // nextjs's `this.fetch`: no `User-Agent` and no timeout, so the browser's allowed headers go
   // through unchanged.
   const proxyFetch = createSizeLimitedFetch(
     config.options.customFetch ?? fetch,
@@ -202,7 +202,7 @@ async function handleProxy(
 
     return res;
   } catch (e: any) {
-    // On `main` discovery runs before the call and its failure leaves the middleware.
+    // On nextjs discovery runs before the call and its failure leaves the middleware.
     if (e instanceof DiscoveryError) {
       throw e;
     }
@@ -233,7 +233,7 @@ async function handleProxy(
 }
 
 /**
- * `main`'s `#handlePreflight`: forwarded without a token or DPoP proof (RFC 7231 4.3.1, RFC 9449
+ * nextjs's `#handlePreflight`: forwarded without a token or DPoP proof (RFC 7231 4.3.1, RFC 9449
  * 4.1), with the upstream status and allowed headers back; a failure gives 500.
  */
 async function handlePreflight(
@@ -269,7 +269,7 @@ async function handlePreflight(
 }
 
 /**
- * The DPoP handle for an audience, created on first use (`main`'s `proxyDpopHandles`).
+ * The DPoP handle for an audience, created on first use (nextjs's `proxyDpopHandles`).
  */
 async function proxyDpopHandle(
   setup: EngineSetup,

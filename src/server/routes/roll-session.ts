@@ -39,7 +39,7 @@ export async function rollSession(
 
 /**
  * Rolling on (default `true`) and `beforeSessionRolled` allowing it. A hook that throws rolls the
- * session, as on `main`.
+ * session, as on nextjs.
  */
 async function shouldRollSession(
   req: NextRequest,

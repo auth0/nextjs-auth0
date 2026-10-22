@@ -16,13 +16,13 @@ export interface NextAnonymousStoreOptions extends StatelessAnonymousStoreOption
    */
   name: string;
   /**
-   * Attributes used to delete `main`'s anonymous cookies (`httpOnly`, `secure`, `sameSite`, `path`).
+   * Attributes used to delete nextjs's anonymous cookies (`httpOnly`, `secure`, `sameSite`, `path`).
    */
   deleteOptions: CookieSerializeOptions;
 }
 
 /**
- * The engine's anonymous store, plus: on save and on delete, deletes `main`'s anonymous cookies
+ * The engine's anonymous store, plus: on save and on delete, deletes nextjs's anonymous cookies
  * (`name` and `name__N`) present in the request. Create, renew, logout, clear on login and a
  * session Auth0 says is gone all end in `set` or `delete`, so the old cookies go at the first of
  * them. A plain read leaves them alone.
