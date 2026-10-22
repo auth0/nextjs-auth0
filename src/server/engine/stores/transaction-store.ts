@@ -195,8 +195,7 @@ export class NextTransactionStore extends AbstractTransactionStore<CookieContext
     }
   }
 
-  // Read from the request cookies directly, not `cookieHandler.getCookies()`: the handler hides
-  // names that start with the session name, which a custom prefix could also do.
+  // The request cookies whose names start with the transaction prefix.
   #transactionCookies(ctx: CookieContext): { name: string; value: string }[] {
     return ctx.reqCookies
       .getAll()

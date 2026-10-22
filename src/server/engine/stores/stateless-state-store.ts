@@ -23,6 +23,10 @@ const SESSION_COOKIE_SIZE_WARN_BYTES = 4096;
 // Under rolling sessions set() runs on almost every request, so warn once per process.
 let sessionSizeWarningEmitted = false;
 
+// The chunk slots `name.0` to `name.4` that every save and delete clears, as `main` did
+// (`MAX_CHUNKS`). See `#sweepChunkSlots`.
+const CHUNK_SLOTS_SWEPT = 5;
+
 export interface NextStatelessStateStoreOptions extends SessionConfiguration {
   secret: string;
   cookieHandler: NextCookieHandler;
@@ -94,6 +98,7 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
     ctx?: CookieContext
   ): Promise<void> {
     await super.set(identifier, stateData, removeIfExists, ctx);
+    this.#sweepChunkSlots(identifier, ctx);
     this.#deleteLegacyCookies(ctx);
   }
 
@@ -102,6 +107,7 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
     ctx?: CookieContext
   ): Promise<void> {
     await super.delete(identifier, ctx);
+    this.#sweepChunkSlots(identifier, ctx);
     this.#deleteLegacyCookies(ctx);
   }
 
@@ -151,6 +157,25 @@ export class NextStatelessStateStore extends StatelessStateStore<CookieContext> 
         return undefined;
       }
       throw e;
+    }
+  }
+
+  /**
+   * Deletes the chunk slots that hold no value after the engine's save or delete, whether or not
+   * this request saw them, as `main` did. The engine only deletes the chunks it finds in the
+   * request, so a chunk written by a parallel save (two tabs, a bigger session saved a moment
+   * earlier) would stay behind, the pieces would no longer join into a valid session, and the user
+   * would have to log in again. A slot that was just written holds a value and is skipped.
+   */
+  #sweepChunkSlots(identifier: string, ctx?: CookieContext): void {
+    if (!ctx) {
+      return;
+    }
+    for (let slot = 0; slot < CHUNK_SLOTS_SWEPT; slot++) {
+      const name = `${identifier}.${slot}`;
+      if (!ctx.reqCookies.get(name)?.value) {
+        this.#cookieHandler.deleteCookie(name, ctx, this.#deleteOptions);
+      }
     }
   }
 

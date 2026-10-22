@@ -190,3 +190,31 @@ export function deleteLegacyCookies(
     handler.deleteCookie(name, ctx, deleteOptions);
   }
 }
+
+/**
+ * Deletes `main`'s anonymous session cookies present in the request, by exact name: `name` and
+ * `name__N`. The engine's anonymous store writes `name.N`, so these are never its own, and nothing
+ * else removes them. They are not read either (the visitor gets a new anonymous session once).
+ */
+export function deleteLegacyAnonymousCookies(
+  handler: NextCookieHandler,
+  ctx: CookieContext,
+  {
+    name,
+    deleteOptions
+  }: { name: string; deleteOptions: CookieSerializeOptions }
+): void {
+  const { reqCookies } = ctx;
+  const names: string[] = [];
+
+  if (reqCookies.has(name)) {
+    names.push(name);
+  }
+  for (const cookie of getAllChunkedCookies(reqCookies, name)) {
+    names.push(cookie.name);
+  }
+
+  for (const cookieName of names) {
+    handler.deleteCookie(cookieName, ctx, deleteOptions);
+  }
+}

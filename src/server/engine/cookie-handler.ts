@@ -25,10 +25,11 @@ export interface NextCookieHandlerOptions {
  * Gives the engine read access to the request cookies and write access to the response cookies.
  *
  * - Adds the cookie settings the engine cannot set itself (`domain`, `transient`) to session cookies.
- * - Hides cookies that start with the session name but are not exactly `name.<number>` from
- *   `getCookies()`, so the engine never joins old v4 `__session` / `__session__N` cookies or
- *   unrelated cookies into the session, and never deletes them.
  * - Every other cookie (for example `__txn_*`) is passed through unchanged.
+ *
+ * `getCookies()` returns every request cookie. The engine's stores match their own chunks strictly
+ * (`name.<number>`), so old v4 `__session` / `__session__N` cookies and unrelated cookies are never
+ * joined into the session or deleted.
  */
 export class NextCookieHandler implements CookieHandler<CookieContext> {
   readonly #sessionName: string;
@@ -56,9 +57,6 @@ export class NextCookieHandler implements CookieHandler<CookieContext> {
     }
 
     for (const { name, value } of ctx.reqCookies.getAll()) {
-      if (name.startsWith(this.#sessionName) && !this.#chunkRegex.test(name)) {
-        continue;
-      }
       result[name] = value;
     }
     return result;

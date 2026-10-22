@@ -1,6 +1,5 @@
 import {
   ServerClient,
-  StatelessAnonymousStore,
   type CookieSerializeOptions,
   type AuthorizationParameters as EngineAuthorizationParameters,
   type DomainResolver as EngineDomainResolver
@@ -26,6 +25,7 @@ import {
 } from "./errors.js";
 import { resolveConfig, type EngineConfig } from "./resolve-config.js";
 import { createSessionMapper, type SessionMapper } from "./session-mapper.js";
+import { NextAnonymousStore } from "./stores/anonymous-store.js";
 import { NextStatefulStateStore } from "./stores/stateful-state-store.js";
 import { NextStatelessStateStore } from "./stores/stateless-state-store.js";
 import { NextTransactionStore } from "./stores/transaction-store.js";
@@ -82,7 +82,7 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
     config,
     sessionMapper
   );
-  const anonymous = createAnonymousStore(config);
+  const anonymous = createAnonymousStore(config, cookieHandler);
   const customFetch = createFetch(options);
 
   const build: BuildEngine = (domain) => {
@@ -190,28 +190,34 @@ function createStores(config: EngineConfig, sessionMapper: SessionMapper) {
  * the engine never mints a transfer ticket and never clears an anonymous session, as on `main`
  * with the feature off.
  *
- * The store has its own cookie handler for the anonymous name: it hides that name's look-alikes
- * (`main`'s `auth0_anon` / `auth0_anon__N`), and keeps the session's filter out of the way when
- * one name starts with the other.
+ * The store shares the session's cookie handler. That handler only adds `domain` and `transient`
+ * to the session cookie's own names, so the anonymous cookie passes through unchanged (`main` gave
+ * it neither). The engine matches its chunks strictly as `name.<number>`, so `main`'s `auth0_anon` /
+ * `auth0_anon__N` cookies are not read, and so is any session cookie whose name starts with this
+ * one. Those old cookies are deleted on the first save or delete of the anonymous session.
  */
-function createAnonymousStore({ anonymousSession, secret }: EngineConfig) {
+function createAnonymousStore(
+  { anonymousSession, secret }: EngineConfig,
+  cookieHandler: NextCookieHandler
+) {
   if (!anonymousSession?.enabled) {
     return {};
   }
   const { cookie } = anonymousSession;
   const name = cookie?.name ?? DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME;
-  const anonymousStore = new StatelessAnonymousStore<CookieContext>(
-    {
-      secret,
-      sessionTokenLifetime: cookie?.maxAge ?? DEFAULT_ANONYMOUS_COOKIE_MAX_AGE,
-      cookie: {
-        sameSite: cookie?.sameSite ?? "lax",
-        secure: cookie?.secure ?? true,
-        path: "/"
-      }
-    },
-    new NextCookieHandler({ sessionName: name })
-  );
+  const cookieOptions = {
+    sameSite: cookie?.sameSite ?? "lax",
+    secure: cookie?.secure ?? true,
+    path: "/"
+  } as const;
+  const anonymousStore = new NextAnonymousStore({
+    secret,
+    sessionTokenLifetime: cookie?.maxAge ?? DEFAULT_ANONYMOUS_COOKIE_MAX_AGE,
+    cookie: cookieOptions,
+    cookieHandler,
+    name,
+    deleteOptions: { httpOnly: true, ...cookieOptions }
+  });
   return {
     anonymousStore,
     anonymousSessionIdentifier: name,
