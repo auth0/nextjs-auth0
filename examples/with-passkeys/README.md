@@ -116,6 +116,8 @@ All `ArrayBuffer ↔ base64url` conversion required by the WebAuthn API is handl
 
 ## Identifier Verification (OTP on Signup)
 
+> **Note:** Identifier verification on passkey signup is in Early Access. Please contact Auth0 Support to get it enabled for your tenant.
+
 If your database connection requires the user's email or phone to be verified, Auth0 asks for a one-time code during passkey signup. Identifier verification on passkey signup must be enabled for your tenant (it is off by default), and verification must be turned on for the `email` and/or `phone` identifier of the connection. While it is off the flows below are unchanged.
 
 Both signup forms collect the codes **before** the passkey is created, so a user who never verifies is not left with a passkey for an account that does not exist. Enter a phone number (E.164, e.g. `+15551234567`) on the signup form if your connection verifies phone numbers; the code is sent by text.
