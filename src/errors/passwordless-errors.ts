@@ -2,6 +2,8 @@ import { SdkError } from "./sdk-error.js";
 
 /**
  * Shape of an error response from the Auth0 Passwordless API.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessApiErrorResponse {
   error: string;
@@ -38,6 +40,8 @@ abstract class PasswordlessError extends SdkError {
  * - Connection not enabled for the application
  * - Missing or invalid email / phone number
  * - Rate limit exceeded on send
+ *
+ * @category Passwordless
  */
 export class PasswordlessStartError extends PasswordlessError {
   public readonly error: string;
@@ -68,6 +72,8 @@ export class PasswordlessStartError extends PasswordlessError {
  * Common causes:
  * - Invalid or expired OTP code
  * - Wrong connection / identifier combination
+ *
+ * @category Passwordless
  */
 export class PasswordlessVerifyError extends PasswordlessError {
   public readonly error: string;

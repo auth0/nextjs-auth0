@@ -1,5 +1,9 @@
 /**
  * Token type URNs for Custom Token Exchange and Session Transfer flows (RFC 8693).
+ *
+ * Import it as a value from `@auth0/nextjs-auth0/server`.
+ *
+ * @category Access Tokens
  */
 export enum TOKEN_TYPES {
   /**
@@ -23,6 +27,7 @@ export enum TOKEN_TYPES {
   SESSION_TRANSFER_TOKEN = "urn:auth0:params:oauth:token-type:session_transfer_token"
 }
 
+/** @category Access Tokens */
 export enum SUBJECT_TOKEN_TYPES {
   /**
    * Indicates that the token is an OAuth 2.0 refresh token issued by the given authorization server.
@@ -41,6 +46,8 @@ export enum SUBJECT_TOKEN_TYPES {
 
 /**
  * Options for retrieving a connection access token.
+ *
+ * @category Access Tokens
  */
 export interface AccessTokenForConnectionOptions {
   /**
@@ -65,6 +72,7 @@ export interface AccessTokenForConnectionOptions {
   subject_token_type?: SUBJECT_TOKEN_TYPES;
 }
 
+/** @category Access Tokens */
 export interface ConnectionTokenSet {
   accessToken: string;
   scope?: string;
@@ -80,6 +88,8 @@ export interface ConnectionTokenSet {
  * Grant type for Custom Token Exchange as per RFC 8693.
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc8693 RFC 8693}
+ *
+ * @category Access Tokens
  */
 export const GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE =
   "urn:ietf:params:oauth:grant-type:token-exchange";
@@ -92,6 +102,8 @@ export const GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE =
  * with the Custom Token Exchange trigger.
  *
  * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 Custom Token Exchange Documentation}
+ *
+ * @category Access Tokens
  */
 export interface CustomTokenExchangeOptions {
   /**
@@ -162,6 +174,8 @@ export interface CustomTokenExchangeOptions {
  * The `act` claim identifies the acting party and may be nested to represent a delegation chain.
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-4.1 RFC 8693 §4.1}
+ *
+ * @category Access Tokens
  */
 export interface ActClaim {
   /** The subject identifier of the acting party. */
@@ -177,6 +191,8 @@ export interface ActClaim {
  * The SDK fills in `audience`, `grant_type`, `actor_token`, and `actor_token_type`
  * automatically. You supply `subjectToken` and `subjectTokenType` — your own proof
  * of which customer to impersonate, validated by your Action.
+ *
+ * @category Session
  */
 export interface SessionTransferTokenOptions {
   /**
@@ -237,6 +253,8 @@ export interface SessionTransferTokenOptions {
  * Branch on `issuedTokenType`, never `tokenType`.
  * The `sessionTransferToken` is one-shot (~60s) — pass it directly to
  * `buildSessionTransferRedirect`. Never cache or store it.
+ *
+ * @category Session
  */
 export interface SessionTransferTokenResult {
   /** The Session Transfer Token. One-shot, ~60s. Pass to `buildSessionTransferRedirect`. */
@@ -251,6 +269,8 @@ export interface SessionTransferTokenResult {
 
 /**
  * Response from Custom Token Exchange.
+ *
+ * @category Access Tokens
  */
 export interface CustomTokenExchangeResponse {
   /** The access token issued by Auth0 */

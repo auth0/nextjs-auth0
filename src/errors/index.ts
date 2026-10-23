@@ -1,5 +1,12 @@
+/**
+ * Error classes thrown by the SDK, imported from `@auth0/nextjs-auth0/errors`.
+ * Prefer checking `error.code`; codes are unique only within the API you called.
+ *
+ * @packageDocumentation
+ */
 export { SdkError } from "./sdk-error.js";
 
+/** @primaryExport */
 export {
   OAuth2Error,
   DiscoveryError,
@@ -35,6 +42,7 @@ export {
   ConnectedAccountsErrorCodes
 } from "./my-account-errors.js";
 
+/** @primaryExport */
 export {
   MfaGetAuthenticatorsError,
   MfaChallengeError,
@@ -69,6 +77,7 @@ export {
 } from "./passwordless-db-errors.js";
 
 // MCD (Multiple Custom Domains) error classes
+/** @primaryExport */
 export {
   DomainResolutionError,
   DomainValidationError,

@@ -27,7 +27,7 @@ import type { SessionData } from "./index.js";
  *
  * @returns The Auth0 custom domain hostname (e.g., `"auth.brand1.com"`).
  *   Can be returned synchronously or as a Promise.
- *   Must throw on resolution failure — the SDK wraps thrown errors in {@link DomainResolutionError}.
+ *   Must throw on resolution failure — the SDK wraps thrown errors in {@link errors!DomainResolutionError}.
  *
  * @security The resolver is responsible for preventing Host Header injection attacks.
  *   The SDK validates the resolver's output via `normalizeDomain` (hostname format validation),
@@ -56,6 +56,8 @@ import type { SessionData } from "./index.js";
  * });
  *
  * @public
+ *
+ * @category Configuration
  */
 export type DomainResolver = (config: {
   headers: Headers;
@@ -81,6 +83,8 @@ export type DomainResolver = (config: {
  * ```
  *
  * @public
+ *
+ * @category Configuration
  */
 export interface DiscoveryCacheOptions {
   ttl?: number;
@@ -94,6 +98,8 @@ export interface DiscoveryCacheOptions {
  * @property domain - The Auth0 domain that authenticated the user
  * @property issuer - The OIDC issuer URL for the domain
  * @internal
+ *
+ * @category Configuration
  */
 export interface MCDMetadata {
   domain: string;

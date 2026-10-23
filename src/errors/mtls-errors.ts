@@ -5,6 +5,8 @@ import { SdkError } from "./sdk-error.js";
  *
  * These error codes categorize failures that can occur during mTLS
  * configuration or operation.
+ *
+ * @category Access Tokens
  */
 export enum MtlsErrorCode {
   /**
@@ -90,6 +92,8 @@ export enum MtlsErrorCode {
  * ```
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc8705 | RFC 8705: OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens}
+ *
+ * @category Access Tokens
  */
 export class MtlsError extends SdkError {
   /** The specific mTLS error code indicating the type of failure. */

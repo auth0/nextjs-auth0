@@ -41,6 +41,7 @@ function setCacheEntry(key: string, result: boolean, ttlMs: number): void {
   _cache.set(key, { result, expiresAt: Date.now() + ttlMs });
 }
 
+/** @category Login & Logout */
 export interface IsFederatedDomainOptions {
   /** Override the fetch implementation (e.g. to apply proxy config or telemetry headers). */
   customFetch?: typeof fetch;
@@ -74,6 +75,8 @@ export interface IsFederatedDomainOptions {
  *   // route through your existing login
  * }
  * ```
+ *
+ * @category Login & Logout
  */
 export async function isFederatedDomain(
   auth0Domain: string,

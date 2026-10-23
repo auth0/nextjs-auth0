@@ -13,6 +13,8 @@ const defaultOnError = (): JSX.Element => <></>;
 
 /**
  * Options to customize the withPageAuthRequired higher order component.
+ *
+ * @category Route Protection
  */
 export interface WithPageAuthRequiredOptions {
   /**
@@ -58,12 +60,15 @@ export interface UserProps {
  *
  * When you wrap your pages in this higher order component and an anonymous user visits your page,
  * they will be redirected to the login page and then returned to the page they were redirected from (after login).
+ *
+ * @category Route Protection
  */
 export type WithPageAuthRequired = <P extends object>(
   Component: ComponentType<P & UserProps>,
   options?: WithPageAuthRequiredOptions
 ) => React.FC<P>;
 
+/** @category Route Protection */
 export const withPageAuthRequired: WithPageAuthRequired = (
   Component,
   options = {}

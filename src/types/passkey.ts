@@ -8,6 +8,8 @@
 /**
  * Grant type for passkey (WebAuthn) token exchange.
  * Used in the /oauth/token request after a successful passkey assertion.
+ *
+ * @category Passkeys
  */
 export const GRANT_TYPE_PASSKEY = "urn:okta:params:oauth:grant-type:webauthn";
 
@@ -18,6 +20,8 @@ export const GRANT_TYPE_PASSKEY = "urn:okta:params:oauth:grant-type:webauthn";
 /**
  * JSON-safe representation of a WebAuthn credential descriptor.
  * Binary fields are Base64URL-encoded strings.
+ *
+ * @category Passkeys
  */
 export interface PasskeyCredentialDescriptorJSON {
   id: string;
@@ -30,6 +34,8 @@ export interface PasskeyCredentialDescriptorJSON {
  * and enrollment flows. Pass directly to `navigator.credentials.create()`.
  * Binary fields (`challenge`, `user.id`, `excludeCredentials[].id`) are
  * Base64URL-encoded strings.
+ *
+ * @category Passkeys
  */
 export interface PasskeyCreationOptionsJSON {
   challenge: string;
@@ -52,6 +58,8 @@ export interface PasskeyCreationOptionsJSON {
  * JSON-safe WebAuthn credential request options returned by Auth0 for login.
  * Pass directly to `navigator.credentials.get()`.
  * Binary fields (`challenge`, `allowCredentials[].id`) are Base64URL-encoded strings.
+ *
+ * @category Passkeys
  */
 export interface PasskeyRequestOptionsJSON {
   challenge: string;
@@ -68,6 +76,8 @@ export interface PasskeyRequestOptionsJSON {
  *
  * All `ArrayBuffer` fields are base64url-encoded strings so they can be
  * JSON-serialised and sent to the server.
+ *
+ * @category Passkeys
  */
 export interface PasskeyAuthResponse {
   /** Base64url-encoded credential ID. */
@@ -125,6 +135,8 @@ export type PasskeyVerificationCodes = Partial<
 /**
  * Options for requesting a passkey signup challenge.
  * Triggers Auth0 POST /passkey/register.
+ *
+ * @category Passkeys
  */
 export interface PasskeyRegisterOptions {
   /** User's email address. */
@@ -183,6 +195,8 @@ export interface PasskeyRegisterOptions {
  * });
  * await auth0.passkey.getToken({ authSession: challenge.authSession, authResponse: credential });
  * ```
+ *
+ * @category Passkeys
  */
 export interface PasskeyRegisterResponse {
   /** Flow state token — must be echoed back in the getToken call. */
@@ -208,6 +222,8 @@ export interface PasskeyRegisterResponse {
 /**
  * Options for requesting a passkey login challenge.
  * Triggers Auth0 POST /passkey/challenge.
+ *
+ * @category Passkeys
  */
 export interface PasskeyChallengeOptions {
   /** Auth0 database connection name. */
@@ -218,6 +234,8 @@ export interface PasskeyChallengeOptions {
 
 /**
  * Response from Auth0 after a login challenge request (POST /passkey/challenge).
+ *
+ * @category Passkeys
  */
 export interface PasskeyChallengeResponse {
   /** Flow state token — must be echoed back in the getToken call. */
@@ -238,6 +256,8 @@ export interface PasskeyChallengeResponse {
  * Options for completing a passkey authentication flow (signup or login).
  * Combines the `authSession` from the challenge with the serialised
  * credential from the WebAuthn ceremony.
+ *
+ * @category Passkeys
  */
 export interface PasskeyGetTokenOptions {
   /** Flow state token returned by the challenge call. */
@@ -266,6 +286,8 @@ export interface PasskeyGetTokenOptions {
 /**
  * Options for requesting a passkey enrollment challenge.
  * Triggers Auth0 MyAccount POST /me/v1/authentication-methods.
+ *
+ * @category Passkeys
  */
 export interface PasskeyEnrollmentChallengeOptions {
   /**
@@ -284,6 +306,8 @@ export interface PasskeyEnrollmentChallengeOptions {
  * Response from Auth0 after requesting a passkey enrollment challenge.
  * The `authenticationMethodId` is extracted from the `Location` response header
  * and is required for the subsequent `enrollmentVerify` call.
+ *
+ * @category Passkeys
  */
 export interface PasskeyEnrollmentChallengeResponse {
   /** ID extracted from the `Location` header — needed for `enrollmentVerify`. */
@@ -301,6 +325,8 @@ export interface PasskeyEnrollmentChallengeResponse {
 /**
  * Options for verifying a passkey enrollment.
  * Triggers Auth0 MyAccount POST /me/v1/authentication-methods/{id}/verify.
+ *
+ * @category Passkeys
  */
 export interface PasskeyEnrollmentVerifyOptions {
   /** Authentication method ID from the enrollment challenge `Location` header. */
@@ -315,6 +341,8 @@ export interface PasskeyEnrollmentVerifyOptions {
  * A registered passkey authentication method on the user's account.
  * Returned by `enrollmentVerify` on success.
  * Field names match the Auth0 MyAccount API wire format (snake_case).
+ *
+ * @category Passkeys
  */
 export interface PasskeyEnrollmentVerifyResponse {
   /** Authentication method ID. */
@@ -369,6 +397,8 @@ export interface PasskeyVerificationContext {
  * Server-side passkey interface — individual step methods for authentication flows.
  * Used by `auth0.passkey` on the server singleton.
  * Each method maps directly to one Auth0 API call.
+ *
+ * @category Passkeys
  */
 export interface PasskeyClient {
   /**
@@ -452,6 +482,8 @@ export interface PasskeyClient {
  * Browser-side passkey interface — one-call convenience methods.
  * Used by the `passkey` singleton exported from `@auth0/nextjs-auth0/client`.
  * Handles challenge fetch, WebAuthn ceremony, and token exchange internally.
+ *
+ * @category Passkeys
  */
 export interface PasskeyBrowserClient {
   /**

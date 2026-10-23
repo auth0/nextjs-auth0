@@ -3,6 +3,8 @@ import { SdkError } from "./sdk-error.js";
 
 /**
  * Shape of an error response from the Auth0 Passkey API.
+ *
+ * @category Passkeys
  */
 export interface PasskeyApiErrorResponse {
   error: string;
@@ -34,6 +36,8 @@ abstract class PasskeyError extends SdkError {
  * Common causes:
  * - Passkeys not enabled for the application
  * - Invalid client configuration
+ *
+ * @category Passkeys
  */
 export class PasskeyRegisterError extends PasskeyError {
   public readonly error: string;
@@ -64,6 +68,8 @@ export class PasskeyRegisterError extends PasskeyError {
  * Common causes:
  * - Passkeys not enabled for the application
  * - No passkey registered for the user
+ *
+ * @category Passkeys
  */
 export class PasskeyChallengeError extends PasskeyError {
   public readonly error: string;
@@ -164,6 +170,7 @@ export async function readPasskeyRateLimitError(source: unknown): Promise<{
  * - Invalid or expired auth_session
  * - Credential assertion rejected by Auth0
  * - Passkey not recognized
+ *
  * - Wrong identifier verification code (check `isRetryable`)
  *
  * When identifier verification is required, `isRetryable` indicates whether the
@@ -172,6 +179,7 @@ export async function readPasskeyRateLimitError(source: unknown): Promise<{
  * with the same credential and `authSession`. A non-retryable error is any
  * other error, so check the error before starting a new flow. A
  * `too_many_requests` or server error can succeed later.
+ * @category Passkeys
  */
 export class PasskeyGetTokenError extends PasskeyError {
   public readonly error: string;
@@ -229,6 +237,8 @@ export class PasskeyGetTokenError extends PasskeyError {
  * - User not authenticated
  * - Insufficient scope (requires create:me:authentication_methods)
  * - Passkeys not enabled for the tenant
+ *
+ * @category Passkeys
  */
 export class PasskeyEnrollmentChallengeError extends PasskeyError {
   public readonly error: string;
@@ -260,6 +270,8 @@ export class PasskeyEnrollmentChallengeError extends PasskeyError {
  * - Invalid or expired auth_session
  * - Credential creation rejected
  * - Duplicate passkey (already registered)
+ *
+ * @category Passkeys
  */
 export class PasskeyEnrollmentVerifyError extends PasskeyError {
   public readonly error: string;

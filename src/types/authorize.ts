@@ -1,3 +1,4 @@
+/** @category Login & Logout */
 export interface StartInteractiveLoginOptions {
   /**
    * Authorization parameters to be passed to the authorization server.
@@ -16,7 +17,7 @@ export interface StartInteractiveLoginOptions {
 }
 
 /**
- * Options for {@link Auth0Client.startEnterpriseLogin}.
+ * Options for {@link server!Auth0Client.startEnterpriseLogin}.
  *
  * Mirrors {@link StartInteractiveLoginOptions} (so `authorizationParameters`,
  * `returnTo` are all supported as passthrough) and adds the required `email`.
@@ -24,6 +25,8 @@ export interface StartInteractiveLoginOptions {
  * authorization parameter exactly as on a normal interactive login.
  * `challengeMode` is excluded — popup mode is not supported in EC mode because
  * the popup callback response never reaches the main window's cookie jar.
+ *
+ * @category Login & Logout
  */
 export interface StartEnterpriseLoginOptions extends Omit<
   StartInteractiveLoginOptions,
@@ -38,6 +41,7 @@ export interface StartEnterpriseLoginOptions extends Omit<
   email: string;
 }
 
+/** @category Login & Logout */
 export interface AuthorizationParameters {
   /**
    * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.
