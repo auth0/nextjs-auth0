@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server.js";
 import type { StateData, TransactionData } from "@auth0/auth0-server-js";
 
 import {
+  AuthorizationError,
   InvalidConfigurationError,
   InvalidStateError,
   MissingStateError,
+  OAuth2Error,
   SdkError
 } from "../../errors/index.js";
 import {
@@ -73,6 +75,23 @@ export async function handleCallback(
     challengeMode: appState?.challengeMode || "redirect",
     appBaseUrl
   });
+
+  // As on nextjs: the `state` stored in the transaction must be the one that came back.
+  if (
+    config.enableParallelTransactions &&
+    typeof transaction.state === "string" &&
+    transaction.state !== state
+  ) {
+    return handleCallbackError(
+      new AuthorizationError({
+        cause: new OAuth2Error({ code: "unknown_error" })
+      }),
+      callbackCtx(),
+      req,
+      setup,
+      identifier
+    );
+  }
 
   if (appState?.challengeMode === "popup") {
     // Popup mode is 3.4.1b.

@@ -311,7 +311,7 @@ function resolveCookies(options: Auth0ClientOptions): ResolvedCookies {
       domain: sessionOptions?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     },
     transaction: {
-      prefix: transactionOptions?.prefix ?? "__txn_",
+      prefix: transactionOptions?.prefix || "__txn_",
       secure: transactionSecure ?? false,
       sameSite: transactionOptions?.sameSite ?? "lax",
       path: transactionOptions?.path ?? basePath ?? "/",

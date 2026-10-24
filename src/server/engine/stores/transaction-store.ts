@@ -41,7 +41,7 @@ export interface NextTransactionStoreOptions {
  * - today's cookie options on write and delete (`secure`, `sameSite`, `path`, `domain`, `maxAge`)
  * - a `{ts}:` value prefix and FIFO eviction, keeping all transaction cookies under
  *   {@link MAX_TRANSACTION_COOKIE_BYTES}
- * - `deleteAll`, used by logout and callback errors
+ * - `deleteAll`, used by logout
  *
  * Expired, tampered and old v4 transaction cookies give no transaction. A login started on v4
  * cannot finish on the engine anyway: v4 sends a `nonce`, which the engine rejects.
@@ -85,8 +85,10 @@ export class NextTransactionStore extends AbstractTransactionStore<CookieContext
     }
 
     const now = Math.floor(Date.now() / 1000);
+    // The key is tied to the prefix, not to the full name, so a cookie reads under any
+    // `__txn_*` name as on nextjs; the callback then compares its `state` with the URL's.
     const jwe = await this.encrypt(
-      identifier,
+      this.#prefix,
       transactionData,
       now + this.#maxAge
     );
@@ -120,7 +122,7 @@ export class NextTransactionStore extends AbstractTransactionStore<CookieContext
       return undefined;
     }
     try {
-      return await this.decrypt<TransactionData>(identifier, jwe);
+      return await this.decrypt<TransactionData>(this.#prefix, jwe);
     } catch (e: any) {
       if (e?.code === "ERR_JWT_EXPIRED") {
         return undefined;

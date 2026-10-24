@@ -39,7 +39,9 @@ export class InvalidStateError extends SdkError {
   public code: string = "invalid_state";
 
   constructor(message?: string) {
-    super(message ?? "The state parameter is invalid.");
+    super(
+      message ?? "The state parameter is invalid or the transaction is missing."
+    );
     this.name = "InvalidStateError";
   }
 }
