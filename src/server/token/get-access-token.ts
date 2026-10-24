@@ -16,6 +16,7 @@ import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { withCallContext } from "../engine/call-context.js";
 import type { CookieContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
+import { ENGINE_DEFAULT_AUDIENCE } from "../engine/session-mapper.js";
 import { readSession } from "../session/read-session.js";
 import type {
   PagesRouterRequest,
@@ -103,7 +104,7 @@ export async function retrieveAccessToken(
 
   if (!state.refreshToken && cached && cached.expiresAt > Date.now() / 1000) {
     return {
-      accessToken: toAccessToken(setup, cached, audience),
+      accessToken: toAccessToken(cached, audience),
       refreshed: false
     };
   }
@@ -144,7 +145,7 @@ export async function retrieveAccessToken(
   }
 
   return {
-    accessToken: toAccessToken(setup, tokenSet, audience),
+    accessToken: toAccessToken(tokenSet, audience),
     refreshed: hook.ran
   };
 }
@@ -177,7 +178,6 @@ function findTokenSet(
 }
 
 function toAccessToken(
-  { sessionMapper }: EngineSetup,
   tokenSet: EngineTokenSet,
   audience: string | undefined
 ): AccessToken {
@@ -186,9 +186,10 @@ function toAccessToken(
     scope: tokenSet.scope,
     expiresAt: tokenSet.expiresAt,
     token_type: tokenSet.tokenType,
-    // The login token is filed under the engine's key; nextjs returns the audience asked for.
+    // Only the engine's own placeholder is hidden; a configured or per-login audience is returned
+    // as stored, as nextjs does.
     audience:
-      tokenSet.audience === sessionMapper.defaultAudienceKey
+      tokenSet.audience === ENGINE_DEFAULT_AUDIENCE
         ? audience
         : tokenSet.audience
   };

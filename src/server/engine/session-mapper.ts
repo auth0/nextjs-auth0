@@ -11,7 +11,7 @@ import type {
 } from "../../types/index.js";
 
 // The engine's cache key for "no specific audience" (engine `getAccessToken`). Never sent.
-const ENGINE_DEFAULT_AUDIENCE = "default";
+export const ENGINE_DEFAULT_AUDIENCE = "default";
 
 export interface SessionMapperOptions {
   /**
@@ -61,14 +61,17 @@ export function createSessionMapper({
       sessionExpiresAt: _sessionExpiresAt,
       ...rest
     } = session;
-    const { idToken, refreshToken, ...primary } = tokenSet;
+    // nextjs saves a session without `tokenSet`, so one can be stored; it becomes no entries.
+    const { idToken, refreshToken, ...primary } = (tokenSet ?? {}) as TokenSet;
     const { mcd, sessionExpiresAt, ...internalRest } = internal;
 
-    // Today's login writes no audience on the primary token; file it under the engine's key so
-    // the engine finds it (`||`, as in nextjs's rule). Entries keep fields the engine does not
-    // read; the engine type has no index signature.
+    // A primary token without an audience is filed under the engine's key so the engine finds it
+    // (`||`, as in nextjs's rule). Entries keep fields the engine does not read; the engine type
+    // has no index signature.
     const tokenSets = [
-      { ...primary, audience: primary.audience || defaultAudienceKey },
+      ...(tokenSet
+        ? [{ ...primary, audience: primary.audience || defaultAudienceKey }]
+        : []),
       ...(accessTokens ?? [])
     ].map((entry) =>
       toEngineEntry(entry as unknown as TokenEntry)
@@ -118,20 +121,18 @@ export function createSessionMapper({
           entry as unknown as TokenEntry
         ) as unknown as EngineTokenSet
     );
-    const defaultIndex = entries.findIndex(
-      (entry) => entry.audience === defaultAudienceKey
-    );
-    const primaryIndex = defaultIndex === -1 ? 0 : defaultIndex;
-    const primary = entries[primaryIndex];
-    const others = entries.filter((_, i) => i !== primaryIndex);
+    // The login token stays the primary one, as on nextjs: it is the first entry, and a token
+    // requested later is appended.
+    const [primary, ...others] = entries;
 
     let tokenSet: TokenSet;
     if (primary) {
-      // The engine's key goes back to "no audience", as today's login writes it.
+      // Only the engine's own placeholder goes back to "no audience"; a configured or per-login
+      // audience is kept, as today's login writes it.
       const { audience: primaryAudience, ...primaryRest } = primary;
       tokenSet = {
         ...primaryRest,
-        ...(primaryAudience !== defaultAudienceKey && {
+        ...(primaryAudience !== ENGINE_DEFAULT_AUDIENCE && {
           audience: primaryAudience
         })
       } as TokenSet;
