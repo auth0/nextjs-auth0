@@ -337,6 +337,9 @@ async function resolveDomain(
     );
   }
   const normalized = normalizeDomain(resolved);
+  // nextjs normalizes the issuer again when it picks the client, which refuses a host that is not
+  // valid (a space, `!`) with the same error.
+  normalizeDomain(normalized.issuer);
   assertEngineIssuer(resolved, normalized);
   return normalized.domain;
 }

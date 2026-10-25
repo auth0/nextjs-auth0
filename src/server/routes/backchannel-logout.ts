@@ -14,8 +14,9 @@ import { NextStatefulStateStore } from "../engine/stores/stateful-state-store.js
  * - no session store, or one without `deleteByLogoutToken`: 500
  * - no token: 400
  * - token issuer for another domain: 403 (resolver mode: 400 when it has no issuer)
- * - token that does not verify: 400 with the reason
- * - resolver mode, anything else that fails: logged, 400 "Failed to process logout token."
+ * - a token with a problem in its claims: 400 with the reason
+ * - any other failure to verify (signature, expiry, audience): thrown in static mode, as on
+ *   nextjs; in resolver mode logged, 400 "Failed to process logout token."
  * - done: 204
  */
 export async function handleBackChannelLogout(

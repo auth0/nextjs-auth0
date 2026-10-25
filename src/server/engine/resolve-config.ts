@@ -79,6 +79,13 @@ export interface EngineConfig {
  */
 export function resolveConfig(options: Auth0ClientOptions): EngineConfig {
   const domain = options.domain ?? process.env.AUTH0_DOMAIN;
+  // A domain that is neither a string nor a resolver (plain JavaScript callers) is refused as
+  // nextjs does, not left to fail later with a `TypeError`.
+  if (domain && typeof domain !== "string" && typeof domain !== "function") {
+    throw new InvalidConfigurationError(
+      "You must provide either a domain string or a DomainResolver function."
+    );
+  }
   const clientId = options.clientId ?? process.env.AUTH0_CLIENT_ID;
   const secret = options.secret ?? process.env.AUTH0_SECRET;
   const appBaseUrl = options.appBaseUrl ?? readEnvAppBaseUrl();

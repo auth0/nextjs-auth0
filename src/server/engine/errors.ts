@@ -663,11 +663,12 @@ export function createErrorMapper({
         break;
 
       case "backchannelLogout":
+        // A problem with the token's claims. A signature, expiry or audience error from jose
+        // (`ERR_J*`) is left unchanged: nextjs throws it, and in resolver mode the route answers
+        // with its fixed text.
         if (
           code === "backchannel_logout_error" ||
-          code === "verify_logout_token_error" ||
-          // jose verification errors (`ERR_JWT_EXPIRED`, `ERR_JWS_SIGNATURE_VERIFICATION_FAILED`, ...).
-          code?.startsWith("ERR_J")
+          code === "verify_logout_token_error"
         ) {
           return new BackchannelLogoutError((e as EngineError).message);
         }

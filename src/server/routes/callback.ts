@@ -16,6 +16,7 @@ import {
 } from "../../types/index.js";
 import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
+import { normalizeDomain } from "../../utils/normalize.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { middlewareContext } from "../engine/context.js";
@@ -82,6 +83,18 @@ export async function handleCallback(
     typeof transaction.state === "string" &&
     transaction.state !== state
   ) {
+    return handleCallbackError(
+      new AuthorizationError({
+        cause: new OAuth2Error({ code: "unknown_error" })
+      }),
+      callbackCtx(),
+      req,
+      setup,
+      identifier
+    );
+  }
+
+  if (!magicLink && (await hasWrongIssuer(setup, req, transaction))) {
     return handleCallbackError(
       new AuthorizationError({
         cause: new OAuth2Error({ code: "unknown_error" })
@@ -203,6 +216,42 @@ async function handleCallbackError(
     );
   }
   return res;
+}
+
+/**
+ * nextjs's check of the `iss` in the callback URL, which the engine reports as any other request
+ * failure. Static mode reads the issuer, and whether Auth0 always sends `iss`, from the discovery
+ * document. Resolver mode has no access to it, so only a wrong `iss` is caught, against the
+ * domain stored in the transaction. A discovery failure is left to the code exchange to report.
+ */
+async function hasWrongIssuer(
+  setup: EngineSetup,
+  req: NextRequest,
+  transaction: TransactionData
+): Promise<boolean> {
+  const iss = req.nextUrl.searchParams.get("iss");
+  if (typeof setup.config.domain !== "function") {
+    try {
+      const metadata = await (
+        await setup.getEngine()
+      ).authClient.getServerMetadata();
+      return iss === null
+        ? metadata.authorization_response_iss_parameter_supported === true
+        : iss !== metadata.issuer;
+    } catch {
+      return false;
+    }
+  }
+  if (iss === null || !transaction.domain) {
+    return false;
+  }
+  try {
+    return (
+      normalizeDomain(iss).domain !== normalizeDomain(transaction.domain).domain
+    );
+  } catch {
+    return true;
+  }
 }
 
 /**

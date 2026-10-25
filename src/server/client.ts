@@ -89,6 +89,10 @@ export class Auth0Client {
       // No Auth0 session exists in this mode: the session members throw instead.
       applyEnterpriseConnectRestrictions(this);
     }
+
+    // `export default auth0.middleware;` hands the method to Next.js without its client, as in
+    // nextjs. Binding keeps `this` (and the private fields) available.
+    this.middleware = this.middleware.bind(this);
   }
 
   /**
