@@ -46,7 +46,11 @@ async function shouldRollSession(
   setup: EngineSetup
 ): Promise<boolean> {
   const session = setup.config.options.session;
-  if (!(session?.rolling ?? true)) {
+  // Default only when the option is `undefined`, as nextjs and the engine's store do: a `null` from
+  // an untyped caller turns rolling off.
+  const rolling =
+    session?.rolling === undefined ? true : Boolean(session.rolling);
+  if (!rolling) {
     return false;
   }
   if (!session?.beforeSessionRolled) {
