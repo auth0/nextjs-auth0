@@ -447,48 +447,60 @@ function assertAppBaseUrls(appBaseUrl: string | string[] | undefined) {
  * (an explicit `undefined` in `options.routes` overrides a default).
  */
 function resolveRoutes(options: Auth0ClientOptions): Routes {
-  const env = process.env;
+  // Each read must stay a literal `process.env.NEXT_PUBLIC_X`: Next.js replaces `NEXT_PUBLIC_*` values at
+  // build time only in that form, as nextjs relies on. Do not read them through an alias.
   return {
-    login: env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
+    login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
     logout: "/auth/logout",
     callback: "/auth/callback",
     backChannelLogout: "/auth/backchannel-logout",
-    profile: env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
-    accessToken: env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+    profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+    accessToken:
+      process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
     federatedDomain:
-      env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE || "/auth/federated-domain",
+      process.env.NEXT_PUBLIC_FEDERATED_DOMAIN_ROUTE ||
+      "/auth/federated-domain",
     connectAccount: "/auth/connect",
     mfaAuthenticators:
-      env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE || "/auth/mfa/authenticators",
-    mfaChallenge: env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
-    mfaVerify: env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
-    mfaAssociate: env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
+      process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
+      "/auth/mfa/authenticators",
+    mfaChallenge:
+      process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
+    mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
+    mfaAssociate:
+      process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
     passwordlessStart:
-      env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE || "/auth/passwordless/start",
+      process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE ||
+      "/auth/passwordless/start",
     passwordlessVerify:
-      env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE || "/auth/passwordless/verify",
+      process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
+      "/auth/passwordless/verify",
     passwordlessDbOtpChallenge:
-      env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
+      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_OTP_CHALLENGE_ROUTE ||
       "/auth/passwordless/otp/challenge",
     passwordlessDbGetToken:
-      env.NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE ||
+      process.env.NEXT_PUBLIC_PASSWORDLESS_DB_GET_TOKEN_ROUTE ||
       "/auth/passwordless/otp/token",
     passkeyRegister:
-      env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE || "/auth/passkey/register",
+      process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
+      "/auth/passkey/register",
     passkeyChallenge:
-      env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE || "/auth/passkey/challenge",
+      process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
+      "/auth/passkey/challenge",
     passkeyGetToken:
-      env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE || "/auth/passkey/get-token",
+      process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
+      "/auth/passkey/get-token",
     passkeyEnrollmentChallenge:
-      env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE ||
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE ||
       "/auth/passkey/enrollment-challenge",
     passkeyEnrollmentVerify:
-      env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
       "/auth/passkey/enrollment-verify",
     anonymousSession:
-      env.NEXT_PUBLIC_ANONYMOUS_SESSION_ROUTE || "/auth/anonymous-session",
+      process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_ROUTE ||
+      "/auth/anonymous-session",
     anonymousSessionLogout:
-      env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
+      process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
       "/auth/anonymous-session/logout",
     ...options.routes
   };
