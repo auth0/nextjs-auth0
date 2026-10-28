@@ -268,7 +268,7 @@ Rules for root attributes:
 
 ### Calling the API from the Server
 
-From a Route Handler, Server Action, or API route, use a fetcher created with `auth0.createFetcher()`. It gets the user's access token for the My Account API audience and adds a DPoP proof when DPoP is enabled. Pass a `getAccessToken` that calls `auth0.getAccessToken()`, as shown below, so a refreshed token set (including a rotated refresh token) is saved to the session.
+From a Route Handler or Server Action, use a fetcher created with `auth0.createFetcher()`. It gets the user's access token for the My Account API audience and adds a DPoP proof when DPoP is enabled. Pass a `getAccessToken` that calls `auth0.getAccessToken()`, as shown below, so a refreshed token set (including a rotated refresh token) is saved to the session.
 
 ```ts
 // app/api/profile/route.ts
@@ -330,7 +330,7 @@ export async function PATCH(request: Request) {
 `fetchWithAuth` throws when the API replies with a `WWW-Authenticate` challenge, such as a `401` for an invalid token. The `catch` block returns that response so your caller gets the API's status and body.
 
 > [!WARNING]
-> Do not call the My Account API from a React Server Component. Getting the access token can rotate the refresh token, and Server Components cannot write cookies, so the rotated token is lost and the user is logged out on the next request. Call it from a Route Handler, Server Action, API route, or middleware instead.
+> Do not call the My Account API from a React Server Component. Getting the access token can rotate the refresh token, and Server Components cannot write cookies, so the rotated token is lost and the user is logged out on the next request. Call it from a Route Handler, Server Action, or middleware instead.
 
 ### Error Handling
 
