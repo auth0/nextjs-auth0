@@ -24,6 +24,8 @@ abstract class PasswordlessDbError extends SdkError {
  * - OTP not configured on the connection (`invalid_connection`)
  * - Phone provider not configured when using phone OTP
  * - Missing or invalid identifier
+ *
+ * @category Passwordless
  */
 export class PasswordlessDbChallengeError extends PasswordlessDbError {
   public readonly error: string;
@@ -56,6 +58,8 @@ export class PasswordlessDbChallengeError extends PasswordlessDbError {
  * - Wrong or expired `auth_session` (`invalid_request`)
  * - Blocked user or signup disabled for a non-existent user (`invalid_request`)
  * - Discovery failure (`discovery_error`)
+ *
+ * @category Passwordless
  */
 export class PasswordlessDbGetTokenError extends PasswordlessDbError {
   public readonly error: string;

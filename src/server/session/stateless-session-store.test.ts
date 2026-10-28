@@ -1157,6 +1157,118 @@ describe("Stateless Session Store", async () => {
         warnSpy.mockRestore();
       }
     });
+
+    describe("alias guard — aliased req/res stores (Server Action context)", async () => {
+      // In Server Actions and Route Handlers, Next.js returns one shared store
+      // for every cookies() call. The SDK must not overwrite the full-attribute
+      // resCookies.set() with a naked reqCookies.set() when both point at the
+      // same object. These tests catch a regression if the guard is removed.
+      //
+      // The `as unknown as RequestCookies` cast is unavoidable: the two types
+      // are structurally incompatible in TypeScript even though at runtime one
+      // object can fulfil both roles. The guard in the implementation uses the
+      // same `as unknown` cast to perform the identity check.
+
+      it("preserves httpOnly, secure, domain, sameSite, and maxAge on __FC_N cookies when stores are aliased", async () => {
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          ...baseSession(Math.floor(Date.now() / 1000)),
+          connectionTokenSets: [
+            {
+              connection: "google-oauth2",
+              accessToken: "fc_g",
+              expiresAt: 9999999999
+            }
+          ]
+        };
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          cookieOptions: {
+            domain: ".example.com",
+            secure: true,
+            sameSite: "lax"
+          }
+        });
+
+        const sharedStore = new ResponseCookies(new Headers());
+
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          session
+        );
+
+        // Assert the final state of the shared store: without the guard a
+        // second naked set() would overwrite __FC_0 and strip its attributes.
+        const cookie = sharedStore.get("__FC_0");
+        expect(cookie).toBeDefined();
+        expect(cookie?.value).not.toBe("");
+        expect(cookie?.domain).toBe(".example.com");
+        expect(cookie?.httpOnly).toBe(true);
+        expect(cookie?.secure).toBe(true);
+        expect(cookie?.sameSite).toBe("lax");
+        expect(cookie?.maxAge).toBeGreaterThan(0);
+      });
+
+      it("preserves Domain on orphan __FC_N deletion when stores are aliased", async () => {
+        const secret = await generateSecret(32);
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          cookieOptions: {
+            domain: ".example.com",
+            secure: true,
+            sameSite: "lax"
+          }
+        });
+
+        // Write two connections into the shared store.
+        const sharedStore = new ResponseCookies(new Headers());
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          {
+            ...baseSession(Math.floor(Date.now() / 1000)),
+            connectionTokenSets: [
+              {
+                connection: "google-oauth2",
+                accessToken: "fc_g",
+                expiresAt: 9999999999
+              },
+              {
+                connection: "github",
+                accessToken: "fc_gh",
+                expiresAt: 9999999999
+              }
+            ]
+          }
+        );
+
+        // Shrink to one connection so the orphan sweep deletes __FC_1. The
+        // final deletion cookie must keep its domain so the browser matches
+        // the right cookie to expire; without the guard a naked delete() would
+        // overwrite it with a host-only tombstone.
+        await sessionStore.set(
+          sharedStore as unknown as RequestCookies,
+          sharedStore,
+          {
+            ...baseSession(Math.floor(Date.now() / 1000)),
+            connectionTokenSets: [
+              {
+                connection: "google-oauth2",
+                accessToken: "fc_g",
+                expiresAt: 9999999999
+              }
+            ]
+          }
+        );
+
+        const fc1Deletion = sharedStore.get("__FC_1");
+        expect(fc1Deletion).toBeDefined();
+        expect(fc1Deletion?.value).toBe("");
+        expect(fc1Deletion?.maxAge).toBe(0);
+        expect(fc1Deletion?.domain).toBe(".example.com");
+      });
+    });
   });
 
   describe("set — session size warning emitted only once per process", async () => {

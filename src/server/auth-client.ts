@@ -31,6 +31,7 @@ import {
   DPoPError,
   DPoPErrorCode,
   InvalidConfigurationError,
+  InvalidRequestError,
   InvalidStateError,
   MfaChallengeError,
   MfaEnrollmentError,
@@ -54,12 +55,14 @@ import {
   PasswordlessVerifyError,
   SdkError,
   TokenRevocationError,
-  TokenRevocationErrorCode
+  TokenRevocationErrorCode,
+  type PasskeyGetTokenApiErrorResponse
 } from "../errors/index.js";
 import {
   IssuerValidationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
+import { readPasskeyRateLimitError } from "../errors/passkey-errors.js";
 import {
   isRecoverableAnonymousError,
   type AnonymousCookiePayload,
@@ -99,6 +102,7 @@ import {
   LogoutToken,
   PasskeyChallengeOptions,
   PasskeyChallengeResponse,
+  PasskeyDeliveryMethod,
   PasskeyEnrollmentChallengeOptions,
   PasskeyEnrollmentChallengeResponse,
   PasskeyEnrollmentVerifyOptions,
@@ -106,6 +110,8 @@ import {
   PasskeyGetTokenOptions,
   PasskeyRegisterOptions,
   PasskeyRegisterResponse,
+  PasskeyVerificationCodes,
+  PasskeyVerificationIdentifier,
   PasswordlessDbChallenge,
   PasswordlessDbChallengeEmailOptions,
   PasswordlessDbChallengePhoneOptions,
@@ -160,7 +166,8 @@ import {
   encryptMfaToken,
   extractMfaErrorDetails,
   handleMfaError,
-  isMfaRequiredError
+  isMfaRequiredError,
+  toAuth0ChallengeType
 } from "../utils/mfa-utils.js";
 import {
   extractMfaToken,
@@ -235,11 +242,13 @@ import {
 } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
 
+/** @category Configuration */
 export type BeforeSessionSavedHook = (
   session: SessionData,
   idToken: string | null
 ) => Promise<SessionData>;
 
+/** @category Configuration */
 export type OnCallbackContext = {
   /**
    * The type of response expected from the authorization server.
@@ -273,6 +282,7 @@ export type OnCallbackContext = {
    */
   anonymousSessionLinked?: boolean;
 };
+/** @category Configuration */
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
@@ -312,6 +322,7 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
 const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "http://auth0.com/oauth/token-type/federated-connection-access-token";
 
+/** @category Configuration */
 export interface Routes {
   login: string;
   logout: string;
@@ -337,6 +348,7 @@ export interface Routes {
   anonymousSession?: string;
   anonymousSessionLogout?: string;
 }
+/** @category Configuration */
 export type RoutesOptions = Partial<Routes>;
 
 /**
@@ -6002,7 +6014,7 @@ export class AuthClient {
    * Initiate an MFA challenge.
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
-   * @param challengeType - Challenge type (otp, oob)
+   * @param challengeType - `otp` or `oob`; factor names from mfa_requirements (phone, email, push-notification, ...) are mapped to `oob`
    * @param authenticatorId - Optional authenticator ID
    * @returns Challenge response (snake_case ApiResponse format)
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
@@ -6021,23 +6033,18 @@ export class AuthClient {
       this.sessionStore.secret
     );
 
-    // Validate mfaRequirements has challenge types only when requirements are present.
-    // When mfa_requirements is absent (e.g. webauthn grant), all challenge types are allowed.
-    if (context.mfaRequirements?.challenge) {
-      const allowedTypes = new Set(
-        context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
+    // When mfa_requirements is present it must offer at least one challenge type.
+    // When absent (e.g. webauthn grant) there is nothing to check.
+    // The requested type is deliberately not compared against mfa_requirements:
+    // that list holds factor names (phone, email, push-notification, ...) while
+    // /mfa/challenge only accepts otp/oob. Auth0 enforces the allowed set itself.
+    if (
+      context.mfaRequirements?.challenge &&
+      context.mfaRequirements.challenge.length === 0
+    ) {
+      throw new MfaNoAvailableFactorsError(
+        "No MFA challenge types available in mfa_requirements"
       );
-
-      if (allowedTypes.size === 0) {
-        throw new MfaNoAvailableFactorsError(
-          "No MFA challenge types available in mfa_requirements"
-        );
-      }
-      if (!allowedTypes.has(challengeType.toLowerCase())) {
-        throw new MfaNoAvailableFactorsError(
-          `Challenge type "${challengeType}" is not allowed by mfa_requirements. Allowed: ${[...allowedTypes].join(", ")}`
-        );
-      }
     }
 
     // Extract raw mfaToken for Auth0 API call
@@ -6050,7 +6057,7 @@ export class AuthClient {
     try {
       const body: any = {
         client_id: this.clientMetadata.client_id,
-        challenge_type: challengeType,
+        challenge_type: toAuth0ChallengeType(challengeType),
         mfa_token: mfaToken
       };
 
@@ -6429,6 +6436,7 @@ export class AuthClient {
     if (options?.userMetadata) body.user_metadata = options.userMetadata;
     if (options?.connection) body.realm = options.connection;
     if (options?.organization) body.organization = options.organization;
+    if (options?.deliveryMethod) body.delivery_method = options.deliveryMethod;
 
     try {
       const response = await this.fetch(url, {
@@ -6436,6 +6444,13 @@ export class AuthClient {
         body: JSON.stringify(body),
         ...httpOptions
       });
+
+      // The limiter can answer with a plain-text body, so check before parsing.
+      if (response.status === 429) {
+        const { error, error_description, cause } =
+          await readPasskeyRateLimitError(response);
+        throw new PasskeyRegisterError(error, error_description, cause);
+      }
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({
@@ -6453,7 +6468,10 @@ export class AuthClient {
       const result = await response.json();
       return {
         authSession: result.auth_session,
-        authnParamsPublicKey: result.authn_params_public_key
+        authnParamsPublicKey: result.authn_params_public_key,
+        ...(result.verification_required && {
+          verificationRequired: result.verification_required
+        })
       };
     } catch (e) {
       if (e instanceof PasskeyRegisterError) throw e;
@@ -6494,6 +6512,12 @@ export class AuthClient {
         ...httpOptions
       });
 
+      if (response.status === 429) {
+        const { error, error_description, cause } =
+          await readPasskeyRateLimitError(response);
+        throw new PasskeyChallengeError(error, error_description, cause);
+      }
+
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({
           error: "unknown_error",
@@ -6531,6 +6555,8 @@ export class AuthClient {
     reqCookies: RequestCookies | ReadonlyRequestCookies,
     resCookies: ResponseCookies
   ): Promise<void> {
+    const verification = normalizePasskeyVerification(options.verification);
+
     await this.ensureDpopValidated();
 
     const [discoveryError, authorizationServerMetadata] =
@@ -6575,6 +6601,7 @@ export class AuthClient {
       jsonBody.audience = this.authorizationParameters.audience;
     if (options.connection) jsonBody.realm = options.connection;
     if (options.organization) jsonBody.organization = options.organization;
+    if (verification) jsonBody.verification = verification;
 
     // Create DPoP handle once outside the retry closure so the handle can
     // learn and reuse the server-issued nonce across attempts (RFC 9449).
@@ -6649,6 +6676,18 @@ export class AuthClient {
         }
       }
 
+      // A 429 is identified by its status. oauth4webapi reports it with the parsed
+      // JSON error body as `cause`, or with the raw Response when it could not
+      // read an OAuth error body (plain text, for example).
+      if (
+        err?.status === 429 ||
+        (err?.cause instanceof Response && err.cause.status === 429)
+      ) {
+        const { error, error_description, cause } =
+          await readPasskeyRateLimitError(err.cause);
+        throw new PasskeyGetTokenError(error, error_description, cause);
+      }
+
       const oauthErr = await extractOAuthErrorDetails(err);
       await this.#throwIfMfaRequired(
         err,
@@ -6656,6 +6695,11 @@ export class AuthClient {
         this.authorizationParameters.audience as string | undefined,
         scope
       );
+
+      // ResponseBodyError (4xx) keeps the parsed JSON body as `cause`. Auth0 adds
+      // auth_session and verification_required when a verification code is wrong.
+      const errorBody =
+        err?.cause && !(err.cause instanceof Response) ? err.cause : undefined;
       throw new PasskeyGetTokenError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
@@ -6664,7 +6708,13 @@ export class AuthClient {
         oauthErr.error
           ? {
               error: oauthErr.error,
-              error_description: oauthErr.error_description ?? ""
+              error_description: oauthErr.error_description ?? "",
+              ...(errorBody?.auth_session != null && {
+                auth_session: errorBody.auth_session
+              }),
+              ...(errorBody?.verification_required != null && {
+                verification_required: errorBody.verification_required
+              })
             }
           : undefined
       );
@@ -6730,10 +6780,17 @@ export class AuthClient {
       if (bodyRecord.connection) options.connection = bodyRecord.connection;
       if (bodyRecord.organization)
         options.organization = bodyRecord.organization;
+      if (typeof bodyRecord.deliveryMethod === "string")
+        // Auth0 validates the value and rejects unsupported channels.
+        options.deliveryMethod =
+          bodyRecord.deliveryMethod as PasskeyDeliveryMethod;
       const challenge = await this.passkeyRegister(options);
       return NextResponse.json(challenge);
     } catch (e) {
       if (e instanceof PasskeyRegisterError) {
+        if (e.error === "too_many_requests") {
+          return NextResponse.json(e.toJSON(), { status: 429 });
+        }
         if (e.error === "unexpected_error") {
           return NextResponse.json(
             {
@@ -6771,6 +6828,9 @@ export class AuthClient {
       return NextResponse.json(challenge);
     } catch (e) {
       if (e instanceof PasskeyChallengeError) {
+        if (e.error === "too_many_requests") {
+          return NextResponse.json(e.toJSON(), { status: 429 });
+        }
         if (e.error === "unexpected_error") {
           return NextResponse.json(
             {
@@ -6825,6 +6885,8 @@ export class AuthClient {
         options.connection = bodyRecord.connection;
       if (typeof bodyRecord.organization === "string")
         options.organization = bodyRecord.organization;
+      if (bodyRecord.verification !== undefined)
+        options.verification = bodyRecord.verification;
 
       const res = NextResponse.json({ success: true });
       await this.passkeyGetToken(options, req.cookies, res.cookies);
@@ -6848,7 +6910,21 @@ export class AuthClient {
             { status: 500 }
           );
         }
-        return NextResponse.json(e.toJSON(), { status: 403 });
+        if (e.error === "too_many_requests") {
+          return NextResponse.json(e.toJSON(), { status: 429 });
+        }
+        // The browser needs these to re-prompt for codes and resubmit the session.
+        const body: PasskeyGetTokenApiErrorResponse & {
+          is_retryable: boolean;
+        } = {
+          ...e.toJSON(),
+          is_retryable: e.isRetryable,
+          ...(e.authSession && { auth_session: e.authSession }),
+          ...(e.verificationRequired && {
+            verification_required: e.verificationRequired
+          })
+        };
+        return NextResponse.json(body, { status: 403 });
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
@@ -7732,6 +7808,9 @@ export class AuthClient {
     };
 
     let tokenSetSideEffect!: GetTokenSetResponse;
+    // Error returned by getTokenSet(), kept so the catch block can tell token
+    // failures (user must re-authenticate) apart from other proxy failures.
+    let tokenSetError: SdkError | undefined;
 
     const getAccessToken: AccessTokenFactory = async (authParams) => {
       const cacheKey = JSON.stringify([
@@ -7752,6 +7831,7 @@ export class AuthClient {
       });
 
       if (error) {
+        tokenSetError = error;
         throw error;
       }
 
@@ -7826,12 +7906,16 @@ export class AuthClient {
         return this.#createMfaRequiredResponse(req, requestSession, e);
       }
 
-      // Return 401 for missing refresh token (cannot refresh expired token)
-      if (
-        e instanceof AccessTokenError &&
-        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
-      ) {
-        return new NextResponse(e.message, { status: 401 });
+      // Return 401 for any error returned by getTokenSet() (e.g. missing,
+      // stale or revoked refresh token), matching handleAccessToken.
+      if (tokenSetError && e === tokenSetError) {
+        const errorRes = new NextResponse(e.message, { status: 401 });
+
+        if (e.code === AccessTokenErrorCode.SESSION_EXPIRED) {
+          await this.sessionStore.delete(req.cookies, errorRes.cookies);
+        }
+
+        return errorRes;
       }
 
       // Generic error handling for other errors
@@ -8310,4 +8394,53 @@ function extractIssuerDomainFromToken(
   } catch (err) {
     return [err instanceof Error ? err : new Error(String(err)), null];
   }
+}
+
+const PASSKEY_VERIFICATION_IDENTIFIERS: readonly PasskeyVerificationIdentifier[] =
+  ["email", "phone"];
+
+/**
+ * Validates passkey signup verification codes before they are sent.
+ * Keys must be `email` or `phone` and codes must be strings. Blank codes are
+ * dropped, and `undefined` is returned when nothing is left, so Auth0 never
+ * receives an empty `verification` object.
+ *
+ * @throws {InvalidRequestError} On an unknown key or a non-string code.
+ */
+function normalizePasskeyVerification(
+  verification: unknown
+): PasskeyVerificationCodes | undefined {
+  if (verification === undefined || verification === null) return undefined;
+  if (typeof verification !== "object" || Array.isArray(verification)) {
+    throw new InvalidRequestError("verification must be an object");
+  }
+
+  for (const key of Object.keys(verification)) {
+    if (
+      !PASSKEY_VERIFICATION_IDENTIFIERS.includes(
+        key as PasskeyVerificationIdentifier
+      )
+    ) {
+      throw new InvalidRequestError(
+        "verification keys must be 'email' or 'phone'"
+      );
+    }
+  }
+
+  // Keys come from the fixed identifier list, never from the request.
+  const input = verification as Record<string, unknown>;
+  const codes: PasskeyVerificationCodes = {};
+  for (const identifier of PASSKEY_VERIFICATION_IDENTIFIERS) {
+    const code = input[identifier];
+    if (code === undefined || code === null) continue;
+    if (typeof code !== "string") {
+      throw new InvalidRequestError(
+        `the '${identifier}' verification code must be a string`
+      );
+    }
+    if (code.trim()) {
+      codes[identifier] = code;
+    }
+  }
+  return Object.keys(codes).length > 0 ? codes : undefined;
 }

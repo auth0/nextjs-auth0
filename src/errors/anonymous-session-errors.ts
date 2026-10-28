@@ -4,6 +4,8 @@ import { SdkError } from "./sdk-error.js";
  * Error class for anonymous session operations.
  * Maps authorization server error codes to SDK errors; distinguishes recoverable
  * (silent recovery) from non-recoverable (throw to caller).
+ *
+ * @category Session
  */
 export class AnonymousSessionError extends SdkError {
   public code: string;
@@ -45,6 +47,8 @@ export class AnonymousSessionError extends SdkError {
  * server description names the concrete cause (which audience was rejected,
  * which scope was refused) while the canned message only restates the code.
  * @param rawBody Raw error body or underlying cause (optional)
+ *
+ * @category Session
  */
 export function mapAnonymousErrorCode(
   code: string,
@@ -94,6 +98,8 @@ export function mapAnonymousErrorCode(
  * Map an anonymous-session error code to its HTTP status per DESIGN §3.C7.
  * 401 invalid_client; 403 feature_not_enabled / unauthorized_client;
  * 500 server_error / invalid_response; 400 for every other (client/request) code.
+ *
+ * @category Session
  */
 export function getStatusForAnonymousError(code: string): number {
   switch (code) {

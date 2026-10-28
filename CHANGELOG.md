@@ -1,5 +1,27 @@
 # Change Log
 
+## [v4.33.0](https://github.com/auth0/nextjs-auth0/tree/v4.33.0) (2026-10-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.32.1...v4.33.0)
+
+**Added**
+- feat(passkey): add identifier verification for passkey signup [\#2905](https://github.com/auth0/nextjs-auth0/pull/2905) ([Piyush-85](https://github.com/Piyush-85))
+
+## [v4.32.1](https://github.com/auth0/nextjs-auth0/tree/v4.32.1) (2026-10-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.32.0...v4.32.1)
+
+**Fixed**
+- fix(mfa): map channel factor names to oob in mfaChallenge [\#2911](https://github.com/auth0/nextjs-auth0/pull/2911) ([Piyush-85](https://github.com/Piyush-85))
+
+## [v4.32.0](https://github.com/auth0/nextjs-auth0/tree/v4.32.0) (2026-10-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.31.1...v4.32.0)
+
+**Fixed**
+- fix: preserve cookie attributes when refreshing from a Server Action [\#2893](https://github.com/auth0/nextjs-auth0/pull/2893) ([Piyush-85](https://github.com/Piyush-85))
+- fix: return 401 instead of 500 when /me and /my-org token refresh fails [\#2907](https://github.com/auth0/nextjs-auth0/pull/2907) ([Piyush-85](https://github.com/Piyush-85))
+
+**Security**
+- fix: prevent open redirect in createRouteUrl via cross-origin origin check
+
 ## [v4.31.1](https://github.com/auth0/nextjs-auth0/tree/v4.31.1) (2026-10-07)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.31.0...v4.31.1)
 

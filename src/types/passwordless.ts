@@ -18,6 +18,8 @@ export type {
  * Used to exchange a one-time password for access/refresh tokens.
  *
  * @see https://auth0.com/docs/api/authentication#authenticate-user
+ *
+ * @category Passwordless
  */
 export const GRANT_TYPE_PASSWORDLESS_OTP =
   "http://auth0.com/oauth/grant-type/passwordless/otp";
@@ -25,6 +27,8 @@ export const GRANT_TYPE_PASSWORDLESS_OTP =
 /**
  * Options to start a passwordless flow via email.
  * Auth0 will send a magic link or OTP code to the provided email address.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessStartEmailOptions {
   /** The passwordless connection to use. */
@@ -64,6 +68,8 @@ export interface PasswordlessStartEmailOptions {
 /**
  * Options to start a passwordless flow via SMS.
  * Auth0 will send an OTP to the provided phone number.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessStartSmsOptions {
   /** The passwordless connection to use. */
@@ -86,12 +92,16 @@ export interface PasswordlessStartSmsOptions {
 /**
  * Options for starting a passwordless authentication flow.
  * Use the `connection` field to discriminate between email and SMS.
+ *
+ * @category Passwordless
  */
 export type PasswordlessStartOptions =
   PasswordlessStartEmailOptions | PasswordlessStartSmsOptions;
 
 /**
  * Options to verify an email passwordless OTP.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessVerifyEmailOptions {
   /** The passwordless connection used when starting the flow. */
@@ -104,6 +114,8 @@ export interface PasswordlessVerifyEmailOptions {
 
 /**
  * Options to verify an SMS passwordless OTP.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessVerifySmsOptions {
   /** The passwordless connection used when starting the flow. */
@@ -117,6 +129,8 @@ export interface PasswordlessVerifySmsOptions {
 /**
  * Options for verifying a passwordless OTP and completing login.
  * Use the `connection` field to discriminate between email and SMS.
+ *
+ * @category Passwordless
  */
 export type PasswordlessVerifyOptions =
   PasswordlessVerifyEmailOptions | PasswordlessVerifySmsOptions;
@@ -124,6 +138,8 @@ export type PasswordlessVerifyOptions =
 /**
  * Token response returned by Auth0 after a successful passwordless OTP verification.
  * Uses snake_case to match Auth0 API and SPA SDK conventions.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessVerifyTokenResponse {
   /** Access token */
@@ -143,6 +159,8 @@ export interface PasswordlessVerifyTokenResponse {
 /**
  * Public interface for the passwordless client.
  * Accessible via `auth0.passwordless` after initialization.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessClient {
   /**

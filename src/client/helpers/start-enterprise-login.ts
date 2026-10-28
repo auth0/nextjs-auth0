@@ -8,6 +8,8 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
  * `authorizationParameters`, and `returnTo` behave identically to the server
  * flavour) and adds the two client-only route overrides the browser needs to
  * reach the SDK's mounted routes.
+ *
+ * @category Login & Logout
  */
 export interface StartEnterpriseLoginClientOptions extends StartEnterpriseLoginOptions {
   /**
@@ -48,6 +50,8 @@ export interface StartEnterpriseLoginClientOptions extends StartEnterpriseLoginO
  * ```
  *
  * @see [Enterprise Connect](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#enterprise-connect-b2b-integration) for the full flow.
+ *
+ * @category Login & Logout
  */
 export async function startEnterpriseLogin(
   options: StartEnterpriseLoginClientOptions
