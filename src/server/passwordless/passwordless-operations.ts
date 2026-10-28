@@ -16,7 +16,7 @@ import type { CookieContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { createLoginHook } from "../session/login-hook.js";
 
-// The engine sets these on the magic link itself; the configured ones are dropped (D9), as on
+// The engine sets these on the magic link itself; the configured ones are dropped, as on
 // nextjs.
 const MAGIC_LINK_EXCLUDED_PARAMS = [
   "client_id",
@@ -30,8 +30,8 @@ const MAGIC_LINK_EXCLUDED_PARAMS = [
 
 /**
  * Sends a code (email or SMS) or a magic link. The engine sends the request; for a magic link it
- * also saves a transaction, completed by the callback route (D8). The magic link carries the
- * configured authorization parameters (D9); the caller's `authParams` are not sent (PL-2).
+ * also saves a transaction, completed by the callback route. The magic link carries the
+ * configured authorization parameters; the caller's `authParams` are not sent.
  */
 export async function startPasswordless(
   setup: EngineSetup,
@@ -107,7 +107,7 @@ export async function verifyPasswordless(
             verificationCode: options.verificationCode
           },
       ctx,
-      // The engine sends no DPoP proof on this grant (PL-1).
+      // The engine sends no DPoP proof on this grant.
       undefined,
       { beforeSessionSaved: hook.beforeSessionSaved }
     );
@@ -143,7 +143,7 @@ export async function challengeDbConnection(
 
 /**
  * Exchanges a database connection `authSession` and OTP for tokens. The engine sends the grant
- * with the login scope and the configured audience (D10), builds the session and saves it; our
+ * with the login scope and the configured audience, builds the session and saves it; our
  * `beforeSessionSaved` runs on it. MFA required: `MfaRequiredError`, sealed with the same two.
  */
 export async function loginWithDbOtp(

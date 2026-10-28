@@ -148,7 +148,7 @@ export async function handlePasskeyGetToken(
 
 /**
  * Route: POST /auth/passkey/enrollment/challenge, body `{ connection?, userIdentityId? }`. Needs a
- * session; 200 with the challenge. A refreshed MyAccount token is saved (D6).
+ * session; 200 with the challenge. A refreshed MyAccount token is saved.
  */
 export async function handlePasskeyEnrollmentChallenge(
   req: NextRequest,
@@ -178,8 +178,7 @@ export async function handlePasskeyEnrollmentChallenge(
 
 /**
  * Route: POST /auth/passkey/enrollment/verify, body `{ authenticationMethodId, authSession,
- * authResponse }`. Needs a session; 200 with Auth0's body. A refreshed MyAccount token is saved
- * (D6).
+ * authResponse }`. Needs a session; 200 with Auth0's body. A refreshed MyAccount token is saved.
  */
 export async function handlePasskeyEnrollmentVerify(
   req: NextRequest,

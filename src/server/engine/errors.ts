@@ -432,7 +432,7 @@ export function createErrorMapper({
     if (anyMapped) return anyMapped;
 
     // A blank `organization`, or an ID token whose organization differs (the engine checks both;
-    // nextjs did neither): our passkey class with the engine's message (D7).
+    // nextjs did neither): our passkey class with the engine's message.
     if (
       operation === "passkeyGetToken" &&
       code === "organization_validation_error"
@@ -484,7 +484,7 @@ export function createErrorMapper({
       case "callback": {
         if (code === "missing_transaction_error")
           return new InvalidStateError();
-        // A magic link whose `state` does not match its transaction (D8): nextjs's
+        // A magic link whose `state` does not match its transaction: nextjs's
         // `validateAuthResponse` result.
         if (code === "passwordless_verify_error") {
           return new AuthorizationError({
@@ -564,7 +564,7 @@ export function createErrorMapper({
           );
         }
         // The engine throws this when it finds no refresh token, with or without a session. The
-        // caller checks for a session first (3.4.4), so here the session has no refresh token.
+        // caller checks for a session first, so here the session has no refresh token.
         if (code === "missing_session_error") {
           return new TokenRevocationError(
             TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,

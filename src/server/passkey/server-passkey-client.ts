@@ -185,7 +185,7 @@ export class ServerPasskeyClient implements PasskeyClient {
   ): Promise<PasskeyEnrollmentChallengeResponse> {
     const [req, options] =
       arg1 instanceof NextRequest ? [arg1, arg2] : [undefined, arg1];
-    // A refreshed MyAccount token is saved where the call form allows (D6).
+    // A refreshed MyAccount token is saved where the call form allows.
     return withCallContext(req, undefined, (ctx) =>
       enrollmentChallenge(this.#setup, ctx, options)
     );
@@ -222,7 +222,7 @@ export class ServerPasskeyClient implements PasskeyClient {
     } else {
       options = arg1;
     }
-    // A refreshed MyAccount token is saved where the call form allows (D6).
+    // A refreshed MyAccount token is saved where the call form allows.
     return withCallContext(req, undefined, (ctx) =>
       enrollmentVerify(this.#setup, ctx, options)
     );

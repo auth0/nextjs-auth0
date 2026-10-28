@@ -70,7 +70,7 @@ export async function startLogin(
     );
   }
   if (challengeMode === "popup") {
-    // Popup mode is 3.4.1b.
+    // Popup mode is not built yet.
     return NextResponse.json({ error: "not_implemented" }, { status: 501 });
   }
 

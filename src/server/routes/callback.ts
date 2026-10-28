@@ -42,7 +42,7 @@ interface LoginAppState {
  * saves, it calls the hook below, which runs `onCallback` and `beforeSessionSaved` in nextjs's
  * order. Anything thrown there stops the save.
  *
- * A passwordless magic link returns here too (D8): its transaction has no PKCE verifier (the
+ * A passwordless magic link returns here too: its transaction has no PKCE verifier (the
  * engine's marker for it), and the engine completes it with `completePasswordlessMagicLink`.
  */
 export async function handleCallback(
@@ -71,7 +71,7 @@ export async function handleCallback(
   const appBaseUrl = resolveAppBaseUrl(config.appBaseUrl, req);
   const callbackCtx = (): OnCallbackContext => ({
     responseType: RESPONSE_TYPES.CODE,
-    // The engine's magic-link transaction has no `returnTo`; nextjs stored this one (D11).
+    // The engine's magic-link transaction has no `returnTo`; nextjs stored this one.
     returnTo: magicLink ? config.signInReturnToPath : appState?.returnTo,
     challengeMode: appState?.challengeMode || "redirect",
     appBaseUrl
@@ -107,7 +107,7 @@ export async function handleCallback(
   }
 
   if (appState?.challengeMode === "popup") {
-    // Popup mode is 3.4.1b.
+    // Popup mode is not built yet.
     return NextResponse.json({ error: "not_implemented" }, { status: 501 });
   }
 
@@ -137,7 +137,7 @@ export async function handleCallback(
   try {
     let result: InteractiveLoginResult | undefined;
     if (magicLink) {
-      // The engine sends no DPoP proof on this exchange (PL-1). Never in Enterprise Connect
+      // The engine sends no DPoP proof on this exchange. Never in Enterprise Connect
       // mode: the engine refuses passwordless there, so no magic link was sent.
       await engine.completePasswordlessMagicLink(
         callbackUrl,
@@ -257,7 +257,7 @@ async function hasWrongIssuer(
 /**
  * The transaction of this login and where it was read. A magic link has no PKCE verifier, and
  * the engine always stores it under the fixed identifier, so with parallel transactions on it is
- * looked for there when none is stored for the `state` (D8, PL-9).
+ * looked for there when none is stored for the `state`.
  */
 async function findTransaction(
   setup: EngineSetup,

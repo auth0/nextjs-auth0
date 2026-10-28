@@ -76,7 +76,7 @@ export async function challengePasskey(
 /**
  * Exchanges the WebAuthn credential for tokens. The engine sends the grant, builds a session from
  * the new ID token and saves it; around it:
- * 1. the caller's `scope`, `audience` and `organization` go to the engine as given (D3); without
+ * 1. the caller's `scope`, `audience` and `organization` go to the engine as given; without
  *    them the engine uses the login scope and the configured audience
  * 2. our `beforeSessionSaved` runs on the session the engine built
  * 3. MFA required: `MfaRequiredError`, its token sealed with the audience and scope of the call
@@ -221,7 +221,7 @@ export async function enrollmentVerify(
 /**
  * The signed-in user's MyAccount token. No session (or one for another domain):
  * `not_authenticated`. The token comes from `retrieveAccessToken`, so the engine refreshes it when
- * needed and saves it in the session (D6; nextjs never saved it); any token error: `token_error`.
+ * needed and saves it in the session (nextjs never saved it); any token error: `token_error`.
  */
 async function myAccountToken(
   setup: EngineSetup,

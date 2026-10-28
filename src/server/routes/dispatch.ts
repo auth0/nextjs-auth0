@@ -59,7 +59,7 @@ interface RouteEntry {
   handle: RouteHandler;
 }
 
-// Replaced route by route in 3.4.
+// Answers a route that is not built yet.
 const notImplemented: RouteHandler = async () =>
   NextResponse.json({ error: "not_implemented" }, { status: 501 });
 

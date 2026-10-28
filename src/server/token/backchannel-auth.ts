@@ -21,7 +21,7 @@ export async function backchannelAuthentication(
   options: BackchannelAuthenticationOptions
 ): Promise<BackchannelAuthenticationResponse> {
   const { config } = setup;
-  // The engine's auth client only exists with a static domain (CB-2, until U1).
+  // The engine's auth client only exists with a static domain.
   if (typeof config.domain === "function") {
     throw new InvalidConfigurationError(
       "getTokenByBackchannelAuth is not yet supported in resolver mode (DomainResolver)."
