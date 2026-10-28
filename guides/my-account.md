@@ -268,20 +268,27 @@ Rules for root attributes:
 
 ### Calling the API from the Server
 
-From a Route Handler or Server Action, use a fetcher created with `auth0.createFetcher()`. It gets the user's access token for the My Account API audience and adds a DPoP proof when DPoP is enabled. Pass a `getAccessToken` that calls `auth0.getAccessToken()`, as shown below, so a refreshed token set (including a rotated refresh token) is saved to the session.
+From a Route Handler or Server Action, call `auth0.getAccessToken()` first, then create a fetcher with `auth0.createFetcher()`.
+
+- `getAccessToken()` gets the user's access token for the My Account API audience. If it has to refresh the token, it saves the new token set, including a rotated refresh token, to the session. `createFetcher()` does not save a refreshed token set on its own.
+- The fetcher then uses the saved token and adds a DPoP proof when DPoP is enabled. Pass the same `audience` and `scope` to both calls.
+- Call `getAccessToken()` before `createFetcher()`. The fetcher reads the session when you create it, so if you call `getAccessToken()` afterwards, the fetcher refreshes the token a second time with the old refresh token.
 
 ```ts
 // app/api/profile/route.ts
 import { auth0 } from "@/lib/auth0";
 
 export async function PATCH(request: Request) {
+  const tokenOptions = {
+    audience: `https://${process.env.AUTH0_DOMAIN}/me/`,
+    scope: "update:me:profile"
+  };
+
+  // Get the token first, so a refreshed token set is saved to the session
+  await auth0.getAccessToken(tokenOptions);
+
   const fetcher = await auth0.createFetcher(undefined, {
-    baseUrl: `https://${process.env.AUTH0_DOMAIN}`,
-    getAccessToken: async (options) => {
-      const { token, expiresAt, scope, token_type } =
-        await auth0.getAccessToken(options);
-      return { accessToken: token, expiresAt, scope, token_type };
-    }
+    baseUrl: `https://${process.env.AUTH0_DOMAIN}`
   });
 
   let response: Response;
@@ -293,10 +300,7 @@ export async function PATCH(request: Request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(await request.json())
       },
-      {
-        audience: `https://${process.env.AUTH0_DOMAIN}/me/`,
-        scope: "update:me:profile"
-      }
+      tokenOptions
     );
   } catch (error) {
     // The API replied with a WWW-Authenticate challenge. Return its response
