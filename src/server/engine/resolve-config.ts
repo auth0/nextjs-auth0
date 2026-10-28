@@ -1,7 +1,4 @@
-import {
-  HTTP_TIMEOUT_MESSAGE,
-  isValidHttpTimeout
-} from "@auth0/auth0-server-js";
+import { isValidHttpTimeout } from "@auth0/auth0-server-js";
 
 import {
   InvalidConfigurationError,
@@ -248,14 +245,17 @@ function assertTokenRefreshBuffer(value: unknown) {
 }
 
 /**
- * The engine's rule and message for `httpTimeout` (an integer from 1 to 2147483647 milliseconds),
- * raised as our error. Checked here as well because the engine is built lazily when there is no
- * domain at construction, and the SDK's own requests (Fetcher, proxy, My Account) never reach the
- * engine's check. `null` from an untyped caller counts as not set, as `??` did on nextjs.
+ * The engine's rule for `httpTimeout` (a positive integer number of milliseconds, checked by the
+ * engine's `isValidHttpTimeout`) and its message, raised as our error. Checked here as well because
+ * the engine is built lazily when there is no domain at construction, and the SDK's own requests
+ * (Fetcher, proxy, My Account) never reach the engine's check. `null` from an untyped caller counts
+ * as not set, as `??` did on nextjs.
  */
 function assertHttpTimeout(value: unknown) {
   if (value != null && !isValidHttpTimeout(value)) {
-    throw new InvalidConfigurationError(HTTP_TIMEOUT_MESSAGE);
+    throw new InvalidConfigurationError(
+      "httpTimeout must be a positive integer (milliseconds)"
+    );
   }
 }
 

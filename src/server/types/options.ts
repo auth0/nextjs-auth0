@@ -182,10 +182,13 @@ export interface Auth0ClientOptions {
    * through the Fetcher and the proxy. It applies to every individual request, not to a whole
    * operation.
    *
-   * When not set, the SDK adds no limit and the underlying libraries keep their own: OIDC discovery
-   * has 30 seconds, the logout token key fetch has 5 seconds, and the other requests have none.
+   * When not set, the SDK adds no limit and the underlying libraries keep their own: `openid-client`
+   * applies 30 seconds to each request it makes, OIDC discovery and the token endpoint included (from
+   * version 6.8.8; before, only to discovery), and the logout token key fetch has 5 seconds. When set,
+   * it is the only limit.
    *
-   * Must be an integer between 1 and 2147483647, otherwise an `InvalidConfigurationError` is thrown.
+   * Must be a positive integer, otherwise an `InvalidConfigurationError` is thrown. A value above
+   * 2147483647 (about 24.8 days) is capped to it, so it means no practical limit.
    */
   httpTimeout?: number;
 
