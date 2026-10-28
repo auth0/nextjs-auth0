@@ -181,6 +181,7 @@ type UserProfile = {
 
 export default function ProfileForm() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/me/v1/profile", {
@@ -193,9 +194,13 @@ export default function ProfileForm() {
         return response.json();
       })
       .then(setProfile)
-      .catch((error) => console.error("Failed to fetch profile:", error));
+      .catch((err) => {
+        console.error("Failed to fetch profile:", err);
+        setError("Could not load your profile. Please try again.");
+      });
   }, []);
 
+  if (error) return <p role="alert">{error}</p>;
   if (!profile) return <p>Loading...</p>;
 
   return (
@@ -287,10 +292,15 @@ export async function PATCH(request: Request) {
     }
   );
 
-  return new Response(response.body, {
-    status: response.status,
-    headers: { "content-type": "application/json" }
-  });
+  // Forward the headers callers need: `content-type` (errors are
+  // `application/problem+json`) and `retry-after` (sent with `429`).
+  const headers = new Headers();
+  for (const name of ["content-type", "retry-after"]) {
+    const value = response.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  return new Response(response.body, { status: response.status, headers });
 }
 ```
 
@@ -334,7 +344,7 @@ if (response.status === 400) {
 When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
 
 ```tsx
-import { MyAccountClient } from "@auth0/my-account-js";
+import { MyAccountClient } from "@auth0/myaccount-js";
 
 const myAccountClient = new MyAccountClient({
   domain: process.env.NEXT_PUBLIC_AUTH0_DOMAIN,
