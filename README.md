@@ -406,7 +406,7 @@ const response = await fetch("/my-org/organizations", {
 
 The `scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
 
-For complete documentation and examples, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis). For My Account API examples, including managing the user's profile and `user_metadata` and integration with UI Components, see [My Account API in guides/my-account.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/my-account.md).
+For complete documentation and examples, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis). For My Account API examples, including managing the user's profile and integration with UI Components, see [My Account API in guides/my-account.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/my-account.md).
 
 ## Base Path
 

@@ -3346,7 +3346,7 @@ When a client makes a request to `/me/*` or `/my-org/*` on your Next.js applicat
 
 ### My Account API Proxy
 
-My Account API examples (configuration, client-side usage, the `scope` header, managing the user's profile and `user_metadata`, and integration with Auth0 UI Components) now live in a dedicated guide:
+My Account API examples (configuration, client-side usage, the `scope` header, managing the user's profile, and integration with Auth0 UI Components) now live in a dedicated guide:
 
 ➡️ **[My Account API examples](guides/my-account.md)**
 
