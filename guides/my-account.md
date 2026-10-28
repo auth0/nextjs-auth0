@@ -268,7 +268,7 @@ Rules for root attributes:
 
 ### Calling the API from the Server
 
-From a Route Handler, Server Action, or API route, use a fetcher created with `auth0.createFetcher()`. It gets the user's access token for the My Account API audience and adds a DPoP proof when DPoP is enabled.
+From a Route Handler, Server Action, or API route, use a fetcher created with `auth0.createFetcher()`. It gets the user's access token for the My Account API audience and adds a DPoP proof when DPoP is enabled. Pass a `getAccessToken` that calls `auth0.getAccessToken()`, as shown below, so a refreshed token set (including a rotated refresh token) is saved to the session.
 
 ```ts
 // app/api/profile/route.ts
@@ -276,21 +276,44 @@ import { auth0 } from "@/lib/auth0";
 
 export async function PATCH(request: Request) {
   const fetcher = await auth0.createFetcher(undefined, {
-    baseUrl: `https://${process.env.AUTH0_DOMAIN}`
+    baseUrl: `https://${process.env.AUTH0_DOMAIN}`,
+    getAccessToken: async (options) => {
+      const { token, expiresAt, scope, token_type } =
+        await auth0.getAccessToken(options);
+      return { accessToken: token, expiresAt, scope, token_type };
+    }
   });
 
-  const response = await fetcher.fetchWithAuth(
-    "/me/v1/profile",
-    {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(await request.json())
-    },
-    {
-      audience: `https://${process.env.AUTH0_DOMAIN}/me/`,
-      scope: "update:me:profile"
+  let response: Response;
+  try {
+    response = await fetcher.fetchWithAuth(
+      "/me/v1/profile",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(await request.json())
+      },
+      {
+        audience: `https://${process.env.AUTH0_DOMAIN}/me/`,
+        scope: "update:me:profile"
+      }
+    );
+  } catch (error) {
+    // The API replied with a WWW-Authenticate challenge. Return its response
+    // instead of failing the route. Rethrow everything else.
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "OAUTH_WWW_AUTHENTICATE_CHALLENGE" &&
+      "response" in error &&
+      error.response instanceof Response
+    ) {
+      response = error.response;
+    } else {
+      throw error;
     }
-  );
+  }
 
   // Forward the headers callers need: `content-type` (errors are
   // `application/problem+json`) and `retry-after` (sent with `429`).
@@ -303,6 +326,8 @@ export async function PATCH(request: Request) {
   return new Response(response.body, { status: response.status, headers });
 }
 ```
+
+`fetchWithAuth` throws when the API replies with a `WWW-Authenticate` challenge, such as a `401` for an invalid token. The `catch` block returns that response so your caller gets the API's status and body.
 
 > [!WARNING]
 > Do not call the My Account API from a React Server Component. Getting the access token can rotate the refresh token, and Server Components cannot write cookies, so the rotated token is lost and the user is logged out on the next request. Call it from a Route Handler, Server Action, API route, or middleware instead.
