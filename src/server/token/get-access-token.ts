@@ -150,8 +150,6 @@ export async function retrieveAccessToken(
   };
 }
 
-type CachedTokenSet = EngineTokenSet & { requestedScope?: string };
-
 function unwrap(result: AccessTokenResult): AccessToken {
   if (result.error) {
     throw result.error;
@@ -167,13 +165,10 @@ function findTokenSet(
   audience: string,
   scope: string
 ): EngineTokenSet | undefined {
-  // `requestedScope` is internal to the engine, so not in its published type.
-  return (state.tokenSets as CachedTokenSet[]).find(
+  return state.tokenSets.find(
     (tokenSet) =>
       tokenSet.audience === audience &&
-      (!scope ||
-        (tokenSet.requestedScope ?? tokenSet.scope) === scope ||
-        compareScopes(tokenSet.scope, scope))
+      (!scope || compareScopes(tokenSet.scope, scope))
   );
 }
 
