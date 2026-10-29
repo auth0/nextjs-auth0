@@ -106,14 +106,10 @@
 - [Proxy Handler for My Account and My Organization APIs](#proxy-handler-for-my-account-and-my-organization-apis)
   - [Overview](#overview)
   - [How It Works](#how-it-works)
-  - [My Account API Proxy](#my-account-api-proxy)
-    - [Configuration](#configuration)
-    - [Client-Side Usage](#client-side-usage)
-    - [`scope` Header](#scope-header)
+  - [My Account API Proxy](guides/my-account.md)
   - [My Organization API Proxy](#my-organization-api-proxy)
-    - [Configuration](#configuration-1)
+    - [Configuration](#configuration)
     - [Client-Side Usage](#client-side-usage-1)
-  - [Integration with UI Components](#integration-with-ui-components)
   - [HTTP Methods](#http-methods)
   - [CORS Handling](#cors-handling)
   - [Error Handling](#error-handling-2)
@@ -2991,110 +2987,9 @@ When a client makes a request to `/me/*` or `/my-org/*` on your Next.js applicat
 
 ### My Account API Proxy
 
-The My Account API proxy handles all requests to Auth0's My Account API at `/me/v1/*`.
+My Account API examples (configuration, client-side usage, the `scope` header, managing the user's profile, and integration with Auth0 UI Components) now live in a dedicated guide:
 
-#### Configuration
-
-Enable My Account API access by configuring the audience and scopes:
-
-```ts
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-export const auth0 = new Auth0Client({
-  useDPoP: true,
-  authorizationParameters: {
-    audience: "urn:your-api-identifier",
-    scope: {
-      [`https://${process.env.AUTH0_DOMAIN}/me/`]:
-        "profile:read profile:write factors:manage"
-    }
-  }
-});
-```
-
-#### Client-Side Usage
-
-Make requests to the My Account API through the `/me/*` path:
-
-```tsx
-"use client";
-
-import { useState } from "react";
-
-export default function MyAccountProfile() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const fetchProfile = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/me/v1/profile", {
-        method: "GET",
-        headers: {
-          scope: "profile:read"
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setProfile(data);
-    } catch (error) {
-      console.error("Failed to fetch profile:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateProfile = async (updates) => {
-    try {
-      const response = await fetch("/me/v1/profile", {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          scope: "profile:write"
-        },
-        body: JSON.stringify(updates)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to update profile:", error);
-      throw error;
-    }
-  };
-
-  return (
-    <div>
-      <button onClick={fetchProfile} disabled={loading}>
-        {loading ? "Loading..." : "Load Profile"}
-      </button>
-      {profile && <pre>{JSON.stringify(profile, null, 2)}</pre>}
-    </div>
-  );
-}
-```
-
-#### `scope` Header
-
-The `scope` header specifies the scope required for the request. The SDK uses this to retrieve an access token with the appropriate scope for the My Account API audience.
-
-Format: `"scope": "scope1 scope2 scope3"`
-
-Common scopes for My Account API:
-
-- `profile:read` - Read user profile information
-- `profile:write` - Update user profile information
-- `factors:read` - Read enrolled MFA factors
-- `factors:manage` - Manage MFA factors
-- `identities:read` - Read linked identities
-- `identities:manage` - Link and unlink identities
+➡️ **[My Account API examples](guides/my-account.md)**
 
 ### My Organization API Proxy
 
@@ -3259,34 +3154,6 @@ export function OrgActions() {
 
 > [!NOTE]
 > This claim is for UI gating only. The My Organization API enforces authorization server-side on every request regardless of what the claim contains.
-
-### Integration with UI Components
-
-When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
-
-```tsx
-import { MyAccountClient } from "@auth0/my-account-js";
-
-const myAccountClient = new MyAccountClient({
-  domain: process.env.NEXT_PUBLIC_AUTH0_DOMAIN,
-  baseUrl: "/me",
-  fetcher: (url, init, authParams) => {
-    return fetch(url, {
-      ...init,
-      headers: {
-        ...init?.headers,
-        scope: authParams?.scope?.join(" ") || ""
-      }
-    });
-  }
-});
-```
-
-This configuration:
-
-- Sets `baseUrl` to `/me` to route requests through the proxy
-- Passes the required scope via the `scope` header
-- Ensures the SDK middleware handles authentication transparently
 
 ### HTTP Methods
 
