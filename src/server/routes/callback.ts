@@ -19,7 +19,7 @@ import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { middlewareContext } from "../engine/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
 import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { finalizeSession } from "../session/finalize-session.js";
+import { finalizeSession } from "../session/hooks.js";
 import type { OnCallbackContext, OnCallbackHook } from "../types/hooks.js";
 
 type InteractiveLoginResult = Awaited<

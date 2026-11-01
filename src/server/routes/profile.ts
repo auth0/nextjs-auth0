@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import { readContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { readSession } from "../session/read-session.js";
+import { readSession } from "../session/session.js";
 
 /**
  * Route: GET /auth/profile. The stored `user` as JSON. No session, or one stored for another

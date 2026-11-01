@@ -13,6 +13,7 @@ import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import { parseNonNegativeIntegerParam } from "../../utils/authorization-params-helpers.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
 import { getScopeForAudience } from "../../utils/scope-helpers.js";
+import { toSafeRedirect } from "../../utils/url-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { requestContext } from "../engine/context.js";
 import {
@@ -20,7 +21,10 @@ import {
   type EngineSetup
 } from "../engine/create-engine.js";
 import type { PagesRouterRequest } from "../types/index.js";
-import { resolveReturnTo } from "./return-to.js";
+
+// `returnTo` is stored in the transaction cookie, so it is capped as on nextjs.
+const MAX_RETURN_TO_BYTES = 2048;
+let clampWarned = false;
 
 /**
  * Starts a login: the redirect to Auth0 with the transaction cookie.
@@ -116,6 +120,35 @@ export async function startLogin(
   const res = NextResponse.redirect(authorizationUrl.toString());
   transferCookies(scratch, res);
   return res;
+}
+
+/**
+ * The path to go to after login: `returnTo` when it stays on the app's origin, else the default.
+ * An unsafe or oversized value silently becomes the default, as on nextjs.
+ */
+function resolveReturnTo(
+  returnTo: string | undefined,
+  safeBaseUrl: string,
+  fallback: string
+): string {
+  if (!returnTo) {
+    return fallback;
+  }
+  const safe = toSafeRedirect(returnTo, new URL(safeBaseUrl));
+  if (!safe) {
+    return fallback;
+  }
+  const path = safe.pathname + safe.search + safe.hash;
+  if (new TextEncoder().encode(path).length <= MAX_RETURN_TO_BYTES) {
+    return path;
+  }
+  if (!clampWarned) {
+    clampWarned = true;
+    console.warn(
+      `[auth0] returnTo value exceeds ${MAX_RETURN_TO_BYTES} bytes; clamping to ${fallback} to keep the transaction cookie under the header size limit. Shorten the returnTo value in your application.`
+    );
+  }
+  return fallback;
 }
 
 async function dpopThumbprint(

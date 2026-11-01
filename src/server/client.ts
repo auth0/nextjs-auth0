@@ -61,13 +61,19 @@ import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import { dispatch } from "./routes/dispatch.js";
-import { getSession as loadSession } from "./session/get-session.js";
-import { updateSession as saveSession } from "./session/update-session.js";
+import {
+  getSession as loadSession,
+  updateSession as saveSession
+} from "./session/session.js";
+import {
+  getAccessToken as fetchAccessToken,
+  revokeRefreshToken as revokeSessionRefreshToken
+} from "./token/access-token.js";
 import { backchannelAuthentication } from "./token/backchannel-auth.js";
-import { customTokenExchange as exchangeCustomToken } from "./token/custom-token-exchange.js";
-import { getAccessToken as fetchAccessToken } from "./token/get-access-token.js";
-import { revokeRefreshToken as revokeSessionRefreshToken } from "./token/revoke-refresh-token.js";
-import { requestSessionTransferToken as requestTransferToken } from "./token/session-transfer.js";
+import {
+  customTokenExchange as exchangeCustomToken,
+  requestSessionTransferToken as requestTransferToken
+} from "./token/token-exchange.js";
 import type {
   Auth0ClientOptions,
   PagesRouterRequest,

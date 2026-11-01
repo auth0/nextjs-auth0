@@ -7,7 +7,7 @@ import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import { middlewareContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { readSession } from "../session/read-session.js";
+import { readSession } from "../session/session.js";
 
 // The engine's error for `strategy: "oidc"` on a tenant without `end_session_endpoint`.
 const RP_INITIATED_LOGOUT_NOT_SUPPORTED =

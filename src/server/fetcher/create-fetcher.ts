@@ -17,11 +17,11 @@ import type { EngineSetup } from "../engine/create-engine.js";
 import { withHttpTimeout } from "../engine/http-timeout.js";
 import type { EngineConfig } from "../engine/resolve-config.js";
 import { toNextRequest } from "../http/next-compat.js";
-import { getSession } from "../session/get-session.js";
+import { getSession } from "../session/session.js";
 import {
   retrieveAccessToken,
   type AccessToken
-} from "../token/get-access-token.js";
+} from "../token/access-token.js";
 import type { PagesRouterRequest } from "../types/index.js";
 import {
   AccessTokenFactory,

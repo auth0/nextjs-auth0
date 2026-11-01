@@ -17,9 +17,9 @@ import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import type { CookieContext } from "../engine/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
 import { withHttpTimeout } from "../engine/http-timeout.js";
-import { createLoginHook } from "../session/login-hook.js";
-import { readSession } from "../session/read-session.js";
-import { retrieveAccessToken } from "../token/get-access-token.js";
+import { createLoginHook } from "../session/hooks.js";
+import { readSession } from "../session/session.js";
+import { retrieveAccessToken } from "../token/access-token.js";
 
 type EngineRegisterOptions = Parameters<Engine["passkey"]["register"]>[0];
 type EngineGetTokenOptions = Parameters<Engine["passkey"]["getToken"]>[0];

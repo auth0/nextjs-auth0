@@ -5,7 +5,7 @@ import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { middlewareContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { retrieveAccessToken } from "../token/get-access-token.js";
+import { retrieveAccessToken } from "../token/access-token.js";
 
 /**
  * Route: GET /auth/access-token?audience=&scope=&mergeScopes=. `getAccessToken` for the browser,

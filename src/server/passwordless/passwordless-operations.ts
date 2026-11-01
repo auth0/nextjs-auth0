@@ -14,7 +14,7 @@ import { createRouteUrl } from "../../utils/pathUtils.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import type { CookieContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { createLoginHook } from "../session/login-hook.js";
+import { createLoginHook } from "../session/hooks.js";
 
 // The engine sets these on the magic link itself; the configured ones are dropped, as on
 // nextjs.

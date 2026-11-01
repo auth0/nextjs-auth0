@@ -8,22 +8,25 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   MfaRequiredError,
-  SdkError
+  SdkError,
+  TokenRevocationError,
+  TokenRevocationErrorCode
 } from "../../errors/index.js";
 import type { GetAccessTokenOptions } from "../../types/index.js";
-import { compareScopes } from "../../utils/token-set-helpers.js";
+import { getScopeForAudience } from "../../utils/scope-helpers.js";
+import { compareScopes, mergeScopes } from "../../utils/token-set-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { withCallContext } from "../engine/call-context.js";
-import type { CookieContext } from "../engine/context.js";
+import { readContext, type CookieContext } from "../engine/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
+import type { EngineConfig } from "../engine/resolve-config.js";
 import { ENGINE_DEFAULT_AUDIENCE } from "../engine/session-mapper.js";
-import { readSession } from "../session/read-session.js";
+import { createRefreshHook } from "../session/hooks.js";
+import { readSession } from "../session/session.js";
 import type {
   PagesRouterRequest,
   PagesRouterResponse
 } from "../types/index.js";
-import { createRefreshHook } from "./refresh-hook.js";
-import { tokenScope } from "./token-scope.js";
 
 export interface AccessToken {
   token: string;
@@ -188,4 +191,64 @@ function toAccessToken(
         ? audience
         : tokenSet.audience
   };
+}
+
+/**
+ * The scope an access token is looked up and refreshed with, as nextjs computes it
+ * (`getTokenSet`): the configured scope for the audience merged with `scope`, or `scope` alone
+ * with `mergeScopes: false`. A scope map without an audience throws, as on nextjs.
+ */
+function tokenScope(
+  config: EngineConfig,
+  {
+    audience,
+    scope,
+    mergeScopes: merge
+  }: { audience?: string; scope?: string; mergeScopes?: boolean }
+): string {
+  if (merge === false) {
+    return scope || "";
+  }
+  const { authorizationParameters } = config;
+  return mergeScopes(
+    getScopeForAudience(
+      authorizationParameters.scope,
+      audience ?? authorizationParameters.audience
+    ),
+    scope
+  );
+}
+
+/**
+ * Revokes the session's refresh token at Auth0, with nextjs's errors: no session, in resolver mode a
+ * session stored for another domain (`SessionDomainMismatchError`), no refresh token. The session is not changed
+ * and no cookie is written.
+ */
+export async function revokeRefreshToken(
+  setup: EngineSetup,
+  input?: Request | PagesRouterRequest
+): Promise<void> {
+  const { ctx } = await readContext(input);
+  const { state, error } = await readSession(setup, ctx);
+  if (error) {
+    throw error;
+  }
+  if (!state) {
+    throw new TokenRevocationError(
+      TokenRevocationErrorCode.MISSING_SESSION,
+      "The user does not have an active session."
+    );
+  }
+  if (!state.refreshToken?.trim()) {
+    throw new TokenRevocationError(
+      TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
+      "The session does not contain a refresh token to revoke."
+    );
+  }
+
+  const { refreshToken } = state;
+  // Passed explicitly, so in static mode the engine does not read the session again.
+  await setup.errors.callEngine("revoke", async () =>
+    (await setup.getEngine()).revokeRefreshToken({ token: refreshToken }, ctx)
+  );
 }

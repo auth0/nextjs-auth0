@@ -18,8 +18,8 @@ import { decryptMfaToken } from "../../utils/mfa-utils.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import type { CookieContext } from "../engine/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
-import { createLoginHook } from "../session/login-hook.js";
-import { readSession } from "../session/read-session.js";
+import { createLoginHook } from "../session/hooks.js";
+import { readSession } from "../session/session.js";
 
 type EngineVerifyOptions = Parameters<Engine["mfa"]["verify"]>[0];
 type EngineVerifyResult = Awaited<ReturnType<Engine["mfa"]["verify"]>>;

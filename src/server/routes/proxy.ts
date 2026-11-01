@@ -26,11 +26,11 @@ import {
 } from "../fetcher/create-fetcher.js";
 import type { AccessTokenFactory } from "../fetcher/fetcher.js";
 import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { readSession } from "../session/read-session.js";
+import { readSession } from "../session/session.js";
 import {
   retrieveAccessToken,
   type AccessToken
-} from "../token/get-access-token.js";
+} from "../token/access-token.js";
 
 // DPoP handles per audience, kept across proxied requests so nonces carry over, as on nextjs.
 const dpopHandles = new WeakMap<EngineSetup, Map<string, DPoPHandle>>();
