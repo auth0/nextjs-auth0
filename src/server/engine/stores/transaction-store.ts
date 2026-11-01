@@ -18,10 +18,36 @@ const DEFAULT_TRANSACTION_MAX_AGE = 60 * 60;
 // staying well under browser and proxy request header limits. Same limit as nextjs.
 const MAX_TRANSACTION_COOKIE_BYTES = 3500;
 
+// The login request supplies `audience`, which the transaction stores, so it is capped to keep the
+// cookie small. Same limit and warning as nextjs.
+const MAX_AUDIENCE_BYTES = 2048;
+let audienceClampWarned = false;
+
 // Under prefetch or bot traffic set() runs repeatedly, so warn once per process. Separate flags so
 // an operator sees the right diagnostic (accumulation versus a single oversized cookie).
 let txnEvictionWarningEmitted = false;
 let txnOversizeWarningEmitted = false;
+
+/**
+ * The transaction without an oversized `audience`: it is left out, as on nextjs, and the request
+ * to Auth0 keeps it.
+ */
+function clampAudience(transactionData: TransactionData): TransactionData {
+  const { audience } = transactionData;
+  if (
+    audience === undefined ||
+    new TextEncoder().encode(audience).length <= MAX_AUDIENCE_BYTES
+  ) {
+    return transactionData;
+  }
+  if (!audienceClampWarned) {
+    audienceClampWarned = true;
+    console.warn(
+      `[auth0] audience value exceeds ${MAX_AUDIENCE_BYTES} bytes; clamping to undefined to keep the transaction cookie under the header size limit. Shorten the audience value in your application.`
+    );
+  }
+  return { ...transactionData, audience: undefined };
+}
 
 export interface NextTransactionStoreOptions {
   secret: string;
@@ -89,7 +115,7 @@ export class NextTransactionStore extends AbstractTransactionStore<CookieContext
     // `__txn_*` name as on nextjs; the callback then compares its `state` with the URL's.
     const jwe = await this.encrypt(
       this.#prefix,
-      transactionData,
+      clampAudience(transactionData),
       now + this.#maxAge
     );
     const value = `${now}:${jwe}`;

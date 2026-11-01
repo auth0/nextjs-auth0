@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import type { StateData, TransactionData } from "@auth0/auth0-server-js";
 
 import {
+  AuthorizationCodeGrantError,
   AuthorizationError,
   InvalidConfigurationError,
   InvalidStateError,
@@ -9,11 +10,7 @@ import {
   OAuth2Error,
   SdkError
 } from "../../errors/index.js";
-import {
-  RESPONSE_TYPES,
-  type SessionData,
-  type TokenSet
-} from "../../types/index.js";
+import { RESPONSE_TYPES, type SessionData } from "../../types/index.js";
 import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import { normalizeDomain } from "../../utils/normalize.js";
@@ -69,12 +66,15 @@ export async function handleCallback(
   const { transaction, identifier, magicLink } = found;
   const appState = transaction.appState as LoginAppState | undefined;
   const appBaseUrl = resolveAppBaseUrl(config.appBaseUrl, req);
+  // Reported by the engine once the code is exchanged; `false` until then.
+  let anonymousSessionLinked: boolean | undefined;
   const callbackCtx = (): OnCallbackContext => ({
     responseType: RESPONSE_TYPES.CODE,
     // The engine's magic-link transaction has no `returnTo`; nextjs stored this one.
     returnTo: magicLink ? config.signInReturnToPath : appState?.returnTo,
     challengeMode: appState?.challengeMode || "redirect",
-    appBaseUrl
+    appBaseUrl,
+    anonymousSessionLinked: anonymousSessionLinked ?? false
   });
 
   // As on nextjs: the `state` stored in the transaction must be the one that came back.
@@ -121,8 +121,25 @@ export async function handleCallback(
 
   let res: NextResponse | undefined;
   let hookFailed = false;
+  let noIdToken = false;
   const loginOptions = {
-    beforeSessionSaved: async (stateData: StateData) => {
+    beforeSessionSaved: async (
+      stateData: StateData,
+      {
+        idTokenClaims,
+        anonymousSessionLinked: linked
+      }: {
+        idTokenClaims?: Record<string, unknown>;
+        anonymousSessionLinked?: boolean;
+      }
+    ) => {
+      anonymousSessionLinked = linked;
+      // Nothing is saved without an identity: the engine would write a session with no user, or
+      // keep the user of a session that is already there and attach the new tokens to it.
+      if (!idTokenClaims) {
+        noIdToken = true;
+        throw new Error("The token response has no ID token.");
+      }
       try {
         const session = setup.sessionMapper.toSessionData(stateData);
         res = await onCallback(null, callbackCtx(), session);
@@ -155,10 +172,28 @@ export async function handleCallback(
     }
 
     if (result && config.options.enterpriseConnect) {
+      anonymousSessionLinked = result.anonymousSessionLinked;
+      if (!result.idTokenClaims) {
+        return handleCallbackError(
+          noIdTokenError(),
+          callbackCtx(),
+          req,
+          setup,
+          identifier
+        );
+      }
       // Auth0 is only an SSO relay: no session is saved, so the hook did not run. `onCallback`
       // is the only way a cookie reaches the browser.
       try {
-        res = await onCallback(null, callbackCtx(), enterpriseSession(result));
+        res = await onCallback(
+          null,
+          callbackCtx(),
+          enterpriseSession(
+            setup,
+            result,
+            typeof config.domain === "function" ? transaction.domain : undefined
+          )
+        );
       } catch (e) {
         hookFailed = true;
         throw e;
@@ -173,6 +208,15 @@ export async function handleCallback(
       }
     }
   } catch (e) {
+    if (noIdToken) {
+      return handleCallbackError(
+        noIdTokenError(),
+        callbackCtx(),
+        req,
+        setup,
+        identifier
+      );
+    }
     // `onCallback` and `beforeSessionSaved` errors reach the app as thrown, as on nextjs.
     if (hookFailed) {
       throw e;
@@ -307,21 +351,37 @@ function transactionIdentifier(
 }
 
 /**
- * The session `onCallback` sees in Enterprise Connect mode: the engine keeps no tokens there, so
- * only the user (the ID token claims) is filled.
+ * nextjs asks for an ID token when it exchanges the code (`requireIdToken`), so a response
+ * without one is the same failure as any other bad code exchange.
  */
-function enterpriseSession(result: {
-  user?: Record<string, unknown>;
-  idTokenClaims?: Record<string, unknown>;
-}): SessionData {
-  return {
-    user: (result.user ?? {}) as SessionData["user"],
-    tokenSet: {} as TokenSet,
+function noIdTokenError(): AuthorizationCodeGrantError {
+  return new AuthorizationCodeGrantError({
+    cause: new OAuth2Error({ code: "unknown_error" })
+  });
+}
+
+/**
+ * The session `onCallback` sees in Enterprise Connect mode. The engine keeps nothing there, so it
+ * returns the login's tokens and the session ceiling, and the session is built from them as for
+ * any other login: `mcd` only in resolver mode, from the domain of the login, and no refresh
+ * token (Enterprise Connect clients get none).
+ */
+function enterpriseSession(
+  setup: EngineSetup,
+  result: InteractiveLoginResult,
+  domain: string | undefined
+): SessionData {
+  return setup.sessionMapper.toSessionData({
+    user: result.user,
+    idToken: result.idToken,
+    tokenSets: result.tokenSet ? [result.tokenSet] : [],
+    ...(domain && { domain }),
+    sessionExpiresAt: result.sessionExpiresAt,
     internal: {
-      sid: String(result.idTokenClaims?.sid ?? ""),
+      sid: result.idTokenClaims?.sid,
       createdAt: Math.floor(Date.now() / 1000)
     }
-  };
+  } as StateData);
 }
 
 function onCallbackOf(setup: EngineSetup): OnCallbackHook {

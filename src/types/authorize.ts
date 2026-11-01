@@ -168,6 +168,21 @@ export interface AuthorizationParameters {
   segment_id?: string;
 
   /**
+   * @deprecated Ignored. The SDK runs the authorization code flow with PKCE and does not check a
+   * `nonce`, so a value set here is never sent.
+   */
+  nonce?: string | null;
+  /**
+   * @deprecated Ignored. The SDK always requests `code`; another `response_type` cannot complete
+   * a login, so a value set here is never sent.
+   */
+  response_type?: string | null;
+  /**
+   * @deprecated Ignored. The SDK manages `state` itself, so a value set here is never sent.
+   */
+  state?: string | null;
+
+  /**
    * Additional authorization parameters.
    */
   [key: string]: unknown;

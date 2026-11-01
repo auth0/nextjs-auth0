@@ -118,7 +118,29 @@ export async function requestContext(
 ): Promise<RequestContext> {
   const scratch = NextResponse.next();
   const { ctx, nextReq } = await readContext(input);
-  return { ctx: { ...ctx, resCookies: scratch.cookies }, scratch, nextReq };
+  return {
+    ctx: {
+      ...ctx,
+      // With no request, the request cookies are the framework's live `cookies()` store. The engine
+      // also writes each cookie it sets to the request side, so later reads see it. As on nextjs,
+      // that must not reach the live store: a Server Component refuses the write and a Server
+      // Action would send a bare copy. A private copy takes it instead.
+      reqCookies: input ? ctx.reqCookies : copyOf(ctx.reqCookies),
+      resCookies: scratch.cookies
+    },
+    scratch,
+    nextReq
+  };
+}
+
+function copyOf(
+  cookies: RequestCookies | ReadonlyRequestCookies
+): RequestCookies {
+  const header = cookies
+    .getAll()
+    .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
+    .join("; ");
+  return new RequestCookies(new Headers({ cookie: header }));
 }
 
 /**

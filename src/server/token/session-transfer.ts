@@ -36,7 +36,7 @@ export async function requestSessionTransferToken(
  * one, else the session ID token, refreshed first when it has expired: our `beforeSessionSaved`
  * runs and the session is saved), sends the exchange and checks the issued token type. Around it,
  * nextjs's rules:
- * 1. the session is read with nextjs's checks; stored for another domain: the
+ * 1. the session is read with nextjs's checks; resolver mode, stored for another domain: the
  *    `SessionDomainMismatchError`, even with an explicit actor
  * 2. nextjs's subject checks
  * 3. no session (or a ceiling reached) and no explicit actor: nextjs's `actor_unavailable`, before

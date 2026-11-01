@@ -8,42 +8,26 @@ import {
   SdkError
 } from "../../errors/index.js";
 import type { StartInteractiveLoginOptions } from "../../types/index.js";
-import {
-  ANON_TRANSFER_TOKEN_PARAM,
-  RESERVED_SESSION_TOKEN_PARAM,
-  transferCookies
-} from "../../utils/anonymous-session-constants.js";
+import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
-import {
-  mergeAuthorizationParamsIntoSearchParams,
-  parseNonNegativeIntegerParam
-} from "../../utils/authorization-params-helpers.js";
+import { parseNonNegativeIntegerParam } from "../../utils/authorization-params-helpers.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
+import { getScopeForAudience } from "../../utils/scope-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { requestContext } from "../engine/context.js";
-import type { EngineSetup } from "../engine/create-engine.js";
+import {
+  withoutUnsupportedParams,
+  type EngineSetup
+} from "../engine/create-engine.js";
 import type { PagesRouterRequest } from "../types/index.js";
 import { resolveReturnTo } from "./return-to.js";
-
-// Parameters of the authorize request that the caller cannot set (also dropped for CIBA, as on
-// nextjs).
-export const INTERNAL_AUTHORIZE_PARAMS = [
-  "client_id",
-  "redirect_uri",
-  "response_type",
-  "code_challenge",
-  "code_challenge_method",
-  "state",
-  "nonce",
-  RESERVED_SESSION_TOKEN_PARAM,
-  ANON_TRANSFER_TOKEN_PARAM
-];
 
 /**
  * Starts a login: the redirect to Auth0 with the transaction cookie.
  *
  * The engine builds the authorize URL, PKCE and `state` and writes the transaction; this adds what
- * is ours: the callback URL, a safe `returnTo`, the merged parameters and `dpop_jkt`.
+ * is ours: the callback URL, a safe `returnTo`, a scope map resolved for the audience and
+ * `dpop_jkt`.
  */
 export async function startLogin(
   setup: EngineSetup,
@@ -74,31 +58,34 @@ export async function startLogin(
     return NextResponse.json({ error: "not_implemented" }, { status: 501 });
   }
 
-  // The scope given per call replaces the configured one; a scope map is resolved for the audience.
-  const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
-    config.authorizationParameters,
-    options.authorizationParameters,
-    INTERNAL_AUTHORIZE_PARAMS
-  );
-
-  if (typeof config.domain === "function") {
-    assertOpenIdScope(setup, options);
+  // The call's parameters go to the engine as they are: it puts them over its defaults and leaves
+  // out a `null` or `undefined`, so a call can remove a configured value. What it cannot do is
+  // ours: ignore the parameters it does not honor, resolve a scope map for the audience of this
+  // login, and check `max_age`.
+  const { audience, scope, max_age } = {
+    ...config.authorizationParameters,
+    ...options.authorizationParameters
+  };
+  const authorizationParams: Record<string, unknown> = {
+    ...withoutUnsupportedParams(options.authorizationParameters ?? {}),
+    redirect_uri: redirectUri.toString()
+  };
+  if (typeof scope === "object" && scope !== null) {
+    authorizationParams.scope = getScopeForAudience(scope, audience);
   }
 
-  const maxAge = authorizationParams.get("max_age");
   if (
-    maxAge !== null &&
-    parseNonNegativeIntegerParam("max_age", maxAge) === null
+    max_age != null &&
+    parseNonNegativeIntegerParam("max_age", String(max_age)) === null
   ) {
     throw new InvalidConfigurationError(
-      `Invalid max_age parameter: "${maxAge}". Must be a non-negative integer.`
+      `Invalid max_age parameter: "${max_age}". Must be a non-negative integer.`
     );
   }
 
-  authorizationParams.set("redirect_uri", redirectUri.toString());
   const dpopKeyPair = await getDpopKeyPair(config);
   if (dpopKeyPair) {
-    authorizationParams.set("dpop_jkt", await dpopThumbprint(dpopKeyPair));
+    authorizationParams.dpop_jkt = await dpopThumbprint(dpopKeyPair);
   }
 
   const engine = await setup.getEngine();
@@ -107,7 +94,7 @@ export async function startLogin(
     authorizationUrl = await setup.errors.callEngine("login", () =>
       engine.startInteractiveLogin(
         {
-          authorizationParams: Object.fromEntries(authorizationParams),
+          authorizationParams,
           pushedAuthorizationRequests:
             config.options.pushedAuthorizationRequests,
           appState: { returnTo }
@@ -129,31 +116,6 @@ export async function startLogin(
   const res = NextResponse.redirect(authorizationUrl.toString());
   transferCookies(scratch, res);
   return res;
-}
-
-/**
- * In resolver mode `openid` must be in the scope: from the configuration and the call together,
- * as on nextjs. A scope map counts as its value for the audience.
- */
-function assertOpenIdScope(
-  setup: EngineSetup,
-  options: StartInteractiveLoginOptions
-) {
-  const { config } = setup;
-  const configured = config.authorizationParameters.scope;
-  const given = options.authorizationParameters?.scope;
-  const scope = [
-    typeof configured === "string" ? configured : config.loginScope,
-    typeof given === "string" ? given : undefined
-  ]
-    .filter(Boolean)
-    .join(" ");
-  if (!scope.split(/\s+/).includes("openid")) {
-    throw new InvalidConfigurationError(
-      'The "openid" scope is required in resolver mode (DomainResolver). ' +
-        'Add "openid" to your SDK configuration or login options.'
-    );
-  }
 }
 
 async function dpopThumbprint(

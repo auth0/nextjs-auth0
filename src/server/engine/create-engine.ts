@@ -11,7 +11,11 @@ import {
   InvalidConfigurationError
 } from "../../errors/index.js";
 import type { DomainResolver } from "../../types/mcd.js";
-import { DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME } from "../../utils/anonymous-session-constants.js";
+import {
+  ANON_TRANSFER_TOKEN_PARAM,
+  DEFAULT_ANONYMOUS_SESSION_COOKIE_NAME,
+  RESERVED_SESSION_TOKEN_PARAM
+} from "../../utils/anonymous-session-constants.js";
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { normalizeDomain } from "../../utils/normalize.js";
 import type { Auth0ClientOptions } from "../types/options.js";
@@ -35,6 +39,17 @@ import { NextTransactionStore } from "./stores/transaction-store.js";
 export const MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
 // nextjs's default anonymous cookie lifetime (30 days).
 const DEFAULT_ANONYMOUS_COOKIE_MAX_AGE = 2592000;
+// Authorization parameters that are ignored wherever they come from, the configuration or a call.
+// The login runs the authorization code flow with PKCE, so a `nonce` is never checked and another
+// `response_type` returns no code; `state` and the anonymous session parameters are set by the
+// engine, and a value from a caller cannot be trusted.
+const UNSUPPORTED_AUTHORIZATION_PARAMS = [
+  "nonce",
+  "response_type",
+  "state",
+  ANON_TRANSFER_TOKEN_PARAM,
+  RESERVED_SESSION_TOKEN_PARAM
+];
 
 export type Engine = ServerClient<CookieContext>;
 type GetEngine = () => Promise<Engine>;
@@ -94,7 +109,7 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
         clientAssertionSigningKey: config.clientAssertionSigningKey,
         clientAssertionSigningAlg: config.clientAssertionSigningAlg,
         authorizationParams: {
-          ...config.authorizationParameters,
+          ...withoutUnsupportedParams(config.authorizationParameters),
           scope: config.loginScope
         } as EngineAuthorizationParameters,
         discoveryCache: options.discoveryCache,
@@ -129,6 +144,17 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
     sessionMapper,
     config
   };
+}
+
+/**
+ * The authorization parameters without the ones that are ignored.
+ */
+export function withoutUnsupportedParams(params: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(params).filter(
+      ([key]) => !UNSUPPORTED_AUTHORIZATION_PARAMS.includes(key)
+    )
+  );
 }
 
 /**

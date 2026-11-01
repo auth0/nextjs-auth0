@@ -6,10 +6,26 @@ import type {
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse
 } from "../../types/index.js";
+import {
+  ANON_TRANSFER_TOKEN_PARAM,
+  RESERVED_SESSION_TOKEN_PARAM
+} from "../../utils/anonymous-session-constants.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../../utils/constants.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { INTERNAL_AUTHORIZE_PARAMS } from "../login/start-login.js";
+
+// Parameters of the authorize request that the caller cannot set, as on nextjs.
+const INTERNAL_AUTHORIZE_PARAMS = [
+  "client_id",
+  "redirect_uri",
+  "response_type",
+  "code_challenge",
+  "code_challenge_method",
+  "state",
+  "nonce",
+  RESERVED_SESSION_TOKEN_PARAM,
+  ANON_TRANSFER_TOKEN_PARAM
+];
 
 /**
  * CIBA: the engine's auth client sends the request to Auth0 and polls until the user approves,

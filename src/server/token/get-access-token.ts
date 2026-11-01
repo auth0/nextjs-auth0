@@ -60,8 +60,8 @@ export async function getAccessToken(
 /**
  * The access token for the signed-in user. The engine looks it up, refreshes it when needed and
  * saves the session; around it, nextjs's rules (`executeGetAccessToken`, `getTokenSet`):
- * 1. no session (or a ceiling reached): `missing_session`; stored for another domain: the
- *    `SessionDomainMismatchError`
+ * 1. no session (or a ceiling reached): `missing_session`; resolver mode, stored for another
+ *    domain: the `SessionDomainMismatchError`
  * 2. the scope is computed as on nextjs and always passed, so the engine sends it to Auth0
  * 3. no refresh token and a token that has not expired: served, even with `refresh` or inside
  *    `tokenRefreshBuffer` (the engine would refuse)

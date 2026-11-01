@@ -18,9 +18,11 @@ export interface ReadSessionResult {
  * so the state can be saved again:
  * 1. no session stored: no session
  * 2. session ceiling reached: no session, and the stateful row is deleted
- * 3. stored for another domain: no session and a `SessionDomainMismatchError`, in static mode too
- * 4. no domain stored, static mode: returned as is
- * 5. no domain stored, resolver mode: the domain is taken from the ID token `iss`, else the
+ * 3. static mode (one fixed domain, also when it is read later from `AUTH0_DOMAIN`): returned as is.
+ *    As in the engine, the domain stored in the session is not compared with the configured one,
+ *    and a refresh goes to the stored domain
+ * 4. resolver mode, stored for another domain: no session and a `SessionDomainMismatchError`
+ * 5. resolver mode, no domain stored: the domain is taken from the ID token `iss`, else the
  *    current domain, and set on the returned state only (saved by the caller, if it saves)
  */
 export async function readSession(
@@ -45,6 +47,10 @@ export async function readSession(
     return {};
   }
 
+  if (typeof config.domain !== "function") {
+    return { state };
+  }
+
   if (state.domain) {
     const currentDomain = await setup.currentDomain(ctx);
     if (state.domain !== currentDomain) {
@@ -58,12 +64,7 @@ export async function readSession(
     return { state };
   }
 
-  // Static mode: no domain is stored, which keeps the cookie small (nextjs #2595).
-  if (typeof config.domain !== "function") {
-    return { state };
-  }
-
-  // Resolver mode, a session written before MCD was turned on: the ID token `iss` always gives the
+  // A session written before MCD was turned on: the ID token `iss` always gives the
   // same domain for the same session.
   let inferredDomain: string | undefined;
   if (state.idToken) {
