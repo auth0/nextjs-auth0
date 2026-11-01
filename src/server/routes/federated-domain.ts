@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server.js";
 
 import { isFederatedDomain } from "../../utils/webfingerCache.js";
-import { middlewareContext } from "../engine/context.js";
+import { middlewareContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 
 /**

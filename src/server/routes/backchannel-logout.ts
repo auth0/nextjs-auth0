@@ -3,7 +3,7 @@ import { decodeJwt } from "jose";
 
 import { BackchannelLogoutError, DiscoveryError } from "../../errors/index.js";
 import { normalizeDomain } from "../../utils/normalize.js";
-import { readContext } from "../engine/context.js";
+import { readContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { NextStatefulStateStore } from "../engine/stores/stateful-state-store.js";
 

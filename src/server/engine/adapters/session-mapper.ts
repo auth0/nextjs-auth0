@@ -8,7 +8,7 @@ import type {
   SessionData,
   TokenSet,
   User
-} from "../../types/index.js";
+} from "../../../types/index.js";
 
 // The engine's cache key for "no specific audience" (engine `getAccessToken`). Never sent.
 export const ENGINE_DEFAULT_AUDIENCE = "default";

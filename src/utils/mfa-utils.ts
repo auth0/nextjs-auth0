@@ -13,7 +13,7 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
-import { decrypt, encrypt } from "../server/cookies/encryption.js";
+import { decrypt, encrypt } from "../server/utils/encryption.js";
 import type { MfaContext } from "../types/index.js";
 
 /**

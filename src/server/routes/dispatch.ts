@@ -2,38 +2,38 @@ import { NextRequest, NextResponse } from "next/server.js";
 
 import { removeTrailingSlash } from "../../utils/pathUtils.js";
 import { isNonNavigationalRequest } from "../../utils/request.js";
+import type { EngineSetup } from "../engine/create-engine.js";
+import type { EngineConfig } from "../engine/resolve-config.js";
+import type { Routes } from "../types/routes.js";
+import { handleAccessToken } from "./access-token.js";
 import {
   handleAnonymousSession,
   handleAnonymousSessionLogout
-} from "../anonymous/anonymous-routes.js";
-import type { EngineSetup } from "../engine/create-engine.js";
-import type { EngineConfig } from "../engine/resolve-config.js";
+} from "./anonymous-session.js";
+import { handleBackChannelLogout } from "./backchannel-logout.js";
+import { handleCallback } from "./callback.js";
+import { handleFederatedDomain } from "./federated-domain.js";
+import { handleLogin } from "./login.js";
+import { handleLogout } from "./logout.js";
 import {
   handleMfaAssociate,
   handleMfaAuthenticators,
   handleMfaChallenge,
   handleMfaVerify
-} from "../mfa/mfa-routes.js";
+} from "./mfa.js";
 import {
   handlePasskeyChallenge,
   handlePasskeyEnrollmentChallenge,
   handlePasskeyEnrollmentVerify,
   handlePasskeyGetToken,
   handlePasskeyRegister
-} from "../passkey/passkey-routes.js";
+} from "./passkey.js";
 import {
   handlePasswordlessDbGetToken,
   handlePasswordlessDbOtpChallenge,
   handlePasswordlessStart,
   handlePasswordlessVerify
-} from "../passwordless/passwordless-routes.js";
-import type { Routes } from "../types/routes.js";
-import { handleAccessToken } from "./access-token.js";
-import { handleBackChannelLogout } from "./backchannel-logout.js";
-import { handleCallback } from "./callback.js";
-import { handleFederatedDomain } from "./federated-domain.js";
-import { handleLogin } from "./login.js";
-import { handleLogout } from "./logout.js";
+} from "./passwordless.js";
 import { handleProfile } from "./profile.js";
 import { handleMyAccount, handleMyOrg } from "./proxy.js";
 import { rollSession } from "./roll-session.js";

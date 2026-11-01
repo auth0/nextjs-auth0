@@ -15,15 +15,15 @@ import { DEFAULT_SCOPES, DEFAULT_STT_SCOPES } from "../../utils/constants.js";
 import { resolveActorFromSession } from "../../utils/session-transfer-helpers.js";
 import { mergeScopes } from "../../utils/token-set-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import { withCallContext } from "../engine/call-context.js";
-import { readContext, type CookieContext } from "../engine/context.js";
+import { withCallContext } from "../engine/adapters/call-context.js";
+import { readContext, type CookieContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { createRefreshHook } from "../session/hooks.js";
-import { readSession } from "../session/session.js";
 import type {
   PagesRouterRequest,
   PagesRouterResponse
 } from "../types/index.js";
+import { createRefreshHook } from "./hooks.js";
+import { readSession } from "./session.js";
 
 /**
  * Custom Token Exchange (RFC 8693), nothing saved. The engine sends the request (DPoP when on);

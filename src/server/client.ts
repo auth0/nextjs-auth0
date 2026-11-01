@@ -31,21 +31,21 @@ import {
   readAnonymousSession,
   type CreateAnonymousSessionOptions
 } from "./anonymous/anonymous-operations.js";
-import { withCallContext } from "./engine/call-context.js";
 import {
-  readContext,
-  requestContext,
-  type CookieContext
-} from "./engine/context.js";
-import { createEngine, type EngineSetup } from "./engine/create-engine.js";
-import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
-import { createFetcher as buildFetcher } from "./fetcher/create-fetcher.js";
+  getAccessToken as fetchAccessToken,
+  revokeRefreshToken as revokeSessionRefreshToken
+} from "./auth/access-token.js";
+import { backchannelAuthentication } from "./auth/backchannel-auth.js";
 import {
-  AccessTokenFactory,
-  CustomFetchImpl,
-  Fetcher
-} from "./fetcher/fetcher.js";
-import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
+  getSession as loadSession,
+  updateSession as saveSession
+} from "./auth/session.js";
+import { startLogin } from "./auth/start-login.js";
+import {
+  customTokenExchange as exchangeCustomToken,
+  requestSessionTransferToken as requestTransferToken
+} from "./auth/token-exchange.js";
+import * as withApiAuthRequired from "./auth/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
   AppRouterPageRoute,
@@ -54,31 +54,31 @@ import {
   pageRouteHandlerFactory,
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
-} from "./helpers/with-page-auth-required.js";
-import { toNextRequest } from "./http/next-compat.js";
-import { startLogin } from "./login/start-login.js";
+} from "./auth/with-page-auth-required.js";
+import { withCallContext } from "./engine/adapters/call-context.js";
+import {
+  readContext,
+  requestContext,
+  type CookieContext
+} from "./engine/adapters/context.js";
+import { createEngine, type EngineSetup } from "./engine/create-engine.js";
+import { applyEnterpriseConnectRestrictions } from "./enterprise-connect.js";
+import { createFetcher as buildFetcher } from "./fetcher/create-fetcher.js";
+import {
+  AccessTokenFactory,
+  CustomFetchImpl,
+  Fetcher
+} from "./fetcher/fetcher.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import { dispatch } from "./routes/dispatch.js";
-import {
-  getSession as loadSession,
-  updateSession as saveSession
-} from "./session/session.js";
-import {
-  getAccessToken as fetchAccessToken,
-  revokeRefreshToken as revokeSessionRefreshToken
-} from "./token/access-token.js";
-import { backchannelAuthentication } from "./token/backchannel-auth.js";
-import {
-  customTokenExchange as exchangeCustomToken,
-  requestSessionTransferToken as requestTransferToken
-} from "./token/token-exchange.js";
 import type {
   Auth0ClientOptions,
   PagesRouterRequest,
   PagesRouterResponse
 } from "./types/index.js";
+import { toNextRequest } from "./utils/next-compat.js";
 
 export class Auth0Client {
   #options: Auth0ClientOptions;

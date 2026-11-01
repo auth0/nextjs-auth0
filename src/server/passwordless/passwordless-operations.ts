@@ -11,10 +11,10 @@ import type {
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../../utils/authorization-params-helpers.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
+import { createLoginHook } from "../auth/hooks.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import type { CookieContext } from "../engine/context.js";
+import type { CookieContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { createLoginHook } from "../session/hooks.js";
 
 // The engine sets these on the magic link itself; the configured ones are dropped, as on
 // nextjs.

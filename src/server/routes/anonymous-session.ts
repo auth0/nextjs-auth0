@@ -6,13 +6,13 @@ import {
   mapAnonymousErrorCode
 } from "../../errors/index.js";
 import { transferCookies } from "../../utils/anonymous-session-constants.js";
-import { middlewareContext } from "../engine/context.js";
-import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
 import {
   fetchAnonymousSession,
   isAnonymousSessionEnabled
-} from "./anonymous-operations.js";
+} from "../anonymous/anonymous-operations.js";
+import { middlewareContext } from "../engine/adapters/context.js";
+import type { EngineSetup } from "../engine/create-engine.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 /**
  * Route: GET /auth/anonymous-session. 200 with `{ id, accessToken, expiresAt, metadata? }`, or

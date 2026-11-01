@@ -3,8 +3,8 @@ import type {
   CookieSerializeOptions
 } from "@auth0/auth0-server-js";
 
-import { getAllChunkedCookies } from "../../cookies/chunks.js";
-import type { CookieContext } from "../context.js";
+import { getAllChunkedCookies } from "../../utils/chunks.js";
+import type { CookieContext } from "../adapters/context.js";
 
 /**
  * Chunked cookies of the engine's stateless stores, written and cleared the way nextjs did.

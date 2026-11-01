@@ -2,13 +2,13 @@ import { cookies, headers } from "next/headers.js";
 import { NextResponse, type NextRequest } from "next/server.js";
 import { RequestCookies, type ResponseCookies } from "@edge-runtime/cookies";
 
+import type { ReadonlyRequestCookies } from "../../types/cookies.js";
+import type { PagesRouterRequest } from "../../types/index.js";
 import {
   toHeadersFromIncomingMessage,
   toNextRequest,
   toUrlFromPagesRouter
-} from "../http/next-compat.js";
-import type { ReadonlyRequestCookies } from "../types/cookies.js";
-import type { PagesRouterRequest } from "../types/index.js";
+} from "../../utils/next-compat.js";
 
 /**
  * Per-request cookie access handed to the engine as its store options.

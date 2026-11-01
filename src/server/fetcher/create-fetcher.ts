@@ -11,18 +11,15 @@ import {
 import type { DpopKeyPair, DpopOptions } from "../../types/dpop.js";
 import type { TokenSet } from "../../types/index.js";
 import { isRequest } from "../../utils/request.js";
+import { retrieveAccessToken, type AccessToken } from "../auth/access-token.js";
+import { getSession } from "../auth/session.js";
 import { getDpopConfig } from "../dpop/dpop-key-pair.js";
-import { withCallContext } from "../engine/call-context.js";
+import { withCallContext } from "../engine/adapters/call-context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { withHttpTimeout } from "../engine/http-timeout.js";
 import type { EngineConfig } from "../engine/resolve-config.js";
-import { toNextRequest } from "../http/next-compat.js";
-import { getSession } from "../session/session.js";
-import {
-  retrieveAccessToken,
-  type AccessToken
-} from "../token/access-token.js";
 import type { PagesRouterRequest } from "../types/index.js";
+import { toNextRequest } from "../utils/next-compat.js";
 import {
   AccessTokenFactory,
   CustomFetchImpl,

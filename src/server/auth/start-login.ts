@@ -15,7 +15,7 @@ import { createRouteUrl } from "../../utils/pathUtils.js";
 import { getScopeForAudience } from "../../utils/scope-helpers.js";
 import { toSafeRedirect } from "../../utils/url-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import { requestContext } from "../engine/context.js";
+import { requestContext } from "../engine/adapters/context.js";
 import {
   withoutUnsupportedParams,
   type EngineSetup

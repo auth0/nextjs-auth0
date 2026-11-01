@@ -1,4 +1,4 @@
-import { encrypt } from "../server/cookies/encryption.js";
+import { encrypt } from "../server/utils/encryption.js";
 import { SessionData } from "../types/index.js";
 
 export type GenerateSessionCookieConfig = {

@@ -4,10 +4,10 @@ import type { LogoutOptions } from "@auth0/auth0-server-js";
 import { DiscoveryError } from "../../errors/index.js";
 import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
-import { middlewareContext } from "../engine/context.js";
+import { readSession } from "../auth/session.js";
+import { middlewareContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { readSession } from "../session/session.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 // The engine's error for `strategy: "oidc"` on a tenant without `end_session_endpoint`.
 const RP_INITIATED_LOGOUT_NOT_SUPPORTED =

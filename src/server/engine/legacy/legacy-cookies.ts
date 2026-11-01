@@ -2,13 +2,10 @@ import type { CookieSerializeOptions } from "@auth0/auth0-server-js";
 import { decodeProtectedHeader } from "jose";
 
 import type { ConnectionTokenSet, SessionData } from "../../../types/index.js";
-import {
-  getAllChunkedCookies,
-  getChunkedCookie
-} from "../../cookies/chunks.js";
-import { decrypt, verifySigned } from "../../cookies/encryption.js";
-import type { CookieContext } from "../context.js";
-import type { NextCookieHandler } from "../cookie-handler.js";
+import { getAllChunkedCookies, getChunkedCookie } from "../../utils/chunks.js";
+import { decrypt, verifySigned } from "../../utils/encryption.js";
+import type { CookieContext } from "../adapters/context.js";
+import type { NextCookieHandler } from "../adapters/cookie-handler.js";
 import {
   LEGACY_COOKIE_NAME,
   LegacySessionPayload,

@@ -1,4 +1,4 @@
-import { mapAnonymousErrorCode } from "../../errors/anonymous-session-errors.js";
+import { mapAnonymousErrorCode } from "../../../errors/anonymous-session-errors.js";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -34,10 +34,10 @@ import {
   TokenRevocationError,
   TokenRevocationErrorCode,
   type MfaRequirements
-} from "../../errors/index.js";
-import { DEFAULT_MFA_CONTEXT_TTL_SECONDS } from "../../utils/constants.js";
-import { encryptMfaToken } from "../../utils/mfa-utils.js";
-import { mapSttServerError } from "../../utils/session-transfer-helpers.js";
+} from "../../../errors/index.js";
+import { DEFAULT_MFA_CONTEXT_TTL_SECONDS } from "../../../utils/constants.js";
+import { encryptMfaToken } from "../../../utils/mfa-utils.js";
+import { mapSttServerError } from "../../../utils/session-transfer-helpers.js";
 
 /**
  * The engine call an error came from. The same engine error means different things in

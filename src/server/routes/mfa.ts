@@ -17,16 +17,16 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../../utils/mfa-validation-utils.js";
-import { middlewareContext, readContext } from "../engine/context.js";
+import { middlewareContext, readContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
 import {
   challengeAuthenticator,
   enrollAuthenticator,
   listAuthenticators,
   toVerifyResponse,
   verifyMfa
-} from "./mfa-operations.js";
+} from "../mfa/mfa-operations.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 /**
  * Route: GET /auth/mfa/authenticators, `Authorization: Bearer <encrypted mfa_token>`.

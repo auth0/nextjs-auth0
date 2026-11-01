@@ -15,12 +15,12 @@ import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import { normalizeDomain } from "../../utils/normalize.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
+import { finalizeSession } from "../auth/hooks.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import { middlewareContext } from "../engine/context.js";
+import { middlewareContext } from "../engine/adapters/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { finalizeSession } from "../session/hooks.js";
 import type { OnCallbackContext, OnCallbackHook } from "../types/hooks.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 type InteractiveLoginResult = Awaited<
   ReturnType<Engine["completeInteractiveLogin"]>

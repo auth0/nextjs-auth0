@@ -31,7 +31,7 @@ export {
   AppRouterPageRoute,
   WithPageAuthRequiredPageRouter,
   WithPageAuthRequiredAppRouter
-} from "./helpers/with-page-auth-required.js";
+} from "./auth/with-page-auth-required.js";
 
 // MCD (Multiple Custom Domains) public error classes
 export {

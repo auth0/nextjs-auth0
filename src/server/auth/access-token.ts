@@ -16,17 +16,17 @@ import type { GetAccessTokenOptions } from "../../types/index.js";
 import { getScopeForAudience } from "../../utils/scope-helpers.js";
 import { compareScopes, mergeScopes } from "../../utils/token-set-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import { withCallContext } from "../engine/call-context.js";
-import { readContext, type CookieContext } from "../engine/context.js";
+import { withCallContext } from "../engine/adapters/call-context.js";
+import { readContext, type CookieContext } from "../engine/adapters/context.js";
+import { ENGINE_DEFAULT_AUDIENCE } from "../engine/adapters/session-mapper.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import type { EngineConfig } from "../engine/resolve-config.js";
-import { ENGINE_DEFAULT_AUDIENCE } from "../engine/session-mapper.js";
-import { createRefreshHook } from "../session/hooks.js";
-import { readSession } from "../session/session.js";
 import type {
   PagesRouterRequest,
   PagesRouterResponse
 } from "../types/index.js";
+import { createRefreshHook } from "./hooks.js";
+import { readSession } from "./session.js";
 
 export interface AccessToken {
   token: string;

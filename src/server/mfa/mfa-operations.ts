@@ -15,11 +15,11 @@ import type {
   VerifyMfaOptions
 } from "../../types/index.js";
 import { decryptMfaToken } from "../../utils/mfa-utils.js";
+import { createLoginHook } from "../auth/hooks.js";
+import { readSession } from "../auth/session.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import type { CookieContext } from "../engine/context.js";
+import type { CookieContext } from "../engine/adapters/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
-import { createLoginHook } from "../session/hooks.js";
-import { readSession } from "../session/session.js";
 
 type EngineVerifyOptions = Parameters<Engine["mfa"]["verify"]>[0];
 type EngineVerifyResult = Awaited<ReturnType<Engine["mfa"]["verify"]>>;

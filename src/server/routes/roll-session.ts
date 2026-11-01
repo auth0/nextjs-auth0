@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server.js";
 
 import { SessionDomainMismatchError } from "../../errors/index.js";
-import { middlewareContext } from "../engine/context.js";
+import { readSession } from "../auth/session.js";
+import { middlewareContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { readSession } from "../session/session.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 /**
  * A request that matches no SDK route continues to the app. When rolling is on, the session is

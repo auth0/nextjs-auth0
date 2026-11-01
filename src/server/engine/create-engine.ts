@@ -19,16 +19,19 @@ import {
 import { createSizeLimitedFetch } from "../../utils/fetchUtils.js";
 import { normalizeDomain } from "../../utils/normalize.js";
 import type { Auth0ClientOptions } from "../types/options.js";
-import type { CookieContext } from "./context.js";
-import { NextCookieHandler } from "./cookie-handler.js";
+import type { CookieContext } from "./adapters/context.js";
+import { NextCookieHandler } from "./adapters/cookie-handler.js";
 import {
   createErrorMapper,
   toSetupError,
   wrapFetch,
   type ErrorMapper
-} from "./errors.js";
+} from "./adapters/errors.js";
+import {
+  createSessionMapper,
+  type SessionMapper
+} from "./adapters/session-mapper.js";
 import { resolveConfig, type EngineConfig } from "./resolve-config.js";
-import { createSessionMapper, type SessionMapper } from "./session-mapper.js";
 import { NextAnonymousStore } from "./stores/anonymous-store.js";
 import { NextStatefulStateStore } from "./stores/stateful-state-store.js";
 import { NextStatelessStateStore } from "./stores/stateless-state-store.js";

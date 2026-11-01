@@ -14,7 +14,12 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "../../utils/proxy.js";
-import { middlewareContext, type CookieContext } from "../engine/context.js";
+import { retrieveAccessToken, type AccessToken } from "../auth/access-token.js";
+import { readSession } from "../auth/session.js";
+import {
+  middlewareContext,
+  type CookieContext
+} from "../engine/adapters/context.js";
 import {
   MAX_RESPONSE_BODY_SIZE,
   type EngineSetup
@@ -25,12 +30,7 @@ import {
   toTokenSet
 } from "../fetcher/create-fetcher.js";
 import type { AccessTokenFactory } from "../fetcher/fetcher.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { readSession } from "../session/session.js";
-import {
-  retrieveAccessToken,
-  type AccessToken
-} from "../token/access-token.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 // DPoP handles per audience, kept across proxied requests so nonces carry over, as on nextjs.
 const dpopHandles = new WeakMap<EngineSetup, Map<string, DPoPHandle>>();

@@ -2,17 +2,17 @@ import { cookies } from "next/headers.js";
 import { NextResponse, type NextRequest } from "next/server.js";
 import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 
-import { isRequest } from "../../utils/request.js";
+import { isRequest } from "../../../utils/request.js";
+import type {
+  PagesRouterRequest,
+  PagesRouterResponse
+} from "../../types/index.js";
 import {
   toHeadersFromIncomingMessage,
   toNextRequest,
   toUrlFromPagesRouter
-} from "../http/next-compat.js";
-import { appendPagesRouterCookies } from "../http/pages-router.js";
-import type {
-  PagesRouterRequest,
-  PagesRouterResponse
-} from "../types/index.js";
+} from "../../utils/next-compat.js";
+import { appendPagesRouterCookies } from "../../utils/pages-router.js";
 import {
   middlewareContext,
   readContext,

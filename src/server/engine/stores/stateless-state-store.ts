@@ -7,8 +7,8 @@ import {
 import type { JWTPayload } from "jose";
 
 import type { SessionData } from "../../../types/index.js";
-import type { CookieContext } from "../context.js";
-import type { NextCookieHandler } from "../cookie-handler.js";
+import type { CookieContext } from "../adapters/context.js";
+import type { NextCookieHandler } from "../adapters/cookie-handler.js";
 import {
   deleteLegacyCookies,
   isLegacyJwe,

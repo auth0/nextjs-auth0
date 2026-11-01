@@ -14,8 +14,8 @@ import type {
   VerifyMfaOptions
 } from "../../types/index.js";
 import { normalizeEnrollOptions } from "../../utils/mfa-transform-utils.js";
-import { withCallContext } from "../engine/call-context.js";
-import { readContext } from "../engine/context.js";
+import { withCallContext } from "../engine/adapters/call-context.js";
+import { readContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import {
   challengeAuthenticator,

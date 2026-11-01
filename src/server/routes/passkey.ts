@@ -20,16 +20,16 @@ import {
   parseJsonBody,
   validateStringFieldAndThrow
 } from "../../utils/mfa-validation-utils.js";
-import { middlewareContext, readContext } from "../engine/context.js";
+import { middlewareContext, readContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
 import {
   challengePasskey,
   enrollmentChallenge,
   enrollmentVerify,
   getPasskeyToken,
   registerPasskey
-} from "./passkey-operations.js";
+} from "../passkey/passkey-operations.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 // Copied from the body when truthy, as on nextjs.
 const REGISTER_FIELDS = [

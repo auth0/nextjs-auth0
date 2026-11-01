@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server.js";
 
 import { MfaRequiredError } from "../../errors/index.js";
 import { transferCookies } from "../../utils/anonymous-session-constants.js";
-import { middlewareContext } from "../engine/context.js";
+import { retrieveAccessToken } from "../auth/access-token.js";
+import { middlewareContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
-import { retrieveAccessToken } from "../token/access-token.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 /**
  * Route: GET /auth/access-token?audience=&scope=&mergeScopes=. `getAccessToken` for the browser,

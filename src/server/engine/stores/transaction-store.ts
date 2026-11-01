@@ -5,8 +5,8 @@ import {
 } from "@auth0/auth0-server-js";
 
 import type { TransactionCookieOptions } from "../../types/transaction.js";
-import type { CookieContext } from "../context.js";
-import type { NextCookieHandler } from "../cookie-handler.js";
+import type { CookieContext } from "../adapters/context.js";
+import type { NextCookieHandler } from "../adapters/cookie-handler.js";
 import { isLegacyJwe } from "../legacy/legacy-cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";

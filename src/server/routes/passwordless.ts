@@ -19,15 +19,15 @@ import {
   parseJsonBody,
   validateStringFieldAndThrow
 } from "../../utils/mfa-validation-utils.js";
-import { middlewareContext, readContext } from "../engine/context.js";
+import { middlewareContext, readContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { addCacheControlHeadersForSession } from "../http/cache-control.js";
 import {
   challengeDbConnection,
   loginWithDbOtp,
   startPasswordless,
   verifyPasswordless
-} from "./passwordless-operations.js";
+} from "../passwordless/passwordless-operations.js";
+import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
 /**
  * Route: POST /auth/passwordless/start, body `{ connection: "email", email, send, language? }` or

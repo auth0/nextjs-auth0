@@ -10,7 +10,7 @@ import {
   ANONYMOUS_SUBJECT_PREFIX,
   METADATA_SIZE_LIMIT_BYTES
 } from "../../utils/anonymous-session-constants.js";
-import type { CookieContext } from "../engine/context.js";
+import type { CookieContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 
 export interface CreateAnonymousSessionOptions {

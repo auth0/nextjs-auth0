@@ -13,13 +13,13 @@ import type {
   PasskeyRegisterOptions,
   PasskeyRegisterResponse
 } from "../../types/index.js";
+import { retrieveAccessToken } from "../auth/access-token.js";
+import { createLoginHook } from "../auth/hooks.js";
+import { readSession } from "../auth/session.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import type { CookieContext } from "../engine/context.js";
+import type { CookieContext } from "../engine/adapters/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
 import { withHttpTimeout } from "../engine/http-timeout.js";
-import { createLoginHook } from "../session/hooks.js";
-import { readSession } from "../session/session.js";
-import { retrieveAccessToken } from "../token/access-token.js";
 
 type EngineRegisterOptions = Parameters<Engine["passkey"]["register"]>[0];
 type EngineGetTokenOptions = Parameters<Engine["passkey"]["getToken"]>[0];

@@ -7,8 +7,8 @@ import {
 } from "@auth0/auth0-server-js";
 
 import type { SessionData, SessionDataStore } from "../../../types/index.js";
-import type { CookieContext } from "../context.js";
-import type { NextCookieHandler } from "../cookie-handler.js";
+import type { CookieContext } from "../adapters/context.js";
+import type { NextCookieHandler } from "../adapters/cookie-handler.js";
 import {
   decryptLegacySessionId,
   deleteLegacyCookies,

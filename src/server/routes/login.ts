@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server.js";
 
 import type { StartInteractiveLoginOptions } from "../../types/index.js";
 import { parseNonNegativeIntegerParam } from "../../utils/authorization-params-helpers.js";
+import { startLogin } from "../auth/start-login.js";
 import type { EngineSetup } from "../engine/create-engine.js";
-import { startLogin } from "../login/start-login.js";
 
 /**
  * Route: GET /auth/login. The query is the login options: `returnTo`, `challengeMode`, and every

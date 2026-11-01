@@ -11,20 +11,20 @@ import {
   readContext,
   sharedJarContext,
   type CookieContext
-} from "../engine/context.js";
+} from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { NextStatefulStateStore } from "../engine/stores/stateful-state-store.js";
+import type {
+  PagesRouterRequest,
+  PagesRouterResponse
+} from "../types/index.js";
 import {
   toHeadersFromIncomingMessage,
   toNextRequest,
   toNextResponse,
   toUrlFromPagesRouter
-} from "../http/next-compat.js";
-import { setPagesRouterCookies } from "../http/pages-router.js";
-import type {
-  PagesRouterRequest,
-  PagesRouterResponse
-} from "../types/index.js";
+} from "../utils/next-compat.js";
+import { setPagesRouterCookies } from "../utils/pages-router.js";
 
 export interface ReadSessionResult {
   state?: StateData;
