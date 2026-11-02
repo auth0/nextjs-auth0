@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - beta
   schedule:
     - cron: '37 10 * * 2'
 
