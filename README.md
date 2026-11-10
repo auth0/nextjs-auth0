@@ -472,6 +472,7 @@ The SDK mounts following routes:
 16. `/auth/passkey/register`: get a WebAuthn credential creation challenge for a new user signup
 17. `/auth/passkey/challenge`: get a WebAuthn credential assertion challenge for an existing user login
 18. `/auth/passkey/get-token`: verify the WebAuthn credential and create a session
+19. `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource`: the Poppy discovery files for personal agents. Only served when the `poppy` option is set (see [Poppy (Personal Agents)](#poppy-personal-agents))
 
 > [!NOTE]
 > The passwordless routes (`/auth/passwordless/start` and `/auth/passwordless/verify`) support **Email OTP**, **SMS OTP**, and **Magic Link** flows against dedicated passwordless connections. For magic links, the user clicks the emailed link and is redirected to `/auth/callback` — no separate verify step is needed. Magic links require the `allow_magiclink_verify_without_session` tenant flag. See [Passwordless Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passwordless-authentication) in EXAMPLES.md for full setup and usage details.
@@ -511,6 +512,24 @@ For more details, see [Session Expiry from the Upstream IdP](https://github.com/
 ```
 
 For usage guidance, segment targeting, and testing patterns, see [Experiment Center in guides/experiment-center.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/experiment-center.md).
+
+## Poppy (Personal Agents)
+
+> [!NOTE]
+> Poppy support is experimental and pinned to Poppy protocol version `0.3`. It is opt-in: without the `poppy` option nothing changes.
+
+Lets personal AI agents, such as Meta Muse, shop and manage accounts on your site. The SDK serves the Poppy discovery files (`/.well-known/poppy.json` and `/.well-known/oauth-protected-resource`), accepts an agent's browser login at `/auth/login`, and tells you who is driving with `auth0.getPoppyContext()`: a person, an agent guest, or a signed-in agent.
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import poppyConfig from "./auth0-poppy.json"; // your domain, Auth0 issuer, join endpoint and scopes
+
+export const auth0 = new Auth0Client({ poppy: { config: poppyConfig } });
+
+const poppy = await auth0.getPoppyContext(); // { kind: "human" } or { kind: "agent", state: "guest" | "signed_in", ... }
+```
+
+Your middleware matcher must let `/.well-known/*` through to the SDK. For setup, the file format, guest vs signed-in behaviour, errors and testing, see [Poppy in guides/poppy.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/poppy.md).
 
 ## Feedback
 
