@@ -1,0 +1,32 @@
+{
+  "name": "nextjs-auth0",
+  "description": "Auth0 Next.js agent skills",
+  "author": {
+    "name": "Auth0",
+    "url": "https://github.com/auth0"
+  },
+  "homepage": "https://auth0.com",
+  "repository": "https://github.com/auth0/nextjs-auth0",
+  "license": "MIT",
+  "keywords": [
+    "auth0",
+    "nextjs",
+    "authentication",
+    "nextjs-auth0",
+    "passkeys"
+  ],
+  "skills": [
+    "./",
+    "./mfa",
+    "./organizations",
+    "./passkeys"
+  ],
+  "interface": {
+    "displayName": "Auth0 Next.js",
+    "shortDescription": "Auth0 Next.js agent skills",
+    "longDescription": "Agent skills for @auth0/nextjs-auth0 (core, MFA, organizations, passkeys), installed from the skills already in this repository.",
+    "developerName": "Auth0",
+    "category": "Developer Tools",
+    "websiteURL": "https://auth0.com"
+  }
+}
