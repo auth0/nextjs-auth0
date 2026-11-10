@@ -60,14 +60,16 @@ export async function handleBackChannelLogout(
   };
 
   if (typeof config.domain === "function") {
-    // Resolver mode: the domain resolved for the request is the trust anchor. The token's issuer
-    // is read without verifying, only to compare it.
+    // Resolver mode: the domain resolved for the request is the trust anchor. A resolver error
+    // reaches the app, as on nextjs (its middleware resolves the domain before the route runs).
+    const currentDomain = await setup.currentDomain(ctx);
+    // The token's issuer is read without verifying, only to compare it.
     try {
       const issuerDomain = readIssuerDomain(logoutToken);
       if (!issuerDomain) {
         return textResponse("Missing 'iss' claim in logout token.", 400);
       }
-      if (issuerDomain !== (await setup.currentDomain(ctx))) {
+      if (issuerDomain !== currentDomain) {
         return textResponse(
           "Logout token issuer does not match the resolved domain.",
           403

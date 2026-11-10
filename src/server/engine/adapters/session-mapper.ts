@@ -125,7 +125,7 @@ export function createSessionMapper({
     // requested later is appended.
     const [primary, ...others] = entries;
 
-    let tokenSet: TokenSet;
+    let tokenSet: TokenSet | undefined;
     if (primary) {
       // Only the engine's own placeholder goes back to "no audience"; a configured or per-login
       // audience is kept, as today's login writes it.
@@ -136,18 +136,19 @@ export function createSessionMapper({
           audience: primaryAudience
         })
       } as TokenSet;
-    } else {
-      // No entries (not reached by normal logins): an already-expired placeholder, so the
-      // session is kept and the engine refreshes when asked.
-      tokenSet = { accessToken: "", expiresAt: 0 };
     }
-    if (idToken !== undefined) tokenSet.idToken = idToken;
-    if (refreshToken !== undefined) tokenSet.refreshToken = refreshToken;
+    // An ID token or refresh token with no token entry (not reached by normal logins) is kept on
+    // an empty token set.
+    if (idToken !== undefined || refreshToken !== undefined) {
+      tokenSet ??= { accessToken: "", expiresAt: 0 };
+      if (idToken !== undefined) tokenSet.idToken = idToken;
+      if (refreshToken !== undefined) tokenSet.refreshToken = refreshToken;
+    }
 
-    return {
+    const session = {
       ...rest,
-      user: (user ?? {}) as User,
-      tokenSet,
+      ...(user !== undefined && { user: user as User }),
+      ...(tokenSet && { tokenSet }),
       ...(others.length > 0 && { accessTokens: others as AccessTokenSet[] }),
       ...(connectionTokenSets && {
         connectionTokenSets:
@@ -161,6 +162,9 @@ export function createSessionMapper({
         ...(domain && { mcd: { domain, issuer: `https://${domain}/` } })
       }
     };
+    // nextjs saves a session without `user` or `tokenSet` and reads it back the same way, so an
+    // app's `if (!session.tokenSet)` behaves as before. The type requires both.
+    return session as SessionData;
   }
 
   return { toStateData, toSessionData, defaultAudienceKey };

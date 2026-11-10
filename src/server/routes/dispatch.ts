@@ -12,6 +12,7 @@ import {
 } from "./anonymous-session.js";
 import { handleBackChannelLogout } from "./backchannel-logout.js";
 import { handleCallback } from "./callback.js";
+import { handleConnectAccount } from "./connect-account.js";
 import { handleFederatedDomain } from "./federated-domain.js";
 import { handleLogin } from "./login.js";
 import { handleLogout } from "./logout.js";
@@ -59,10 +60,6 @@ interface RouteEntry {
   handle: RouteHandler;
 }
 
-// Answers a route that is not built yet.
-const notImplemented: RouteHandler = async () =>
-  NextResponse.json({ error: "not_implemented" }, { status: 501 });
-
 // nextjs's order (`auth-client.ts` `handler`): the first match wins.
 const ROUTES: RouteEntry[] = [
   { method: "GET", route: { key: "login" }, handle: handleLogin },
@@ -90,7 +87,7 @@ const ROUTES: RouteEntry[] = [
     method: "GET",
     route: { key: "connectAccount" },
     enabled: (config) => config.enableConnectAccountEndpoint,
-    handle: notImplemented
+    handle: handleConnectAccount
   },
   {
     method: "GET",

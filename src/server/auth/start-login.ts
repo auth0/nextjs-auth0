@@ -123,10 +123,11 @@ export async function startLogin(
 }
 
 /**
- * The path to go to after login: `returnTo` when it stays on the app's origin, else the default.
- * An unsafe or oversized value silently becomes the default, as on nextjs.
+ * The path to go to after login (or a connect account flow): `returnTo` when it stays on the
+ * app's origin, else the default. An unsafe or oversized value silently becomes the default, as on
+ * nextjs.
  */
-function resolveReturnTo(
+export function resolveReturnTo(
   returnTo: string | undefined,
   safeBaseUrl: string,
   fallback: string

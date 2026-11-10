@@ -5086,7 +5086,7 @@ const result = await auth0.customTokenExchange({
   subjectTokenType: "urn:acme:external-token"
 });
 
-// result.tokenType will be "DPoP"
+// result.tokenType will be "dpop"
 ```
 
 ## Session Transfer Token

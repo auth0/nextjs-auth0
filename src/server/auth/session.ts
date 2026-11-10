@@ -42,10 +42,14 @@ export interface ReadSessionResult {
  * 4. resolver mode, stored for another domain: no session and a `SessionDomainMismatchError`
  * 5. resolver mode, no domain stored: the domain is taken from the ID token `iss`, else the
  *    current domain, and set on the returned state only (saved by the caller, if it saves)
+ *
+ * `skipCeilingCheck` skips step 2 only, for connection tokens: they follow the upstream provider's
+ * lifetime, not the session ceiling.
  */
 export async function readSession(
   setup: EngineSetup,
-  ctx: CookieContext
+  ctx: CookieContext,
+  { skipCeilingCheck = false }: { skipCeilingCheck?: boolean } = {}
 ): Promise<ReadSessionResult> {
   const { sessionStore, config } = setup;
   const state = await sessionStore.get(config.sessionCookie.name, ctx);
@@ -53,7 +57,7 @@ export async function readSession(
     return {};
   }
 
-  if (isSessionCeilingReached(state.sessionExpiresAt)) {
+  if (!skipCeilingCheck && isSessionCeilingReached(state.sessionExpiresAt)) {
     // Stateless sessions live in the cookie only, so there is nothing to delete.
     if (sessionStore instanceof NextStatefulStateStore) {
       sessionStore

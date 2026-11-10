@@ -12,7 +12,6 @@ import type {
   SessionTransferTokenResult
 } from "../../types/index.js";
 import { DEFAULT_SCOPES, DEFAULT_STT_SCOPES } from "../../utils/constants.js";
-import { resolveActorFromSession } from "../../utils/session-transfer-helpers.js";
 import { mergeScopes } from "../../utils/token-set-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { withCallContext } from "../engine/adapters/call-context.js";
@@ -30,7 +29,7 @@ import { readSession } from "./session.js";
  * around it, nextjs's rules:
  * 1. nextjs's checks first, for nextjs's codes and texts
  * 2. the scope is nextjs's defaults merged with the caller's; `audience` and `organization` only
- *    when given
+ *    when given, also from `additionalParameters` (deprecated, with a warning)
  * 3. `act` from the ID token whenever there is one, `tokenType` defaults to `Bearer`
  */
 export async function customTokenExchange(
@@ -45,6 +44,7 @@ export async function customTokenExchange(
   // Domain from the request headers (resolver mode), as nextjs's `forRequest(headers())`.
   const { ctx } = await readContext();
   const dpopKeyPair = await getDpopKeyPair(setup.config);
+  const params = options.additionalParameters;
   const response = await setup.errors.callEngine(
     "customTokenExchange",
     async () =>
@@ -53,11 +53,14 @@ export async function customTokenExchange(
           subjectToken: options.subjectToken,
           subjectTokenType: options.subjectTokenType,
           scope: mergeScopes(DEFAULT_SCOPES, options.scope),
-          audience: options.audience || undefined,
-          organization: options.organization || undefined,
+          audience:
+            options.audience || fromAdditionalParameters(params, "audience"),
+          organization:
+            options.organization ||
+            fromAdditionalParameters(params, "organization"),
           actorToken: options.actorToken,
           actorTokenType: options.actorTokenType,
-          extra: toExtra(options.additionalParameters)
+          extra: toExtra(params)
         },
         ctx,
         dpopKeyPair ? { dpopKeyPair } : undefined
@@ -117,9 +120,20 @@ async function transfer(
   if (subjectError) {
     throw subjectError;
   }
+  // An explicit actor needs its type, as nextjs requires for custom token exchange; the engine
+  // would otherwise send the token as an ID token.
+  if (options.actor?.token && !options.actor.type) {
+    throw new CustomTokenExchangeError(
+      CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE,
+      "The actor_token_type is required when actor_token is provided."
+    );
+  }
   if (!options.actor && !state) {
-    const [actorError] = resolveActorFromSession(null);
-    throw actorError;
+    throw new CustomTokenExchangeError(
+      CustomTokenExchangeErrorCode.ACTOR_UNAVAILABLE,
+      "No actor could be resolved: no explicit actor was provided and the agent session has no ID token. " +
+        "Ensure the agent is authenticated, or pass an explicit actor."
+    );
   }
 
   const dpopKeyPair = await getDpopKeyPair(setup.config);
@@ -236,6 +250,30 @@ function checkTokenTypeUri(
     );
   }
   return null;
+}
+
+// One warning per parameter, so a call in a loop does not flood the log.
+const warnedParameters = new Set<string>();
+
+/**
+ * `audience` or `organization` given in `additionalParameters` and not as an option: nextjs sent
+ * it, the engine would drop it. Used as the option, with a deprecation warning.
+ */
+function fromAdditionalParameters(
+  additionalParameters: Record<string, unknown> | undefined,
+  key: "audience" | "organization"
+): string | undefined {
+  const value = additionalParameters?.[key];
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (!warnedParameters.has(key)) {
+    warnedParameters.add(key);
+    console.warn(
+      `[auth0] customTokenExchange: \`additionalParameters.${key}\` is deprecated and will be ignored in the next major version. Pass \`${key}\` as an option instead.`
+    );
+  }
+  return String(value);
 }
 
 /**

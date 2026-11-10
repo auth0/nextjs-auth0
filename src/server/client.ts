@@ -3,10 +3,6 @@ import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
 import {
-  AccessTokenForConnectionError,
-  TokenRevocationError
-} from "../errors/index.js";
-import {
   AccessTokenForConnectionOptions,
   AnonymousSession,
   BackchannelAuthenticationOptions,
@@ -36,6 +32,12 @@ import {
   revokeRefreshToken as revokeSessionRefreshToken
 } from "./auth/access-token.js";
 import { backchannelAuthentication } from "./auth/backchannel-auth.js";
+import {
+  getConnectedAccounts as listConnectedAccounts,
+  disconnectAccount as removeConnectedAccount,
+  connectAccount as startConnectAccount
+} from "./auth/connected-accounts.js";
+import { getAccessTokenForConnection as fetchConnectionToken } from "./auth/connection-token.js";
 import {
   getSession as loadSession,
   updateSession as saveSession
@@ -81,14 +83,12 @@ import type {
 import { toNextRequest } from "./utils/next-compat.js";
 
 export class Auth0Client {
-  #options: Auth0ClientOptions;
   #setup: EngineSetup;
   #mfa?: ServerMfaClient;
   #passkey?: ServerPasskeyClient;
   #passwordless?: ServerPasswordlessClient;
 
   constructor(options: Auth0ClientOptions = {}) {
-    this.#options = options;
     this.#setup = createEngine(options);
 
     if (options.enterpriseConnect) {
@@ -388,7 +388,12 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    throw new Error("not implemented");
+    return fetchConnectionToken(
+      this.#setup,
+      options,
+      req as PagesRouterRequest | NextRequest | undefined,
+      res
+    );
   }
 
   /**
@@ -801,7 +806,7 @@ export class Auth0Client {
     options: ConnectAccountOptions,
     req?: NextRequest | Request
   ): Promise<NextResponse> {
-    throw new Error("not implemented");
+    return startConnectAccount(this.#setup, options, req);
   }
 
   /**
@@ -863,7 +868,12 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<void> {
-    throw new Error("not implemented");
+    return removeConnectedAccount(
+      this.#setup,
+      options.connection,
+      req as PagesRouterRequest | NextRequest | undefined,
+      res
+    );
   }
 
   /**
@@ -912,7 +922,11 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<ConnectedAccount[]> {
-    throw new Error("not implemented");
+    return listConnectedAccounts(
+      this.#setup,
+      req as PagesRouterRequest | NextRequest | undefined,
+      res
+    );
   }
 
   // Pages Router overload - no arguments

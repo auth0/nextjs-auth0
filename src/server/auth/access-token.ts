@@ -65,9 +65,12 @@ export async function getAccessToken(
  * saves the session; around it, nextjs's rules (`executeGetAccessToken`, `getTokenSet`):
  * 1. no session (or a ceiling reached): `missing_session`; resolver mode, stored for another
  *    domain: the `SessionDomainMismatchError`
- * 2. the scope is computed as on nextjs and always passed, so the engine sends it to Auth0
- * 3. no refresh token and a token that has not expired: served, even with `refresh` or inside
- *    `tokenRefreshBuffer` (the engine would refuse)
+ * 2. the token is looked up with the scope computed as on nextjs; a token found is served when
+ *    nextjs serves it: no refresh token and not expired (even with `refresh` or inside
+ *    `tokenRefreshBuffer`, where the engine would refuse), or not expired beyond
+ *    `tokenRefreshBuffer` and no `refresh`
+ * 3. otherwise the engine refreshes, sending Auth0 what nextjs sends: the audience only when the
+ *    caller passed one, the computed scope only when the caller passed a scope
  * 4. on a refresh, just before the save, the new ID token claims go to `user`, then
  *    `beforeSessionSaved` (or the default claim filter) runs
  * 5. MFA required: the unchanged session is saved again, then the error is returned
@@ -105,7 +108,13 @@ export async function retrieveAccessToken(
     scope
   );
 
-  if (!state.refreshToken && cached && cached.expiresAt > Date.now() / 1000) {
+  const now = Date.now() / 1000;
+  const serveCached = state.refreshToken
+    ? !options.refresh &&
+      cached?.expiresAt !== undefined &&
+      cached.expiresAt > now + config.tokenRefreshBuffer
+    : cached !== undefined && cached.expiresAt > now;
+  if (cached && serveCached) {
     return {
       accessToken: toAccessToken(cached, audience),
       refreshed: false
@@ -117,8 +126,14 @@ export async function retrieveAccessToken(
   const hook = createRefreshHook(setup);
   let tokenSet: EngineTokenSet;
   try {
+    // `refresh`: the decision above is final, the engine's own lookup does not serve a token
+    // instead. The scope goes to Auth0 only when the caller passed one, as on nextjs.
     tokenSet = await engine.getAccessToken(
-      { audience, scope, refresh: !!options.refresh },
+      {
+        audience,
+        scope: options.scope ? scope : undefined,
+        refresh: true
+      },
       ctx,
       dpopKeyPair ? { dpopKeyPair } : undefined,
       { beforeSessionSaved: hook.beforeSessionSaved }

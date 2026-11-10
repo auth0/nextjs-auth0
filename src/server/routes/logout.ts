@@ -48,14 +48,14 @@ export async function handleLogout(
     state: searchParams.get("state") ?? undefined,
     strategy: config.logoutStrategy
   };
-  // A hint only from a session that counts (`state` is absent on a domain mismatch). The engine
-  // sends one hint, taken from the session: the ID token, or the `sid` when told not to send it.
-  if (state) {
-    options.hint =
-      config.options.includeIdTokenHintInOIDCLogoutUrl === false
-        ? "logout_hint"
-        : "id_token_hint";
-  }
+  // A hint only from a session that counts. `state` is absent when there is none, its ceiling has
+  // passed or it is another domain's; the engine reads the cookie again itself, so it is told to
+  // send none. Otherwise it sends one hint: the ID token, or the `sid` when told not to send it.
+  options.hint = !state
+    ? "none"
+    : config.options.includeIdTokenHintInOIDCLogoutUrl === false
+      ? "logout_hint"
+      : "id_token_hint";
 
   let logoutUrl: URL;
   try {
@@ -68,11 +68,14 @@ export async function handleLogout(
         }
         return engine.logout(options, ctx);
       }
-      if (domainMismatch && typeof config.domain !== "function") {
-        // Static mode: the engine's `logout` has no domain check and would clear the session.
-        return engine.authClient.buildLogoutUrl(options);
+      // No session that counts (none, unreadable, or its ceiling passed): delete it first, as
+      // nextjs does, also when the logout answers 500. The engine then reads nothing (a delete
+      // also leaves the request jar), so it neither revokes nor sends a hint; in resolver mode it
+      // would otherwise delete nothing. Another domain's session (resolver mode) is left alone,
+      // by us and by the engine.
+      if (!state && !domainMismatch) {
+        await setup.sessionStore.delete(config.sessionCookie.name, ctx);
       }
-      // Resolver mode: the engine also leaves another domain's session alone.
       return engine.logout(options, ctx);
     });
   } catch (e) {

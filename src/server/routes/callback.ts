@@ -4,6 +4,8 @@ import type { StateData, TransactionData } from "@auth0/auth0-server-js";
 import {
   AuthorizationCodeGrantError,
   AuthorizationError,
+  ConnectAccountError,
+  ConnectAccountErrorCodes,
   InvalidConfigurationError,
   InvalidStateError,
   MissingStateError,
@@ -15,10 +17,20 @@ import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
 import { normalizeDomain } from "../../utils/normalize.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
+import { retrieveAccessToken } from "../auth/access-token.js";
+import {
+  completeConnectAccount,
+  isConnectTransaction,
+  issuerOf,
+  transactionIdentifier,
+  type ConnectTransaction
+} from "../auth/connected-accounts.js";
 import { finalizeSession } from "../auth/hooks.js";
+import { readSession } from "../auth/session.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { middlewareContext } from "../engine/adapters/context.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
+import { toTokenSet } from "../fetcher/create-fetcher.js";
 import type { OnCallbackContext, OnCallbackHook } from "../types/hooks.js";
 import { addCacheControlHeadersForSession } from "../utils/cache-control.js";
 
@@ -92,6 +104,14 @@ export async function handleCallback(
       setup,
       identifier
     );
+  }
+
+  if (isConnectTransaction(transaction)) {
+    return handleConnectCallback(req, setup, ctx, scratch, {
+      transaction,
+      identifier,
+      appBaseUrl
+    });
   }
 
   if (!magicLink && (await hasWrongIssuer(setup, req, transaction))) {
@@ -242,6 +262,101 @@ export async function handleCallback(
 }
 
 /**
+ * The return from a connect account flow (nextjs's `connect_code` branch): the account is created
+ * at the My Account API from the `connect_code`, then `onCallback` gets the connected account and
+ * the session, and the transaction is deleted on its response. Any failure (no session, the My
+ * Account API token, the API call) goes to `onCallback` as the error.
+ *
+ * The engine saves the session when it refreshes the My Account API token; that save (a new
+ * refresh token) goes out on the response, where nextjs dropped it.
+ */
+async function handleConnectCallback(
+  req: NextRequest,
+  setup: EngineSetup,
+  ctx: ReturnType<typeof middlewareContext>,
+  scratch: NextResponse,
+  {
+    transaction,
+    identifier,
+    appBaseUrl
+  }: {
+    transaction: ConnectTransaction;
+    identifier: string;
+    appBaseUrl: string;
+  }
+): Promise<NextResponse> {
+  const callbackCtx: OnCallbackContext = {
+    responseType: RESPONSE_TYPES.CONNECT_CODE,
+    returnTo: transaction.returnTo,
+    challengeMode: "redirect",
+    appBaseUrl,
+    anonymousSessionLinked: false
+  };
+
+  const { state, error: sessionError } = await readSession(setup, ctx);
+  if (sessionError || !state) {
+    return handleCallbackError(
+      sessionError ||
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.MISSING_SESSION,
+          message: "The user does not have an active session."
+        }),
+      callbackCtx,
+      req,
+      setup,
+      identifier
+    );
+  }
+
+  const issuer = await issuerOf(setup, ctx);
+  const result = await retrieveAccessToken(setup, ctx, {
+    audience: `${issuer}me/`,
+    scope: "create:me:connected_accounts"
+  });
+  if (result.error) {
+    return handleCallbackError(
+      result.error,
+      callbackCtx,
+      req,
+      setup,
+      identifier
+    );
+  }
+
+  const completed = await completeConnectAccount(setup, issuer, {
+    token: toTokenSet(result.accessToken),
+    authSession: transaction.authSession,
+    connectCode: req.nextUrl.searchParams.get("connect_code")!,
+    redirectUri: createRouteUrl(
+      setup.config.routes.callback,
+      appBaseUrl
+    ).toString(),
+    codeVerifier: transaction.codeVerifier
+  });
+  if (completed.error) {
+    return handleCallbackError(
+      completed.error,
+      callbackCtx,
+      req,
+      setup,
+      identifier
+    );
+  }
+
+  const res = await onCallbackOf(setup)(
+    null,
+    { ...callbackCtx, connectedAccount: completed.connectedAccount },
+    setup.sessionMapper.toSessionData(state)
+  );
+  await setup.transactionStore.delete(identifier, middlewareContext(req, res));
+  if (result.refreshed) {
+    transferCookies(scratch, res);
+    addCacheControlHeadersForSession(res);
+  }
+  return res;
+}
+
+/**
  * `onCallback` gets the error and returns the response; the transaction of this login is deleted
  * on it so it does not pile up.
  */
@@ -338,16 +453,6 @@ async function readTransaction(
     // A cookie that cannot be read is no transaction.
     return undefined;
   }
-}
-
-function transactionIdentifier(
-  { config }: EngineSetup,
-  state?: string | null
-): string {
-  const prefix = config.transactionCookie.prefix;
-  return config.enableParallelTransactions && state
-    ? `${prefix}${state}`
-    : prefix;
 }
 
 /**

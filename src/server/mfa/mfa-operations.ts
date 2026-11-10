@@ -159,7 +159,17 @@ export async function verifyMfa(
   }
 
   const dpopKeyPair = await getDpopKeyPair(setup.config);
-  const hook = createLoginHook(setup);
+  // No session before and no ID token: nextjs refuses, after the code is spent. The method says
+  // there is no session; the route says why.
+  const hook = createLoginHook(setup, {
+    noIdToken: () =>
+      new MfaVerifyError(
+        "missing_session",
+        checkSessionDomain
+          ? "The user does not have an active session."
+          : "MFA verification succeeded but no session could be established. Ensure 'openid' scope is requested."
+      )
+  });
   try {
     const engine = await setup.getEngine();
     return await engine.mfa.verify(

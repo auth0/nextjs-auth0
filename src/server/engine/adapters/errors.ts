@@ -392,13 +392,16 @@ export function createErrorMapper({
       ) {
         return mfaRequiredFrom(e, ctx, { chained: chainedMfa });
       }
+      // The engine puts its own code in `cause.error` when Auth0 sent none (a network failure, a
+      // body that is not JSON, a 5xx); that is not Auth0's error.
       const cause = causeOf(e);
+      const auth0Error = cause?.error !== mapping.engineCode;
       return new ErrorClass(
-        cause?.error || "unknown_error",
+        (auth0Error && cause?.error) || "unknown_error",
         cause?.error_description ||
           (mapping.tokenEndpoint ? cause?.message : undefined) ||
           mapping.defaultDescription,
-        apiErrorBodyFrom(e)
+        auth0Error ? apiErrorBodyFrom(e) : undefined
       );
     }
     if (mapping.tokenEndpoint) {
@@ -421,13 +424,6 @@ export function createErrorMapper({
     if (typeof e !== "object" || e === null || e instanceof SdkError) return e;
 
     const code = codeOf(e);
-    // An empty token passed to revoke: today's `revokeToken("")` result.
-    if (operation === "revoke" && code === "missing_required_argument_error") {
-      return new TokenRevocationError(
-        TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
-        "A token is required to perform revocation."
-      );
-    }
     const anyMapped = fromAnyOperation(e, code);
     if (anyMapped) return anyMapped;
 
@@ -561,14 +557,6 @@ export function createErrorMapper({
               code: causeOf(e)?.error || "revoke_failed",
               message: causeOf(e)?.message || (e as EngineError).message
             })
-          );
-        }
-        // The engine throws this when it finds no refresh token, with or without a session. The
-        // caller checks for a session first, so here the session has no refresh token.
-        if (code === "missing_session_error") {
-          return new TokenRevocationError(
-            TokenRevocationErrorCode.MISSING_REFRESH_TOKEN,
-            "The session does not contain a refresh token to revoke."
           );
         }
         break;
