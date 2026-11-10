@@ -9,7 +9,7 @@
       "name": "nextjs-auth0",
       "displayName": "Auth0 Next.js",
       "description": "Auth0 Next.js (@auth0/nextjs-auth0) agent skills for Claude Code",
-      "source": "./skills",
+      "source": "./",
       "strict": false,
       "author": {
         "name": "Auth0",
@@ -27,10 +27,10 @@
       ],
       "category": "development",
       "skills": [
-        "./",
-        "./mfa",
-        "./organizations",
-        "./passkeys"
+        "./skills",
+        "./skills/mfa",
+        "./skills/organizations",
+        "./skills/passkeys"
       ]
     }
   ]

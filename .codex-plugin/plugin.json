@@ -16,10 +16,10 @@
     "passkeys"
   ],
   "skills": [
-    "./",
-    "./mfa",
-    "./organizations",
-    "./passkeys"
+    "./skills",
+    "./skills/mfa",
+    "./skills/organizations",
+    "./skills/passkeys"
   ],
   "interface": {
     "displayName": "Auth0 Next.js",

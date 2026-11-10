@@ -8,7 +8,7 @@
       "name": "nextjs-auth0",
       "source": {
         "source": "local",
-        "path": "./skills"
+        "path": "./"
       },
       "policy": {
         "installation": "AVAILABLE",
