@@ -22,7 +22,15 @@
 
 # misc
 .DS_Store
+
+# local TLS certificates and keys (mkcert, openssl)
+.certs/
 *.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
 
 # debug
 npm-debug.log*

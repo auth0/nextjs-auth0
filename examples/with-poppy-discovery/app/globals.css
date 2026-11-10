@@ -121,6 +121,11 @@ button.button {
   cursor: pointer;
 }
 
+.button-small {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+}
+
 button.button:disabled {
   opacity: 0.6;
   cursor: wait;
@@ -145,4 +150,94 @@ pre {
   background: #f3f4f6;
   border-radius: 0.5rem;
   font-size: 0.8rem;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.catalog {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.product {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.cart-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cart-table td {
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.qty {
+  white-space: nowrap;
+}
+
+.qty span {
+  display: inline-block;
+  min-width: 1.75rem;
+  text-align: center;
+}
+
+.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cart-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.error {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  background: #fee2e2;
+  border-radius: 0.5rem;
+  color: #991b1b;
+  font-size: 0.9rem;
+}
+
+.note {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.behaviour {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.behaviour th {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.behaviour td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.behaviour tr.current td {
+  background: #eff6ff;
 }

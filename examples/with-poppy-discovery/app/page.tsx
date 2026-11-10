@@ -2,9 +2,47 @@ import { auth0 } from "@/lib/auth0";
 
 import { Inspector } from "./inspector";
 
+// What getSession() and getAnonymousSession() return for each kind of visitor.
+const BEHAVIOUR = [
+  {
+    key: "nobody",
+    who: "No one logged in",
+    session: "null",
+    anonymous: "null"
+  },
+  {
+    key: "person",
+    who: "A person, logged in",
+    session: "the person's session",
+    anonymous: "null"
+  },
+  {
+    key: "guest",
+    who: "An agent, signed out (guest)",
+    session: "null",
+    anonymous: "the guest: id and expiresAt (the access token stays on the server)"
+  },
+  {
+    key: "signed_in",
+    who: "An agent, signed in",
+    session: "the customer's session",
+    anonymous: "null"
+  }
+] as const;
+
 export default async function Home() {
   const poppy = await auth0.getPoppyContext();
   const session = await auth0.getSession();
+
+  // Which row of the table describes this browser right now.
+  const current =
+    poppy.kind === "agent"
+      ? poppy.state === "guest"
+        ? "guest"
+        : "signed_in"
+      : session
+        ? "person"
+        : "nobody";
 
   return (
     <>
@@ -56,12 +94,47 @@ export default async function Home() {
       </section>
 
       <section className="card">
-        <h2>Try the methods</h2>
+        <h2>1. Poppy: auth0.getPoppyContext()</h2>
         <p>
-          Each button calls the SDK on the server and shows what it returns for
-          your browser.
+          The new Poppy method. It says who is driving this browser: a person,
+          or an agent, and for an agent whether it is a guest or signed in.
         </p>
-        <Inspector />
+        <Inspector calls={["getPoppyContext"]} />
+      </section>
+
+      <section className="card">
+        <h2>2. Existing: getSession() and getAnonymousSession()</h2>
+        <p>
+          These SDK methods were there before Poppy. Which one has a value
+          depends on who is driving. Click both: each result stays on the page.
+        </p>
+        <Inspector calls={["getSession", "getAnonymousSession"]} />
+
+        <p className="result-title">What each one returns</p>
+        <table className="behaviour">
+          <thead>
+            <tr>
+              <th>Who is driving</th>
+              <th>getSession()</th>
+              <th>getAnonymousSession()</th>
+            </tr>
+          </thead>
+          <tbody>
+            {BEHAVIOUR.map((row) => (
+              <tr
+                key={row.key}
+                className={row.key === current ? "current" : undefined}
+              >
+                <td>
+                  {row.who}
+                  {row.key === current && <strong> · this browser</strong>}
+                </td>
+                <td>{row.session}</td>
+                <td>{row.anonymous}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className="card">
