@@ -4,7 +4,7 @@
     "name": "Auth0",
     "url": "https://auth0.com"
   },
-  "description": "The Auth0 Next.js agent skills for Claude Code",
+  "description": "The Auth0 Next.js agent skills",
   "plugins": [
     {
       "name": "nextjs-auth0",
