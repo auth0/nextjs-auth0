@@ -720,17 +720,17 @@ describe("Poppy: agent guest", () => {
     });
   });
 
-  it("refuses a person's login while the guest is in the browser", async () => {
+  it("clears a leftover guest when a person logs in", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     await login(auth0, browser, guestClaims());
-
-    const res = await auth0.middleware(browser.request("/auth/login"));
-
-    expect(res.status).toBe(403);
     expect(browser.has("auth0_anon")).toBe(true);
-    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
-      state: "guest"
+
+    await login(auth0, browser, { sub: "auth0|ana" });
+
+    expect(browser.has("auth0_anon")).toBe(false);
+    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
+      kind: "human"
     });
   });
 
@@ -764,17 +764,11 @@ describe("Poppy: rejoin as the customer", () => {
 
     // The rejoin's /auth/login must not mint an anonymous transfer ticket from
     // the guest cookie (no /anonymous/token call, no ticket on /authorize).
-    const join = `/auth/login?${new URLSearchParams({ iss: issuer })}`;
-    const { authorizeUrl } = await startLogin(auth0, browser, join);
+    const { authorizeUrl } = await startLogin(auth0, browser, "/auth/login");
     expect(authorizeUrl.searchParams.has("anon_transfer_token")).toBe(false);
     expect(anonymousTokenRequests).toBe(0);
 
-    await login(
-      auth0,
-      browser,
-      { sub: "auth0|ana", act: agentAct() },
-      { path: join }
-    );
+    await login(auth0, browser, { sub: "auth0|ana", act: agentAct() });
 
     // Deleted even though clearAnonymousSessionOnLogin is false.
     expect(browser.has("auth0_anon")).toBe(false);
@@ -839,10 +833,9 @@ describe("Poppy: logout", () => {
     // Auth0's logout ends the guest's anonymous Auth0 session as well.
     const location = new URL(res.headers.get("location")!);
     expect(location.host).toBe(domain);
-    expect(
-      location.searchParams.get("returnTo") ??
-        location.searchParams.get("post_logout_redirect_uri")
-    ).toBe("/bye");
+    expect(location.pathname).toBe("/v2/logout");
+    expect(location.searchParams.get("returnTo")).toBe("/bye");
+    expect(location.searchParams.get("client_id")).toBe(clientId);
     expect(browser.has("auth0_anon")).toBe(false);
     expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
       kind: "human"
@@ -911,6 +904,70 @@ describe("Poppy: logout", () => {
     expect(new URL(res.headers.get("location")!).host).toBe(domain);
     expect(browser.has("auth0_anon")).toBe(true);
   });
+
+  describe("uses /v2/logout whenever the poppy option is set", () => {
+    // The tenant advertises RP-initiated logout, which "auto" would choose.
+    function advertiseRpInitiatedLogout() {
+      server.use(
+        http.get(`${issuer}.well-known/openid-configuration`, () =>
+          HttpResponse.json({
+            ...createAuthorizationServerMetadata(domain, { issuer }),
+            end_session_endpoint: `${issuer}oidc/logout`
+          })
+        )
+      );
+    }
+
+    async function logoutPath(auth0: Auth0Client, browser: Browser) {
+      const res = await logout(auth0, browser);
+      return new URL(res.headers.get("location")!).pathname;
+    }
+
+    it("for an agent guest", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient();
+      const browser = new Browser();
+      await login(auth0, browser, guestClaims());
+
+      expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
+    });
+
+    it("for a signed-in agent", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient();
+      const browser = new Browser();
+      await login(auth0, browser, { sub: "auth0|ana", act: agentAct() });
+
+      expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
+    });
+
+    it("for a person", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient();
+      const browser = new Browser();
+      await login(auth0, browser, { sub: "auth0|ana" });
+
+      expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
+    });
+
+    it("even when logoutStrategy is oidc", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient({ logoutStrategy: "oidc" });
+      const browser = new Browser();
+      await login(auth0, browser, guestClaims());
+
+      expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
+    });
+
+    it("but not without the poppy option", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient({ poppy: undefined });
+      const browser = new Browser();
+      await login(auth0, browser, { sub: "auth0|ana" });
+
+      expect(await logoutPath(auth0, browser)).toBe("/oidc/logout");
+    });
+  });
 });
 
 describe("Poppy: context route", () => {
@@ -975,114 +1032,6 @@ describe("Poppy: context route", () => {
     const auth0 = createClient({ routes: { poppyContext: "/api/who" } });
     const res = await getContextRoute(auth0, new Browser(), "/api/who");
     expect(await res.json()).toEqual({ kind: "human" });
-  });
-});
-
-describe("Poppy: login while an agent guest is in the browser", () => {
-  const guestClaims = {
-    sub: "anon_poppy@7c2e5a1d",
-    sub_profile: anonymousSubProfile,
-    act: agentAct()
-  };
-
-  async function guestBrowser(auth0: Auth0Client) {
-    const browser = new Browser();
-    await login(auth0, browser, guestClaims);
-    expect(browser.has("auth0_anon")).toBe(true);
-    return browser;
-  }
-
-  it.each([
-    ["a plain login", "/auth/login"],
-    ["a login with returnTo", "/auth/login?returnTo=%2Faccount"],
-    ["a popup login", "/auth/login?challengeMode=popup"]
-  ])("refuses %s with 403 and the reason", async (_case, path) => {
-    const auth0 = createClient();
-    const browser = await guestBrowser(auth0);
-
-    const res = await auth0.middleware(browser.request(path));
-
-    expect(res.status).toBe(403);
-    expect(res.headers.get("location")).toBeNull();
-    expect(await res.text()).toContain(
-      "A Personal Agent is browsing as a guest"
-    );
-    // No login transaction was started.
-    expect(
-      res.cookies.getAll().some((cookie) => cookie.name.startsWith("__txn"))
-    ).toBe(false);
-  });
-
-  it("refuses a third-party-initiated login whose iss is not the issuer", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    const auth0 = createClient();
-    const browser = await guestBrowser(auth0);
-
-    const res = await auth0.middleware(
-      browser.request(
-        `/auth/login?${new URLSearchParams({ iss: "https://attacker.example/" })}`
-      )
-    );
-
-    expect(res.status).toBe(403);
-  });
-
-  it("lets the agent's join through", async () => {
-    const auth0 = createClient();
-    const browser = await guestBrowser(auth0);
-
-    const res = await auth0.middleware(
-      browser.request(`/auth/login?${new URLSearchParams({ iss: issuer })}`)
-    );
-
-    expect(res.status).toBe(307);
-    expect(new URL(res.headers.get("location")!).host).toBe(domain);
-  });
-
-  it("throws a PoppyError from auth0.startInteractiveLogin()", async () => {
-    const auth0 = createClient();
-    const browser = await guestBrowser(auth0);
-
-    const error = await auth0
-      .startInteractiveLogin({}, browser.request("/"))
-      .then(
-        () => undefined,
-        (e: unknown) => e
-      );
-
-    expect(error).toBeInstanceOf(PoppyError);
-    expect((error as PoppyError).code).toBe(PoppyErrorCode.LOGIN_NOT_ALLOWED);
-  });
-
-  it("allows a login once the guest has logged out", async () => {
-    const auth0 = createClient();
-    const browser = await guestBrowser(auth0);
-    browser.absorb(await auth0.middleware(browser.request("/auth/logout")));
-
-    const res = await auth0.middleware(browser.request("/auth/login"));
-
-    expect(res.status).toBe(307);
-    expect(new URL(res.headers.get("location")!).host).toBe(domain);
-  });
-
-  it("doesn't refuse a login for a signed-in agent", async () => {
-    const auth0 = createClient();
-    const browser = new Browser();
-    await login(auth0, browser, { sub: "auth0|ana", act: agentAct() });
-
-    const res = await auth0.middleware(browser.request("/auth/login"));
-
-    expect(res.status).toBe(307);
-  });
-
-  it("doesn't refuse a login without the poppy option", async () => {
-    const browser = await guestBrowser(createClient());
-
-    const res = await createClient({ poppy: undefined }).middleware(
-      browser.request("/auth/login")
-    );
-
-    expect(res.status).toBe(307);
   });
 });
 

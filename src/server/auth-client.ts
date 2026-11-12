@@ -1012,21 +1012,8 @@ export class AuthClient {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest,
-    reqCookies?: RequestCookies | ReadonlyRequestCookies,
-    { poppyJoin = false }: { poppyJoin?: boolean } = {}
+    reqCookies?: RequestCookies | ReadonlyRequestCookies
   ): Promise<NextResponse> {
-    // Poppy: a browser with an agent guest signs in only through the join.
-    // Any other login would hand the agent an account the customer never
-    // approved it for, and Auth0 would answer it with the guest again.
-    const loginCookies = req?.cookies ?? reqCookies;
-    if (
-      !poppyJoin &&
-      loginCookies &&
-      (await this.hasPoppyGuestCookie(loginCookies))
-    ) {
-      throw new PoppyError(PoppyErrorCode.LOGIN_NOT_ALLOWED);
-    }
-
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const redirectUri = createRouteUrl(
@@ -1305,19 +1292,7 @@ export class AuthClient {
       returnTo: poppyJoin?.returnTo ?? returnTo,
       challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
     };
-    try {
-      return await this.startInteractiveLogin(options, req, undefined, {
-        poppyJoin: poppyJoin !== undefined
-      });
-    } catch (e) {
-      if (
-        e instanceof PoppyError &&
-        e.code === PoppyErrorCode.LOGIN_NOT_ALLOWED
-      ) {
-        return new NextResponse(e.message, { status: 403 });
-      }
-      throw e;
-    }
+    return this.startInteractiveLogin(options, req);
   }
 
   /**
@@ -1327,8 +1302,7 @@ export class AuthClient {
    *
    * Removes both from `searchParams`, since neither is an /authorize
    * parameter. Returns the join, with where it should land, only when `iss` is
-   * the configured issuer; any other login returns `undefined`. Only a join
-   * may sign in a browser that holds an agent guest.
+   * the configured issuer; any other login returns `undefined`.
    */
   private extractPoppyJoin(
     searchParams: Record<string, string>,
@@ -1459,8 +1433,8 @@ export class AuthClient {
     // Determine logout strategy and create appropriate response
     let logoutResponse: NextResponse;
 
-    if (this.logoutStrategy === "v2") {
-      // Always use v2 logout endpoint
+    if (this.poppy || this.logoutStrategy === "v2") {
+      // Always use v2 logout endpoint. Poppy always uses it.
       logoutResponse = createV2LogoutResponse();
     } else if (this.logoutStrategy === "oidc") {
       // Always use OIDC RP-Initiated Logout
@@ -2258,7 +2232,7 @@ export class AuthClient {
    * throws.
    */
   private async hasPoppyGuestCookie(
-    reqCookies: RequestCookies | ReadonlyRequestCookies
+    reqCookies: RequestCookies
   ): Promise<boolean> {
     if (!this.poppy) {
       return false;
@@ -2292,9 +2266,8 @@ export class AuthClient {
    *
    * A person's session with a guest cookie is the agent: a guest join keeps the
    * browser's own login, but while the browser carries the guest its requests
-   * belong to the agent's Session (spec §6). A person can't log in while the
-   * guest cookie is present, so that pair only comes from a join after the
-   * login.
+   * belong to the agent's Session (spec §6). A person's own login always clears
+   * the guest cookie, so that pair only comes from a join after the login.
    */
   async getPoppyContext(
     reqCookies: RequestCookies | ReadonlyRequestCookies

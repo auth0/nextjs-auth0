@@ -115,9 +115,8 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 - Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
 - Guest → `auth0_anon` cookie, `getSession()` stays `null`, hooks skipped; signed-in agent → `session.internal.poppy`, capped at token `exp`
 - Person session + guest cookie (guest join after a person's login) → context reports the agent guest
-- Guest cookie present → `startInteractiveLogin` refuses (`poppy_login_not_allowed`, 403 on `/auth/login`) unless it's the join (`iss` = issuer)
 - Context mirrors the ID token: `kind`, `state`, the token's own `sub` + `sub_profile`, the whole `act` as sent (nested; `act.sub` is the agent), `scopes`; agent state stores `sub`, `sub_profile`, `act`, `sessionExpiresAt`
-- `/auth/logout`: usual Auth0 logout for everyone, guest cookie deleted too (Auth0's logout ends the guest's anonymous Auth0 session)
+- `/auth/logout`: with `poppy` set, always `/v2/logout` (overrides `logoutStrategy`); guest cookie deleted too (Auth0's logout ends the guest's anonymous Auth0 session)
 - `/auth/poppy-context` (404 unless `poppy` set) backs client `poppy.getContext()`; no hook
 - Code: `src/server/poppy-discovery.ts`, `src/server/poppy-agent.ts`, `src/server/poppy-client.ts`, `src/client/poppy/index.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
 
@@ -142,7 +141,6 @@ Base class: `SdkError` with `code: string` property.
 | `DiscoveryError` | `discovery_error` | OIDC discovery failed |
 | `OAuth2Error` | varies | Auth0 callback error (may contain user input) |
 | `PoppyError` | `invalid_poppy_guest`, `poppy_guest_not_supported` | Agent login refused (see `Reason:` in message) |
-| `PoppyError` | `poppy_login_not_allowed` | Interactive login while an agent guest is in the browser |
 | `PoppyError` | `poppy_not_enabled`, `poppy_context_unavailable` | Client `poppy.getContext()` failed (route 404, or any other failure) |
 
 **Pattern:** Catch by `error.code`, not `instanceof`.
