@@ -363,6 +363,8 @@ export interface Routes {
   passkeyEnrollmentVerify: string;
   anonymousSession?: string;
   anonymousSessionLogout?: string;
+  /** Returns who is driving the request. Answers 404 unless `poppy` is set. */
+  poppyContext?: string;
 }
 /** @category Configuration */
 export type RoutesOptions = Partial<Routes>;
@@ -926,6 +928,13 @@ export class AuthClient {
       return this.handleAnonymousLogout(req);
     } else if (
       method === "GET" &&
+      sanitizedPathname === this.routes.poppyContext
+    ) {
+      // Matched whether or not Poppy is on, like the anonymous routes: the
+      // handler answers 404 when it's off.
+      return this.handlePoppyContext(req);
+    } else if (
+      method === "GET" &&
       this.poppy &&
       sanitizedPathname === POPPY_DISCOVERY_PATH
     ) {
@@ -1003,8 +1012,21 @@ export class AuthClient {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest,
-    reqCookies?: RequestCookies | ReadonlyRequestCookies
+    reqCookies?: RequestCookies | ReadonlyRequestCookies,
+    { poppyJoin = false }: { poppyJoin?: boolean } = {}
   ): Promise<NextResponse> {
+    // Poppy: a browser with an agent guest signs in only through the join.
+    // Any other login would hand the agent an account the customer never
+    // approved it for, and Auth0 would answer it with the guest again.
+    const loginCookies = req?.cookies ?? reqCookies;
+    if (
+      !poppyJoin &&
+      loginCookies &&
+      (await this.hasPoppyGuestCookie(loginCookies))
+    ) {
+      throw new PoppyError(PoppyErrorCode.LOGIN_NOT_ALLOWED);
+    }
+
     await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const redirectUri = createRouteUrl(
@@ -1270,19 +1292,9 @@ export class AuthClient {
       );
     }
 
-    // Poppy: Auth0's browser join sends the agent's browser here as a
-    // third-party-initiated login (OIDC Core §4) with `iss` and
-    // `target_link_uri`. Neither is an /authorize parameter, so both are always
-    // removed when Poppy is on.
-    let poppyReturnTo: string | undefined;
-    if (this.poppy) {
-      const { iss, target_link_uri: targetLinkUri } = searchParams;
-      delete searchParams.iss;
-      delete searchParams.target_link_uri;
-      if (iss !== undefined) {
-        poppyReturnTo = this.resolvePoppyTargetLink(iss, targetLinkUri, req);
-      }
-    }
+    const poppyJoin = this.poppy
+      ? this.extractPoppyJoin(searchParams, req)
+      : undefined;
 
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
@@ -1290,33 +1302,68 @@ export class AuthClient {
 
     const options: StartInteractiveLoginOptions = {
       authorizationParameters,
-      returnTo: poppyReturnTo ?? returnTo,
+      returnTo: poppyJoin?.returnTo ?? returnTo,
       challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
     };
-    return this.startInteractiveLogin(options, req);
+    try {
+      return await this.startInteractiveLogin(options, req, undefined, {
+        poppyJoin: poppyJoin !== undefined
+      });
+    } catch (e) {
+      if (
+        e instanceof PoppyError &&
+        e.code === PoppyErrorCode.LOGIN_NOT_ALLOWED
+      ) {
+        return new NextResponse(e.message, { status: 403 });
+      }
+      throw e;
+    }
   }
 
   /**
-   * Returns `target_link_uri` as the post-login destination when the login was
-   * started by the configured issuer and the target is on this app's origin.
+   * Recognizes Auth0's browser join, which sends the agent's browser to the
+   * login route as a third-party-initiated login (OIDC Core §4) carrying `iss`
+   * and `target_link_uri`.
+   *
+   * Removes both from `searchParams`, since neither is an /authorize
+   * parameter. Returns the join, with where it should land, only when `iss` is
+   * the configured issuer; any other login returns `undefined`. Only a join
+   * may sign in a browser that holds an agent guest.
+   */
+  private extractPoppyJoin(
+    searchParams: Record<string, string>,
+    req: NextRequest
+  ): { returnTo?: string } | undefined {
+    const { iss, target_link_uri: targetLinkUri } = searchParams;
+    delete searchParams.iss;
+    delete searchParams.target_link_uri;
+
+    if (iss === undefined) {
+      return undefined;
+    }
+    if (iss !== this.poppy!.issuer && iss !== this.issuer) {
+      console.warn(
+        "[nextjs-auth0] Ignoring a third-party-initiated login: iss does not match the configured Poppy issuer, so it is handled as a normal login."
+      );
+      return undefined;
+    }
+    return { returnTo: this.resolvePoppyTargetLink(targetLinkUri, req) };
+  }
+
+  /**
+   * Returns a join's `target_link_uri` as the post-login destination when it is
+   * on this app's origin.
    *
    * Anything else is ignored with a warning rather than refused: the parameters
    * only choose where the browser lands, the login itself always uses the
    * configured issuer, so ignoring them costs nothing, while a 400 would break a
-   * join over a cosmetic mismatch such as the canonical vs custom domain issuer.
-   * The values are not logged, since anyone can put them in the URL.
+   * join over a cosmetic mismatch. The values are not logged, since anyone can
+   * put them in the URL.
    */
   private resolvePoppyTargetLink(
-    iss: string,
     targetLinkUri: string | undefined,
     req: NextRequest
   ): string | undefined {
-    if (iss !== this.poppy!.issuer && iss !== this.issuer) {
-      console.warn(
-        "[nextjs-auth0] Ignoring a third-party-initiated login: iss does not match the configured Poppy issuer. Starting a normal login."
-      );
-      return undefined;
-    }
     if (targetLinkUri === undefined) {
       return undefined;
     }
@@ -1358,6 +1405,7 @@ export class AuthClient {
       if (!hasDomainMismatch) {
         await this.sessionStore.delete(req.cookies, errorResponse.cookies);
       }
+      await this.#clearPoppyGuestCookie(req.cookies, errorResponse.cookies);
       await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
       return errorResponse;
     }
@@ -1427,6 +1475,7 @@ export class AuthClient {
         if (!hasDomainMismatch) {
           await this.sessionStore.delete(req.cookies, errorResponse.cookies);
         }
+        await this.#clearPoppyGuestCookie(req.cookies, errorResponse.cookies);
         await this.transactionStore.deleteAll(
           req.cookies,
           errorResponse.cookies
@@ -1468,6 +1517,10 @@ export class AuthClient {
     if (!hasDomainMismatch) {
       await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
     }
+    // A Poppy guest ends with the logout too. Auth0's logout above ends the
+    // guest's anonymous Auth0 session, which would otherwise answer the next
+    // login with the guest again.
+    await this.#clearPoppyGuestCookie(req.cookies, logoutResponse.cookies);
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
@@ -2124,7 +2177,8 @@ export class AuthClient {
     );
 
     // A join without an access token ends the agent's sign-in in this browser
-    // (spec §6). A person's own login is kept: that browser is theirs.
+    // but keeps the browser's own login (spec §6). getPoppyContext still
+    // reports the agent while the guest cookie is present.
     const { session: existing } = await this.getSessionWithDomainCheck(
       req.cookies
     );
@@ -2199,20 +2253,33 @@ export class AuthClient {
     );
   }
 
+  /**
+   * Whether the anonymous cookie holds a Poppy guest, ended or not. Never
+   * throws.
+   */
+  private async hasPoppyGuestCookie(
+    reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<boolean> {
+    if (!this.poppy) {
+      return false;
+    }
+    try {
+      const payload = await this.readAnonymousCookie(reqCookies);
+      return payload?.poppy !== undefined;
+    } catch {
+      return false;
+    }
+  }
+
   /** Deletes the anonymous cookie when, and only when, it holds a Poppy guest. */
   async #clearPoppyGuestCookie(
     reqCookies: RequestCookies,
     resCookies: ResponseCookies
   ): Promise<void> {
-    if (!this.poppy) {
-      return;
-    }
     try {
-      const payload = await this.readAnonymousCookie(reqCookies);
-      if (!payload?.poppy) {
-        return;
+      if (await this.hasPoppyGuestCookie(reqCookies)) {
+        this.deleteAnonymousCookie(reqCookies, resCookies);
       }
-      this.deleteAnonymousCookie(reqCookies, resCookies);
     } catch {
       // Fail-open, as #clearAnonymousSessionCookieOnLogin: a cookie-clear error
       // must not stop the session response. The guest still ends at its cap.
@@ -2220,8 +2287,14 @@ export class AuthClient {
   }
 
   /**
-   * Who is driving this request. A signed-in session wins over a guest cookie,
-   * so a person's own login is never reported as an agent.
+   * Who is driving this request. A signed-in agent's session wins over a guest
+   * cookie.
+   *
+   * A person's session with a guest cookie is the agent: a guest join keeps the
+   * browser's own login, but while the browser carries the guest its requests
+   * belong to the agent's Session (spec §6). A person can't log in while the
+   * guest cookie is present, so that pair only comes from a join after the
+   * login.
    */
   async getPoppyContext(
     reqCookies: RequestCookies | ReadonlyRequestCookies
@@ -2234,18 +2307,38 @@ export class AuthClient {
     if (error) {
       throw error;
     }
-    if (session) {
-      return session.internal?.poppy
-        ? toPoppyAgentContext(
-            session.internal.poppy,
-            "signed_in",
-            session.tokenSet?.scope
-          )
-        : HUMAN_POPPY_CONTEXT;
+    if (session?.internal?.poppy) {
+      return toPoppyAgentContext(
+        session.internal.poppy,
+        "signed_in",
+        session.tokenSet?.scope
+      );
     }
 
     const guest = await this.readPoppyGuest(reqCookies);
     return guest ? toPoppyAgentContext(guest, "guest") : HUMAN_POPPY_CONTEXT;
+  }
+
+  /**
+   * Route: GET /auth/poppy-context
+   * Returns {@link getPoppyContext} to the browser. Answers 404 when Poppy is
+   * off, and 401 when the session can't be read.
+   */
+  private async handlePoppyContext(req: NextRequest): Promise<NextResponse> {
+    if (!this.poppy) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
+    let context: PoppyContext;
+    try {
+      context = await this.getPoppyContext(req.cookies);
+    } catch {
+      return new NextResponse(null, { status: 401 });
+    }
+
+    const res = NextResponse.json(context);
+    addCacheControlHeadersForSession(res);
+    return res;
   }
 
   /**

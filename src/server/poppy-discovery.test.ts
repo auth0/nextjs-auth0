@@ -112,10 +112,34 @@ describe("buildPoppyDiscoveryDocuments", () => {
       expectInvalid(null, /contents of auth0-poppy\.json/);
     });
 
-    it("rejects an unsupported protocol version", () => {
+    it.each(["0.4", "1.0", "1.12"])(
+      "serves protocol version %s as written",
+      (protocolVersion) => {
+        expect(
+          buildPoppyDiscoveryDocuments(
+            { ...validConfig, protocolVersion },
+            { production: true }
+          ).poppy.protocol_version
+        ).toBe(protocolVersion);
+      }
+    );
+
+    it.each([
+      ["a patch number", "0.4.1"],
+      ["a prefix", "v0.4"],
+      ["no minor version", "1"],
+      ["an empty string", ""]
+    ])("rejects a protocol version with %s", (_case, protocolVersion) => {
       expectInvalid(
-        { ...validConfig, protocolVersion: "1.0" },
-        /protocolVersion "1\.0" is not supported/
+        { ...validConfig, protocolVersion },
+        /protocolVersion must be a version such as "0\.4" \(major\.minor\)/
+      );
+    });
+
+    it("rejects a protocol version that is not a string", () => {
+      expectInvalid(
+        { ...validConfig, protocolVersion: 0.4 },
+        /protocolVersion must be .*, got number\./
       );
     });
 

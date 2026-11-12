@@ -3,7 +3,7 @@ import { SdkError } from "./sdk-error.js";
 /**
  * Error codes for Poppy (Personal Agent Protocol) login failures.
  *
- * Experimental: pinned to Poppy protocol version 0.3 and subject to change.
+ * Experimental and subject to change.
  *
  * @category Errors
  */
@@ -21,21 +21,47 @@ export enum PoppyErrorCode {
    * A Poppy guest login cannot complete in a popup. Guests come from a browser
    * join, never a popup.
    */
-  GUEST_NOT_SUPPORTED = "poppy_guest_not_supported"
+  GUEST_NOT_SUPPORTED = "poppy_guest_not_supported",
+
+  /**
+   * An interactive login was started in a browser that a Personal Agent is
+   * driving as a guest. It would sign the agent in to an account without the
+   * customer approving the agent, so the SDK refuses it. The agent signs in
+   * through its browser join, which this doesn't block.
+   */
+  LOGIN_NOT_ALLOWED = "poppy_login_not_allowed",
+
+  /**
+   * Client-side `poppy.getContext()`: the context route answered 404, so the
+   * `poppy` option is not set on the server or the route is not mounted.
+   */
+  NOT_ENABLED = "poppy_not_enabled",
+
+  /**
+   * Client-side `poppy.getContext()`: the context route failed, for example
+   * because the session could not be read or the network request failed.
+   */
+  CONTEXT_UNAVAILABLE = "poppy_context_unavailable"
 }
 
 const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
   [PoppyErrorCode.INVALID_GUEST]:
     "The ID token looks like a Poppy guest login but is not a valid one, so it is neither a guest nor a user.",
   [PoppyErrorCode.GUEST_NOT_SUPPORTED]:
-    "A Poppy guest login cannot complete in a popup."
+    "A Poppy guest login cannot complete in a popup.",
+  [PoppyErrorCode.LOGIN_NOT_ALLOWED]:
+    "A Personal Agent is browsing as a guest in this browser, so a login can't start here: it would sign the agent in to an account the customer hasn't approved it for. The agent signs in through its browser join.",
+  [PoppyErrorCode.NOT_ENABLED]:
+    "The Poppy context route is not available. Set the `poppy` option on Auth0Client.",
+  [PoppyErrorCode.CONTEXT_UNAVAILABLE]: "The Poppy context could not be read."
 };
 
 /**
  * Thrown, or passed to `onCallback`, when a Personal Agent's login cannot be
- * handled. Check `error.code` against {@link PoppyErrorCode}.
+ * handled, and thrown by the client-side `poppy.getContext()`. Check
+ * `error.code` against {@link PoppyErrorCode}.
  *
- * Experimental: pinned to Poppy protocol version 0.3 and subject to change.
+ * Experimental and subject to change.
  *
  * @example Reading the code in `onCallback`
  * ```typescript

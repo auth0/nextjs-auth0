@@ -64,40 +64,45 @@ describe("resolvePoppyRuntime", () => {
 });
 
 describe("readPoppyAgentState", () => {
-  it("reads the agent and the Poppy IDs from act, and the expiry from exp", () => {
+  it("keeps act and takes the expiry from exp", () => {
     expect(
       readPoppyAgentState({ sub: "auth0|ana", exp: now + 7200, act: agentAct })
-    ).toEqual({
-      clientId: agentClientId,
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1",
-      sessionExpiresAt: now + 7200
-    });
+    ).toEqual({ act: agentAct, sessionExpiresAt: now + 7200 });
   });
 
-  it("reads poppy_agent_id when the agent sent one", () => {
+  it("keeps the whole act claim, including claims it doesn't read", () => {
+    const act = {
+      ...agentAct,
+      client_id: "tpc_ckhGFm35ZX7SVZfnEHKkae",
+      sub_profile: "ai_agent",
+      iss: "https://auth.fernway.com/",
+      future_claim: { nested: true }
+    };
+    expect(
+      readPoppyAgentState({ sub: "auth0|ana", exp: now + 7200, act })?.act
+    ).toEqual(act);
+  });
+
+  it("ignores Poppy IDs outside act", () => {
     expect(
       readPoppyAgentState({
         sub: "auth0|ana",
         exp: now + 7200,
-        act: { ...agentAct, poppy_agent_id: "travel_agent" }
+        poppy_sid: "s_top",
+        poppy_user_id: "u_top",
+        act: { sub: agentClientId }
       })
-    ).toMatchObject({ poppy_agent_id: "travel_agent" });
+    ).toBeUndefined();
   });
 
-  it("ignores top-level copies and other names", () => {
-    const state = readPoppyAgentState({
-      sub: "auth0|ana",
-      exp: now + 7200,
-      poppy_sid: "s_top",
-      act: { ...agentAct, poppy_uid: "u_old_name", sessionId: "s_camel" }
-    });
-    expect(state).toMatchObject({
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1"
-    });
-    expect(state).not.toHaveProperty("sessionId");
-    expect(state).not.toHaveProperty("userId");
+  it("does not take other names for the Poppy IDs", () => {
+    expect(
+      readPoppyAgentState({
+        sub: "auth0|ana",
+        exp: now + 7200,
+        act: { sub: agentClientId, poppy_uid: "u_old", sessionId: "s_camel" }
+      })
+    ).toBeUndefined();
   });
 
   it.each([
@@ -296,12 +301,7 @@ describe("pickPoppyUserClaims", () => {
 });
 
 describe("toPoppyAgentContext", () => {
-  const state = {
-    clientId: agentClientId,
-    poppy_sid: "s_8Hq2",
-    poppy_user_id: "u_Q7c1",
-    sessionExpiresAt: now + 7200
-  };
+  const state = { act: agentAct, sessionExpiresAt: now + 7200 };
 
   it("lists the granted scopes for a signed-in agent", () => {
     expect(
@@ -310,15 +310,64 @@ describe("toPoppyAgentContext", () => {
       kind: "agent",
       state: "signed_in",
       agent: { clientId: agentClientId },
+      sub: agentClientId,
       poppy_sid: "s_8Hq2",
       poppy_user_id: "u_Q7c1",
       scopes: ["openid", "orders:write", "profile"]
     });
   });
 
+  it("spreads every act claim as Auth0 sent it", () => {
+    // The act on an RFD signed-in join token, plus a claim Auth0 may add later.
+    const act = {
+      sub: "agt_gZameUasxQq5wLiFTW7rxF",
+      sub_profile: "ai_agent",
+      client_id: "tpc_ckhGFm35ZX7SVZfnEHKkae",
+      poppy_sid: "g4B43922Ut9eOkjgDb7xFA",
+      poppy_user_id: "n9YYwSTyEXoeF1tr3Yr_-A",
+      poppy_agent_id: "muse-12q1312",
+      iss: "https://auth.fernway.com/",
+      future_claim: { nested: true }
+    };
+    expect(
+      toPoppyAgentContext({ ...state, act }, "signed_in", "openid")
+    ).toEqual({
+      ...act,
+      kind: "agent",
+      state: "signed_in",
+      agent: { clientId: act.sub },
+      scopes: ["openid"]
+    });
+  });
+
+  it("never lets an act claim replace the SDK's own fields", () => {
+    const context = toPoppyAgentContext(
+      {
+        ...state,
+        act: {
+          ...agentAct,
+          kind: "human",
+          state: "signed_in",
+          agent: { clientId: "spoofed" },
+          scopes: ["admin"]
+        }
+      },
+      "guest"
+    );
+    expect(context).toMatchObject({
+      kind: "agent",
+      state: "guest",
+      agent: { clientId: agentClientId },
+      scopes: []
+    });
+  });
+
   it("includes poppy_agent_id only when present", () => {
     expect(
-      toPoppyAgentContext({ ...state, poppy_agent_id: "travel_agent" }, "guest")
+      toPoppyAgentContext(
+        { ...state, act: { ...agentAct, poppy_agent_id: "travel_agent" } },
+        "guest"
+      )
     ).toMatchObject({ poppy_agent_id: "travel_agent" });
     expect(toPoppyAgentContext(state, "guest")).not.toHaveProperty(
       "poppy_agent_id"

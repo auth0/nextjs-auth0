@@ -87,7 +87,8 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 | `getAccessToken()` | `./client` | Client-side token retrieval |
 | `Auth0Provider` | `./client` | Context provider wrapping app |
 | `withPageAuthRequired` | `./client` or `./server` | Page protection HOC |
-| `auth0.getPoppyContext()` | `./server` | Who is driving: person, agent guest, or signed-in agent (experimental, needs `poppy` option) |
+| `auth0.poppy.getContext()` | `./server` | Who is driving: person, agent guest, or signed-in agent (experimental, needs `poppy` option) |
+| `poppy.getContext()` | `./client` | The same, in the browser, via `/auth/poppy-context` |
 
 ### Session Storage
 
@@ -109,11 +110,16 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 ### Poppy (Personal Agents, experimental)
 
 - Opt-in via `new Auth0Client({ poppy: { config } })`; without it nothing changes
-- Serves `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource` from `auth0-poppy.json`
+- Serves `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource` from `auth0-poppy.json`; `protocolVersion` is passed through (only `major.minor` form is checked, never a fixed version)
 - SDK never verifies the agent (Auth0 does at the browser join); it only trusts the ID token at `/auth/callback`
 - Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
 - Guest → `auth0_anon` cookie, `getSession()` stays `null`, hooks skipped; signed-in agent → `session.internal.poppy`, capped at token `exp`
-- Code: `src/server/poppy-discovery.ts`, `src/server/poppy-agent.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
+- Person session + guest cookie (guest join after a person's login) → context reports the agent guest
+- Guest cookie present → `startInteractiveLogin` refuses (`poppy_login_not_allowed`, 403 on `/auth/login`) unless it's the join (`iss` = issuer)
+- Context = every `act` claim spread as sent + SDK's `kind`, `state`, `agent.clientId` (= `act.sub`), `scopes`; agent state stores only `act` + `sessionExpiresAt`
+- `/auth/logout`: usual Auth0 logout for everyone, guest cookie deleted too (Auth0's logout ends the guest's anonymous Auth0 session)
+- `/auth/poppy-context` (404 unless `poppy` set) backs client `poppy.getContext()`; no hook
+- Code: `src/server/poppy-discovery.ts`, `src/server/poppy-agent.ts`, `src/server/poppy-client.ts`, `src/client/poppy/index.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
 
 ### Hooks
 
@@ -136,6 +142,8 @@ Base class: `SdkError` with `code: string` property.
 | `DiscoveryError` | `discovery_error` | OIDC discovery failed |
 | `OAuth2Error` | varies | Auth0 callback error (may contain user input) |
 | `PoppyError` | `invalid_poppy_guest`, `poppy_guest_not_supported` | Agent login refused (see `Reason:` in message) |
+| `PoppyError` | `poppy_login_not_allowed` | Interactive login while an agent guest is in the browser |
+| `PoppyError` | `poppy_not_enabled`, `poppy_context_unavailable` | Client `poppy.getContext()` failed (route 404, or any other failure) |
 
 **Pattern:** Catch by `error.code`, not `instanceof`.
 

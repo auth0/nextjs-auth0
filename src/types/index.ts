@@ -371,5 +371,7 @@ export type {
   PoppyOptions,
   PoppyAgentState,
   PoppyContext,
-  PoppyAgentContext
+  PoppyAgentContext,
+  PoppyActClaim,
+  PoppyBrowserClient
 } from "./poppy.js";
