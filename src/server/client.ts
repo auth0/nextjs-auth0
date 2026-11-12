@@ -557,7 +557,8 @@ export interface Auth0ClientOptions {
    * accepts the `iss` and `target_link_uri` handoff, an agent guest is stored
    * as an anonymous session (so `getSession()` stays null), a signed-in agent's
    * session is capped at the expiry of the join's tokens, the logout route
-   * ends a guest, and {@link Auth0Client.poppy | auth0.poppy.getContext()}
+   * ends a guest and always uses `/v2/logout` (whatever `logoutStrategy`
+   * says), and {@link Auth0Client.poppy | auth0.poppy.getContext()}
    * reports who is driving. The `/auth/poppy-context` route returns the same
    * context to the browser.
    *
@@ -568,9 +569,6 @@ export interface Auth0ClientOptions {
    * - **Fail closed.** A login that looks like a guest (an `anon_poppy@`
    *   subject or the anonymous `sub_profile`) but isn't a valid Poppy guest is
    *   refused with a `PoppyError` (code `invalid_poppy_guest`), and nothing is stored.
-   * - **No login over a guest.** While a guest is in the browser, any
-   *   interactive login other than the agent's join is refused with a
-   *   `PoppyError` (code `poppy_login_not_allowed`); the login route answers 403.
    *
    * An invalid config throws an `InvalidConfigurationError` here, so a broken
    * file fails at startup instead of being served to agents.

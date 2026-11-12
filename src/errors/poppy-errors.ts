@@ -24,14 +24,6 @@ export enum PoppyErrorCode {
   GUEST_NOT_SUPPORTED = "poppy_guest_not_supported",
 
   /**
-   * An interactive login was started in a browser that a Personal Agent is
-   * driving as a guest. It would sign the agent in to an account without the
-   * customer approving the agent, so the SDK refuses it. The agent signs in
-   * through its browser join, which this doesn't block.
-   */
-  LOGIN_NOT_ALLOWED = "poppy_login_not_allowed",
-
-  /**
    * Client-side `poppy.getContext()`: the context route answered 404, so the
    * `poppy` option is not set on the server or the route is not mounted.
    */
@@ -49,8 +41,6 @@ const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
     "The ID token looks like a Poppy guest login but is not a valid one, so it is neither a guest nor a user.",
   [PoppyErrorCode.GUEST_NOT_SUPPORTED]:
     "A Poppy guest login cannot complete in a popup.",
-  [PoppyErrorCode.LOGIN_NOT_ALLOWED]:
-    "A Personal Agent is browsing as a guest in this browser, so a login can't start here: it would sign the agent in to an account the customer hasn't approved it for. The agent signs in through its browser join.",
   [PoppyErrorCode.NOT_ENABLED]:
     "The Poppy context route is not available. Set the `poppy` option on Auth0Client.",
   [PoppyErrorCode.CONTEXT_UNAVAILABLE]: "The Poppy context could not be read."
