@@ -1,5 +1,6 @@
 import { InvalidConfigurationError } from "../errors/index.js";
 import type {
+  PoppyActClaim,
   PoppyAgentState,
   PoppyContext,
   PoppyOptions
@@ -7,9 +8,7 @@ import type {
 import {
   ANONYMOUS_SUB_PROFILE,
   DEFAULT_POPPY_GUEST_SUBJECT_PREFIX,
-  POPPY_AGENT_ID_CLAIM,
-  POPPY_SESSION_ID_CLAIM,
-  POPPY_USER_ID_CLAIM
+  POPPY_REQUIRED_ACT_CLAIMS
 } from "../utils/poppy-constants.js";
 import { isUnixSeconds } from "../utils/session-helpers.js";
 import {
@@ -87,23 +86,19 @@ function hasAnonymousSubProfile(claims: Record<string, unknown>): boolean {
  * Reads the agent state from validated ID token claims, or `undefined` when the
  * login is not a Personal Agent's.
  *
- * Auth0's browser join puts `act: { sub, poppy_sid, poppy_user_id,
- * poppy_agent_id? }` in the tokens, where `act.sub` is the agent's client
- * metadata URL. Requiring the two Poppy IDs, not only `act.sub`, keeps an `act`
- * that an Action sets for a person impersonating a customer
- * (`api.authentication.setActor()`) from being taken for an agent.
+ * Auth0's browser join puts the agent in `act`: `sub` (the Auth0 agent ID, or
+ * the client metadata URL when no Auth0 agent is linked), `poppy_sid`,
+ * `poppy_user_id`, and optionally `poppy_agent_id`, `client_id`,
+ * `sub_profile` and `iss`. Requiring the two Poppy IDs, not only `act.sub`,
+ * keeps an `act` that an Action sets for a person impersonating a customer
+ * (`api.authentication.setActor()`) from being taken for an agent. The whole
+ * `act` is kept as Auth0 sent it.
  */
 export function readPoppyAgentState(
   claims: Record<string, unknown>
 ): PoppyAgentState | undefined {
   const act = claims.act;
-  if (!isRecord(act)) {
-    return undefined;
-  }
-  const clientId = readActString(act, "sub");
-  const poppySid = readActString(act, POPPY_SESSION_ID_CLAIM);
-  const poppyUserId = readActString(act, POPPY_USER_ID_CLAIM);
-  if (!clientId || !poppySid || !poppyUserId) {
+  if (!isRecord(act) || !isPoppyAct(act)) {
     return undefined;
   }
 
@@ -113,14 +108,13 @@ export function readPoppyAgentState(
     return undefined;
   }
 
-  const poppyAgentId = readActString(act, POPPY_AGENT_ID_CLAIM);
-  return {
-    clientId,
-    poppy_sid: poppySid,
-    poppy_user_id: poppyUserId,
-    ...(poppyAgentId !== undefined && { poppy_agent_id: poppyAgentId }),
-    sessionExpiresAt: claims.exp
-  };
+  return { act: { ...act }, sessionExpiresAt: claims.exp };
+}
+
+function isPoppyAct(act: Record<string, unknown>): act is PoppyActClaim {
+  return POPPY_REQUIRED_ACT_CLAIMS.every(
+    (name) => readActString(act, name) !== undefined
+  );
 }
 
 /**
@@ -153,7 +147,7 @@ export function explainPoppyGuestFailure(
     return `"act" is ${Array.isArray(act) ? "an array" : `a ${typeof act}`}, not an object`;
   }
   const keys = `"act" has: ${Object.keys(act).join(", ") || "no claims"}`;
-  for (const name of ["sub", POPPY_SESSION_ID_CLAIM, POPPY_USER_ID_CLAIM]) {
+  for (const name of POPPY_REQUIRED_ACT_CLAIMS) {
     if (readActString(act, name) === undefined) {
       return `act.${name} is missing or not a string (${keys})`;
     }
@@ -206,21 +200,21 @@ export const HUMAN_POPPY_CONTEXT: PoppyContext = Object.freeze({
   kind: "human"
 });
 
-/** Builds the public context from stored agent state. */
+/**
+ * Builds the public context from stored agent state: every `act` claim as
+ * Auth0 sent it, then the SDK's own fields, which an `act` claim can't
+ * replace.
+ */
 export function toPoppyAgentContext(
   state: PoppyAgentState,
   driving: "guest" | "signed_in",
   scope?: string
 ): PoppyContext {
   return {
+    ...state.act,
     kind: "agent",
     state: driving,
-    agent: { clientId: state.clientId },
-    poppy_sid: state.poppy_sid,
-    poppy_user_id: state.poppy_user_id,
-    ...(state.poppy_agent_id !== undefined && {
-      poppy_agent_id: state.poppy_agent_id
-    }),
+    agent: { clientId: state.act.sub },
     scopes: driving === "guest" ? [] : (scope ?? "").split(" ").filter(Boolean)
   };
 }

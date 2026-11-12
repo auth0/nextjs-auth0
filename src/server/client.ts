@@ -82,6 +82,7 @@ import {
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import { resolvePoppyRuntime } from "./poppy-agent.js";
+import { ServerPoppyClient } from "./poppy-client.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -544,8 +545,8 @@ export interface Auth0ClientOptions {
   anonymousSession?: AnonymousSessionConfig;
 
   /**
-   * Poppy (Personal Agent Protocol) support. Experimental: pinned to protocol
-   * version 0.3 and subject to change.
+   * Poppy (Personal Agent Protocol) support. Experimental and subject to
+   * change.
    *
    * When set, the SDK serves `/.well-known/poppy.json` and
    * `/.well-known/oauth-protected-resource` from `poppy.config`, the contents
@@ -555,8 +556,10 @@ export interface Auth0ClientOptions {
    * It also handles agent logins from Auth0's browser join: the login route
    * accepts the `iss` and `target_link_uri` handoff, an agent guest is stored
    * as an anonymous session (so `getSession()` stays null), a signed-in agent's
-   * session is capped at the expiry of the join's tokens, and
-   * {@link Auth0Client.getPoppyContext} reports who is driving.
+   * session is capped at the expiry of the join's tokens, the logout route
+   * ends a guest, and {@link Auth0Client.poppy | auth0.poppy.getContext()}
+   * reports who is driving. The `/auth/poppy-context` route returns the same
+   * context to the browser.
    *
    * - **Hooks.** `onCallback` and `beforeSessionSaved` are not called for an
    *   agent guest, because both receive a user session and a hook written for
@@ -565,6 +568,9 @@ export interface Auth0ClientOptions {
    * - **Fail closed.** A login that looks like a guest (an `anon_poppy@`
    *   subject or the anonymous `sub_profile`) but isn't a valid Poppy guest is
    *   refused with a `PoppyError` (code `invalid_poppy_guest`), and nothing is stored.
+   * - **No login over a guest.** While a guest is in the browser, any
+   *   interactive login other than the agent's join is refused with a
+   *   `PoppyError` (code `poppy_login_not_allowed`); the login route answers 403.
    *
    * An invalid config throws an `InvalidConfigurationError` here, so a broken
    * file fails at startup instead of being served to agents.
@@ -599,6 +605,7 @@ export class Auth0Client {
   private _mfa?: ServerMfaClient;
   private _passwordless?: ServerPasswordlessClient;
   private _passkey?: ServerPasskeyClient;
+  private _poppy?: ServerPoppyClient;
   #options: Auth0ClientOptions;
 
   /** @category Getting Started */
@@ -819,6 +826,8 @@ export class Auth0Client {
       anonymousSessionLogout:
         process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
         "/auth/anonymous-session/logout",
+      poppyContext:
+        process.env.NEXT_PUBLIC_POPPY_CONTEXT_ROUTE || "/auth/poppy-context",
       ...options.routes
     };
 
@@ -1076,40 +1085,8 @@ export class Auth0Client {
     return authClient.getAnonymousSession(reqCookies as RequestCookies);
   }
 
-  /**
-   * getPoppyContext says who is driving the current request: a person, or a
-   * Personal Agent as a guest or signed in to the customer's account.
-   * Experimental: pinned to Poppy protocol version 0.3.
-   *
-   * Always `{ kind: "human" }` when the `poppy` option is not set. A signed-in
-   * session takes precedence over a guest cookie. Mirrors {@link getSession}, and
-   * throws what it throws.
-   *
-   * Use in Server Components, Server Actions, and Route Handlers in the **App Router**.
-   *
-   * @example
-   * ```ts
-   * const poppy = await auth0.getPoppyContext();
-   * if (poppy.kind === "agent") {
-   *   // agent.clientId is the agent's client metadata URL.
-   *   await saveOrder(cart, { placedVia: poppy.agent.clientId });
-   * }
-   * ```
-   *
-   * @category Session
-   */
-  async getPoppyContext(): Promise<PoppyContext>;
-
-  /**
-   * getPoppyContext says who is driving the current request.
-   *
-   * Use in middleware and `getServerSideProps`, API routes in the **Pages Router**.
-   */
-  async getPoppyContext(
-    req: PagesRouterRequest | NextRequest
-  ): Promise<PoppyContext>;
-
-  async getPoppyContext(
+  /** Backs `auth0.poppy.getContext()`. */
+  async #getPoppyContext(
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<PoppyContext> {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
@@ -1942,6 +1919,22 @@ export class Auth0Client {
       this._passkey = new ServerPasskeyClient(this.provider);
     }
     return this._passkey;
+  }
+
+  /**
+   * Access Poppy (Personal Agent Protocol) operations. Experimental and
+   * subject to change.
+   *
+   * `auth0.poppy.getContext()` says who is driving the current request: a
+   * person, or a Personal Agent as a guest or signed in.
+   *
+   * @category Session
+   */
+  get poppy(): ServerPoppyClient {
+    if (!this._poppy) {
+      this._poppy = new ServerPoppyClient((req) => this.#getPoppyContext(req));
+    }
+    return this._poppy;
   }
 
   /**
