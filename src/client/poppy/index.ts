@@ -54,7 +54,7 @@ class ClientPoppyClient implements PoppyBrowserClient {
  *
  * const context = await poppy.getContext();
  * if (context.kind === "agent") {
- *   showBanner(`Browsing via ${context.agent.clientId} (${context.state})`);
+ *   showBanner(`Browsing via ${context.act.sub} (${context.state})`);
  * }
  * ```
  *

@@ -21,10 +21,13 @@ const CONTEXT_URL = "http://localhost:3000/auth/poppy-context";
 const guest: PoppyContext = {
   kind: "agent",
   state: "guest",
-  agent: { clientId: "https://muse.example/agent.json" },
-  sub: "https://muse.example/agent.json",
-  poppy_sid: "s_8Hq2",
-  poppy_user_id: "u_Q7c1",
+  sub: "anon_poppy@7c2e5a1d",
+  sub_profile: "user urn:auth0:anonymous_user",
+  act: {
+    sub: "https://muse.example/agent.json",
+    poppy_sid: "s_8Hq2",
+    poppy_user_id: "u_Q7c1"
+  },
   scopes: []
 };
 

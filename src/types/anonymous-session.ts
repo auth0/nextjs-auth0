@@ -86,10 +86,10 @@ export interface AnonymousCookiePayload extends jose.JWTPayload {
   access_token: string; // standard bearer token
   expires_at: number; // Unix seconds, access token expiry
   metadata?: Record<string, unknown>; // last persisted metadata
-  // Set only for a Personal Agent's signed-out (guest) login. The subject is the
+  // Set only for a Personal Agent's signed-out (guest) login. Its `sub` is the
   // guest's anonymous ID token `sub`, kept so the session never depends on the
   // access token being a decodable JWT.
-  poppy?: import("./poppy.js").PoppyAgentState & { subject: string };
+  poppy?: import("./poppy.js").PoppyAgentState;
 }
 
 /**

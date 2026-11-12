@@ -117,7 +117,17 @@ export interface PoppyActClaim {
  * @category Session
  */
 export interface PoppyAgentState {
-  /** The ID token's `act` claim. */
+  /**
+   * The ID token's own `sub`: the customer's Auth0 user ID for a signed-in
+   * agent, or the anonymous `anon_poppy@…` subject for a guest.
+   */
+  sub: string;
+  /**
+   * The ID token's own `sub_profile`, when Auth0 sends it. For example
+   * `"user"`, or `"user urn:auth0:anonymous_user"` for a guest.
+   */
+  sub_profile?: string;
+  /** The ID token's `act` claim, as Auth0 sent it. */
   act: PoppyActClaim;
   /**
    * When the website's session for the agent ends (Unix seconds): the ID
@@ -139,13 +149,13 @@ export interface PoppyAgentState {
 export type PoppyContext = { kind: "human" } | PoppyAgentContext;
 
 /**
- * A request driven by a Personal Agent: every claim of the ID token's `act`,
- * spread as Auth0 sent it, plus the SDK's own `kind`, `state`, `agent` and
- * `scopes`, which an `act` claim never replaces.
+ * A request driven by a Personal Agent. It mirrors the ID token Auth0 issued
+ * for the join: the token's own `sub` and `sub_profile`, and its whole `act`
+ * claim, which names the agent. `state` and `scopes` are the SDK's.
  *
  * @category Session
  */
-export interface PoppyAgentContext extends PoppyActClaim {
+export interface PoppyAgentContext {
   kind: "agent";
   /**
    * `"guest"` before the customer approves the agent; `"signed_in"` once the
@@ -156,13 +166,23 @@ export interface PoppyAgentContext extends PoppyActClaim {
    * driving, so check this context before acting for the person.
    */
   state: "guest" | "signed_in";
-  agent: {
-    /**
-     * `act.sub`: the Auth0 agent ID, or the agent's client metadata URL when no
-     * Auth0 agent is linked.
-     */
-    clientId: string;
-  };
+  /**
+   * The ID token's own `sub`, not the agent's: the customer's Auth0 user ID
+   * once signed in (the same as `session.user.sub`), or the anonymous
+   * `anon_poppy@…` subject for a guest. The agent is `act.sub`.
+   */
+  sub: string;
+  /**
+   * The ID token's own `sub_profile`, when Auth0 sends it. For example
+   * `"user"`, or `"user urn:auth0:anonymous_user"` for a guest.
+   */
+  sub_profile?: string;
+  /**
+   * The ID token's `act` claim, as Auth0 sent it: the agent acting. Its `sub`
+   * is the Auth0 agent ID, or the agent's client metadata URL when no Auth0
+   * agent is linked.
+   */
+  act: PoppyActClaim;
   /**
    * The scopes granted to the website's access token. Always empty for a guest.
    *
@@ -184,9 +204,9 @@ export interface PoppyBrowserClient {
    * Who is driving this browser, from the `/auth/poppy-context` route. The
    * same value as the server's `auth0.poppy.getContext()`.
    *
-   * The result includes every `act` claim, such as `poppy_sid`,
-   * `poppy_user_id`, `client_id` and `iss`, which any script on the page can
-   * then read.
+   * The result includes the token's `sub` and `sub_profile` and every `act`
+   * claim, such as `poppy_sid`, `poppy_user_id`, `client_id` and `iss`, which
+   * any script on the page can then read.
    *
    * @throws {PoppyError} `poppy_not_enabled` when the route answers 404 (the
    * `poppy` option is not set), `poppy_context_unavailable` on any other

@@ -30,7 +30,7 @@ export interface PoppyRuntime {
 export type PoppyLogin =
   | { kind: "human" }
   | { kind: "agent"; state: PoppyAgentState }
-  | { kind: "guest"; state: PoppyAgentState; subject: string }
+  | { kind: "guest"; state: PoppyAgentState }
   // Looks like a guest but isn't a valid one: fail closed, never a user.
   | { kind: "invalid_guest" };
 
@@ -97,8 +97,8 @@ function hasAnonymousSubProfile(claims: Record<string, unknown>): boolean {
 export function readPoppyAgentState(
   claims: Record<string, unknown>
 ): PoppyAgentState | undefined {
-  const act = claims.act;
-  if (!isRecord(act) || !isPoppyAct(act)) {
+  const { act, sub, sub_profile: subProfile } = claims;
+  if (!isRecord(act) || !isPoppyAct(act) || !isNonEmptyString(sub)) {
     return undefined;
   }
 
@@ -108,7 +108,16 @@ export function readPoppyAgentState(
     return undefined;
   }
 
-  return { act: { ...act }, sessionExpiresAt: claims.exp };
+  return {
+    sub,
+    ...(typeof subProfile === "string" && { sub_profile: subProfile }),
+    act: { ...act },
+    sessionExpiresAt: claims.exp
+  };
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function isPoppyAct(act: Record<string, unknown>): act is PoppyActClaim {
@@ -174,7 +183,7 @@ export function classifyPoppyLogin(
 
   if (hasGuestSubject || isAnonymous) {
     return hasGuestSubject && isAnonymous && state
-      ? { kind: "guest", state, subject: sub as string }
+      ? { kind: "guest", state }
       : { kind: "invalid_guest" };
   }
   return state ? { kind: "agent", state } : { kind: "human" };
@@ -201,9 +210,8 @@ export const HUMAN_POPPY_CONTEXT: PoppyContext = Object.freeze({
 });
 
 /**
- * Builds the public context from stored agent state: every `act` claim as
- * Auth0 sent it, then the SDK's own fields, which an `act` claim can't
- * replace.
+ * Builds the public context from stored agent state: the ID token's own `sub`
+ * and `sub_profile`, and its `act` as Auth0 sent it.
  */
 export function toPoppyAgentContext(
   state: PoppyAgentState,
@@ -211,10 +219,11 @@ export function toPoppyAgentContext(
   scope?: string
 ): PoppyContext {
   return {
-    ...state.act,
     kind: "agent",
     state: driving,
-    agent: { clientId: state.act.sub },
+    sub: state.sub,
+    ...(state.sub_profile !== undefined && { sub_profile: state.sub_profile }),
+    act: state.act,
     scopes: driving === "guest" ? [] : (scope ?? "").split(" ").filter(Boolean)
   };
 }
