@@ -11,8 +11,8 @@ import type { PagesRouterRequest } from "./client.js";
  * ```ts
  * const poppy = await auth0.poppy.getContext();
  * if (poppy.kind === "agent") {
- *   // agent.clientId is act.sub: the Auth0 agent ID or client metadata URL.
- *   await saveOrder(cart, { placedVia: poppy.agent.clientId });
+ *   // act.sub is the agent: its Auth0 agent ID, or its client metadata URL.
+ *   await saveOrder(cart, { placedVia: poppy.act.sub });
  * }
  * ```
  *

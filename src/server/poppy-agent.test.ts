@@ -64,10 +64,36 @@ describe("resolvePoppyRuntime", () => {
 });
 
 describe("readPoppyAgentState", () => {
-  it("keeps act and takes the expiry from exp", () => {
+  it("keeps the token's own sub and sub_profile, act, and the expiry from exp", () => {
+    expect(
+      readPoppyAgentState({
+        sub: "auth0|ana",
+        sub_profile: "user",
+        exp: now + 7200,
+        act: agentAct
+      })
+    ).toEqual({
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act: agentAct,
+      sessionExpiresAt: now + 7200
+    });
+  });
+
+  it("leaves sub_profile out when the token has none", () => {
     expect(
       readPoppyAgentState({ sub: "auth0|ana", exp: now + 7200, act: agentAct })
-    ).toEqual({ act: agentAct, sessionExpiresAt: now + 7200 });
+    ).not.toHaveProperty("sub_profile");
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["empty", ""],
+    ["not a string", 42]
+  ])("is not an agent when the token's sub is %s", (_case, sub) => {
+    expect(
+      readPoppyAgentState({ sub, exp: now + 7200, act: agentAct })
+    ).toBeUndefined();
   });
 
   it("keeps the whole act claim, including claims it doesn't read", () => {
@@ -168,7 +194,7 @@ describe("classifyPoppyLogin", () => {
   it("classifies an agent guest", () => {
     expect(classifyPoppyLogin(guestClaims, runtime)).toMatchObject({
       kind: "guest",
-      subject: "anon_poppy@7c2e5a1d"
+      state: { sub: "anon_poppy@7c2e5a1d", sub_profile: anonymousSubProfile }
     });
   });
 
@@ -301,23 +327,27 @@ describe("pickPoppyUserClaims", () => {
 });
 
 describe("toPoppyAgentContext", () => {
-  const state = { act: agentAct, sessionExpiresAt: now + 7200 };
+  const state = {
+    sub: "auth0|ana",
+    sub_profile: "user",
+    act: agentAct,
+    sessionExpiresAt: now + 7200
+  };
 
-  it("lists the granted scopes for a signed-in agent", () => {
+  it("mirrors the ID token: its own sub and sub_profile, and its act", () => {
     expect(
       toPoppyAgentContext(state, "signed_in", "openid orders:write  profile")
     ).toEqual({
       kind: "agent",
       state: "signed_in",
-      agent: { clientId: agentClientId },
-      sub: agentClientId,
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1",
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act: agentAct,
       scopes: ["openid", "orders:write", "profile"]
     });
   });
 
-  it("spreads every act claim as Auth0 sent it", () => {
+  it("returns the whole act as Auth0 sent it, nested", () => {
     // The act on an RFD signed-in join token, plus a claim Auth0 may add later.
     const act = {
       sub: "agt_gZameUasxQq5wLiFTW7rxF",
@@ -332,45 +362,25 @@ describe("toPoppyAgentContext", () => {
     expect(
       toPoppyAgentContext({ ...state, act }, "signed_in", "openid")
     ).toEqual({
-      ...act,
       kind: "agent",
       state: "signed_in",
-      agent: { clientId: act.sub },
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act,
       scopes: ["openid"]
     });
   });
 
-  it("never lets an act claim replace the SDK's own fields", () => {
-    const context = toPoppyAgentContext(
-      {
-        ...state,
-        act: {
-          ...agentAct,
-          kind: "human",
-          state: "signed_in",
-          agent: { clientId: "spoofed" },
-          scopes: ["admin"]
-        }
-      },
-      "guest"
-    );
-    expect(context).toMatchObject({
-      kind: "agent",
-      state: "guest",
-      agent: { clientId: agentClientId },
-      scopes: []
-    });
+  it("keeps the token's sub apart from the agent's sub in act", () => {
+    const context = toPoppyAgentContext(state, "guest");
+    expect(context).toMatchObject({ sub: "auth0|ana" });
+    expect((context as { act: { sub: string } }).act.sub).toBe(agentClientId);
   });
 
-  it("includes poppy_agent_id only when present", () => {
-    expect(
-      toPoppyAgentContext(
-        { ...state, act: { ...agentAct, poppy_agent_id: "travel_agent" } },
-        "guest"
-      )
-    ).toMatchObject({ poppy_agent_id: "travel_agent" });
-    expect(toPoppyAgentContext(state, "guest")).not.toHaveProperty(
-      "poppy_agent_id"
+  it("leaves sub_profile out when the token had none", () => {
+    const { sub_profile: _unused, ...withoutSubProfile } = state;
+    expect(toPoppyAgentContext(withoutSubProfile, "guest")).not.toHaveProperty(
+      "sub_profile"
     );
   });
 

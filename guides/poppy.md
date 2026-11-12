@@ -131,33 +131,37 @@ Before Poppy 1.0, agents only read a document whose `protocol_version` has the s
 type PoppyContext =
   | { kind: "human" }
   | {
-      // Every claim of the ID token's act, spread as Auth0 sent it:
-      sub: string;                   // the agent: its Auth0 agent ID, or its client metadata URL
-      poppy_sid: string;             // Poppy Session ID, the same from guest to signed in
-      poppy_user_id: string;         // the agent's pairwise ID for this person
-      poppy_agent_id?: string;       // which of the agent's agents, when it sent one
-      client_id?: string;            // the agent's Auth0 client ID
-      sub_profile?: string;          // for example "ai_agent"
-      iss?: string;
-      [claim: string]: unknown;      // any other act claim
-      // The SDK's own fields, which an act claim never replaces:
       kind: "agent";
       state: "guest" | "signed_in";
-      agent: { clientId: string };   // act.sub
+      // The ID token's own claims:
+      sub: string;                   // the customer's Auth0 user ID once signed in, or anon_poppy@… for a guest
+      sub_profile?: string;          // "user", or "user urn:auth0:anonymous_user" for a guest
+      act: {                         // the ID token's act, as Auth0 sent it: the agent acting
+        sub: string;                 // the agent: its Auth0 agent ID, or its client metadata URL
+        poppy_sid: string;           // Poppy Session ID, the same from guest to signed in
+        poppy_user_id: string;       // the agent's pairwise ID for this person
+        poppy_agent_id?: string;     // which of the agent's agents, when it sent one
+        client_id?: string;          // the agent's Auth0 client ID
+        sub_profile?: string;        // for example "ai_agent"
+        iss?: string;
+        [claim: string]: unknown;    // any other act claim
+      };
       scopes: string[];              // the website token's scopes; [] for a guest
     };
 ```
 
+It mirrors the ID token Auth0 issued for the join, so there are two `sub` values: the token's own `sub` (outside `act`) and the agent's `act.sub`.
+
 For a signed-in agent, Auth0 grants the website no more than the customer approved for the agent, plus OpenID scopes such as `openid` and `profile`. `scopes` can be fewer than the agent's, never more.
 
-The `act` claims keep their token names. `sub` is the agent, and `poppy_user_id` is the agent's pairwise ID for the person. Neither is the customer's Auth0 user ID, which is `session.user.sub`.
+`act` keeps its token names. `act.sub` is the agent, and `act.poppy_user_id` is the agent's pairwise ID for the person. The customer's Auth0 user ID is the context's own `sub`, which is the same as `session.user.sub` once signed in.
 
 **Server Component: show a banner to agents**
 
 ```tsx
 const poppy = await auth0.poppy.getContext();
 if (poppy.kind === "agent") {
-  return <Banner>Browsing via {poppy.agent.clientId} ({poppy.state})</Banner>;
+  return <Banner>Browsing via {poppy.act.sub} ({poppy.state})</Banner>;
 }
 ```
 
@@ -167,7 +171,7 @@ if (poppy.kind === "agent") {
 const poppy = await auth0.poppy.getContext();
 const cartKey =
   poppy.kind === "agent"
-    ? `${poppy.agent.clientId}|${poppy.poppy_sid}`
+    ? `${poppy.act.sub}|${poppy.act.poppy_sid}`
     : (await auth0.getSession())?.user.sub;
 ```
 
@@ -179,7 +183,7 @@ export async function placeOrder(cart: Cart) {
   const poppy = await auth0.poppy.getContext();
   if (poppy.kind === "agent") {
     if (poppy.state === "guest") throw new Error("Sign in through your agent to order");
-    await saveOrder(cart, { placedVia: poppy.agent.clientId });
+    await saveOrder(cart, { placedVia: poppy.act.sub });
     return;
   }
   await saveOrder(cart);
@@ -194,7 +198,7 @@ const poppy = await auth0.poppy.getContext(req);
 
 `getContext()` always returns `{ kind: "human" }` when the `poppy` option isn't set. A signed-in agent's session takes precedence over a guest cookie. A guest that joins a browser where a person is already logged in is reported as the agent: see [Guests and signed-in agents](#guests-and-signed-in-agents).
 
-The SDK keeps no storage of its own for Poppy Sessions. Where you keep carts and how you link a guest to a customer is up to your app, and `poppy_sid` is the key to use.
+The SDK keeps no storage of its own for Poppy Sessions. Where you keep carts and how you link a guest to a customer is up to your app, and `act.poppy_sid` is the key to use.
 
 ### In the browser
 
@@ -215,7 +219,7 @@ try {
 }
 ```
 
-The route answers `GET` only, is never cached, returns `404` when the `poppy` option isn't set, and `401` when the session can't be read. It returns no tokens, but every `act` claim, such as `poppy_sid`, `poppy_user_id`, `client_id` and `iss`, becomes readable by every script on the page, including analytics and other third-party scripts, so only call it on pages that need it.
+The route answers `GET` only, is never cached, returns `404` when the `poppy` option isn't set, and `401` when the session can't be read. It returns no tokens, but the token's `sub` and `sub_profile` and every `act` claim, such as `poppy_sid`, `poppy_user_id`, `client_id` and `iss`, become readable by every script on the page, including analytics and other third-party scripts, so only call it on pages that need it.
 
 To change the path, set `NEXT_PUBLIC_POPPY_CONTEXT_ROUTE`, which both the server and `poppy.getContext()` read. If you set `routes.poppyContext` instead, set the variable to the same path.
 

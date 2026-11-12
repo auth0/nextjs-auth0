@@ -2170,7 +2170,7 @@ export class AuthClient {
         expires_at: Number.isFinite(tokenExpiresAt)
           ? Math.min(tokenExpiresAt, ceiling)
           : ceiling,
-        poppy: { ...login.state, subject: login.subject }
+        poppy: login.state
       },
       req.cookies,
       res.cookies
@@ -4051,7 +4051,7 @@ export class AuthClient {
     // payload so the access token need not be a decodable JWT.
     if (payload.poppy) {
       return {
-        id: payload.poppy.subject,
+        id: payload.poppy.sub,
         accessToken: payload.access_token,
         expiresAt: payload.expires_at
       };

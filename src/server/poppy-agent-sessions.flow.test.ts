@@ -337,10 +337,9 @@ describe("Poppy: signed-in agent", () => {
     expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
       kind: "agent",
       state: "signed_in",
-      agent: { clientId: agentClientId },
-      sub: agentClientId,
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1",
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act: agentAct(),
       scopes: ["openid", "profile", "orders:write"]
     });
   });
@@ -418,7 +417,9 @@ describe("Poppy: signed-in agent", () => {
     expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
       kind: "agent",
       state: "signed_in",
-      agent: { clientId: agentClientId }
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act: agentAct()
     });
   });
 
@@ -435,11 +436,11 @@ describe("Poppy: signed-in agent", () => {
 
     const context = await auth0.poppy.getContext(browser.request("/"));
     expect(context).toMatchObject({
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1"
+      act: { poppy_sid: "s_8Hq2", poppy_user_id: "u_Q7c1" }
     });
-    expect(context).not.toHaveProperty("sessionId");
-    expect(context).not.toHaveProperty("userId");
+    // Nothing is copied out of act onto the context.
+    expect(context).not.toHaveProperty("poppy_sid");
+    expect(context).not.toHaveProperty("poppy_user_id");
   });
 
   it("exposes poppy_agent_id when the agent sent one", async () => {
@@ -452,7 +453,7 @@ describe("Poppy: signed-in agent", () => {
 
     expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
       kind: "agent",
-      poppy_agent_id: "travel_agent"
+      act: { poppy_agent_id: "travel_agent" }
     });
   });
 });
@@ -574,10 +575,9 @@ describe("Poppy: agent guest", () => {
     expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
       kind: "agent",
       state: "guest",
-      agent: { clientId: agentClientId },
-      sub: agentClientId,
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1",
+      sub: "anon_poppy@7c2e5a1d",
+      sub_profile: anonymousSubProfile,
+      act: agentAct(),
       scopes: []
     });
   });
@@ -701,7 +701,7 @@ describe("Poppy: agent guest", () => {
     expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
       kind: "agent",
       state: "guest",
-      poppy_sid: "s_8Hq2",
+      act: { poppy_sid: "s_8Hq2" },
       scopes: []
     });
   });
@@ -781,7 +781,7 @@ describe("Poppy: rejoin as the customer", () => {
     expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
       kind: "agent",
       state: "signed_in",
-      poppy_sid: "s_8Hq2"
+      act: { poppy_sid: "s_8Hq2" }
     });
   });
 
@@ -958,10 +958,8 @@ describe("Poppy: context route", () => {
     expect(body).toEqual({
       kind: "agent",
       state: "signed_in",
-      agent: { clientId: agentClientId },
-      sub: agentClientId,
-      poppy_sid: "s_8Hq2",
-      poppy_user_id: "u_Q7c1",
+      sub: "auth0|ana",
+      act: agentAct(),
       scopes: ["openid", "profile", "orders:write"]
     });
     expect(JSON.stringify(body)).not.toContain("at_123");
@@ -1085,5 +1083,77 @@ describe("Poppy: login while an agent guest is in the browser", () => {
     );
 
     expect(res.status).toBe(307);
+  });
+});
+
+describe("Poppy: the context mirrors the ID token", () => {
+  // The act on an RFD join token, plus a claim Auth0 may add later.
+  const fullAct = {
+    sub: "agt_gZameUasxQq5wLiFTW7rxF",
+    sub_profile: "ai_agent",
+    client_id: "tpc_ckhGFm35ZX7SVZfnEHKkae",
+    poppy_sid: "g4B43922Ut9eOkjgDb7xFA",
+    poppy_user_id: "n9YYwSTyEXoeF1tr3Yr_-A",
+    poppy_agent_id: "muse-12q1312",
+    iss: issuer,
+    future_claim: { nested: true }
+  };
+
+  it("keeps the token's sub and sub_profile and the whole act for an agent guest", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, {
+      sub: "anon_poppy@7c2e5a1d",
+      sub_profile: anonymousSubProfile,
+      act: fullAct
+    });
+
+    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
+      kind: "agent",
+      state: "guest",
+      sub: "anon_poppy@7c2e5a1d",
+      sub_profile: anonymousSubProfile,
+      act: fullAct,
+      scopes: []
+    });
+  });
+
+  it("keeps them for a signed-in agent even when beforeSessionSaved strips session.user", async () => {
+    const auth0 = createClient({
+      beforeSessionSaved: async (session) => ({
+        ...session,
+        user: { sub: session.user.sub }
+      })
+    });
+    const browser = new Browser();
+    await login(auth0, browser, {
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act: fullAct
+    });
+
+    // The hook removed sub_profile and act from session.user...
+    expect((await auth0.getSession(browser.request("/")))?.user).toEqual({
+      sub: "auth0|ana"
+    });
+    // ...but the agent state is kept apart, so the context still has them.
+    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
+      kind: "agent",
+      state: "signed_in",
+      sub: "auth0|ana",
+      sub_profile: "user",
+      act: fullAct,
+      scopes: ["openid", "profile", "orders:write"]
+    });
+  });
+
+  it("leaves sub_profile out when the token has none", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, { sub: "auth0|ana", act: fullAct });
+
+    expect(
+      await auth0.poppy.getContext(browser.request("/"))
+    ).not.toHaveProperty("sub_profile");
   });
 });
