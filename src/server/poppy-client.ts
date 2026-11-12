@@ -30,10 +30,8 @@ export class ServerPoppyClient {
    * getContext says who is driving the current request: a person, or a
    * Personal Agent as a guest or signed in to the customer's account.
    *
-   * Always `{ kind: "human" }` when the `poppy` option is not set. A guest that
-   * joined a browser where a person is already signed in is reported as the
-   * agent: while the browser carries the guest, its requests belong to the
-   * agent's Session. Mirrors `getSession()`, and throws what it throws.
+   * Always `{ kind: "human" }` when the `poppy` option is not set. Mirrors
+   * `getSession()`, and throws what it throws.
    *
    * Use in Server Components, Server Actions, and Route Handlers in the **App Router**.
    */

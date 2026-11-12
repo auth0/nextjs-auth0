@@ -519,7 +519,7 @@ For usage guidance, segment targeting, and testing patterns, see [Experiment Cen
 > [!NOTE]
 > Poppy support is experimental and may change without a major release. It is opt-in: without the `poppy` option nothing changes.
 
-Lets personal AI agents, such as Meta Muse, shop and manage accounts on your site. The SDK serves the Poppy discovery files (`/.well-known/poppy.json` and `/.well-known/oauth-protected-resource`), accepts an agent's browser login at `/auth/login`, and tells you who is driving with `auth0.poppy.getContext()`: a person, an agent guest, or a signed-in agent. In the browser, `poppy.getContext()` returns the same.
+Lets personal AI agents, such as Meta Muse, shop and manage accounts on your site. The SDK serves the Poppy discovery files (`/.well-known/poppy.json` and `/.well-known/oauth-protected-resource`), accepts an agent's browser login at `/auth/login`, and tells you who is driving with `auth0.poppy.getContext()`: a person, an agent guest, or a signed-in agent. Client-side, `poppy.getContext()` returns the same.
 
 ```ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";

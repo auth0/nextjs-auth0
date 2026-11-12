@@ -118,7 +118,11 @@ class Browser {
     return this.jar.has(name);
   }
 
-  request(path: string) {
+  get(name: string) {
+    return this.jar.get(name);
+  }
+
+  request(path: string, init: { method?: string; json?: unknown } = {}) {
     const headers = new Headers();
     if (this.jar.size) {
       headers.set(
@@ -126,7 +130,14 @@ class Browser {
         [...this.jar].map(([name, value]) => `${name}=${value}`).join("; ")
       );
     }
-    return new NextRequest(new URL(path, appBaseUrl), { headers });
+    if (init.json !== undefined) {
+      headers.set("content-type", "application/json");
+    }
+    return new NextRequest(new URL(path, appBaseUrl), {
+      headers,
+      method: init.method ?? (init.json !== undefined ? "POST" : "GET"),
+      ...(init.json !== undefined && { body: JSON.stringify(init.json) })
+    });
   }
 }
 
@@ -619,6 +630,7 @@ describe("Poppy: agent guest", () => {
       }
     ]
   ])("refuses %s, storing nothing", async (_case, claims) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const auth0 = createClient();
     const browser = new Browser();
     const res = await login(auth0, browser, claims);
@@ -635,6 +647,7 @@ describe("Poppy: agent guest", () => {
       return new NextResponse("refused", { status: 500 });
     });
     const auth0 = createClient({ onCallback });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await login(auth0, new Browser(), {
       sub: "anon_poppy@7c2e5a1d",
@@ -642,13 +655,31 @@ describe("Poppy: agent guest", () => {
       act: { sub: agentClientId }
     });
 
+    const reason = 'act.poppy_sid is missing or not a string ("act" has: sub)';
     expect(received).toHaveLength(1);
     const error = received[0] as PoppyError;
     expect(error).toBeInstanceOf(PoppyError);
     expect(error.code).toBe(PoppyErrorCode.INVALID_GUEST);
-    expect(error.message).toContain(
-      'Reason: act.poppy_sid is missing or not a string ("act" has: sub)'
-    );
+    expect(error.reason).toBe(reason);
+    expect(error.message).not.toContain("Reason");
+    expect(error.message).not.toContain("poppy_sid");
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining(reason));
+  });
+
+  it("keeps the reason out of the default response body", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const auth0 = createClient();
+
+    const res = await login(auth0, new Browser(), {
+      sub: "anon_poppy@7c2e5a1d",
+      sub_profile: anonymousSubProfile,
+      act: { sub: agentClientId }
+    });
+
+    expect(res.status).toBe(500);
+    const body = await res.text();
+    expect(body).not.toContain("poppy_sid");
+    expect(body).not.toContain("Reason");
   });
 
   it("ends the guest when the join's tokens expire", async () => {
@@ -685,19 +716,16 @@ describe("Poppy: agent guest", () => {
     });
   });
 
-  it("keeps a person's own login in this browser, but reports the agent", async () => {
+  it("ends a person's login in this browser, so the agent never acts as them", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     await login(auth0, browser, { sub: "auth0|ana" });
+    expect(browser.has("__session")).toBe(true);
 
     await login(auth0, browser, guestClaims());
 
-    // A join without an access token keeps the browser's own login (spec §6)...
-    expect(browser.has("__session")).toBe(true);
-    expect((await auth0.getSession(browser.request("/")))?.user.sub).toBe(
-      "auth0|ana"
-    );
-    // ...but while the browser carries the guest, the agent is driving.
+    expect(browser.has("__session")).toBe(false);
+    expect(await auth0.getSession(browser.request("/"))).toBeNull();
     expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
       kind: "agent",
       state: "guest",
@@ -706,7 +734,7 @@ describe("Poppy: agent guest", () => {
     });
   });
 
-  it("reports the person again once the guest has ended", async () => {
+  it("leaves no session behind once that guest has ended", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     await login(auth0, browser, { sub: "auth0|ana" });
@@ -715,6 +743,7 @@ describe("Poppy: agent guest", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 121 * 1000);
 
+    expect(await auth0.getSession(browser.request("/"))).toBeNull();
     expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
       kind: "human"
     });
@@ -744,6 +773,54 @@ describe("Poppy: agent guest", () => {
     expect(await res.text()).toContain("poppy_guest_not_supported");
     expect(browser.has("__session")).toBe(false);
     expect(browser.has("auth0_anon")).toBe(false);
+  });
+
+  it("reports an invalid guest in a popup as invalid_poppy_guest, through onCallback", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const onCallback = vi.fn(async () => new NextResponse("unused"));
+    const auth0 = createClient({ onCallback });
+    const browser = new Browser();
+
+    const res = await login(
+      auth0,
+      browser,
+      {
+        sub: "anon_poppy@7c2e5a1d",
+        sub_profile: anonymousSubProfile,
+        act: { sub: agentClientId }
+      },
+      { path: "/auth/login?challengeMode=popup" }
+    );
+
+    const body = await res.text();
+    expect(body).toContain("invalid_poppy_guest");
+    expect(body).not.toContain("poppy_sid");
+    expect(onCallback).toHaveBeenCalledWith(
+      expect.objectContaining({ code: PoppyErrorCode.INVALID_GUEST }),
+      expect.anything(),
+      null
+    );
+    expect(browser.has("__session")).toBe(false);
+  });
+
+  it("clears the guest when a person logs in through a popup", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims());
+    expect(browser.has("auth0_anon")).toBe(true);
+
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana" },
+      { path: "/auth/login?challengeMode=popup" }
+    );
+
+    expect(browser.has("__session")).toBe(true);
+    expect(browser.has("auth0_anon")).toBe(false);
+    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
+      kind: "human"
+    });
   });
 });
 
@@ -830,7 +907,6 @@ describe("Poppy: logout", () => {
 
     const res = await logout(auth0, browser, "/auth/logout?returnTo=%2Fbye");
 
-    // Auth0's logout ends the guest's anonymous Auth0 session as well.
     const location = new URL(res.headers.get("location")!);
     expect(location.host).toBe(domain);
     expect(location.pathname).toBe("/v2/logout");
@@ -856,12 +932,16 @@ describe("Poppy: logout", () => {
     expect(browser.has("auth0_anon")).toBe(false);
   });
 
-  it("clears a guest left behind when a person logs out", async () => {
+  it("still deletes a guest cookie found next to a person's session", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const auth0 = createClient();
+    // A guest join ends a person's session, so put the two together by hand,
+    // as a browser from before that change could have them.
+    const guestBrowser = new Browser();
+    await login(auth0, guestBrowser, guestClaims());
     const browser = new Browser();
     await login(auth0, browser, { sub: "auth0|ana" });
-    await login(auth0, browser, guestClaims());
+    browser.set("auth0_anon", guestBrowser.get("auth0_anon")!);
     expect(browser.has("__session")).toBe(true);
     expect(browser.has("auth0_anon")).toBe(true);
 
@@ -876,7 +956,6 @@ describe("Poppy: logout", () => {
   it("clears the guest when logout can't reach Auth0", async () => {
     const browser = new Browser();
     const auth0 = createClient();
-    await login(auth0, browser, { sub: "auth0|ana" });
     await login(auth0, browser, guestClaims());
 
     // A new client has no cached discovery, so the failure below is hit.
@@ -905,7 +984,7 @@ describe("Poppy: logout", () => {
     expect(browser.has("auth0_anon")).toBe(true);
   });
 
-  describe("uses /v2/logout whenever the poppy option is set", () => {
+  describe("uses /v2/logout for a guest's logout only", () => {
     // The tenant advertises RP-initiated logout, which "auto" would choose.
     function advertiseRpInitiatedLogout() {
       server.use(
@@ -923,7 +1002,7 @@ describe("Poppy: logout", () => {
       return new URL(res.headers.get("location")!).pathname;
     }
 
-    it("for an agent guest", async () => {
+    it("uses it for an agent guest", async () => {
       advertiseRpInitiatedLogout();
       const auth0 = createClient();
       const browser = new Browser();
@@ -932,25 +1011,7 @@ describe("Poppy: logout", () => {
       expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
     });
 
-    it("for a signed-in agent", async () => {
-      advertiseRpInitiatedLogout();
-      const auth0 = createClient();
-      const browser = new Browser();
-      await login(auth0, browser, { sub: "auth0|ana", act: agentAct() });
-
-      expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
-    });
-
-    it("for a person", async () => {
-      advertiseRpInitiatedLogout();
-      const auth0 = createClient();
-      const browser = new Browser();
-      await login(auth0, browser, { sub: "auth0|ana" });
-
-      expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
-    });
-
-    it("even when logoutStrategy is oidc", async () => {
+    it("uses it for a guest even when logoutStrategy is oidc", async () => {
       advertiseRpInitiatedLogout();
       const auth0 = createClient({ logoutStrategy: "oidc" });
       const browser = new Browser();
@@ -959,7 +1020,25 @@ describe("Poppy: logout", () => {
       expect(await logoutPath(auth0, browser)).toBe("/v2/logout");
     });
 
-    it("but not without the poppy option", async () => {
+    it("keeps the configured strategy for a signed-in agent", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient();
+      const browser = new Browser();
+      await login(auth0, browser, { sub: "auth0|ana", act: agentAct() });
+
+      expect(await logoutPath(auth0, browser)).toBe("/oidc/logout");
+    });
+
+    it("keeps the configured strategy for a person", async () => {
+      advertiseRpInitiatedLogout();
+      const auth0 = createClient();
+      const browser = new Browser();
+      await login(auth0, browser, { sub: "auth0|ana" });
+
+      expect(await logoutPath(auth0, browser)).toBe("/oidc/logout");
+    });
+
+    it("changes nothing without the poppy option", async () => {
       advertiseRpInitiatedLogout();
       const auth0 = createClient({ poppy: undefined });
       const browser = new Browser();
@@ -1104,5 +1183,117 @@ describe("Poppy: the context mirrors the ID token", () => {
     expect(
       await auth0.poppy.getContext(browser.request("/"))
     ).not.toHaveProperty("sub_profile");
+  });
+});
+
+describe("Poppy: other logins clear the guest", () => {
+  const guestClaims = {
+    sub: "anon_poppy@7c2e5a1d",
+    sub_profile: anonymousSubProfile,
+    act: agentAct()
+  };
+
+  // Passkey and passwordless logins exchange tokens without a nonce.
+  async function personTokens() {
+    tokenResponse = {
+      access_token: "at_person",
+      token_type: "Bearer",
+      expires_in: 36000,
+      scope: "openid profile",
+      id_token: await new jose.SignJWT({ sub: "auth0|ana", sid: "auth0-sid" })
+        .setProtectedHeader({ alg: "RS256", kid: "k1" })
+        .setIssuer(issuer)
+        .setAudience(clientId)
+        .setIssuedAt()
+        .setExpirationTime("2h")
+        .sign(keyPair.privateKey)
+    };
+  }
+
+  async function guestBrowser(auth0: Auth0Client) {
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims);
+    expect(browser.has("auth0_anon")).toBe(true);
+    return browser;
+  }
+
+  it("a passkey login", async () => {
+    const auth0 = createClient();
+    const browser = await guestBrowser(auth0);
+    await personTokens();
+
+    const res = await auth0.middleware(
+      browser.request("/auth/passkey/get-token", {
+        json: {
+          authSession: "test-auth-session",
+          authResponse: {
+            id: "cred-id",
+            rawId: "cred-raw-id",
+            type: "public-key",
+            response: {
+              clientDataJSON: "clientDataJSON-base64url",
+              authenticatorData: "authenticatorData-base64url",
+              signature: "signature-base64url"
+            }
+          }
+        }
+      })
+    );
+    browser.absorb(res);
+
+    expect(res.status).toBe(200);
+    expect(browser.has("__session")).toBe(true);
+    expect(browser.has("auth0_anon")).toBe(false);
+  });
+
+  it("a passwordless login", async () => {
+    const auth0 = createClient();
+    const browser = await guestBrowser(auth0);
+    await personTokens();
+
+    const res = await auth0.middleware(
+      browser.request("/auth/passwordless/verify", {
+        json: {
+          connection: "email",
+          email: "ana@example.com",
+          verificationCode: "123456"
+        }
+      })
+    );
+    browser.absorb(res);
+
+    expect(res.ok).toBe(true);
+    expect(browser.has("__session")).toBe(true);
+    expect(browser.has("auth0_anon")).toBe(false);
+  });
+});
+
+describe("Poppy: basePath", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("warns at startup that agents can't reach the files under a basePath", () => {
+    vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/shop");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    createClient();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'with basePath "/shop", the discovery files are served at /shop/.well-known/poppy.json'
+      )
+    );
+  });
+
+  it("doesn't warn without a basePath, or without the poppy option", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    createClient();
+    vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/shop");
+    createClient({ poppy: undefined });
+
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("discovery files are served at")
+    );
   });
 });

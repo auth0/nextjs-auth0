@@ -1365,6 +1365,11 @@ export class AuthClient {
     // Propagate domain mismatch error but don't delete session on domain mismatch
     const hasDomainMismatch = sessionError && sessionExists;
 
+    // Poppy: read the guest cookie once. A guest has no session, ID token or
+    // session ID to send to OIDC logout, so a guest's logout uses /v2/logout.
+    const hasPoppyGuest = await this.hasPoppyGuestCookie(req.cookies);
+    const isPoppyGuestLogout = hasPoppyGuest && !session;
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
@@ -1379,7 +1384,9 @@ export class AuthClient {
       if (!hasDomainMismatch) {
         await this.sessionStore.delete(req.cookies, errorResponse.cookies);
       }
-      await this.#clearPoppyGuestCookie(req.cookies, errorResponse.cookies);
+      if (hasPoppyGuest) {
+        this.deleteAnonymousCookie(req.cookies, errorResponse.cookies);
+      }
       await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
       return errorResponse;
     }
@@ -1433,8 +1440,8 @@ export class AuthClient {
     // Determine logout strategy and create appropriate response
     let logoutResponse: NextResponse;
 
-    if (this.poppy || this.logoutStrategy === "v2") {
-      // Always use v2 logout endpoint. Poppy always uses it.
+    if (isPoppyGuestLogout || this.logoutStrategy === "v2") {
+      // Always use v2 logout endpoint. A Poppy guest's logout always uses it.
       logoutResponse = createV2LogoutResponse();
     } else if (this.logoutStrategy === "oidc") {
       // Always use OIDC RP-Initiated Logout
@@ -1449,7 +1456,9 @@ export class AuthClient {
         if (!hasDomainMismatch) {
           await this.sessionStore.delete(req.cookies, errorResponse.cookies);
         }
-        await this.#clearPoppyGuestCookie(req.cookies, errorResponse.cookies);
+        if (hasPoppyGuest) {
+          this.deleteAnonymousCookie(req.cookies, errorResponse.cookies);
+        }
         await this.transactionStore.deleteAll(
           req.cookies,
           errorResponse.cookies
@@ -1491,10 +1500,10 @@ export class AuthClient {
     if (!hasDomainMismatch) {
       await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
     }
-    // A Poppy guest ends with the logout too. Auth0's logout above ends the
-    // guest's anonymous Auth0 session, which would otherwise answer the next
-    // login with the guest again.
-    await this.#clearPoppyGuestCookie(req.cookies, logoutResponse.cookies);
+    // A Poppy guest ends with the logout too.
+    if (hasPoppyGuest) {
+      this.deleteAnonymousCookie(req.cookies, logoutResponse.cookies);
+    }
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
@@ -1796,16 +1805,15 @@ export class AuthClient {
         popupPoppyLogin.kind === "guest" ||
         popupPoppyLogin.kind === "invalid_guest"
       ) {
-        const popupResponse = createAuthCompletePostMessageResponse({
-          success: false,
-          error: {
-            code: PoppyErrorCode.GUEST_NOT_SUPPORTED,
-            message: new PoppyError(PoppyErrorCode.GUEST_NOT_SUPPORTED).message
-          },
-          nonce: this.cspNonce
-        });
-        await this.transactionStore.delete(popupResponse.cookies, state);
-        return popupResponse;
+        return this.handleCallbackError(
+          popupPoppyLogin.kind === "guest"
+            ? new PoppyError(PoppyErrorCode.GUEST_NOT_SUPPORTED)
+            : this.poppyGuestWithoutAgentError(idTokenClaims!),
+          onCallbackCtx,
+          req,
+          state,
+          transactionState
+        );
       }
 
       // Merge new token into existing session (do NOT create fresh session)
@@ -1861,6 +1869,7 @@ export class AuthClient {
           req.cookies,
           popupResponse.cookies
         );
+        await this.#clearPoppyGuestCookie(req.cookies, popupResponse.cookies);
         await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       } else {
@@ -1938,6 +1947,7 @@ export class AuthClient {
           req.cookies,
           popupResponse.cookies
         );
+        await this.#clearPoppyGuestCookie(req.cookies, popupResponse.cookies);
         await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       }
@@ -2072,14 +2082,17 @@ export class AuthClient {
     );
   }
 
+  /**
+   * The error for a guest-looking login that isn't a valid guest. The reason
+   * names claims, so it is logged here and kept out of the message, which the
+   * default onCallback returns to the browser.
+   */
   private poppyGuestWithoutAgentError(
     idTokenClaims: Record<string, unknown>
   ): PoppyError {
-    return new PoppyError(
-      PoppyErrorCode.INVALID_GUEST,
-      "The ID token looks like a Poppy guest login but is not a valid one, so it is neither a guest nor a user. " +
-        `Reason: ${explainPoppyGuestFailure(idTokenClaims, this.poppy!)}.`
-    );
+    const reason = explainPoppyGuestFailure(idTokenClaims, this.poppy!);
+    console.error(`[nextjs-auth0] Refused a Poppy guest login: ${reason}.`);
+    return new PoppyError(PoppyErrorCode.INVALID_GUEST, undefined, reason);
   }
 
   /**
@@ -2150,13 +2163,13 @@ export class AuthClient {
       res.cookies
     );
 
-    // A join without an access token ends the agent's sign-in in this browser
-    // but keeps the browser's own login (spec §6). getPoppyContext still
-    // reports the agent while the guest cookie is present.
+    // A guest join ends any session in this browser, a person's or a signed-in
+    // agent's, so the agent never acts with an account it wasn't approved for.
+    // The spec only says a join SHOULD keep the browser's own login (§6).
     const { session: existing } = await this.getSessionWithDomainCheck(
       req.cookies
     );
-    if (existing?.internal?.poppy) {
+    if (existing) {
       await this.sessionStore.delete(req.cookies, res.cookies);
     }
 
@@ -2264,10 +2277,9 @@ export class AuthClient {
    * Who is driving this request. A signed-in agent's session wins over a guest
    * cookie.
    *
-   * A person's session with a guest cookie is the agent: a guest join keeps the
-   * browser's own login, but while the browser carries the guest its requests
-   * belong to the agent's Session (spec §6). A person's own login always clears
-   * the guest cookie, so that pair only comes from a join after the login.
+   * A session and a guest cookie shouldn't be found together: a guest join
+   * ends any session, and every login deletes the guest cookie. If they are
+   * (a browser from before that), the agent is reported, the safer answer.
    */
   async getPoppyContext(
     reqCookies: RequestCookies | ReadonlyRequestCookies
@@ -3638,16 +3650,8 @@ export class AuthClient {
     const state = decrypted.payload;
     const now = Math.floor(Date.now() / 1000);
 
-    // A Poppy guest cannot be renewed: it lasts until its token or the Poppy
-    // Session ends, whichever is first, and is then gone.
     if (state.poppy) {
-      if (this.isPoppyGuestActive(state)) {
-        return this.readPublicSession(state);
-      }
-      if (resCookies) {
-        this.deleteAnonymousCookie(reqCookies, resCookies);
-      }
-      return null;
+      return this.poppyGuestSession(state, reqCookies, resCookies);
     }
 
     // Step 3: Evaluate expiry against renewal state machine
@@ -3871,8 +3875,27 @@ export class AuthClient {
         () => null
       );
       if (payload?.poppy) {
-        return this.resolveAnonymousSession(reqCookies, resCookies);
+        return this.poppyGuestSession(payload, reqCookies, resCookies);
       }
+    }
+    return null;
+  }
+
+  /**
+   * The public session for a decrypted Poppy guest cookie. A guest cannot be
+   * renewed: it lasts until its token or the Poppy Session ends, whichever is
+   * first, and is then gone.
+   */
+  private poppyGuestSession(
+    payload: AnonymousCookiePayload,
+    reqCookies: RequestCookies,
+    resCookies?: ResponseCookies
+  ): AnonymousSession | null {
+    if (this.isPoppyGuestActive(payload)) {
+      return this.readPublicSession(payload);
+    }
+    if (resCookies) {
+      this.deleteAnonymousCookie(reqCookies, resCookies);
     }
     return null;
   }
@@ -7202,6 +7225,7 @@ export class AuthClient {
       tokenEndpointResponse.id_token
     );
     await this.sessionStore.set(reqCookies, resCookies, session, true);
+    await this.#clearPoppyGuestCookie(reqCookies as RequestCookies, resCookies);
   }
 
   // ---------------------------------------------------------------------------
@@ -7677,6 +7701,7 @@ export class AuthClient {
 
     session = await this.finalizeSession(session, tokenResponse.id_token);
     await this.sessionStore.set(reqCookies, resCookies, session, true);
+    await this.#clearPoppyGuestCookie(reqCookies, resCookies);
   }
 
   /**

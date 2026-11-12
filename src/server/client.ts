@@ -556,9 +556,10 @@ export interface Auth0ClientOptions {
    * It also handles agent logins from Auth0's browser join: the login route
    * accepts the `iss` and `target_link_uri` handoff, an agent guest is stored
    * as an anonymous session (so `getSession()` stays null), a signed-in agent's
-   * session is capped at the expiry of the join's tokens, the logout route
-   * ends a guest and always uses `/v2/logout` (whatever `logoutStrategy`
-   * says), and {@link Auth0Client.poppy | auth0.poppy.getContext()}
+   * session is capped at the expiry of the join's tokens, a guest join ends
+   * any session already in the browser, every login deletes a guest, the
+   * logout route ends a guest through `/v2/logout`, and
+   * {@link Auth0Client.poppy | auth0.poppy.getContext()}
    * reports who is driving. The `/auth/poppy-context` route returns the same
    * context to the browser.
    *
@@ -670,6 +671,14 @@ export class Auth0Client {
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+
+    // Agents fetch the discovery files at the host root, which an app with a
+    // basePath never receives.
+    if (poppy && basePath && basePath !== "/") {
+      console.warn(
+        `[nextjs-auth0] Poppy: with basePath "${basePath}", the discovery files are served at ${basePath}/.well-known/poppy.json, but agents fetch /.well-known/poppy.json at the host root. Serve them at the root, for example with a rewrite or a proxy.`
+      );
+    }
 
     // Session cookie secure can be configured via options or AUTH0_COOKIE_SECURE.
     const envCookieSecure = process.env.AUTH0_COOKIE_SECURE;

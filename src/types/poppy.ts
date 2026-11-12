@@ -159,11 +159,8 @@ export interface PoppyAgentContext {
   kind: "agent";
   /**
    * `"guest"` before the customer approves the agent; `"signed_in"` once the
-   * agent acts in the customer's account.
-   *
-   * A guest can share the browser with a person's own login, which a guest
-   * join keeps. `getSession()` then returns that login, but the agent is
-   * driving, so check this context before acting for the person.
+   * agent acts in the customer's account. A guest join ends any session the
+   * browser had, so `getSession()` is `null` for a guest.
    */
   state: "guest" | "signed_in";
   /**

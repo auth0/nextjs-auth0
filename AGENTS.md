@@ -88,7 +88,7 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 | `Auth0Provider` | `./client` | Context provider wrapping app |
 | `withPageAuthRequired` | `./client` or `./server` | Page protection HOC |
 | `auth0.poppy.getContext()` | `./server` | Who is driving: person, agent guest, or signed-in agent (experimental, needs `poppy` option) |
-| `poppy.getContext()` | `./client` | The same, in the browser, via `/auth/poppy-context` |
+| `poppy.getContext()` | `./client` | The same, client-side, via `/auth/poppy-context` |
 
 ### Session Storage
 
@@ -114,9 +114,9 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 - SDK never verifies the agent (Auth0 does at the browser join); it only trusts the ID token at `/auth/callback`
 - Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
 - Guest → `auth0_anon` cookie, `getSession()` stays `null`, hooks skipped; signed-in agent → `session.internal.poppy`, capped at token `exp`
-- Person session + guest cookie (guest join after a person's login) → context reports the agent guest
+- A guest join ends any session in the browser; every login (redirect, popup, passkey, passwordless) deletes the guest cookie; a guest join replaces a plain anonymous session
 - Context mirrors the ID token: `kind`, `state`, the token's own `sub` + `sub_profile`, the whole `act` as sent (nested; `act.sub` is the agent), `scopes`; agent state stores `sub`, `sub_profile`, `act`, `sessionExpiresAt`
-- `/auth/logout`: with `poppy` set, always `/v2/logout` (overrides `logoutStrategy`); guest cookie deleted too (Auth0's logout ends the guest's anonymous Auth0 session)
+- `/auth/logout`: a guest's logout always uses `/v2/logout` (no ID token or sid for OIDC); other logouts use `logoutStrategy`; the guest cookie is deleted; a `basePath` warns at startup (agents fetch `/.well-known/*` at the host root)
 - `/auth/poppy-context` (404 unless `poppy` set) backs client `poppy.getContext()`; no hook
 - Code: `src/server/poppy-discovery.ts`, `src/server/poppy-agent.ts`, `src/server/poppy-client.ts`, `src/client/poppy/index.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
 
@@ -140,7 +140,7 @@ Base class: `SdkError` with `code: string` property.
 | `InvalidConfigurationError` | `invalid_configuration` | Bad SDK config |
 | `DiscoveryError` | `discovery_error` | OIDC discovery failed |
 | `OAuth2Error` | varies | Auth0 callback error (may contain user input) |
-| `PoppyError` | `invalid_poppy_guest`, `poppy_guest_not_supported` | Agent login refused (see `Reason:` in message) |
+| `PoppyError` | `invalid_poppy_guest`, `poppy_guest_not_supported` | Agent login refused (the reason is in `error.reason` and the server log, never the message) |
 | `PoppyError` | `poppy_not_enabled`, `poppy_context_unavailable` | Client `poppy.getContext()` failed (route 404, or any other failure) |
 
 **Pattern:** Catch by `error.code`, not `instanceof`.
