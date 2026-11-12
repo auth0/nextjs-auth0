@@ -3,7 +3,7 @@ import { SdkError } from "./sdk-error.js";
 /**
  * Error codes for Poppy (Personal Agent Protocol) login failures.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  *
  * @category Errors
  */
@@ -51,7 +51,7 @@ const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
  * handled, and thrown by the client-side `poppy.getContext()`. Check
  * `error.code` against {@link PoppyErrorCode}.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  *
  * @example Reading the code in `onCallback`
  * ```typescript

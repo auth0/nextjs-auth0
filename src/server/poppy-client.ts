@@ -5,7 +5,7 @@ import type { PagesRouterRequest } from "./client.js";
 
 /**
  * Server-side Poppy (Personal Agent Protocol) API, available as
- * `auth0.poppy`. Experimental and subject to change.
+ * `auth0.poppy`. Beta and subject to change.
  *
  * @example App Router
  * ```ts

@@ -2139,7 +2139,7 @@ Passkey examples, covering Universal Login, the headless passkey API (signup, lo
 
 ## Poppy (Personal Agents)
 
-Experimental support for personal AI agents shopping and managing accounts on your site through the Poppy (Personal Agent Protocol): serving the discovery files, accepting an agent's browser login, and telling a person, an agent guest and a signed-in agent apart with `auth0.poppy.getContext()`.
+Beta support for personal AI agents shopping and managing accounts on your site through the Poppy (Personal Agent Protocol): serving the discovery files, accepting an agent's browser login, and telling a person, an agent guest and a signed-in agent apart with `auth0.poppy.getContext()`.
 
 ➡️ **[Poppy (Personal Agents) examples](guides/poppy.md)**
 

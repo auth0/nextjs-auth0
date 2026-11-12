@@ -2,7 +2,7 @@
 
 Examples for letting personal AI agents, such as Meta Muse, shop and manage accounts on your Next.js site through the Auth0 Next.js SDK, using the Poppy (Personal Agent Protocol).
 
-> **Experimental.** Poppy support may change without a major release. Poppy is in beta on Auth0, so your tenant needs it enabled. The SDK isn't tied to one protocol version: it serves the version your `auth0-poppy.json` names.
+> **Beta.** Poppy support may change without a major release. Poppy is in beta on Auth0, so your tenant needs it enabled. The SDK isn't tied to one protocol version: it serves the version your `auth0-poppy.json` names.
 
 [← Back to EXAMPLES.md](../EXAMPLES.md)
 

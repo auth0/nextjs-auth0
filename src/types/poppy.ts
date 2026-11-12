@@ -1,6 +1,6 @@
 /**
  * Poppy (Personal Agent Protocol) types for @auth0/nextjs-auth0.
- * Experimental and subject to change.
+ * Beta and subject to change.
  */
 
 /**
@@ -8,7 +8,7 @@
  * `auth0-poppy.json`. Import the file and pass the object as
  * `poppy.config`, so it works on the Edge runtime as well as Node.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  *
  * @category Configuration
  */
@@ -49,7 +49,7 @@ export interface PoppyConfig {
 /**
  * Configuration for Poppy (Personal Agent Protocol) support.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  * When set, the SDK serves `/.well-known/poppy.json` and
  * `/.well-known/oauth-protected-resource`, accepts Auth0's browser-join
  * handoff at the login route, and tells agent logins apart from people. The
@@ -74,7 +74,7 @@ export interface PoppyOptions {
  * requires `sub`, `poppy_sid` and `poppy_user_id`; Auth0 may send more claims
  * than are listed here, and they are kept too.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  *
  * @category Session
  */
@@ -112,7 +112,7 @@ export interface PoppyActClaim {
  * cookie for a guest, where neither `beforeSessionSaved` nor `updateSession`
  * can remove it.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  *
  * @category Session
  */
@@ -142,7 +142,7 @@ export interface PoppyAgentState {
  * `auth0.poppy.getContext()` on the server and `poppy.getContext()` in the
  * browser.
  *
- * Experimental and subject to change.
+ * Beta and subject to change.
  *
  * @category Session
  */
@@ -192,7 +192,7 @@ export interface PoppyAgentContext {
 
 /**
  * Browser-side Poppy interface, used by the `poppy` singleton exported from
- * `@auth0/nextjs-auth0`. Experimental and subject to change.
+ * `@auth0/nextjs-auth0`. Beta and subject to change.
  *
  * @category Session
  */

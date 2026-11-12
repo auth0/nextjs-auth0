@@ -545,7 +545,7 @@ export interface Auth0ClientOptions {
   anonymousSession?: AnonymousSessionConfig;
 
   /**
-   * Poppy (Personal Agent Protocol) support. Experimental and subject to
+   * Poppy (Personal Agent Protocol) support. Beta and subject to
    * change.
    *
    * When set, the SDK serves `/.well-known/poppy.json` and
@@ -1929,7 +1929,7 @@ export class Auth0Client {
   }
 
   /**
-   * Access Poppy (Personal Agent Protocol) operations. Experimental and
+   * Access Poppy (Personal Agent Protocol) operations. Beta and
    * subject to change.
    *
    * `auth0.poppy.getContext()` says who is driving the current request: a

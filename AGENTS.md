@@ -87,7 +87,7 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 | `getAccessToken()` | `./client` | Client-side token retrieval |
 | `Auth0Provider` | `./client` | Context provider wrapping app |
 | `withPageAuthRequired` | `./client` or `./server` | Page protection HOC |
-| `auth0.poppy.getContext()` | `./server` | Who is driving: person, agent guest, or signed-in agent (experimental, needs `poppy` option) |
+| `auth0.poppy.getContext()` | `./server` | Who is driving: person, agent guest, or signed-in agent (beta, needs `poppy` option) |
 | `poppy.getContext()` | `./client` | The same, client-side, via `/auth/poppy-context` |
 
 ### Session Storage
@@ -107,9 +107,9 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 - Optional, requires `dpop.enabled: true` + key pair config
 - Tokens bound to cryptographic proof
 
-### Poppy (Personal Agents, experimental)
+### Poppy (Personal Agents, beta)
 
-- Opt-in via `new Auth0Client({ poppy: { config } })`; without it nothing changes
+- Enabled with `new Auth0Client({ poppy: { config } })`; without it nothing changes
 - Serves `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource` from `auth0-poppy.json`; `protocolVersion` is passed through (only `major.minor` form is checked, never a fixed version)
 - SDK never verifies the agent (Auth0 does at the browser join); it only trusts the ID token at `/auth/callback`
 - Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
