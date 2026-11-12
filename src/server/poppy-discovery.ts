@@ -1,6 +1,5 @@
 import { InvalidConfigurationError } from "../errors/index.js";
 import type { PoppyConfig } from "../types/poppy.js";
-import { POPPY_PROTOCOL_VERSION } from "../utils/poppy-constants.js";
 import { isLoopbackHost } from "../utils/url-helpers.js";
 
 /** The two discovery documents, built once from {@link PoppyConfig}. */
@@ -85,6 +84,18 @@ function validateIssuer(value: unknown): string {
   return raw;
 }
 
+// The SDK serves whichever version the file names. It only checks the
+// `major.minor` form every version shares, since agents ignore a document
+// whose version they can't read.
+function validateProtocolVersion(value: unknown): string {
+  if (typeof value !== "string" || !/^\d+\.\d+$/.test(value)) {
+    fail(
+      `protocolVersion must be a version such as "0.4" (major.minor), got ${typeof value === "string" ? `"${value}"` : typeof value}.`
+    );
+  }
+  return value;
+}
+
 function validateScopes(value: unknown): Record<string, string> | undefined {
   if (value === undefined) {
     return undefined;
@@ -127,12 +138,7 @@ export function buildPoppyDiscoveryDocuments(
     options.production ??
     (typeof process !== "undefined" && process.env?.NODE_ENV === "production");
 
-  if (config.protocolVersion !== POPPY_PROTOCOL_VERSION) {
-    fail(
-      `protocolVersion "${config.protocolVersion}" is not supported. This SDK supports "${POPPY_PROTOCOL_VERSION}".`
-    );
-  }
-
+  const protocolVersion = validateProtocolVersion(config.protocolVersion);
   const { domain, local } = validateDomain(config.domain, production);
   if (local) {
     console.warn(
@@ -160,7 +166,7 @@ export function buildPoppyDiscoveryDocuments(
 
   return {
     poppy: {
-      protocol_version: POPPY_PROTOCOL_VERSION,
+      protocol_version: protocolVersion,
       organization: {
         ...(config.organizationName !== undefined && {
           name: config.organizationName

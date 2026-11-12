@@ -1,6 +1,6 @@
 /**
  * Poppy (Personal Agent Protocol) types for @auth0/nextjs-auth0.
- * Experimental: pinned to protocol version 0.3 and subject to change.
+ * Experimental and subject to change.
  */
 
 /**
@@ -8,12 +8,15 @@
  * `auth0-poppy.json`. Import the file and pass the object as
  * `poppy.config`, so it works on the Edge runtime as well as Node.
  *
- * Experimental: pinned to Poppy protocol version 0.3.
+ * Experimental and subject to change.
  *
  * @category Configuration
  */
 export interface PoppyConfig {
-  /** The Poppy protocol version. Only `"0.3"` is supported. */
+  /**
+   * The Poppy protocol version the file follows, as `major.minor`, for example
+   * `"0.4"`. Served as is: it must be the version your Auth0 tenant implements.
+   */
   protocolVersion: string;
   /**
    * The host that serves the discovery files, without scheme, port or path.
@@ -46,7 +49,7 @@ export interface PoppyConfig {
 /**
  * Configuration for Poppy (Personal Agent Protocol) support.
  *
- * Experimental: pinned to Poppy protocol version 0.3 and subject to change.
+ * Experimental and subject to change.
  * When set, the SDK serves `/.well-known/poppy.json` and
  * `/.well-known/oauth-protected-resource`, accepts Auth0's browser-join
  * handoff at the login route, and tells agent logins apart from people. The
@@ -67,33 +70,55 @@ export interface PoppyOptions {
 }
 
 /**
+ * The `act` claim of a Personal Agent's ID token, as Auth0 sent it. The SDK
+ * requires `sub`, `poppy_sid` and `poppy_user_id`; Auth0 may send more claims
+ * than are listed here, and they are kept too.
+ *
+ * Experimental and subject to change.
+ *
+ * @category Session
+ */
+export interface PoppyActClaim {
+  [claim: string]: unknown;
+  /**
+   * The agent acting: its Auth0 agent ID, or its client metadata URL when no
+   * Auth0 agent is linked. Not the customer: their Auth0 user ID is
+   * `session.user.sub`.
+   */
+  sub: string;
+  /**
+   * The Poppy Session ID. Stable from guest to signed in, so the app can key a
+   * cart by it.
+   */
+  poppy_sid: string;
+  /**
+   * The agent's pairwise User ID for this person. Not the customer's Auth0
+   * user ID: that is `session.user.sub`.
+   */
+  poppy_user_id: string;
+  /** Which of the agent's own agents is acting, when the agent sent one. */
+  poppy_agent_id?: string;
+  /** The agent's Auth0 client ID. */
+  client_id?: string;
+  /** The actor's profile, for example `"ai_agent"`. */
+  sub_profile?: string;
+  /** The issuer that recorded the actor. */
+  iss?: string;
+}
+
+/**
  * The agent state the SDK keeps for a Poppy login. Stored in
  * `session.internal.poppy` for a signed-in agent and in the anonymous session
  * cookie for a guest, where neither `beforeSessionSaved` nor `updateSession`
  * can remove it.
  *
- * Experimental: pinned to Poppy protocol version 0.3.
+ * Experimental and subject to change.
  *
  * @category Session
  */
 export interface PoppyAgentState {
-  /**
-   * The agent's OAuth client ID, from `act.sub`. For a Personal Agent this is
-   * its client metadata URL, for example `https://muse.example/agent.json`.
-   */
-  clientId: string;
-  /** The Poppy Session ID, from `act.poppy_sid`. */
-  poppy_sid: string;
-  /**
-   * The agent's pairwise User ID for this person at this Company, from
-   * `act.poppy_user_id`.
-   */
-  poppy_user_id: string;
-  /**
-   * Which of the agent's own agents is acting, from `act.poppy_agent_id`. Only
-   * present when the agent sent an agent ID in its Session JWT.
-   */
-  poppy_agent_id?: string;
+  /** The ID token's `act` claim. */
+  act: PoppyActClaim;
   /**
    * When the website's session for the agent ends (Unix seconds): the ID
    * token's `exp`. Auth0 caps join tokens at 2 hours, and the SDK's session for
@@ -104,54 +129,68 @@ export interface PoppyAgentState {
 
 /**
  * Who is driving the current request, as returned by
- * `Auth0Client.getPoppyContext()`.
+ * `auth0.poppy.getContext()` on the server and `poppy.getContext()` in the
+ * browser.
  *
- * Experimental: pinned to Poppy protocol version 0.3.
+ * Experimental and subject to change.
  *
  * @category Session
  */
 export type PoppyContext = { kind: "human" } | PoppyAgentContext;
 
 /**
- * A request driven by a Personal Agent.
+ * A request driven by a Personal Agent: every claim of the ID token's `act`,
+ * spread as Auth0 sent it, plus the SDK's own `kind`, `state`, `agent` and
+ * `scopes`, which an `act` claim never replaces.
  *
  * @category Session
  */
-export interface PoppyAgentContext {
+export interface PoppyAgentContext extends PoppyActClaim {
   kind: "agent";
   /**
    * `"guest"` before the customer approves the agent; `"signed_in"` once the
    * agent acts in the customer's account.
+   *
+   * A guest can share the browser with a person's own login, which a guest
+   * join keeps. `getSession()` then returns that login, but the agent is
+   * driving, so check this context before acting for the person.
    */
   state: "guest" | "signed_in";
   agent: {
     /**
-     * The agent's OAuth client ID, from `act.sub`: its client metadata URL,
-     * for example `https://muse.example/agent.json`.
+     * `act.sub`: the Auth0 agent ID, or the agent's client metadata URL when no
+     * Auth0 agent is linked.
      */
     clientId: string;
   };
   /**
-   * The Poppy Session ID, from `act.poppy_sid`. Stable from guest to signed in,
-   * so the app can key a cart by it.
-   */
-  poppy_sid: string;
-  /**
-   * The agent's pairwise User ID for this person, from `act.poppy_user_id`.
-   * Not the customer's Auth0 user ID: that is `session.user.sub`.
-   */
-  poppy_user_id: string;
-  /**
-   * Which of the agent's own agents is acting, from `act.poppy_agent_id`, when
-   * the agent sent one.
-   */
-  poppy_agent_id?: string;
-  /**
    * The scopes granted to the website's access token. Always empty for a guest.
    *
-   * These are the web app's own granted scopes. They may not be what the
-   * customer approved for the agent, so don't use them to decide what the
-   * agent may do.
+   * Auth0 grants the website no more than the customer approved for the
+   * agent, plus OpenID scopes such as `openid` and `profile`, so these can be
+   * fewer than the agent's scopes but never more.
    */
   scopes: string[];
+}
+
+/**
+ * Browser-side Poppy interface, used by the `poppy` singleton exported from
+ * `@auth0/nextjs-auth0`. Experimental and subject to change.
+ *
+ * @category Session
+ */
+export interface PoppyBrowserClient {
+  /**
+   * Who is driving this browser, from the `/auth/poppy-context` route. The
+   * same value as the server's `auth0.poppy.getContext()`.
+   *
+   * The result includes every `act` claim, such as `poppy_sid`,
+   * `poppy_user_id`, `client_id` and `iss`, which any script on the page can
+   * then read.
+   *
+   * @throws {PoppyError} `poppy_not_enabled` when the route answers 404 (the
+   * `poppy` option is not set), `poppy_context_unavailable` on any other
+   * failure.
+   */
+  getContext(): Promise<PoppyContext>;
 }

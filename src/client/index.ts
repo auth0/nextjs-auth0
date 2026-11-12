@@ -28,4 +28,5 @@ export type { ChallengeWithPopupOptions } from "./mfa/index.js";
 export type { AccessTokenResponse } from "./helpers/get-access-token.js";
 export { passwordless } from "./passwordless/index.js";
 export { passkey, serializeCredential } from "./passkey/index.js";
+export { poppy } from "./poppy/index.js";
 export type { UseAnonymousSessionOptions } from "../types/index.js";
