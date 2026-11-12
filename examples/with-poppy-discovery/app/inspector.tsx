@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type Call = "getPoppyContext" | "getSession" | "getAnonymousSession";
+export type Call = "poppy.getContext" | "getSession" | "getAnonymousSession";
 
 // Buttons for the given SDK methods. Each result stays on the page, so two methods can be compared.
 export function Inspector({ calls }: { calls: Call[] }) {
@@ -13,7 +13,7 @@ export function Inspector({ calls }: { calls: Call[] }) {
     setRunning(call);
     let body: string;
     try {
-      const response = await fetch(`/api/inspect?call=${call}`, {
+      const response = await fetch(`/api/inspect?call=${encodeURIComponent(call)}`, {
         cache: "no-store"
       });
       body = JSON.stringify(await response.json(), null, 2);

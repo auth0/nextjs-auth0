@@ -2,7 +2,7 @@
 
 Shows how to let personal AI agents shop on your Next.js site with the Poppy (Personal Agent Protocol) support in `@auth0/nextjs-auth0`. The SDK serves the discovery files agents read first, accepts an agent's browser login, and tells you whether a person or an agent is driving.
 
-> **Experimental.** Poppy support is pinned to protocol version `0.3` and may change. See the [Poppy guide](../../guides/poppy.md) for the full picture.
+> **Experimental.** Poppy support may change. See the [Poppy guide](../../guides/poppy.md) for the full picture.
 
 ## What's in here
 
@@ -11,8 +11,9 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 | `auth0-poppy.json` | The Poppy configuration: your domain, Auth0 issuer, join endpoint and scopes |
 | `lib/auth0.ts` | Turns Poppy on with `new Auth0Client({ poppy: { config } })` |
 | `proxy.ts` | Mounts the SDK. The default matcher lets `/.well-known/*` through |
-| `app/page.tsx` | Calls `auth0.getPoppyContext()` to show who is driving |
-| `app/inspector.tsx`, `app/api/inspect/route.ts` | Buttons on the home page that call `getPoppyContext()`, `getSession()` and `getAnonymousSession()` and show the result (tokens left out) |
+| `app/page.tsx` | Calls `auth0.poppy.getContext()` to show who is driving, and offers Log in, or Log out for a person or an agent |
+| `app/inspector.tsx`, `app/api/inspect/route.ts` | Buttons on the home page that call `auth0.poppy.getContext()`, `getSession()` and `getAnonymousSession()` on the server and show the result (tokens left out) |
+| `app/browser-context.tsx` | A button that calls the client-side `poppy.getContext()`, which reads the SDK's `/auth/poppy-context` route |
 | `app/cart/page.tsx` | Keys a cart by the Poppy session. For an agent guest it shows the cart manager below, and for anyone else a notice |
 | `app/cart-manager.tsx` | The shop and cart UI: add items, change quantities, remove items, clear the cart |
 | `lib/carts.ts`, `app/api/cart/**` | Server routes that call the carts API with the guest's access token. The browser never sees the token |
@@ -31,13 +32,15 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 
 Open [http://localhost:3000](http://localhost:3000). Log in and you're shown as a person. Click the buttons to see what each SDK method returns for your browser, and open `/.well-known/poppy.json` to see the discovery file.
 
+While an agent guest is in the browser, **Log in** answers `403`: the SDK only lets the agent's own join sign that browser in. **Log out** ends the guest too, through Auth0's logout.
+
 ## The config file
 
-`auth0-poppy.json` is a sample: every value is a placeholder you must replace. It holds no secrets. The SDK builds the two discovery files from it, following the [Poppy 0.3 spec](https://personalagentprotocol.org/docs/0.3/spec) (section 3):
+`auth0-poppy.json` is a sample: every value is a placeholder you must replace. It holds no secrets. The SDK builds the two discovery files from it, following the [Poppy spec](https://personalagentprotocol.org/) (section 3):
 
 | Field | Required | What to put | Becomes (in the served files) |
 | --- | --- | --- | --- |
-| `protocolVersion` | Yes | `"0.3"`. No other version is supported | `poppy.json` `protocol_version` |
+| `protocolVersion` | Yes | The Poppy version your tenant implements, as `major.minor`, for example `"0.4"`. Served unchanged | `poppy.json` `protocol_version` |
 | `domain` | Yes | The host that serves your site: no scheme, port or path. For local testing only, `localhost:3000` | `organization.domain`, and `resource` in `oauth-protected-resource` |
 | `issuer` | Yes | Your Auth0 issuer **exactly as Auth0 publishes it, including the trailing slash** | `auth.issuer`, and `authorization_servers` |
 | `browserSessionEndpoint` | Yes | The Auth0-hosted join URL for your web app: `https://<tenant>/poppy/<web-app-client-id>/browser-session` | `web.browser_session_endpoint` |

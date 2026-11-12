@@ -33,7 +33,7 @@ const cartIds = (store.poppyCartIds ??= new Map<string, string>());
 
 // The cart is for an agent guest only, and uses the guest's access token.
 async function requireGuest() {
-  const poppy = await auth0.getPoppyContext();
+  const poppy = await auth0.poppy.getContext();
   const guest = await auth0.getAnonymousSession();
 
   if (poppy.kind !== "agent" || poppy.state !== "guest" || !guest) {
@@ -41,7 +41,7 @@ async function requireGuest() {
   }
   return {
     token: guest.accessToken,
-    key: `${poppy.agent.clientId}|${poppy.poppy_sid}`
+    key: `${poppy.act.sub}|${poppy.act.poppy_sid}`
   };
 }
 

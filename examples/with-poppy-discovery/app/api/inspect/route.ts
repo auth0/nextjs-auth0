@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   const call = new URL(request.url).searchParams.get("call");
 
   switch (call) {
-    case "getPoppyContext":
-      return json(await auth0.getPoppyContext());
+    case "poppy.getContext":
+      return json(await auth0.poppy.getContext());
 
     case "getSession": {
       const session = await auth0.getSession();

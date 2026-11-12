@@ -1,5 +1,6 @@
 import { auth0 } from "@/lib/auth0";
 
+import { BrowserContext } from "./browser-context";
 import { Inspector } from "./inspector";
 
 // What getSession() and getAnonymousSession() return for each kind of visitor.
@@ -31,7 +32,7 @@ const BEHAVIOUR = [
 ] as const;
 
 export default async function Home() {
-  const poppy = await auth0.getPoppyContext();
+  const poppy = await auth0.poppy.getContext();
   const session = await auth0.getSession();
 
   // Which row of the table describes this browser right now.
@@ -66,9 +67,11 @@ export default async function Home() {
           {poppy.kind === "agent" && (
             <>
               <dt>Agent</dt>
-              <dd>{poppy.agent.clientId}</dd>
+              <dd>{poppy.act.sub}</dd>
               <dt>Poppy session</dt>
-              <dd>{poppy.poppy_sid}</dd>
+              <dd>{poppy.act.poppy_sid}</dd>
+              <dt>Token subject</dt>
+              <dd>{poppy.sub}</dd>
               <dt>Scopes</dt>
               <dd>{poppy.scopes.join(" ") || "none"}</dd>
             </>
@@ -78,7 +81,7 @@ export default async function Home() {
         </dl>
 
         <div className="actions">
-          {session ? (
+          {session || poppy.kind === "agent" ? (
             <a className="button" href="/auth/logout">
               Log out
             </a>
@@ -94,12 +97,17 @@ export default async function Home() {
       </section>
 
       <section className="card">
-        <h2>1. Poppy: auth0.getPoppyContext()</h2>
+        <h2>1. Poppy: auth0.poppy.getContext()</h2>
         <p>
           The new Poppy method. It says who is driving this browser: a person,
           or an agent, and for an agent whether it is a guest or signed in.
+          For an agent it mirrors the ID token: the token&apos;s own{" "}
+          <code>sub</code> and <code>sub_profile</code>, and the whole{" "}
+          <code>act</code> claim. The second button asks the same in the
+          browser, through <code>/auth/poppy-context</code>.
         </p>
-        <Inspector calls={["getPoppyContext"]} />
+        <Inspector calls={["poppy.getContext"]} />
+        <BrowserContext />
       </section>
 
       <section className="card">
