@@ -51,6 +51,8 @@ export interface SessionData {
     // IPSIE session_expiry ceiling (Unix seconds) stamped at login from the ID token.
     // Absent when the connection has no session_expiry claim — existing behavior is unchanged.
     sessionExpiresAt?: number;
+    // Poppy agent state, set only when a Personal Agent signs in (`poppy` option).
+    poppy?: import("./poppy.js").PoppyAgentState;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -363,3 +365,13 @@ export type {
   AnonymousSessionConfig,
   UseAnonymousSessionOptions
 } from "./anonymous-session.js";
+
+export type {
+  PoppyConfig,
+  PoppyOptions,
+  PoppyAgentState,
+  PoppyContext,
+  PoppyAgentContext,
+  PoppyActClaim,
+  PoppyBrowserClient
+} from "./poppy.js";
