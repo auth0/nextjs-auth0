@@ -243,16 +243,26 @@ export abstract class AbstractSessionStore {
 
   /**
    * calculateMaxAge calculates the max age of the session based on createdAt and the rolling and absolute durations.
+   *
+   * When `ceiling` (Unix seconds) is given, the result never reaches past it, so
+   * rolling cannot extend the session beyond it. Used for Poppy agent sessions,
+   * which must not outlive the Poppy Session.
    */
-  calculateMaxAge(createdAt: number) {
+  calculateMaxAge(createdAt: number, ceiling?: number) {
+    const updatedAt = this.epoch();
+
     if (!this.rolling) {
-      return this.absoluteDuration;
+      if (ceiling === undefined) {
+        return this.absoluteDuration;
+      }
+      const capped = Math.min(this.absoluteDuration, ceiling - updatedAt);
+      return capped > 0 ? capped : 0;
     }
 
-    const updatedAt = this.epoch();
     const expiresAt = Math.min(
       updatedAt + this.inactivityDuration,
-      createdAt + this.absoluteDuration
+      createdAt + this.absoluteDuration,
+      ceiling ?? Infinity
     );
     // Fix race condition: use the same updatedAt timestamp for consistency
     const maxAge = expiresAt - updatedAt;

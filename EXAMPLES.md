@@ -64,6 +64,7 @@
   - [Route Configuration](#route-configuration-1)
   - [Error Types](#error-types-1)
 - [Passkey Authentication](guides/passkeys.md)
+- [Poppy (Personal Agents)](guides/poppy.md)
 - [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
@@ -2135,6 +2136,12 @@ Both error classes expose `error` and `error_description` fields matching the Au
 Passkey examples, covering Universal Login, the headless passkey API (signup, login, and identifier verification), and passkey enrollment for signed-in users, now live in a dedicated guide:
 
 ➡️ **[Passkey Authentication examples](guides/passkeys.md)**
+
+## Poppy (Personal Agents)
+
+Experimental support for personal AI agents shopping and managing accounts on your site through the Poppy (Personal Agent Protocol): serving the discovery files, accepting an agent's browser login, and telling a person, an agent guest and a signed-in agent apart with `auth0.poppy.getContext()`.
+
+➡️ **[Poppy (Personal Agents) examples](guides/poppy.md)**
 
 ## Silent authentication
 

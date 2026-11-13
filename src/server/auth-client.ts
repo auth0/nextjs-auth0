@@ -53,6 +53,8 @@ import {
   PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError,
+  PoppyError,
+  PoppyErrorCode,
   SdkError,
   TokenRevocationError,
   TokenRevocationErrorCode,
@@ -133,6 +135,7 @@ import {
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
+import type { PoppyAgentState, PoppyContext } from "../types/poppy.js";
 import {
   ANON_TRANSFER_AUDIENCE,
   ANON_TRANSFER_TOKEN_PARAM,
@@ -179,6 +182,10 @@ import {
 import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
 import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
 import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
+import {
+  POPPY_DISCOVERY_PATH,
+  PROTECTED_RESOURCE_METADATA_PATH
+} from "../utils/poppy-constants.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,
@@ -233,6 +240,15 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
+import {
+  classifyPoppyLogin,
+  explainPoppyGuestFailure,
+  HUMAN_POPPY_CONTEXT,
+  pickPoppyUserClaims,
+  toPoppyAgentContext,
+  type PoppyLogin,
+  type PoppyRuntime
+} from "./poppy-agent.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import {
   clampReturnTo,
@@ -347,6 +363,8 @@ export interface Routes {
   passkeyEnrollmentVerify: string;
   anonymousSession?: string;
   anonymousSessionLogout?: string;
+  /** Returns who is driving the request. Answers 404 unless `poppy` is set. */
+  poppyContext?: string;
 }
 /** @category Configuration */
 export type RoutesOptions = Partial<Routes>;
@@ -445,6 +463,13 @@ export interface AuthClientOptions {
    * Defaults to disabled; when disabled, routes are not mounted and methods return null.
    */
   anonymousSession?: AnonymousSessionConfig;
+
+  /**
+   * Poppy support, resolved and validated by Auth0Client from the `poppy`
+   * option. When absent, nothing Poppy-specific runs and the discovery paths
+   * fall through.
+   */
+  poppy?: PoppyRuntime;
 }
 
 /**
@@ -512,6 +537,8 @@ export class AuthClient {
   private readonly anonymousAudience?: string;
   private readonly anonymousScope?: string;
   private readonly anonymousClearOnLogin: boolean;
+
+  private readonly poppy?: PoppyRuntime;
 
   /**
    * Maximum allowed response body size (1 MB). Responses exceeding this limit
@@ -719,6 +746,8 @@ export class AuthClient {
       sameSite: anonConfig.cookie?.sameSite ?? "lax",
       path: "/"
     };
+
+    this.poppy = options.poppy;
   }
 
   /**
@@ -897,6 +926,27 @@ export class AuthClient {
       sanitizedPathname === this.routes.anonymousSessionLogout
     ) {
       return this.handleAnonymousLogout(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.poppyContext
+    ) {
+      // Matched whether or not Poppy is on, like the anonymous routes: the
+      // handler answers 404 when it's off.
+      return this.handlePoppyContext(req);
+    } else if (
+      method === "GET" &&
+      this.poppy &&
+      sanitizedPathname === POPPY_DISCOVERY_PATH
+    ) {
+      // Unlike the anonymous routes, these fall through when Poppy is off, so
+      // an app that serves its own discovery files keeps working.
+      return NextResponse.json(this.poppy.discovery.poppy);
+    } else if (
+      method === "GET" &&
+      this.poppy &&
+      sanitizedPathname === PROTECTED_RESOURCE_METADATA_PATH
+    ) {
+      return NextResponse.json(this.poppy.discovery.protectedResource);
     }
 
     if (sanitizedPathname.startsWith("/me/")) {
@@ -1041,7 +1091,9 @@ export class AuthClient {
         const anonCookie = await this.readAnonymousCookie(
           anonymousLoginCookies
         );
-        if (anonCookie?.session_token) {
+        // A Poppy guest has no session_token, and its link to the signed-in
+        // session is the Poppy Session ID, not a transfer ticket.
+        if (anonCookie?.session_token && !anonCookie.poppy) {
           // Layer 2: session_token is sourced ONLY from the SDK's own encrypted cookie.
           // Never from request params (those were stripped by Layer 1 above).
           //
@@ -1227,16 +1279,80 @@ export class AuthClient {
       );
     }
 
+    const poppyJoin = this.poppy
+      ? this.extractPoppyJoin(searchParams, req)
+      : undefined;
+
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
     const { returnTo, ...authorizationParameters } = searchParams;
 
     const options: StartInteractiveLoginOptions = {
       authorizationParameters,
-      returnTo: returnTo,
+      returnTo: poppyJoin?.returnTo ?? returnTo,
       challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
     };
     return this.startInteractiveLogin(options, req);
+  }
+
+  /**
+   * Recognizes Auth0's browser join, which sends the agent's browser to the
+   * login route as a third-party-initiated login (OIDC Core §4) carrying `iss`
+   * and `target_link_uri`.
+   *
+   * Removes both from `searchParams`, since neither is an /authorize
+   * parameter. Returns the join, with where it should land, only when `iss` is
+   * the configured issuer; any other login returns `undefined`.
+   */
+  private extractPoppyJoin(
+    searchParams: Record<string, string>,
+    req: NextRequest
+  ): { returnTo?: string } | undefined {
+    const { iss, target_link_uri: targetLinkUri } = searchParams;
+    delete searchParams.iss;
+    delete searchParams.target_link_uri;
+
+    if (iss === undefined) {
+      return undefined;
+    }
+    if (iss !== this.poppy!.issuer && iss !== this.issuer) {
+      console.warn(
+        "[nextjs-auth0] Ignoring a third-party-initiated login: iss does not match the configured Poppy issuer, so it is handled as a normal login."
+      );
+      return undefined;
+    }
+    return { returnTo: this.resolvePoppyTargetLink(targetLinkUri, req) };
+  }
+
+  /**
+   * Returns a join's `target_link_uri` as the post-login destination when it is
+   * on this app's origin.
+   *
+   * Anything else is ignored with a warning rather than refused: the parameters
+   * only choose where the browser lands, the login itself always uses the
+   * configured issuer, so ignoring them costs nothing, while a 400 would break a
+   * join over a cosmetic mismatch. The values are not logged, since anyone can
+   * put them in the URL.
+   */
+  private resolvePoppyTargetLink(
+    targetLinkUri: string | undefined,
+    req: NextRequest
+  ): string | undefined {
+    if (targetLinkUri === undefined) {
+      return undefined;
+    }
+
+    const safeBaseUrl = new URL(
+      (this.authorizationParameters.redirect_uri as string | undefined) ||
+        resolveAppBaseUrl(this.appBaseUrl, req)
+    );
+    if (!toSafeRedirect(targetLinkUri, safeBaseUrl)) {
+      console.warn(
+        "[nextjs-auth0] Ignoring target_link_uri: it is not on this app's origin."
+      );
+      return undefined;
+    }
+    return targetLinkUri;
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -1263,6 +1379,7 @@ export class AuthClient {
       if (!hasDomainMismatch) {
         await this.sessionStore.delete(req.cookies, errorResponse.cookies);
       }
+      await this.#clearPoppyGuestCookie(req.cookies, errorResponse.cookies);
       await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
       return errorResponse;
     }
@@ -1316,8 +1433,8 @@ export class AuthClient {
     // Determine logout strategy and create appropriate response
     let logoutResponse: NextResponse;
 
-    if (this.logoutStrategy === "v2") {
-      // Always use v2 logout endpoint
+    if (this.poppy || this.logoutStrategy === "v2") {
+      // Always use v2 logout endpoint. Poppy always uses it.
       logoutResponse = createV2LogoutResponse();
     } else if (this.logoutStrategy === "oidc") {
       // Always use OIDC RP-Initiated Logout
@@ -1332,6 +1449,7 @@ export class AuthClient {
         if (!hasDomainMismatch) {
           await this.sessionStore.delete(req.cookies, errorResponse.cookies);
         }
+        await this.#clearPoppyGuestCookie(req.cookies, errorResponse.cookies);
         await this.transactionStore.deleteAll(
           req.cookies,
           errorResponse.cookies
@@ -1373,6 +1491,10 @@ export class AuthClient {
     if (!hasDomainMismatch) {
       await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
     }
+    // A Poppy guest ends with the logout too. Auth0's logout above ends the
+    // guest's anonymous Auth0 session, which would otherwise answer the next
+    // login with the guest again.
+    await this.#clearPoppyGuestCookie(req.cookies, logoutResponse.cookies);
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
@@ -1667,6 +1789,25 @@ export class AuthClient {
 
     // ★ POSTMESSAGE BRANCH
     if (challengeMode === "popup") {
+      // Poppy guests come from a browser join, never a popup. Refuse rather
+      // than merge an anonymous subject into a user session.
+      const popupPoppyLogin = this.classifyPoppyLogin(idTokenClaims);
+      if (
+        popupPoppyLogin.kind === "guest" ||
+        popupPoppyLogin.kind === "invalid_guest"
+      ) {
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: false,
+          error: {
+            code: PoppyErrorCode.GUEST_NOT_SUPPORTED,
+            message: new PoppyError(PoppyErrorCode.GUEST_NOT_SUPPORTED).message
+          },
+          nonce: this.cspNonce
+        });
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      }
+
       // Merge new token into existing session (do NOT create fresh session)
       // Use getSessionWithDomainCheck to enforce MCD domain isolation
       const { error: sessionError, session: existingSession } =
@@ -1742,6 +1883,9 @@ export class AuthClient {
           oidcRes,
           transactionState
         );
+        if (popupPoppyLogin.kind === "agent") {
+          this.attachPoppyAgentState(fallbackSession, popupPoppyLogin.state);
+        }
 
         // IPSIE: reject a session whose ceiling is already in the past at login.
         if (
@@ -1805,6 +1949,32 @@ export class AuthClient {
       oidcRes,
       transactionState
     );
+
+    // Poppy: a Personal Agent's login, as a guest or in the customer's account.
+    const poppyLogin = this.classifyPoppyLogin(idTokenClaims);
+    if (poppyLogin.kind === "invalid_guest") {
+      return this.handleCallbackError(
+        this.poppyGuestWithoutAgentError(idTokenClaims!),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+    if (poppyLogin.kind === "guest") {
+      return this.completePoppyGuestLogin(
+        req,
+        poppyLogin,
+        oidcRes,
+        idTokenClaims!,
+        onCallbackCtx,
+        state,
+        transactionState
+      );
+    }
+    if (poppyLogin.kind === "agent") {
+      this.attachPoppyAgentState(session, poppyLogin.state);
+    }
 
     // IPSIE: reject a session whose ceiling is already in the past at login.
     if (
@@ -1880,10 +2050,291 @@ export class AuthClient {
     // cookie cannot be cleared server-to-server.
     this.#clearAnonymousSessionCookieOnLogin(req.cookies, res.cookies);
 
+    // Poppy rejoin: the signed-in session replaces an agent guest, whatever
+    // `clearAnonymousSessionOnLogin` says. A guest left behind would keep
+    // reporting an agent in this browser.
+    await this.#clearPoppyGuestCookie(req.cookies, res.cookies);
+
     // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
+  }
+
+  /** Classifies a login for Poppy; always "human" when Poppy is off. */
+  private classifyPoppyLogin(idTokenClaims?: oauth.IDToken): PoppyLogin {
+    if (!this.poppy || !idTokenClaims) {
+      return { kind: "human" };
+    }
+    return classifyPoppyLogin(
+      idTokenClaims as Record<string, unknown>,
+      this.poppy
+    );
+  }
+
+  private poppyGuestWithoutAgentError(
+    idTokenClaims: Record<string, unknown>
+  ): PoppyError {
+    return new PoppyError(
+      PoppyErrorCode.INVALID_GUEST,
+      "The ID token looks like a Poppy guest login but is not a valid one, so it is neither a guest nor a user. " +
+        `Reason: ${explainPoppyGuestFailure(idTokenClaims, this.poppy!)}.`
+    );
+  }
+
+  /**
+   * Records the agent on a signed-in session and caps the session at the join
+   * token's expiry. The cap reuses the IPSIE ceiling, so reads report no
+   * session and refresh stops once it passes; the session stores also cap the
+   * cookie's max-age at it.
+   */
+  private attachPoppyAgentState(
+    session: SessionData,
+    poppy: PoppyAgentState
+  ): void {
+    const ipsieCeiling = session.internal.sessionExpiresAt;
+    session.internal = {
+      ...session.internal,
+      poppy,
+      sessionExpiresAt:
+        ipsieCeiling === undefined
+          ? poppy.sessionExpiresAt
+          : Math.min(ipsieCeiling, poppy.sessionExpiresAt)
+    };
+  }
+
+  /**
+   * Stores an agent's signed-out login as an anonymous session, never as a
+   * user session, so `getSession()` stays null for it.
+   *
+   * The app's `onCallback` and `beforeSessionSaved` hooks are skipped: both
+   * receive a user session, and a hook written for people would treat the guest
+   * as a logged-in customer. The browser is sent to `returnTo` as the default
+   * callback does.
+   */
+  private async completePoppyGuestLogin(
+    req: NextRequest,
+    login: Extract<PoppyLogin, { kind: "guest" }>,
+    oidcRes: oauth.TokenEndpointResponse,
+    idTokenClaims: oauth.IDToken,
+    onCallbackCtx: OnCallbackContext,
+    state: string,
+    transactionState: TransactionState
+  ): Promise<NextResponse> {
+    const ceiling = login.state.sessionExpiresAt;
+    if (isSessionCeilingInPast(ceiling, idTokenClaims.iat)) {
+      return this.handleCallbackError(
+        new AccessTokenError(
+          AccessTokenErrorCode.SESSION_EXPIRED,
+          "The session has expired and the user must re-authenticate."
+        ),
+        onCallbackCtx,
+        req,
+        state,
+        transactionState
+      );
+    }
+
+    const res = await this.defaultOnCallback(null, onCallbackCtx);
+
+    const tokenExpiresAt = this.epoch() + Number(oidcRes.expires_in);
+    await this.persistPoppyGuestCookie(
+      {
+        access_token: oidcRes.access_token,
+        expires_at: Number.isFinite(tokenExpiresAt)
+          ? Math.min(tokenExpiresAt, ceiling)
+          : ceiling,
+        poppy: login.state
+      },
+      req.cookies,
+      res.cookies
+    );
+
+    // A join without an access token ends the agent's sign-in in this browser
+    // but keeps the browser's own login (spec §6). getPoppyContext still
+    // reports the agent while the guest cookie is present.
+    const { session: existing } = await this.getSessionWithDomainCheck(
+      req.cookies
+    );
+    if (existing?.internal?.poppy) {
+      await this.sessionStore.delete(req.cookies, res.cookies);
+    }
+
+    addCacheControlHeadersForSession(res);
+    await this.transactionStore.delete(res.cookies, state);
+    return res;
+  }
+
+  /**
+   * Persists a Poppy guest in the anonymous session cookie. Unlike other
+   * anonymous sessions it cannot be renewed, and it never outlives the Poppy
+   * Session.
+   */
+  private async persistPoppyGuestCookie(
+    payload: AnonymousCookiePayload & {
+      poppy: NonNullable<AnonymousCookiePayload["poppy"]>;
+    },
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    const maxAge = Math.max(
+      0,
+      Math.min(
+        this.anonymousCookieMaxAge,
+        payload.poppy.sessionExpiresAt - this.epoch()
+      )
+    );
+    const encrypted = await encrypt(
+      payload,
+      this.secret,
+      this.epoch() + maxAge
+    );
+    setChunkedCookie(
+      this.anonymousCookieName,
+      encrypted,
+      { ...this.anonymousCookieOptions, maxAge },
+      reqCookies,
+      resCookies
+    );
+  }
+
+  /**
+   * The Poppy guest in this browser, or undefined when there is none or it has
+   * ended. Never throws.
+   */
+  private async readPoppyGuest(
+    reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<AnonymousCookiePayload["poppy"]> {
+    if (!this.poppy) {
+      return undefined;
+    }
+    try {
+      const payload = await this.readAnonymousCookie(reqCookies);
+      if (!payload?.poppy || !this.isPoppyGuestActive(payload)) {
+        return undefined;
+      }
+      return payload.poppy;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private isPoppyGuestActive(payload: AnonymousCookiePayload): boolean {
+    return (
+      payload.poppy !== undefined &&
+      payload.expires_at > this.epoch() &&
+      !isSessionCeilingReached(payload.poppy.sessionExpiresAt)
+    );
+  }
+
+  /**
+   * Whether the anonymous cookie holds a Poppy guest, ended or not. Never
+   * throws.
+   */
+  private async hasPoppyGuestCookie(
+    reqCookies: RequestCookies
+  ): Promise<boolean> {
+    if (!this.poppy) {
+      return false;
+    }
+    try {
+      const payload = await this.readAnonymousCookie(reqCookies);
+      return payload?.poppy !== undefined;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Deletes the anonymous cookie when, and only when, it holds a Poppy guest. */
+  async #clearPoppyGuestCookie(
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    try {
+      if (await this.hasPoppyGuestCookie(reqCookies)) {
+        this.deleteAnonymousCookie(reqCookies, resCookies);
+      }
+    } catch {
+      // Fail-open, as #clearAnonymousSessionCookieOnLogin: a cookie-clear error
+      // must not stop the session response. The guest still ends at its cap.
+    }
+  }
+
+  /**
+   * Who is driving this request. A signed-in agent's session wins over a guest
+   * cookie.
+   *
+   * A person's session with a guest cookie is the agent: a guest join keeps the
+   * browser's own login, but while the browser carries the guest its requests
+   * belong to the agent's Session (spec §6). A person's own login always clears
+   * the guest cookie, so that pair only comes from a join after the login.
+   */
+  async getPoppyContext(
+    reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<PoppyContext> {
+    if (!this.poppy) {
+      return HUMAN_POPPY_CONTEXT;
+    }
+
+    const { error, session } = await this.getSessionWithDomainCheck(reqCookies);
+    if (error) {
+      throw error;
+    }
+    if (session?.internal?.poppy) {
+      return toPoppyAgentContext(
+        session.internal.poppy,
+        "signed_in",
+        session.tokenSet?.scope
+      );
+    }
+
+    const guest = await this.readPoppyGuest(reqCookies);
+    return guest ? toPoppyAgentContext(guest, "guest") : HUMAN_POPPY_CONTEXT;
+  }
+
+  /**
+   * Route: GET /auth/poppy-context
+   * Returns {@link getPoppyContext} to the browser. Answers 404 when Poppy is
+   * off, and 401 when the session can't be read.
+   */
+  private async handlePoppyContext(req: NextRequest): Promise<NextResponse> {
+    if (!this.poppy) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
+    let context: PoppyContext;
+    try {
+      context = await this.getPoppyContext(req.cookies);
+    } catch {
+      return new NextResponse(null, { status: 401 });
+    }
+
+    const res = NextResponse.json(context);
+    addCacheControlHeadersForSession(res);
+    return res;
+  }
+
+  /**
+   * Deletes the anonymous session cookie, with the options it was set with so
+   * the browser accepts the deletion.
+   */
+  private deleteAnonymousCookie(
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): void {
+    deleteChunkedCookie(
+      this.anonymousCookieName,
+      reqCookies,
+      resCookies,
+      false,
+      {
+        path: this.anonymousCookieOptions.path,
+        domain: this.anonymousCookieOptions.domain,
+        secure: this.anonymousCookieOptions.secure,
+        sameSite: this.anonymousCookieOptions.sameSite,
+        httpOnly: this.anonymousCookieOptions.httpOnly
+      }
+    );
   }
 
   /**
@@ -1902,19 +2353,7 @@ export class AuthClient {
   ): void {
     if (this.anonymousSessionEnabled && this.anonymousClearOnLogin) {
       try {
-        deleteChunkedCookie(
-          this.anonymousCookieName,
-          reqCookies,
-          resCookies,
-          false,
-          {
-            path: this.anonymousCookieOptions.path,
-            domain: this.anonymousCookieOptions.domain,
-            secure: this.anonymousCookieOptions.secure,
-            sameSite: this.anonymousCookieOptions.sameSite,
-            httpOnly: this.anonymousCookieOptions.httpOnly
-          }
-        );
+        this.deleteAnonymousCookie(reqCookies, resCookies);
       } catch {
         // Fail-open: a cookie-clear error must not prevent the session response
         // from reaching the caller.
@@ -3199,6 +3638,18 @@ export class AuthClient {
     const state = decrypted.payload;
     const now = Math.floor(Date.now() / 1000);
 
+    // A Poppy guest cannot be renewed: it lasts until its token or the Poppy
+    // Session ends, whichever is first, and is then gone.
+    if (state.poppy) {
+      if (this.isPoppyGuestActive(state)) {
+        return this.readPublicSession(state);
+      }
+      if (resCookies) {
+        this.deleteAnonymousCookie(reqCookies, resCookies);
+      }
+      return null;
+    }
+
     // Step 3: Evaluate expiry against renewal state machine
     if (state.expires_at > now) {
       // Access token still valid → return session, no renewal needed (T1.3)
@@ -3249,9 +3700,15 @@ export class AuthClient {
     reqCookies: RequestCookies,
     resCookies: ResponseCookies
   ): Promise<AnonymousSession | null> {
+    // Only a Poppy guest lacks a session token, and it is handled before
+    // renewal; this guard keeps that invariant explicit.
+    const sessionToken = state.session_token;
+    if (!sessionToken) {
+      return null;
+    }
     try {
       const res = await this.anonymousTokenRequest({
-        session_token: state.session_token,
+        session_token: sessionToken,
         // The audience and scope are re-sent so the re-minted access token keeps
         // the audience the session was created with.
         ...this.anonymousTokenAudienceAndScope()
@@ -3263,7 +3720,7 @@ export class AuthClient {
       // are adopted here rather than discarded in favour of the prior values.
       const renewedPayload = this.toCookiePayload(
         res,
-        state.session_token,
+        sessionToken,
         state.metadata
       );
 
@@ -3280,19 +3737,7 @@ export class AuthClient {
         // Session is permanently gone server-side. Clear the dead cookie so
         // the next request doesn't retry with an unusable token, then surface
         // the error so the caller can decide whether to start a new session.
-        deleteChunkedCookie(
-          this.anonymousCookieName,
-          reqCookies,
-          resCookies,
-          false,
-          {
-            path: this.anonymousCookieOptions.path,
-            domain: this.anonymousCookieOptions.domain,
-            secure: this.anonymousCookieOptions.secure,
-            sameSite: this.anonymousCookieOptions.sameSite,
-            httpOnly: this.anonymousCookieOptions.httpOnly
-          }
-        );
+        this.deleteAnonymousCookie(reqCookies, resCookies);
       }
       throw err;
     }
@@ -3415,10 +3860,21 @@ export class AuthClient {
     reqCookies: RequestCookies,
     resCookies?: ResponseCookies
   ): Promise<AnonymousSession | null> {
-    if (!this.anonymousSessionEnabled) {
-      return null;
+    if (this.anonymousSessionEnabled) {
+      return this.resolveAnonymousSession(reqCookies, resCookies);
     }
-    return this.resolveAnonymousSession(reqCookies, resCookies);
+    // A Poppy guest is stored here even when anonymous sessions are off: it
+    // comes from Auth0's browser join, not from /anonymous/token. Any other
+    // cookie left over from the disabled feature is still ignored.
+    if (this.poppy) {
+      const payload = await this.readAnonymousCookie(reqCookies).catch(
+        () => null
+      );
+      if (payload?.poppy) {
+        return this.resolveAnonymousSession(reqCookies, resCookies);
+      }
+    }
+    return null;
   }
 
   /**
@@ -3564,6 +4020,15 @@ export class AuthClient {
    * Throws AnonymousSessionError if access token is malformed or sub is invalid.
    */
   private toPublicSession(payload: AnonymousCookiePayload): AnonymousSession {
+    // A Poppy guest's ID is its ID token subject (anon_poppy@…), kept in the
+    // payload so the access token need not be a decodable JWT.
+    if (payload.poppy) {
+      return {
+        id: payload.poppy.sub,
+        accessToken: payload.access_token,
+        expiresAt: payload.expires_at
+      };
+    }
     try {
       // Decode access token JWT using jose to extract 'sub' claim
       const claims = jose.decodeJwt(payload.access_token);
@@ -3990,19 +4455,7 @@ export class AuthClient {
         headers: { "content-type": "application/json" }
       });
 
-      deleteChunkedCookie(
-        this.anonymousCookieName,
-        req.cookies,
-        res.cookies,
-        false,
-        {
-          path: this.anonymousCookieOptions.path,
-          domain: this.anonymousCookieOptions.domain,
-          secure: this.anonymousCookieOptions.secure,
-          sameSite: this.anonymousCookieOptions.sameSite,
-          httpOnly: this.anonymousCookieOptions.httpOnly
-        }
-      );
+      this.deleteAnonymousCookie(req.cookies, res.cookies);
 
       addCacheControlHeadersForSession(res);
       return res;
@@ -4011,19 +4464,7 @@ export class AuthClient {
       const res = new NextResponse(JSON.stringify({ ok: true }), {
         status: 200
       });
-      deleteChunkedCookie(
-        this.anonymousCookieName,
-        req.cookies,
-        res.cookies,
-        false,
-        {
-          path: this.anonymousCookieOptions.path,
-          domain: this.anonymousCookieOptions.domain,
-          secure: this.anonymousCookieOptions.secure,
-          sameSite: this.anonymousCookieOptions.sameSite,
-          httpOnly: this.anonymousCookieOptions.httpOnly
-        }
-      );
+      this.deleteAnonymousCookie(req.cookies, res.cookies);
       return res;
     }
   }
@@ -5346,7 +5787,12 @@ export class AuthClient {
         internal: session.internal
       };
     } else {
-      session.user = filterDefaultIdTokenClaims(session.user);
+      const claims = session.user;
+      session.user = filterDefaultIdTokenClaims(claims);
+      // `act` is a default claim already; keep the rest of the agent claims.
+      if (this.poppy && session.internal?.poppy) {
+        Object.assign(session.user, pickPoppyUserClaims(claims));
+      }
     }
     return session;
   }

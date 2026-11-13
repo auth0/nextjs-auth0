@@ -1,0 +1,11 @@
+{
+  "protocolVersion": "0.4",
+  "domain": "fernway.com",
+  "issuer": "https://YOUR-TENANT.us.auth0.com/",
+  "browserSessionEndpoint": "https://YOUR-TENANT.us.auth0.com/poppy/YOUR_WEB_APP_CLIENT_ID/browser-session",
+  "organizationName": "Fernway",
+  "scopes": {
+    "orders:write": "Place orders",
+    "returns:write": "Start a return"
+  }
+}
