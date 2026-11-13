@@ -7,7 +7,7 @@
  */
 import { expect, test } from "@playwright/test";
 
-import { createAnon, readAnon, setScenario } from "./helpers";
+import { createAnon, readAnon, setScenario, waitForExpiry } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await setScenario(context.request, "success");
@@ -21,7 +21,7 @@ test.afterEach(async ({ context }) => {
 test("O15: silent renewal on expiry returns fresh token", async ({
   context
 }) => {
-  // Create a session with expired token (expires_in: -10)
+  // Create a session whose token lives for 1 second (expires_in: 1)
   await setScenario(context.request, "expired");
   const createRes = await createAnon(context.request);
   expect(createRes.status()).toBe(201);
@@ -29,8 +29,9 @@ test("O15: silent renewal on expiry returns fresh token", async ({
   const createBody = await createRes.json();
   const originalExpiresAt = createBody.expiresAt;
 
-  // Confirm token is expired (expiresAt in the past)
-  expect(originalExpiresAt).toBeLessThan(Date.now());
+  // Wait until the token has expired (expiresAt is in seconds)
+  await waitForExpiry();
+  expect(originalExpiresAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
 
   // Switch to success scenario for renewal
   await setScenario(context.request, "success");
@@ -73,8 +74,8 @@ test("O16: single-cookie storage for typical payloads", async ({ context }) => {
 });
 
 test("O17: metadata set-once retained across renewal", async ({ context }) => {
-  // Create session with expired token and metadata (expires_in: -10, already expired at create).
-  // This session's token is immediately expired, so the next read will trigger renewal.
+  // Create a session with a 1 second token and metadata, then wait for the token to expire,
+  // so the next read triggers renewal.
   await setScenario(context.request, "expired");
   const createRes = await createAnon(context.request, {
     metadata: { cart_id: "orig" }
@@ -83,6 +84,7 @@ test("O17: metadata set-once retained across renewal", async ({ context }) => {
 
   const createBody = await createRes.json();
   expect(createBody.metadata.cart_id).toBe("orig");
+  await waitForExpiry();
 
   // Switch to success scenario so the upcoming renewal returns a fresh valid token.
   // The mock RENEW response (in lib/mock/anon-mock-fetch.ts) deliberately OMITS metadata.

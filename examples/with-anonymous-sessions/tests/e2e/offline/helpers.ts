@@ -31,6 +31,12 @@ export async function createAnon(
 }
 
 /**
+ * Wait until a token created by the "expired" scenario (expires_in: 1) has expired.
+ */
+export const waitForExpiry = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 1500));
+
+/**
  * Read the current anonymous session via GET /auth/anonymous-session.
  * Returns { status, json } where json is null on 204.
  */

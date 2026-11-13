@@ -15,8 +15,8 @@ export default function LoginToLinkButton() {
   }, [searchParams]);
 
   const handleLogin = () => {
-    // SEC-1: NO session_token param in authorizationParameters.
-    // SDK injects session_token from cookie automatically (3-layer fixation protection).
+    // SEC-1: pass no session_token. The SDK mints a transfer ticket from the session
+    // token in its own cookie and sends that to /authorize.
     window.location.href = "/auth/login?returnTo=/demo";
   };
 

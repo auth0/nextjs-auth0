@@ -92,12 +92,14 @@ export const mockAnonFetch: typeof fetch = async (input, init) => {
           ...(body.metadata && { metadata: body.metadata })
         });
 
+      // A token that is about to expire: the SDK rejects a non-positive `expires_in` as an
+      // invalid response, so "expired" means a 1 second lifetime that the tests wait out.
       case "expired":
         return successResp(201, {
           token_type: "Bearer",
           session_token: "anon_sesstok_" + id(),
           access_token: makeAnonJwt("anon@" + id()),
-          expires_in: -10,
+          expires_in: 1,
           ...(body.scope && { scope: body.scope }),
           ...(body.metadata && { metadata: body.metadata })
         });

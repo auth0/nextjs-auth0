@@ -4,17 +4,17 @@ import { expect, test } from "@playwright/test";
  * L9 — SEC-1 session_token fixation strip (browser-level, HTTP-intercept).
  *
  * Proves that a caller-supplied `session_token` on `/auth/login` never reaches
- * `/authorize`; only the SDK's own encrypted-cookie-derived token does. This is
- * the end-to-end browser confirmation of the unit invariant in
- * src/server/anonymous-session.flow.test.ts (:451-490 and :561).
+ * `/authorize`. The session token itself is never sent there: when an
+ * `auth0_anon` cookie exists, the SDK exchanges the session token from that
+ * cookie for a short-lived transfer ticket and sends it as `anon_transfer_token`.
  *
- * SEC-1 is a 3-layer defense in src/server/auth-client.ts:
- *   1. strip  — `session_token` listed in INTERNAL_AUTHORIZE_PARAMS is dropped
- *               from caller-supplied authorization params before the merge.
- *   2. inject — the token is sourced ONLY from the encrypted `auth0_anon`
- *               cookie (readAnonymousCookie), AFTER the strip.
- *   3. bind   — a digest of the injected token is bound to the CSRF txn state
- *               and re-verified at callback (verifyAnonymousSessionLink).
+ * The defense has three parts:
+ *   1. strip  — `session_token` and `anon_transfer_token` supplied by the caller
+ *               are dropped from the authorization params.
+ *   2. mint   — the ticket is minted ONLY from the session token in the encrypted
+ *               `auth0_anon` cookie.
+ *   3. bind   — a digest of that session token is bound to the login transaction
+ *               and re-verified at the callback (`ctx.anonymousSessionLinked`).
  *
  * We intercept the 307 redirect (do NOT follow it to Auth0) and assert on the
  * Location header. Uses APIRequestContext (pure HTTP, no page, no IdP).
@@ -48,12 +48,13 @@ test.describe("L9 — SEC-1 session_token strip", () => {
     // Attacker value must not appear anywhere in the outbound authorize URL.
     expect(location).not.toContain(ATTACKER);
 
-    // With no cookie present, the SDK has no legitimate token to inject, so the
-    // absence of any session_token proves non-injection. The strip of the
-    // attacker value (while a cookie-derived token survives) is proven by L9b.
+    // With no cookie present, the SDK has nothing to mint a ticket from, so
+    // neither parameter is sent. The strip of the attacker value while a
+    // cookie-derived ticket is sent is proven by L9b.
     const url = new URL(location);
     expect(url.pathname).toBe("/authorize");
     expect(url.searchParams.get("session_token")).toBeNull();
+    expect(url.searchParams.get("anon_transfer_token")).toBeNull();
 
     await ctx.dispose();
   });
@@ -62,8 +63,8 @@ test.describe("L9 — SEC-1 session_token strip", () => {
     playwright,
     baseURL
   }) => {
-    // Baseline: no input query param and no cookie yields no session_token in the
-    // authorize URL. Parity with unit flow.test.ts:561.
+    // Baseline: no input query param and no cookie yields neither parameter in the
+    // authorize URL.
     const ctx = await playwright.request.newContext({ baseURL });
     const res = await ctx.get(`/auth/login`, { maxRedirects: 0 });
 
@@ -71,6 +72,7 @@ test.describe("L9 — SEC-1 session_token strip", () => {
     const url = new URL(res.headers()["location"]);
     expect(url.pathname).toBe("/authorize");
     expect(url.searchParams.get("session_token")).toBeNull();
+    expect(url.searchParams.get("anon_transfer_token")).toBeNull();
 
     await ctx.dispose();
   });
@@ -112,16 +114,14 @@ test.describe("L9 — SEC-1 session_token strip", () => {
     // Attacker value never survives...
     expect(location).not.toContain(ATTACKER);
 
-    // ...but a legit cookie-derived token IS injected (layer 2), and it is not
-    // the attacker value. These two are the security-meaningful invariants:
-    // caller input is dropped and replaced by the SDK's own cookie-sourced
-    // token. We deliberately do NOT assert the token's internal format: the
-    // value is minted by the authorization server (observed to carry an
-    // "ANONYMOUS_SESSION_" prefix on this tenant), not by the SDK, so its shape
-    // is not a stable contract to pin a test to.
-    const injected = new URL(location).searchParams.get("session_token");
-    expect(injected, "cookie-derived session_token injected").toBeTruthy();
-    expect(injected).not.toBe(ATTACKER);
+    // ...the session token is never sent to /authorize, and a ticket minted
+    // from the cookie's session token IS sent (part 2). The ticket's format is
+    // the authorization server's, not the SDK's, so it is not asserted.
+    const url = new URL(location);
+    expect(url.searchParams.get("session_token")).toBeNull();
+    const ticket = url.searchParams.get("anon_transfer_token");
+    expect(ticket, "cookie-derived anon_transfer_token sent").toBeTruthy();
+    expect(ticket).not.toBe(ATTACKER);
 
     await ctx.dispose();
   });

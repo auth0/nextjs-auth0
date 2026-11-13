@@ -40,7 +40,7 @@ export default function HomePage() {
               "(1) oidc_conformant: true on client, " +
               "(2) anonymous_sessions.active: true on client, " +
               "(3) client grant with subject_type: anonymous_user for the audience. " +
-              "See TENANT-SETUP.md for details."
+              "See the Prerequisites section of this example's README."
           );
         } else {
           setError(
@@ -124,9 +124,10 @@ export default function HomePage() {
       <h2>Security Notes</h2>
       <ul>
         <li>
-          <strong>SEC-1 (Session Token Fixation):</strong> The SDK automatically
-          injects the session_token from the cookie during login; applications
-          must NOT allow session_token in authorizationParameters.
+          <strong>SEC-1 (Session Token Fixation):</strong> At login the SDK
+          exchanges the session token from its own cookie for a short-lived
+          transfer ticket; the session token never leaves the server, and a
+          session_token passed by the caller is dropped.
         </li>
         <li>
           <strong>Metadata Set-Once:</strong> Metadata can only be set at

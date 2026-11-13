@@ -83,6 +83,16 @@ test.describe("L10 — anon -> login -> callback link", () => {
       await submit.click();
     }
 
+    // A tenant with passkeys enabled offers to create one right after a password login.
+    // The prompt is optional, so a missing button is fine; skip it when it shows up.
+    const skipPasskey = page.getByRole("button", {
+      name: "Continue without passkeys"
+    });
+    await skipPasskey
+      .waitFor({ state: "visible", timeout: 5_000 })
+      .then(() => skipPasskey.click())
+      .catch(() => {});
+
     // Optional consent screen on first run. If the button is present we require
     // the click to succeed (no silent catch) so a broken consent step surfaces
     // as a clear failure rather than a downstream URL timeout.

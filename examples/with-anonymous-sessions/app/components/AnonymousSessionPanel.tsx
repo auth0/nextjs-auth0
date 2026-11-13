@@ -27,11 +27,6 @@ export default function AnonymousSessionPanel() {
     window.location.href = "/";
   };
 
-  const renew = async () => {
-    // Trigger renewal by invalidating SWR cache and refetching
-    invalidate();
-  };
-
   return (
     <div className="session-panel">
       <p>
@@ -56,8 +51,8 @@ export default function AnonymousSessionPanel() {
 
       <div style={{ marginTop: "15px" }}>
         <button onClick={logout}>Logout</button>
-        <button onClick={renew}>Renew (Force Refresh)</button>
-        <button onClick={invalidate}>Invalidate Cache</button>
+        {/* Revalidates GET /auth/anonymous-session; the route renews the access token when it has expired. */}
+        <button onClick={invalidate}>Refresh</button>
       </div>
     </div>
   );

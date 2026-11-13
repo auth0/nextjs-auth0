@@ -9,12 +9,12 @@ This example demonstrates anonymous sessions (EA feature) in @auth0/nextjs-auth0
 - **Login-to-Link**: Convert anonymous session to authenticated account
 - **Protected API**: Use anonymous access token to call audience-protected resources
 - **Client Hook**: `useAnonymousSession()` for live session state
-- **Security Best Practices**: SEC-1 (no session_token in authorizationParameters), metadata set-once
+- **Security Best Practices**: SEC-1 (the session token never reaches `/authorize`), metadata set-once
 
 ## Prerequisites
 
 1. **Build SDK First**: Run `pnpm build` at the repository root to compile the SDK (required for `file:../..` dependency)
-2. **Tenant Configuration**: See `../../.forge/features/anonymous-sessions/poc/lite/TENANT-SETUP.md` for required Auth0 tenant setup:
+2. **Tenant Configuration**: anonymous sessions are an early-access feature, so the tenant needs:
    - `oidc_conformant: true` on client
    - `anonymous_sessions.active: true` on client
    - Client grant with `subject_type: anonymous_user` for audience `https://api.customers`
@@ -39,27 +39,27 @@ Visit http://localhost:3000
 ## Demo Flow
 
 1. **Home Page** (`/`):
-   - "Enter as Guest" → creates anonymous session via GET route
+   - "Enter as Guest" → creates an anonymous session by POSTing to `/api/anon/create`
    - "Create with Metadata" → creates session with custom metadata (e.g., cart state)
    - Fail-loud diagnostic if tenant misconfigured (403 unauthorized_client)
 
 2. **Demo Page** (`/demo`):
    - SSR session display (may be stale, D7)
    - Client-side live session panel (`useAnonymousSession()`)
-   - Logout/Renew/Invalidate buttons
-   - "Login to Link" → converts anonymous session to authenticated account (SEC-1: SDK injects session_token from cookie, no param)
+   - Logout and Refresh buttons (Refresh revalidates `GET /auth/anonymous-session`, which renews an expired access token)
+   - "Login to Link" → converts anonymous session to authenticated account (SEC-1: the SDK sends a transfer ticket minted from its cookie, no param)
    - "Fetch Products" → calls protected API with anonymous access token
 
 ## API Routes
 
-- `GET /auth/anonymous-session` — SDK route: creates session, redirects to returnTo
+- `GET /auth/anonymous-session` — SDK route: returns the current anonymous session (200 JSON) or 204 when there is none; it never creates one, and renews an expired access token
 - `POST /auth/anonymous-session/logout` — SDK route: clears cookie (no server-side revocation)
 - `POST /api/anon/create` — App route: creates session with metadata
 - `GET /api/products` — App route: uses access token to call protected API (stub)
 
 ## Security Notes
 
-- **SEC-1 (Session Token Fixation)**: SDK injects session_token from its own cookie during login (3-layer protection). Applications must NOT allow session_token in authorizationParameters.
+- **SEC-1 (Session Token Fixation)**: at login the SDK exchanges the session token from its own cookie for a short-lived transfer ticket and sends it as `anon_transfer_token`; a `session_token` or `anon_transfer_token` passed by the caller is dropped, and the callback re-checks the cookie before reporting the link.
 - **Metadata Set-Once**: Metadata can only be set at creation time, cannot be updated after (CASCADE-v2 M2).
 - **No Server Revocation**: Logout clears the client cookie but does NOT revoke the session server-side; tokens remain valid until expiry.
 - **SSR Staleness (D7)**: Server Component `getAnonymousSession()` reads may be stale; renewal is deferred to route handlers.
@@ -92,7 +92,8 @@ Run: `pnpm test:e2e:offline`. Runs 17 specs covering session lifecycle (create, 
 **Live Tier**
 
 - **L9 — SEC-1 strip** (`sec1-strip.spec.ts`): proves a caller-supplied
-  `session_token` on `/auth/login` never reaches `/authorize`. L9a/L9c are
+  `session_token` on `/auth/login` never reaches `/authorize`, and that a
+  cookie-derived `anon_transfer_token` is sent instead. L9a/L9c are
   creds-free (CI-safe); L9b mints a real `auth0_anon` cookie and needs
   `.env.local`. Run: `pnpm test:e2e:l9`.
 - **L10 — callback link** (`link-callback.spec.ts`): drives a real Universal
@@ -120,11 +121,9 @@ These files exist solely to support offline testing without Auth0 tenant credent
 ## Dependencies
 
 - `@auth0/nextjs-auth0`: `file:../..` (local SDK build)
-- `next`: 16.2.5
+- `next`: 16.3.3
 - `react`: 19.2.1
 
-## References
+## Notes
 
-- [Anonymous Sessions Spec](../../.forge/features/anonymous-sessions/poc/lite/BUILD-SPEC.md)
-- [Tenant Setup](../../.forge/features/anonymous-sessions/poc/lite/TENANT-SETUP.md)
-- [Wire Contract](../../.forge/features/anonymous-sessions/poc/lite/WIRE-CONTRACT-LIVE.md)
+- Next.js 16 calls the request interceptor `proxy.ts` (`middleware.ts` is deprecated); this example mounts the SDK there.
