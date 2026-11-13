@@ -16,7 +16,7 @@ importers:
         version: 1.2.1
       jose:
         specifier: ^6.0.11
-        version: 6.2.14
+        version: 6.2.17
       oauth4webapi:
         specifier: ^3.8.2
         version: 3.8.8
@@ -1858,11 +1858,8 @@ packages:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
     engines: {node: '>= 0.4'}
 
-  jose@6.2.14:
-    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
-
-  jose@6.2.15:
-    resolution: {integrity: sha512-qdF6ewcZARtef63fJ9AKKZPgxw+t7USH6HLXYcD4CrdmSvDp79rpJSPFEKc90QBeGS63u1KQtN2MZQHC0yDIzA==}
+  jose@6.2.17:
+    resolution: {integrity: sha512-wOuK9V1yujQFH5S0ZWmLcDZN7+IKh9bUCC2ZPCf2HDlol3WWHy+PPyNjEI75FXRLMp3vDKQcupP59xhVU95hcg==}
 
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
@@ -4528,9 +4525,7 @@ snapshots:
       has-symbols: 1.1.0
       set-function-name: 2.0.2
 
-  jose@6.2.14: {}
-
-  jose@6.2.15: {}
+  jose@6.2.17: {}
 
   js-tokens@10.0.0: {}
 
@@ -4767,7 +4762,7 @@ snapshots:
 
   openid-client@6.8.9:
     dependencies:
-      jose: 6.2.15
+      jose: 6.2.17
       oauth4webapi: 3.8.8
 
   optionator@0.9.4:
