@@ -57,11 +57,6 @@ export async function startLogin(
       `Invalid challengeMode: ${challengeMode}. Expected 'redirect' or 'popup'.`
     );
   }
-  if (challengeMode === "popup") {
-    // Popup mode is not built yet.
-    return NextResponse.json({ error: "not_implemented" }, { status: 501 });
-  }
-
   // The call's parameters go to the engine as they are: it puts them over its defaults and leaves
   // out a `null` or `undefined`, so a call can remove a configured value. What it cannot do is
   // ours: ignore the parameters it does not honor, resolve a scope map for the audience of this
@@ -101,7 +96,12 @@ export async function startLogin(
           authorizationParams,
           pushedAuthorizationRequests:
             config.options.pushedAuthorizationRequests,
-          appState: { returnTo }
+          // `challengeMode` is stored only when it is not the default, as on nextjs, to keep the
+          // transaction cookie small. The callback reads it to answer a popup.
+          appState: {
+            returnTo,
+            ...(challengeMode === "popup" && { challengeMode })
+          }
         },
         ctx
       )

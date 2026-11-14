@@ -15,6 +15,7 @@ import {
 import { RESPONSE_TYPES, type SessionData } from "../../types/index.js";
 import { transferCookies } from "../../utils/anonymous-session-constants.js";
 import { resolveAppBaseUrl } from "../../utils/app-base-url.js";
+import { createAuthCompletePostMessageResponse } from "../../utils/html-helpers.js";
 import { normalizeDomain } from "../../utils/normalize.js";
 import { createRouteUrl } from "../../utils/pathUtils.js";
 import { retrieveAccessToken } from "../auth/access-token.js";
@@ -126,9 +127,22 @@ export async function handleCallback(
     );
   }
 
-  if (appState?.challengeMode === "popup") {
-    // Popup mode is not built yet.
-    return NextResponse.json({ error: "not_implemented" }, { status: 501 });
+  // A popup login (nextjs's postMessage branch). Enterprise Connect saves no session, and
+  // `/auth/login` refuses a popup in that mode.
+  if (
+    appState?.challengeMode === "popup" &&
+    !magicLink &&
+    !config.options.enterpriseConnect
+  ) {
+    return handlePopupCallback(req, setup, {
+      ctx,
+      scratch,
+      identifier,
+      callbackCtx: (linked) => ({
+        ...callbackCtx(),
+        anonymousSessionLinked: linked
+      })
+    });
   }
 
   // The engine derives `redirect_uri` from this URL: the one sent at login, never the raw request.
@@ -357,8 +371,223 @@ async function handleConnectCallback(
 }
 
 /**
+ * The return of a popup login (`challengeMode: "popup"`), nextjs's postMessage branch. The engine
+ * exchanges the code and runs its checks as for any login, and it would merge into the stored
+ * session; the hook below decides what is saved instead, with nextjs's popup rules:
+ * - with a session: the new token goes into `accessTokens`, replacing an entry for the same
+ *   audience; the login token, `internal` (so `createdAt` and the session ceiling) and the other
+ *   fields are kept; the new ID token (and a new refresh token, when there is one) replaces the
+ *   old one, and its claims are added to `user`.
+ * - without a session (it ended while the window was open): the session the engine built, as for
+ *   a normal login.
+ * - a session stored for another domain (resolver mode): nothing is saved.
+ * - an answer without an ID token: the exchange fails, as on nextjs.
+ * `beforeSessionSaved` runs on the merged session, then `onCallback` with it; its response is not
+ * used. The answer is the page that posts the result to the opener window and closes.
+ */
+async function handlePopupCallback(
+  req: NextRequest,
+  setup: EngineSetup,
+  {
+    ctx,
+    scratch,
+    identifier,
+    callbackCtx
+  }: {
+    ctx: ReturnType<typeof middlewareContext>;
+    scratch: NextResponse;
+    identifier: string;
+    callbackCtx: (anonymousSessionLinked: boolean) => OnCallbackContext;
+  }
+): Promise<NextResponse> {
+  const { config } = setup;
+  // Read before the exchange, as the engine would merge into it; the domain is checked after the
+  // exchange, as on nextjs.
+  const { state: existing, error: sessionError } = await readSession(
+    setup,
+    ctx
+  );
+
+  const callbackUrl = createRouteUrl(
+    config.routes.callback,
+    resolveAppBaseUrl(config.appBaseUrl, req)
+  );
+  callbackUrl.search = req.nextUrl.search;
+  const dpopKeyPair = await getDpopKeyPair(config);
+  const engine = await setup.getEngine();
+  const onCallback = onCallbackOf(setup);
+
+  let anonymousSessionLinked = false;
+  let saved: SessionData | undefined;
+  let hookFailed = false;
+  let noIdToken = false;
+  try {
+    await engine.completeInteractiveLogin(
+      callbackUrl,
+      ctx,
+      dpopKeyPair ? { dpopKeyPair } : undefined,
+      {
+        beforeSessionSaved: async (
+          stateData: StateData,
+          {
+            idTokenClaims,
+            anonymousSessionLinked: linked
+          }: {
+            idTokenClaims?: Record<string, unknown>;
+            anonymousSessionLinked?: boolean;
+          }
+        ) => {
+          anonymousSessionLinked = linked ?? false;
+          // nextjs's popup exchange asks for no ID token, but it expects the `nonce` it sent, so an
+          // answer without one fails the exchange there as on a normal login.
+          if (!idTokenClaims) {
+            noIdToken = true;
+            throw new Error("The token response has no ID token.");
+          }
+          if (sessionError) {
+            throw new PopupFailure(
+              sessionError.code || "session_domain_mismatch",
+              sessionError.message
+            );
+          }
+          try {
+            const merged = existing
+              ? mergePopupState(existing, stateData, idTokenClaims)
+              : stateData;
+            const final = await finalizeSession(
+              config,
+              setup.sessionMapper.toSessionData(merged),
+              stateData.idToken
+            );
+            await onCallback(null, callbackCtx(anonymousSessionLinked), final);
+            saved = final;
+            return setup.sessionMapper.toStateData(final);
+          } catch (e) {
+            hookFailed = true;
+            throw e;
+          }
+        }
+      }
+    );
+  } catch (e) {
+    if (noIdToken) {
+      return handleCallbackError(
+        noIdTokenError(),
+        callbackCtx(anonymousSessionLinked),
+        req,
+        setup,
+        identifier
+      );
+    }
+    // Nothing was saved; the engine has already deleted the transaction.
+    if (e instanceof PopupFailure) {
+      const res = popupResponse(setup, {
+        success: false,
+        error: { code: e.code, message: e.message }
+      });
+      transferCookies(scratch, res);
+      return res;
+    }
+    // `onCallback` and `beforeSessionSaved` errors reach the app as thrown, as on nextjs.
+    if (hookFailed) {
+      throw e;
+    }
+    const error = await setup.errors.toSdkError(e, "callback", { callbackUrl });
+    if (!(error instanceof SdkError)) {
+      throw error;
+    }
+    return handleCallbackError(
+      error,
+      callbackCtx(anonymousSessionLinked),
+      req,
+      setup,
+      identifier
+    );
+  }
+
+  if (!saved) {
+    throw new InvalidConfigurationError(
+      "The login finished without running the onCallback hook."
+    );
+  }
+  const res = popupResponse(setup, {
+    success: true,
+    user: { sub: saved.user.sub, email: saved.user.email }
+  });
+  // The session cookie, the transaction delete and the anonymous session clear, written by the
+  // engine.
+  transferCookies(scratch, res);
+  addCacheControlHeadersForSession(res);
+  return res;
+}
+
+/**
+ * nextjs's popup merge (`mergePopupTokenIntoSession`) on the engine's state: `existing` is the
+ * session read before the exchange, `stateData` the one the engine built from it. The new token
+ * is the entry the engine added; it is found by its access token, as a merge can append, replace
+ * or (on a change of user or organization) start over.
+ */
+function mergePopupState(
+  existing: StateData,
+  stateData: StateData,
+  idTokenClaims: Record<string, unknown>
+): StateData {
+  const known = new Set(existing.tokenSets.map((t) => t.accessToken));
+  const issued = stateData.tokenSets.find((t) => !known.has(t.accessToken));
+  const [primary, ...others] = existing.tokenSets;
+
+  let tokenSets = existing.tokenSets;
+  if (issued) {
+    // The entries after the login token are nextjs's `accessTokens`, keyed on audience alone.
+    const index = others.findIndex((t) => t.audience === issued.audience);
+    const accessTokens =
+      index >= 0
+        ? others.map((t, i) => (i === index ? issued : t))
+        : [...others, issued];
+    tokenSets = primary ? [primary, ...accessTokens] : accessTokens;
+  }
+
+  return {
+    ...existing,
+    tokenSets,
+    refreshToken: stateData.refreshToken ?? existing.refreshToken,
+    idToken: stateData.idToken,
+    user: { ...existing.user, ...idTokenClaims } as StateData["user"]
+  };
+}
+
+/**
+ * A popup login that ends without a session saved, answered to the opener window without
+ * `onCallback`, as on nextjs.
+ */
+class PopupFailure extends Error {
+  constructor(
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The page that posts the result of a popup login to the opener window, with the app's CSP nonce.
+ */
+function popupResponse(
+  setup: EngineSetup,
+  result:
+    | { success: true; user: { sub: string; email?: string } }
+    | { success: false; error: { code: string; message: string } }
+): NextResponse {
+  return createAuthCompletePostMessageResponse({
+    ...result,
+    nonce: setup.config.options.cspNonce
+  });
+}
+
+/**
  * `onCallback` gets the error and returns the response; the transaction of this login is deleted
- * on it so it does not pile up.
+ * on it so it does not pile up. A popup login gets the page for the opener window instead, and
+ * `onCallback` still sees the error, as on nextjs.
  */
 async function handleCallbackError(
   error: SdkError,
@@ -367,6 +596,21 @@ async function handleCallbackError(
   setup: EngineSetup,
   identifier?: string
 ): Promise<NextResponse> {
+  if (ctx.challengeMode === "popup") {
+    await onCallbackOf(setup)(error, ctx, null);
+    const res = popupResponse(setup, {
+      success: false,
+      error: { code: error.code || "callback_error", message: error.message }
+    });
+    if (identifier) {
+      await setup.transactionStore.delete(
+        identifier,
+        middlewareContext(req, res)
+      );
+    }
+    return res;
+  }
+
   const res = await onCallbackOf(setup)(error, ctx, null);
   if (identifier) {
     await setup.transactionStore.delete(
