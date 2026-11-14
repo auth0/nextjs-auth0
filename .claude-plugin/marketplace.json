@@ -1,0 +1,42 @@
+{
+  "name": "nextjs-auth0",
+  "owner": {
+    "name": "Auth0",
+    "url": "https://auth0.com"
+  },
+  "description": "The Auth0 Next.js agent skills",
+  "plugins": [
+    {
+      "name": "nextjs-auth0",
+      "displayName": "Auth0 Next.js",
+      "description": "Teaches coding agents how to add Auth0 authentication to Next.js apps with @auth0/nextjs-auth0 v4, including MFA, Organizations, and passkeys. Use when installing the SDK, wiring Auth0Client and middleware, protecting routes, or implementing step-up MFA, Organizations, or passkeys.",
+      "source": "./",
+      "strict": false,
+      "version": "0.1.1",
+      "author": {
+        "name": "Auth0",
+        "url": "https://auth0.com"
+      },
+      "homepage": "https://auth0.com",
+      "repository": "https://github.com/auth0/nextjs-auth0",
+      "license": "MIT",
+      "keywords": [
+        "auth0",
+        "nextjs",
+        "authentication",
+        "nextjs-auth0",
+        "mfa",
+        "organizations",
+        "passkeys",
+        "coding-agents"
+      ],
+      "category": "development",
+      "skills": [
+        "./skills",
+        "./skills/mfa",
+        "./skills/organizations",
+        "./skills/passkeys"
+      ]
+    }
+  ]
+}
