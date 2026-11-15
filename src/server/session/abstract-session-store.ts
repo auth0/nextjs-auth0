@@ -238,7 +238,7 @@ export abstract class AbstractSessionStore {
    * epoch returns the time since unix epoch in seconds.
    */
   epoch() {
-    return (Date.now() / 1000) | 0;
+    return Math.floor(Date.now() / 1000);
   }
 
   /**
