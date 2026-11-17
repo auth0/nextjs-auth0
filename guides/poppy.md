@@ -2,14 +2,14 @@
 
 Examples for letting personal AI agents, such as Meta Muse, shop and manage accounts on your Next.js site through the Auth0 Next.js SDK, using the Poppy (Personal Agent Protocol).
 
-> **Beta.** Poppy support may change without a major release. Poppy is in beta on Auth0, so your tenant needs it enabled. The SDK isn't tied to one protocol version: it serves the version your `auth0-poppy.json` names.
+> **Beta.** Poppy support may change without a major release. Poppy is in beta on Auth0, so your tenant needs it enabled. The SDK isn't tied to one protocol version: it serves your `poppy.json` as written.
 
 [← Back to EXAMPLES.md](../EXAMPLES.md)
 
 - [How it works](#how-it-works)
 - [Setup](#setup)
   - [1. Configure Auth0](#1-configure-auth0)
-  - [2. Add `auth0-poppy.json`](#2-add-auth0-poppyjson)
+  - [2. Add `poppy.json`](#2-add-poppyjson)
   - [3. Turn it on](#3-turn-it-on)
 - [The discovery files](#the-discovery-files)
 - [Knowing who is driving](#knowing-who-is-driving)
@@ -43,52 +43,39 @@ Until `auth0 poppy setup` is available, ask Auth0 to enable Poppy for your tenan
 - Set your web application's **Initiate Login URI** to `https://<your-site>/auth/login`. It must be HTTPS.
 - Register the agents you allow.
 
-### 2. Add `auth0-poppy.json`
+### 2. Add `poppy.json`
 
-The file holds no secrets, so it's safe to commit:
+Generate the file with the Auth0 CLI, and check it:
 
-```json
-{
-  "protocolVersion": "<major.minor>",
-  "domain": "fernway.com",
-  "issuer": "https://auth.fernway.com/",
-  "browserSessionEndpoint": "https://auth.fernway.com/poppy/<web-app-client-id>/browser-session",
-  "organizationName": "Fernway",
-  "scopes": {
-    "orders:write": "Place orders",
-    "returns:write": "Start a return"
-  }
-}
+```sh
+auth0 poppy config --company-domain fernway.com --out ./poppy.json
+auth0 poppy doctor fernway.com --config ./poppy.json
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `protocolVersion` | The Poppy version your tenant implements, as `major.minor`. Served as `protocol_version` unchanged; the SDK checks only the form, never a specific version |
-| `domain` | The host that serves the files: no scheme or path, and a port only when it isn't 443 |
-| `issuer` | Your Auth0 issuer, **exactly as Auth0 publishes it, including the trailing slash** |
-| `browserSessionEndpoint` | The Auth0-hosted join URL for your web app |
-| `organizationName` | Your company's name, shown to the customer |
-| `scopes` | Optional. Each scope an agent can ask for, with a description |
-| `scopeHints` | Optional. Per scope, whether it `changes` anything (`none`, `reversible` or `irreversible`) and touches `personalData` (`true` or `false`). Both are required in each entry. Served as `auth.scope_hints` |
-| `unscoped` | Optional. Set it to `true` if a signed-in agent gets the account's full access on your website. Served as `web.unscoped` |
-| `apis` | Optional. API descriptions agents can use, each with a `type` (for example `openapi` or `mcp`), an HTTPS `url` and a `description` |
-| `logoUri` | Optional. An HTTPS URL of your logo, shown to the customer |
+`poppy.json` is your discovery document, and it holds no secrets, so it's safe to commit. The SDK serves it as written at `/.well-known/poppy.json`. It reads only two values from it:
 
-**Set `unscoped: true` unless your app limits the agent to its scopes.** A signed-in agent gets a normal `getSession()`, so by default your website gives it everything the account can do. The protocol requires `web.unscoped: true` in that case. If your app instead checks the agent's `scopes` from `getContext()` before each action, leave it unset.
+| Field | Used for |
+| --- | --- |
+| `organization.domain` | The protected resource, `https://<domain>`. A bare host, with a port only when it isn't 443 |
+| `auth.issuer` | The authorization server, and checking a browser join's `iss`. **Exactly as Auth0 publishes it, including the trailing slash** |
+
+The SDK checks only these two at startup. `auth0 poppy doctor` checks the rest of the file.
+
+**Set `web.unscoped` to `true` unless your app limits the agent to its scopes.** A signed-in agent gets a normal `getSession()`, so by default your website gives it everything the account can do, and the protocol requires `web.unscoped: true` in that case. If your app instead checks the agent's `scopes` from `getContext()` before each action, leave it out.
 
 ### 3. Turn it on
 
 ```ts
 // lib/auth0.ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
-import poppyConfig from "../auth0-poppy.json"; // needs "resolveJsonModule": true
+import poppyConfig from "../poppy.json"; // needs "resolveJsonModule": true
 
 export const auth0 = new Auth0Client({
   poppy: { config: poppyConfig }
 });
 ```
 
-The config is passed as an object, not a path, so it also works in Edge middleware. An invalid config throws `InvalidConfigurationError` when the client is created, with the fix in the message. For example: `issuer must match Auth0's issuer exactly, including the trailing slash`.
+The config is passed as an object, not a path, so it also works in Edge middleware. An invalid `organization.domain` or `auth.issuer` throws `InvalidConfigurationError` when the client is created, with the fix in the message. For example: `auth.issuer must match Auth0's issuer exactly, including the trailing slash`.
 
 Agents fetch the files at the host root, so if your app has a `basePath`, serve them at the root another way; the SDK warns at startup. Your middleware matcher has to let `/.well-known/*` through to the SDK:
 
@@ -110,7 +97,7 @@ That's all that's required. Without the `poppy` option, nothing changes.
 
 ## The discovery files
 
-The SDK serves both on `GET`, built once at startup from the config and never from the request's `Host` header:
+The SDK serves both on `GET`, built once at startup from `poppy.json` and never from the request's `Host` header. `poppy.json` is served as written; `oauth-protected-resource` comes from `organization.domain` and `auth.issuer`:
 
 ```jsonc
 // GET /.well-known/poppy.json

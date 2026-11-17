@@ -61,7 +61,7 @@ export function resolvePoppyRuntime(options: PoppyOptions): PoppyRuntime {
   const discovery = buildPoppyDiscoveryDocuments(options.config);
   return {
     discovery,
-    issuer: options.config.issuer,
+    issuer: options.config.auth.issuer,
     guestSubjectPrefix:
       options.guestSubjectPrefix === undefined
         ? DEFAULT_POPPY_GUEST_SUBJECT_PREFIX

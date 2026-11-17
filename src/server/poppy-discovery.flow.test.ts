@@ -14,13 +14,16 @@ const secret =
 const appBaseUrl = "https://fernway.com";
 
 const poppyConfig: PoppyConfig = {
-  protocolVersion: "0.3",
-  domain: "fernway.com",
-  issuer: "https://auth.fernway.com/",
-  browserSessionEndpoint:
-    "https://auth.fernway.com/poppy/my-client-id/browser-session",
-  scopes: { "orders:write": "Place orders" },
-  organizationName: "Fernway"
+  protocol_version: "0.3",
+  organization: { name: "Fernway", domain: "fernway.com" },
+  auth: {
+    issuer: "https://auth.fernway.com/",
+    scopes: { "orders:write": "Place orders" }
+  },
+  web: {
+    browser_session_endpoint:
+      "https://auth.fernway.com/poppy/my-client-id/browser-session"
+  }
 };
 
 // No handlers: serving the discovery files must not call Auth0.
@@ -123,7 +126,10 @@ describe("Poppy discovery files", () => {
     try {
       createClient({
         poppy: {
-          config: { ...poppyConfig, issuer: "https://auth.fernway.com" }
+          config: {
+            ...poppyConfig,
+            auth: { issuer: "https://auth.fernway.com" }
+          }
         }
       });
     } catch (e) {

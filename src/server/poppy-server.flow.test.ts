@@ -33,11 +33,12 @@ const secret =
   "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
 
 const poppyConfig: PoppyConfig = {
-  protocolVersion: "0.3",
-  domain: "fernway.test",
-  issuer,
-  browserSessionEndpoint: `${issuer}poppy/${clientId}/browser-session`,
-  organizationName: "Fernway"
+  protocol_version: "0.3",
+  organization: { name: "Fernway", domain: "fernway.test" },
+  auth: { issuer },
+  web: {
+    browser_session_endpoint: `${issuer}poppy/${clientId}/browser-session`
+  }
 };
 
 let keyPair: jose.GenerateKeyPairResult;

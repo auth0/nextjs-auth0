@@ -14,11 +14,13 @@ import {
 } from "./poppy-helpers.js";
 
 const config: PoppyConfig = {
-  protocolVersion: "0.3",
-  domain: "fernway.com",
-  issuer: "https://auth.fernway.com/",
-  browserSessionEndpoint: "https://auth.fernway.com/poppy/web/browser-session",
-  organizationName: "Fernway"
+  protocol_version: "0.3",
+  organization: { name: "Fernway", domain: "fernway.com" },
+  auth: { issuer: "https://auth.fernway.com/" },
+  web: {
+    browser_session_endpoint:
+      "https://auth.fernway.com/poppy/web/browser-session"
+  }
 };
 
 const runtime = resolvePoppyRuntime({ config });

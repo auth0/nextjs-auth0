@@ -110,7 +110,7 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 ### Poppy (Personal Agents, beta)
 
 - Enabled with `new Auth0Client({ poppy: { config } })`; without it nothing changes
-- Serves `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource` from `auth0-poppy.json`; `protocolVersion` is passed through (only `major.minor` form is checked, never a fixed version); `organizationName` is required, `unscoped: true` is for apps that give a signed-in agent full account access (1.0 requires it then)
+- `poppy.config` is the `poppy.json` written by `auth0 poppy config`, served as is at `/.well-known/poppy.json` (no version pinned, no field mapping); the SDK reads and checks only `organization.domain` and `auth.issuer`, which build `/.well-known/oauth-protected-resource`; `auth0 poppy doctor` checks the rest; set `web.unscoped: true` when a signed-in agent gets full account access
 - SDK never verifies the agent (Auth0 does at the browser join); it only trusts the ID token at `/auth/callback`
 - Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
 - Guest → `auth0_anon` cookie, `getSession()` stays `null`, hooks skipped; signed-in agent → `session.internal.poppy`, capped at token `exp`
