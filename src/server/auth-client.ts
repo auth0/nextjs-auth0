@@ -2184,9 +2184,10 @@ export class AuthClient {
    * cookie.
    *
    * A session and a guest cookie shouldn't be found together: a guest join
-   * ends any session, and a login over a guest is refused unless it is the
-   * agent's join or a new guest join, which replace the guest. If they are (a
-   * browser from before that), the agent is reported, the safer answer.
+   * ends any session, and a login over a guest is refused unless it is a
+   * signed-in agent join or a new guest join, which replace the guest. If
+   * they are (a browser from before that), the agent is reported, the safer
+   * answer.
    */
   async getPoppyContext(
     reqCookies: RequestCookies | ReadonlyRequestCookies
@@ -7139,10 +7140,11 @@ export class AuthClient {
       }
     };
 
+    const poppyLogin = classifyPoppyLogin(claims, this.poppy);
     const poppyError =
       this.poppy &&
       getPoppyLoginError(
-        classifyPoppyLogin(claims, this.poppy),
+        poppyLogin,
         await this.readPoppyGuest(reqCookies),
         claims,
         this.poppy,
@@ -7150,6 +7152,9 @@ export class AuthClient {
       );
     if (poppyError) {
       throw poppyError;
+    }
+    if (poppyLogin.kind === "agent") {
+      attachPoppyAgentState(session, poppyLogin.state);
     }
     session = await this.finalizeSession(
       session,
@@ -7634,10 +7639,11 @@ export class AuthClient {
       }
     };
 
+    const poppyLogin = classifyPoppyLogin(claims, this.poppy);
     const poppyError =
       this.poppy &&
       getPoppyLoginError(
-        classifyPoppyLogin(claims, this.poppy),
+        poppyLogin,
         await this.readPoppyGuest(reqCookies),
         claims,
         this.poppy,
@@ -7645,6 +7651,9 @@ export class AuthClient {
       );
     if (poppyError) {
       throw poppyError;
+    }
+    if (poppyLogin.kind === "agent") {
+      attachPoppyAgentState(session, poppyLogin.state);
     }
     session = await this.finalizeSession(session, tokenResponse.id_token);
     await this.sessionStore.set(reqCookies, resCookies, session, true);

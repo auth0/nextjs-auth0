@@ -26,7 +26,7 @@ export enum PoppyErrorCode {
 
   /**
    * A login was refused because an agent guest is driving this browser. Only
-   * the agent's signed-in join, or a new guest join, may replace the guest. A
+   * a signed-in agent join, or a new guest join, may replace the guest. A
    * person's login, or the same guest coming back, is refused. On Auth0 a
    * guest's own login comes back as the same guest, so redirecting would loop.
    * Logging out ends the guest, after which the person can sign in.
@@ -52,7 +52,7 @@ const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
   [PoppyErrorCode.GUEST_NOT_SUPPORTED]:
     "A Poppy guest login can only complete through the browser join, not a popup, passkey or passwordless login.",
   [PoppyErrorCode.SIGN_IN_REQUIRED]:
-    "An agent guest is driving this browser, so only the agent can sign it in. Log out to sign in yourself.",
+    "An agent guest is driving this browser, so only a signed-in agent join can replace it. Log out to sign in yourself.",
   [PoppyErrorCode.NOT_ENABLED]:
     "The Poppy context route is not available. Set the `poppy` option on Auth0Client.",
   [PoppyErrorCode.CONTEXT_UNAVAILABLE]: "The Poppy context could not be read."

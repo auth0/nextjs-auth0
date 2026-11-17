@@ -14,11 +14,13 @@ import {
 } from "./poppy-helpers.js";
 
 const config: PoppyConfig = {
-  protocolVersion: "0.3",
-  domain: "fernway.com",
-  issuer: "https://auth.fernway.com/",
-  browserSessionEndpoint: "https://auth.fernway.com/poppy/web/browser-session",
-  organizationName: "Fernway"
+  protocol_version: "0.3",
+  organization: { name: "Fernway", domain: "fernway.com" },
+  auth: { issuer: "https://auth.fernway.com/" },
+  web: {
+    browser_session_endpoint:
+      "https://auth.fernway.com/poppy/web/browser-session"
+  }
 };
 
 const runtime = resolvePoppyRuntime({ config });
@@ -351,7 +353,7 @@ describe("getPoppyLoginError", () => {
     ).toBeUndefined();
   });
 
-  it("lets the agent's signed-in join through", () => {
+  it("lets a signed-in agent join through", () => {
     expect(
       check({ sub: "auth0|customer", exp: now + 7200, act: agentAct })
     ).toBeUndefined();
