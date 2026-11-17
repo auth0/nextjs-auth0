@@ -147,7 +147,7 @@ export default async function Home() {
 
       <section className="card">
         <h2>Discovery files</h2>
-        <p>The SDK serves these for agents, built from auth0-poppy.json:</p>
+        <p>The SDK serves these for agents, from poppy.json:</p>
         <ul>
           <li>
             <a href="/.well-known/poppy.json">/.well-known/poppy.json</a>

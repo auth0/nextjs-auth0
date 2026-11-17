@@ -1,0 +1,23 @@
+{
+  "protocol_version": "<major.minor>",
+  "organization": {
+    "name": "Fernway",
+    "domain": "fernway.com"
+  },
+  "auth": {
+    "issuer": "https://YOUR-TENANT.us.auth0.com/",
+    "scopes": {
+      "poppy:browser-sign-in": "Use the website on your behalf, with the permissions you approve"
+    },
+    "scope_hints": {
+      "poppy:browser-sign-in": {
+        "changes": "none",
+        "personal_data": false
+      }
+    }
+  },
+  "web": {
+    "browser_session_endpoint": "https://YOUR-TENANT.us.auth0.com/poppy/YOUR_WEB_APP_CLIENT_ID/browser-session",
+    "unscoped": true
+  }
+}

@@ -2,13 +2,13 @@
 
 Shows how to let personal AI agents shop on your Next.js site with the Poppy (Personal Agent Protocol) support in `@auth0/nextjs-auth0`. The SDK serves the discovery files agents read first, accepts an agent's browser login, and tells you whether a person or an agent is driving.
 
-> **Experimental.** Poppy support may change. See the [Poppy guide](../../guides/poppy.md) for the full picture.
+> **Beta.** Poppy support may change. See the [Poppy guide](../../guides/poppy.md) for the full picture.
 
 ## What's in here
 
 | File | What it does |
 | --- | --- |
-| `auth0-poppy.json` | The Poppy configuration: your domain, Auth0 issuer, join endpoint and scopes |
+| `poppy.json` | The Poppy discovery document, as `auth0 poppy config` writes it. The SDK serves it as is |
 | `lib/auth0.ts` | Turns Poppy on with `new Auth0Client({ poppy: { config } })` |
 | `proxy.ts` | Mounts the SDK. The default matcher lets `/.well-known/*` through |
 | `app/page.tsx` | Calls `auth0.poppy.getContext()` to show who is driving, and offers Log in, or Log out for a person or an agent |
@@ -22,7 +22,7 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 
 1. Copy `.env.example` to `.env.local` and fill in your Auth0 application's values.
 2. In your Auth0 application, add `http://localhost:3000/auth/callback` to the allowed callback URLs and `http://localhost:3000` to the allowed logout URLs.
-3. In `auth0-poppy.json`, replace the placeholders with your values (see [The config file](#the-config-file)). For local testing set `domain` to `localhost:3000`.
+3. In `poppy.json`, replace the placeholders with your values, or generate it with `auth0 poppy config` (see [The config file](#the-config-file)). For local testing set `organization.domain` to `localhost:3000`.
 4. Install and start:
 
    ```bash
@@ -32,23 +32,25 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 
 Open [http://localhost:3000](http://localhost:3000). Log in and you're shown as a person. Click the buttons to see what each SDK method returns for your browser, and open `/.well-known/poppy.json` to see the discovery file.
 
-While an agent guest is in the browser, **Log in** answers `403`: the SDK only lets the agent's own join sign that browser in. **Log out** ends the guest too, through Auth0's logout.
+While an agent guest is in the browser, **Log in** is refused with `poppy_sign_in_required`: only a signed-in agent join, or a new guest join, can replace the guest. The same applies to a protected page, which would otherwise loop. **Log out** ends the guest, through Auth0's `/v2/logout`.
 
 ## The config file
 
-`auth0-poppy.json` is a sample: every value is a placeholder you must replace. It holds no secrets. The SDK builds the two discovery files from it, following the [Poppy spec](https://personalagentprotocol.org/) (section 3):
+`poppy.json` is your Poppy discovery document, in the format `auth0 poppy config` writes. The one here is a sample: replace the placeholders with your values, or generate your own:
 
-| Field | Required | What to put | Becomes (in the served files) |
-| --- | --- | --- | --- |
-| `protocolVersion` | Yes | The Poppy version your tenant implements, as `major.minor`, for example `"0.4"`. Served unchanged | `poppy.json` `protocol_version` |
-| `domain` | Yes | The host that serves your site: no scheme, port or path. For local testing only, `localhost:3000` | `organization.domain`, and `resource` in `oauth-protected-resource` |
-| `issuer` | Yes | Your Auth0 issuer **exactly as Auth0 publishes it, including the trailing slash** | `auth.issuer`, and `authorization_servers` |
-| `browserSessionEndpoint` | Yes | The Auth0-hosted join URL for your web app: `https://<tenant>/poppy/<web-app-client-id>/browser-session` | `web.browser_session_endpoint` |
-| `organizationName` | No | Your company's display name | `organization.name` |
-| `logoUri` | No | An HTTPS URL to your logo | `organization.logo_uri` |
-| `scopes` | No | Each scope an agent can request, with a description | `auth.scopes` |
+```bash
+auth0 poppy config --company-domain <your-domain> --out ./poppy.json
+auth0 poppy doctor <your-domain> --config ./poppy.json
+```
 
-Agents compare these with Auth0's own metadata character for character, and skip your site without saying why if anything differs. The SDK checks the config at startup and throws `InvalidConfigurationError` with the fix.
+It holds no secrets. The SDK serves it unchanged at `/.well-known/poppy.json`, and reads only two values from it:
+
+| Field | What to put | Used for |
+| --- | --- | --- |
+| `organization.domain` | The host that serves your site: no scheme or path, and a port only when it isn't 443. For local testing only, `localhost:3000` | `resource` in `oauth-protected-resource` |
+| `auth.issuer` | Your Auth0 issuer **exactly as Auth0 publishes it, including the trailing slash** | `authorization_servers`, and checking a join's `iss` |
+
+The SDK checks these two at startup and throws `InvalidConfigurationError` with the fix. `auth0 poppy doctor` checks the rest. Set `web.unscoped` to `true`, as in the sample: this app gives a signed-in agent the account's full access.
 
 ## The cart (agent guests only)
 
@@ -70,6 +72,6 @@ An agent only reaches your site over public HTTPS. To see an agent show up as **
 
 - a tenant with Poppy enabled and an agent registered on it,
 - this app on a public HTTPS host (a tunnel works),
-- `domain` in `auth0-poppy.json` set to that host, without a port.
+- `organization.domain` in `poppy.json` set to that host.
 
 The [Poppy guide](../../guides/poppy.md) covers each step, local testing and troubleshooting.
