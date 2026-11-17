@@ -806,7 +806,7 @@ describe("Poppy: agent guest", () => {
     });
   });
 
-  it("lets the agent's signed-in join replace the guest", async () => {
+  it("lets a signed-in agent join replace the guest", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     await login(auth0, browser, guestClaims());
@@ -1338,7 +1338,7 @@ describe("Poppy: other logins over a guest", () => {
     expect(await res.json()).toEqual({
       error: "poppy_sign_in_required",
       error_description: expect.stringContaining(
-        "only the agent can sign it in"
+        "only a signed-in agent join can replace it"
       )
     });
     expect(browser.has("__session")).toBe(false);
@@ -1365,6 +1365,77 @@ describe("Poppy: other logins over a guest", () => {
     expect((await res.json()).error).toBe("poppy_sign_in_required");
     expect(browser.has("__session")).toBe(false);
     expect(browser.has("auth0_anon")).toBe(true);
+  });
+
+  // Auth0 doesn't send Poppy act claims through these grants, but if it did,
+  // the session must be recorded as the agent's and capped, as at the callback.
+  const signedInAgentClaims = {
+    sub: "auth0|ana",
+    sid: "auth0-sid",
+    act: agentAct()
+  };
+
+  async function expectSignedInAgent(auth0: Auth0Client, browser: Browser) {
+    const session = await auth0.getSession(browser.request("/"));
+    expect(session?.internal.poppy?.act).toMatchObject({
+      poppy_sid: "s_8Hq2"
+    });
+    expect(session?.internal.sessionExpiresAt).toBe(
+      session?.internal.poppy?.sessionExpiresAt
+    );
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      kind: "agent",
+      state: "signed_in",
+      sub: "auth0|ana"
+    });
+  }
+
+  it("records a signed-in agent through a passkey login", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await personTokens(signedInAgentClaims);
+
+    const res = await auth0.middleware(
+      browser.request("/auth/passkey/get-token", {
+        json: {
+          authSession: "test-auth-session",
+          authResponse: {
+            id: "cred-id",
+            rawId: "cred-raw-id",
+            type: "public-key",
+            response: {
+              clientDataJSON: "clientDataJSON-base64url",
+              authenticatorData: "authenticatorData-base64url",
+              signature: "signature-base64url"
+            }
+          }
+        }
+      })
+    );
+    browser.absorb(res);
+
+    expect(res.status).toBe(200);
+    await expectSignedInAgent(auth0, browser);
+  });
+
+  it("records a signed-in agent through a passwordless login", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await personTokens(signedInAgentClaims);
+
+    const res = await auth0.middleware(
+      browser.request("/auth/passwordless/verify", {
+        json: {
+          connection: "email",
+          email: "ana@example.com",
+          verificationCode: "123456"
+        }
+      })
+    );
+    browser.absorb(res);
+
+    expect(res.status).toBe(200);
+    await expectSignedInAgent(auth0, browser);
   });
 
   // Guests come from a browser join only. A guest's tokens through these

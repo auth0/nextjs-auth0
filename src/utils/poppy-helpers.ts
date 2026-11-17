@@ -202,11 +202,14 @@ export function classifyPoppyLogin(
  * - A guest completes only through the redirect callback, never a popup,
  *   passkey or passwordless login: guests come from a browser join. Those
  *   logins pass `allowGuest: false`.
- * - While an agent guest is in the browser, only the agent's signed-in join,
- *   or a new guest join (another `sub` or Poppy Session), may replace it. A
- *   person's login and the same guest coming back are refused: the browser is
- *   the agent's, and on Auth0 a guest's own login comes back as the same
- *   guest, so redirecting would loop.
+ * - While an agent guest is in the browser, only a signed-in agent join (any
+ *   login with a Poppy agent `act`), or a new guest join (another `sub` or
+ *   Poppy Session), may replace it. The agent join isn't compared with the
+ *   guest: its `act.sub`, `poppy_user_id` and `poppy_sid` can differ from the
+ *   guest join's, and only Auth0 issues a Poppy `act`. A person's login and
+ *   the same guest coming back are refused: the browser is the agent's, and
+ *   on Auth0 a guest's own login comes back as the same guest, so redirecting
+ *   would loop.
  */
 export function getPoppyLoginError(
   login: PoppyLogin,

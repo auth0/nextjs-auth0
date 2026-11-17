@@ -351,7 +351,7 @@ describe("getPoppyLoginError", () => {
     ).toBeUndefined();
   });
 
-  it("lets the agent's signed-in join through", () => {
+  it("lets a signed-in agent join through", () => {
     expect(
       check({ sub: "auth0|customer", exp: now + 7200, act: agentAct })
     ).toBeUndefined();
