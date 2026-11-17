@@ -110,15 +110,15 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 ### Poppy (Personal Agents, beta)
 
 - Enabled with `new Auth0Client({ poppy: { config } })`; without it nothing changes
-- Serves `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource` from `auth0-poppy.json`; `protocolVersion` is passed through (only `major.minor` form is checked, never a fixed version)
+- Serves `/.well-known/poppy.json` and `/.well-known/oauth-protected-resource` from `auth0-poppy.json`; `protocolVersion` is passed through (only `major.minor` form is checked, never a fixed version); `organizationName` is required, `unscoped: true` is for apps that give a signed-in agent full account access (1.0 requires it then)
 - SDK never verifies the agent (Auth0 does at the browser join); it only trusts the ID token at `/auth/callback`
 - Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
 - Guest → `auth0_anon` cookie, `getSession()` stays `null`, hooks skipped; signed-in agent → `session.internal.poppy`, capped at token `exp`
-- A guest join ends any session in the browser; every login (redirect, popup, passkey, passwordless) deletes the guest cookie; a guest join replaces a plain anonymous session
+- A guest join ends any session in the browser and replaces a plain anonymous session; with an active guest, only the agent's signed-in join or a new guest join (new `sub` or `poppy_sid`) may log in; any other login (redirect, popup, passkey, passwordless, or the same guest again, which would loop) is refused with `poppy_sign_in_required` (callback: `onCallback` error; popup: `postMessage` error; passkey and passwordless: 403 JSON)
 - Context mirrors the ID token: `kind`, `state`, the token's own `sub` + `sub_profile`, the whole `act` as sent (nested; `act.sub` is the agent), `scopes`; agent state stores `sub`, `sub_profile`, `act`, `sessionExpiresAt`
 - `/auth/logout`: a guest's logout always uses `/v2/logout` (no ID token or sid for OIDC); other logouts use `logoutStrategy`; the guest cookie is deleted; a `basePath` warns at startup (agents fetch `/.well-known/*` at the host root)
 - `/auth/poppy-context` (404 unless `poppy` set) backs client `poppy.getContext()`; no hook
-- Code: `src/server/poppy-discovery.ts`, `src/server/poppy-agent.ts`, `src/server/poppy-client.ts`, `src/client/poppy/index.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
+- Code: `src/server/poppy/server-poppy-client.ts`, `src/utils/poppy-helpers.ts`, `src/utils/poppy-discovery-helpers.ts`, `src/client/poppy/index.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
 
 ### Hooks
 
@@ -141,6 +141,7 @@ Base class: `SdkError` with `code: string` property.
 | `DiscoveryError` | `discovery_error` | OIDC discovery failed |
 | `OAuth2Error` | varies | Auth0 callback error (may contain user input) |
 | `PoppyError` | `invalid_poppy_guest`, `poppy_guest_not_supported` | Agent login refused (the reason is in `error.reason` and the server log, never the message) |
+| `PoppyError` | `poppy_sign_in_required` | Login over an active agent guest that isn't the agent's join or a new guest join |
 | `PoppyError` | `poppy_not_enabled`, `poppy_context_unavailable` | Client `poppy.getContext()` failed (route 404, or any other failure) |
 
 **Pattern:** Catch by `error.code`, not `instanceof`.

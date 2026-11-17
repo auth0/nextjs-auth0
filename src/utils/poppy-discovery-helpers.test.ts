@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InvalidConfigurationError } from "../errors/index.js";
 import type { PoppyConfig } from "../types/poppy.js";
-import { buildPoppyDiscoveryDocuments } from "./poppy-discovery.js";
+import { buildPoppyDiscoveryDocuments } from "./poppy-discovery-helpers.js";
 
 const validConfig: PoppyConfig = {
   protocolVersion: "0.3",
@@ -13,7 +13,8 @@ const validConfig: PoppyConfig = {
   scopes: {
     "orders:write": "Place orders",
     "returns:write": "Start a return"
-  }
+  },
+  organizationName: "Fernway"
 };
 
 function expectInvalid(config: unknown, message: RegExp) {
@@ -36,7 +37,7 @@ describe("buildPoppyDiscoveryDocuments", () => {
 
     expect(poppy).toEqual({
       protocol_version: "0.3",
-      organization: { domain: "fernway.com" },
+      organization: { name: "Fernway", domain: "fernway.com" },
       auth: {
         issuer: "https://auth.fernway.com/",
         scopes: {
@@ -71,6 +72,41 @@ describe("buildPoppyDiscoveryDocuments", () => {
       name: "Fernway",
       domain: "fernway.com",
       logo_uri: "https://fernway.com/logo.png"
+    });
+  });
+
+  it("serves scope hints, apis and unscoped when set", () => {
+    const { poppy } = buildPoppyDiscoveryDocuments({
+      ...validConfig,
+      scopeHints: {
+        "orders:write": { changes: "irreversible", personalData: true }
+      },
+      apis: [
+        {
+          type: "openapi",
+          url: "https://api.fernway.com/openapi.json",
+          description: "Orders and returns"
+        }
+      ],
+      unscoped: true
+    });
+
+    expect(poppy.auth).toMatchObject({
+      scope_hints: {
+        "orders:write": { changes: "irreversible", personal_data: true }
+      }
+    });
+    expect(poppy.apis).toEqual([
+      {
+        type: "openapi",
+        url: "https://api.fernway.com/openapi.json",
+        description: "Orders and returns"
+      }
+    ]);
+    expect(poppy.web).toEqual({
+      browser_session_endpoint:
+        "https://auth.fernway.com/poppy/web-client-id/browser-session",
+      unscoped: true
     });
   });
 
@@ -132,7 +168,7 @@ describe("buildPoppyDiscoveryDocuments", () => {
     ])("rejects a protocol version with %s", (_case, protocolVersion) => {
       expectInvalid(
         { ...validConfig, protocolVersion },
-        /protocolVersion must be a version such as "0\.4" \(major\.minor\)/
+        /protocolVersion must be a major\.minor version/
       );
     });
 
@@ -145,13 +181,79 @@ describe("buildPoppyDiscoveryDocuments", () => {
 
     it.each([
       ["a scheme", "https://fernway.com"],
-      ["a port", "fernway.com:8443"],
       ["a path", "fernway.com/shop"],
       ["a trailing slash", "fernway.com/"],
       ["credentials", "user@fernway.com"],
       ["an empty string", ""]
     ])("rejects a domain with %s", (_case, domain) => {
       expectInvalid({ ...validConfig, domain }, /domain must be/);
+    });
+
+    it("keeps a port other than 443 in domain and resource", () => {
+      const { poppy, protectedResource } = buildPoppyDiscoveryDocuments({
+        ...validConfig,
+        domain: "fernway.com:8443"
+      });
+
+      expect(poppy.organization).toMatchObject({ domain: "fernway.com:8443" });
+      expect(protectedResource.resource).toBe("https://fernway.com:8443");
+    });
+
+    it("rejects the default port 443, and suggests the fix", () => {
+      expectInvalid(
+        { ...validConfig, domain: "fernway.com:443" },
+        /must not include the default port 443: use "fernway\.com"/
+      );
+    });
+
+    it("rejects scope hints without both fields, or with an unknown change", () => {
+      expectInvalid(
+        { ...validConfig, scopeHints: { "orders:write": { changes: "none" } } },
+        /scope hint "orders:write" must have changes/
+      );
+      expectInvalid(
+        {
+          ...validConfig,
+          scopeHints: {
+            "orders:write": { changes: "sometimes", personalData: true }
+          }
+        },
+        /scope hint "orders:write" must have changes/
+      );
+      expectInvalid(
+        { ...validConfig, scopeHints: ["orders:write"] },
+        /scopeHints must be an object/
+      );
+    });
+
+    it("rejects invalid apis and a non-boolean unscoped", () => {
+      expectInvalid({ ...validConfig, apis: {} }, /apis must be an array/);
+      expectInvalid(
+        {
+          ...validConfig,
+          apis: [
+            { type: "openapi", url: "https://api.fernway.com/openapi.json" }
+          ]
+        },
+        /apis\[0\] must have a non-empty type and description/
+      );
+      expectInvalid(
+        {
+          ...validConfig,
+          apis: [
+            {
+              type: "openapi",
+              url: "http://api.fernway.com/openapi.json",
+              description: "Orders"
+            }
+          ]
+        },
+        /apis\[0\]\.url must use https/
+      );
+      expectInvalid(
+        { ...validConfig, unscoped: "yes" },
+        /unscoped must be a boolean/
+      );
     });
 
     it("rejects an issuer without the trailing slash, and suggests the fix", () => {
@@ -210,7 +312,11 @@ describe("buildPoppyDiscoveryDocuments", () => {
       );
     });
 
-    it("rejects an empty organizationName and a non-https logoUri", () => {
+    it("rejects a missing or empty organizationName and a non-https logoUri", () => {
+      expectInvalid(
+        { ...validConfig, organizationName: undefined },
+        /organizationName must be a non-empty string/
+      );
       expectInvalid(
         { ...validConfig, organizationName: "" },
         /organizationName must be a non-empty string/

@@ -18,10 +18,20 @@ export enum PoppyErrorCode {
   INVALID_GUEST = "invalid_poppy_guest",
 
   /**
-   * A Poppy guest login cannot complete in a popup. Guests come from a browser
-   * join, never a popup.
+   * A Poppy guest login came through a popup, passkey or passwordless login.
+   * Guests come from a browser join, so they complete only through the
+   * redirect callback.
    */
   GUEST_NOT_SUPPORTED = "poppy_guest_not_supported",
+
+  /**
+   * A login was refused because an agent guest is driving this browser. Only
+   * the agent's signed-in join, or a new guest join, may replace the guest. A
+   * person's login, or the same guest coming back, is refused. On Auth0 a
+   * guest's own login comes back as the same guest, so redirecting would loop.
+   * Logging out ends the guest, after which the person can sign in.
+   */
+  SIGN_IN_REQUIRED = "poppy_sign_in_required",
 
   /**
    * Client-side `poppy.getContext()`: the context route answered 404, so the
@@ -40,7 +50,9 @@ const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
   [PoppyErrorCode.INVALID_GUEST]:
     "The ID token looks like a Poppy guest login but is not a valid one, so it is neither a guest nor a user.",
   [PoppyErrorCode.GUEST_NOT_SUPPORTED]:
-    "A Poppy guest login cannot complete in a popup.",
+    "A Poppy guest login can only complete through the browser join, not a popup, passkey or passwordless login.",
+  [PoppyErrorCode.SIGN_IN_REQUIRED]:
+    "An agent guest is driving this browser, so only the agent can sign it in. Log out to sign in yourself.",
   [PoppyErrorCode.NOT_ENABLED]:
     "The Poppy context route is not available. Set the `poppy` option on Auth0Client.",
   [PoppyErrorCode.CONTEXT_UNAVAILABLE]: "The Poppy context could not be read."

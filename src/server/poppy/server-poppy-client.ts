@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server.js";
 
-import type { PoppyContext } from "../types/poppy.js";
-import type { PagesRouterRequest } from "./client.js";
+import type { PoppyContext } from "../../types/poppy.js";
+import type { PagesRouterRequest } from "../client.js";
 
 /**
  * Server-side Poppy (Personal Agent Protocol) API, available as

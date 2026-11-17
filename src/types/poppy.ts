@@ -14,13 +14,14 @@
  */
 export interface PoppyConfig {
   /**
-   * The Poppy protocol version the file follows, as `major.minor`, for example
-   * `"0.4"`. Served as is: it must be the version your Auth0 tenant implements.
+   * The Poppy protocol version the file follows, as `major.minor`. Served as
+   * is: it must be the version your Auth0 tenant implements. The SDK only
+   * checks the form, never a specific version.
    */
   protocolVersion: string;
   /**
-   * The host that serves the discovery files, without scheme, port or path.
-   * For example `fernway.com`.
+   * The host that serves the discovery files, without scheme or path, and with
+   * a port only when it isn't 443. For example `fernway.com`.
    *
    * For local testing outside production, a loopback host (`localhost`,
    * `*.localhost`, `127.0.0.1`, `[::1]`) may include a port, for example
@@ -40,10 +41,60 @@ export interface PoppyConfig {
   browserSessionEndpoint: string;
   /** The scopes agents can request, mapped to their descriptions. */
   scopes?: Record<string, string>;
-  /** The Company's display name. */
-  organizationName?: string;
+  /**
+   * Optional hints about what each scope does, served as `auth.scope_hints`.
+   * Each entry needs both fields: whether the scope `changes` anything
+   * (`"none"`, `"reversible"` or `"irreversible"`) and whether it touches
+   * `personalData`.
+   */
+  scopeHints?: Record<string, PoppyScopeHint>;
+  /**
+   * Set to `true` when the website gives a signed-in agent the account's full
+   * access instead of applying its scopes. Served as `web.unscoped`. A
+   * signed-in agent gets a normal `getSession()`, so set it unless your app
+   * limits the agent to `poppy.getContext()` `scopes`.
+   */
+  unscoped?: boolean;
+  /** Optional API descriptions agents can use, served as `apis`. */
+  apis?: PoppyApi[];
+  /** The Company's display name, shown to the customer. */
+  organizationName: string;
   /** An HTTPS URL of the Company's logo. */
   logoUri?: string;
+}
+
+/**
+ * A hint about what a scope does, for {@link PoppyConfig.scopeHints}.
+ *
+ * Beta and subject to change.
+ *
+ * @category Configuration
+ */
+export interface PoppyScopeHint {
+  /**
+   * Whether the scope changes anything, and whether it can be undone:
+   * `"none"`, `"reversible"` or `"irreversible"`. Typed as a string so an
+   * imported `auth0-poppy.json` needs no cast; checked at startup.
+   */
+  changes: string;
+  /** Whether the scope reads or changes personal data. */
+  personalData: boolean;
+}
+
+/**
+ * An API description agents can use, for {@link PoppyConfig.apis}.
+ *
+ * Beta and subject to change.
+ *
+ * @category Configuration
+ */
+export interface PoppyApi {
+  /** The description format, for example `"openapi"` or `"mcp"`. */
+  type: string;
+  /** An HTTPS URL of the description or endpoint. */
+  url: string;
+  /** What the API offers. */
+  description: string;
 }
 
 /**

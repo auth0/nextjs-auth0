@@ -19,7 +19,8 @@ const poppyConfig: PoppyConfig = {
   issuer: "https://auth.fernway.com/",
   browserSessionEndpoint:
     "https://auth.fernway.com/poppy/my-client-id/browser-session",
-  scopes: { "orders:write": "Place orders" }
+  scopes: { "orders:write": "Place orders" },
+  organizationName: "Fernway"
 };
 
 // No handlers: serving the discovery files must not call Auth0.
@@ -55,7 +56,7 @@ describe("Poppy discovery files", () => {
       expect(res.headers.get("content-type")).toContain("application/json");
       expect(await res.json()).toEqual({
         protocol_version: "0.3",
-        organization: { domain: "fernway.com" },
+        organization: { name: "Fernway", domain: "fernway.com" },
         auth: {
           issuer: "https://auth.fernway.com/",
           scopes: { "orders:write": "Place orders" }

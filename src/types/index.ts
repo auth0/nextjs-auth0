@@ -373,5 +373,7 @@ export type {
   PoppyContext,
   PoppyAgentContext,
   PoppyActClaim,
+  PoppyApi,
+  PoppyScopeHint,
   PoppyBrowserClient
 } from "./poppy.js";

@@ -36,7 +36,8 @@ const poppyConfig: PoppyConfig = {
   protocolVersion: "0.3",
   domain: "fernway.test",
   issuer,
-  browserSessionEndpoint: `${issuer}poppy/${clientId}/browser-session`
+  browserSessionEndpoint: `${issuer}poppy/${clientId}/browser-session`,
+  organizationName: "Fernway"
 };
 
 let keyPair: jose.GenerateKeyPairResult;
@@ -749,18 +750,111 @@ describe("Poppy: agent guest", () => {
     });
   });
 
-  it("clears a leftover guest when a person logs in", async () => {
+  it("refuses a person's login while the guest is in the browser", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     await login(auth0, browser, guestClaims());
-    expect(browser.has("auth0_anon")).toBe(true);
+    const guestCookie = browser.get("auth0_anon");
 
-    await login(auth0, browser, { sub: "auth0|ana" });
+    const res = await login(auth0, browser, { sub: "auth0|ana" });
 
-    expect(browser.has("auth0_anon")).toBe(false);
-    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
-      kind: "human"
+    // The default onCallback answers like any other callback error.
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.text()).toBe(
+      new PoppyError(PoppyErrorCode.SIGN_IN_REQUIRED).message
+    );
+    // Nothing changes: no session, and the same guest.
+    expect(browser.has("__session")).toBe(false);
+    expect(browser.get("auth0_anon")).toBe(guestCookie);
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      state: "guest"
     });
+  });
+
+  it("refuses the same guest coming back, which would otherwise loop", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims());
+    const guestCookie = browser.get("auth0_anon");
+
+    // What a guest's own Log in, or a protected page's redirect to login, gets
+    // back from Auth0: the same guest, in the same Poppy Session.
+    const res = await login(auth0, browser, guestClaims(), {
+      path: "/auth/login?returnTo=%2Fprotected"
+    });
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(browser.get("auth0_anon")).toBe(guestCookie);
+  });
+
+  it("lets a new guest join replace the guest (a new Poppy Session)", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims());
+
+    const res = await login(auth0, browser, {
+      ...guestClaims(),
+      act: agentAct({ poppy_sid: "s_new" })
+    });
+
+    expect(res.status).toBe(307);
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      state: "guest",
+      act: { poppy_sid: "s_new" }
+    });
+  });
+
+  it("lets the agent's signed-in join replace the guest", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims());
+
+    const res = await login(auth0, browser, {
+      sub: "auth0|ana",
+      act: agentAct()
+    });
+
+    expect(res.status).toBe(307);
+    expect(browser.has("auth0_anon")).toBe(false);
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      state: "signed_in"
+    });
+  });
+
+  it("doesn't let an ended guest block a person's login, and clears it", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, { ...guestClaims(), exp: epoch() + 120 });
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 121 * 1000);
+
+    const res = await login(auth0, browser, { sub: "auth0|ana" });
+
+    expect(res.status).toBe(307);
+    expect(browser.has("__session")).toBe(true);
+    expect(browser.has("auth0_anon")).toBe(false);
+  });
+
+  it("passes the refusal to the app's onCallback", async () => {
+    const onCallback = vi.fn(
+      async () => new NextResponse("custom", { status: 403 })
+    );
+    const auth0 = createClient({ onCallback });
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims());
+    onCallback.mockClear();
+
+    const res = await login(auth0, browser, { sub: "auth0|ana" });
+
+    expect(await res.text()).toBe("custom");
+    expect(onCallback).toHaveBeenCalledWith(
+      expect.objectContaining({ code: PoppyErrorCode.SIGN_IN_REQUIRED }),
+      expect.anything(),
+      null
+    );
   });
 
   it("refuses a guest login in a popup", async () => {
@@ -803,24 +897,21 @@ describe("Poppy: agent guest", () => {
     expect(browser.has("__session")).toBe(false);
   });
 
-  it("clears the guest when a person logs in through a popup", async () => {
+  it("refuses a person's popup login while the guest is in the browser", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     await login(auth0, browser, guestClaims());
-    expect(browser.has("auth0_anon")).toBe(true);
 
-    await login(
+    const res = await login(
       auth0,
       browser,
       { sub: "auth0|ana" },
       { path: "/auth/login?challengeMode=popup" }
     );
 
-    expect(browser.has("__session")).toBe(true);
-    expect(browser.has("auth0_anon")).toBe(false);
-    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
-      kind: "human"
-    });
+    expect(await res.text()).toContain("poppy_sign_in_required");
+    expect(browser.has("__session")).toBe(false);
+    expect(browser.has("auth0_anon")).toBe(true);
   });
 });
 
@@ -1186,7 +1277,7 @@ describe("Poppy: the context mirrors the ID token", () => {
   });
 });
 
-describe("Poppy: other logins clear the guest", () => {
+describe("Poppy: other logins over a guest", () => {
   const guestClaims = {
     sub: "anon_poppy@7c2e5a1d",
     sub_profile: anonymousSubProfile,
@@ -1194,13 +1285,15 @@ describe("Poppy: other logins clear the guest", () => {
   };
 
   // Passkey and passwordless logins exchange tokens without a nonce.
-  async function personTokens() {
+  async function personTokens(
+    claims: jose.JWTPayload = { sub: "auth0|ana", sid: "auth0-sid" }
+  ) {
     tokenResponse = {
       access_token: "at_person",
       token_type: "Bearer",
       expires_in: 36000,
       scope: "openid profile",
-      id_token: await new jose.SignJWT({ sub: "auth0|ana", sid: "auth0-sid" })
+      id_token: await new jose.SignJWT(claims)
         .setProtectedHeader({ alg: "RS256", kid: "k1" })
         .setIssuer(issuer)
         .setAudience(clientId)
@@ -1217,7 +1310,7 @@ describe("Poppy: other logins clear the guest", () => {
     return browser;
   }
 
-  it("a passkey login", async () => {
+  it("refuses a passkey login", async () => {
     const auth0 = createClient();
     const browser = await guestBrowser(auth0);
     await personTokens();
@@ -1241,12 +1334,18 @@ describe("Poppy: other logins clear the guest", () => {
     );
     browser.absorb(res);
 
-    expect(res.status).toBe(200);
-    expect(browser.has("__session")).toBe(true);
-    expect(browser.has("auth0_anon")).toBe(false);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "poppy_sign_in_required",
+      error_description: expect.stringContaining(
+        "only the agent can sign it in"
+      )
+    });
+    expect(browser.has("__session")).toBe(false);
+    expect(browser.has("auth0_anon")).toBe(true);
   });
 
-  it("a passwordless login", async () => {
+  it("refuses a passwordless login", async () => {
     const auth0 = createClient();
     const browser = await guestBrowser(auth0);
     await personTokens();
@@ -1262,8 +1361,63 @@ describe("Poppy: other logins clear the guest", () => {
     );
     browser.absorb(res);
 
-    expect(res.ok).toBe(true);
-    expect(browser.has("__session")).toBe(true);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("poppy_sign_in_required");
+    expect(browser.has("__session")).toBe(false);
+    expect(browser.has("auth0_anon")).toBe(true);
+  });
+
+  // Guests come from a browser join only. A guest's tokens through these
+  // routes must never become a user session.
+  it("refuses guest tokens through a passkey login", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await personTokens(guestClaims);
+
+    const res = await auth0.middleware(
+      browser.request("/auth/passkey/get-token", {
+        json: {
+          authSession: "test-auth-session",
+          authResponse: {
+            id: "cred-id",
+            rawId: "cred-raw-id",
+            type: "public-key",
+            response: {
+              clientDataJSON: "clientDataJSON-base64url",
+              authenticatorData: "authenticatorData-base64url",
+              signature: "signature-base64url"
+            }
+          }
+        }
+      })
+    );
+    browser.absorb(res);
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("poppy_guest_not_supported");
+    expect(browser.has("__session")).toBe(false);
+    expect(browser.has("auth0_anon")).toBe(false);
+  });
+
+  it("refuses guest tokens through a passwordless login", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await personTokens(guestClaims);
+
+    const res = await auth0.middleware(
+      browser.request("/auth/passwordless/verify", {
+        json: {
+          connection: "email",
+          email: "ana@example.com",
+          verificationCode: "123456"
+        }
+      })
+    );
+    browser.absorb(res);
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("poppy_guest_not_supported");
+    expect(browser.has("__session")).toBe(false);
     expect(browser.has("auth0_anon")).toBe(false);
   });
 });

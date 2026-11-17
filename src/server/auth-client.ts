@@ -53,8 +53,6 @@ import {
   PasswordlessDbGetTokenError,
   PasswordlessStartError,
   PasswordlessVerifyError,
-  PoppyError,
-  PoppyErrorCode,
   SdkError,
   TokenRevocationError,
   TokenRevocationErrorCode,
@@ -135,7 +133,7 @@ import {
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
-import type { PoppyAgentState, PoppyContext } from "../types/poppy.js";
+import type { PoppyContext } from "../types/poppy.js";
 import {
   ANON_TRANSFER_AUDIENCE,
   ANON_TRANSFER_TOKEN_PARAM,
@@ -186,6 +184,19 @@ import {
   POPPY_DISCOVERY_PATH,
   PROTECTED_RESOURCE_METADATA_PATH
 } from "../utils/poppy-constants.js";
+import {
+  attachPoppyAgentState,
+  classifyPoppyLogin,
+  extractPoppyJoin,
+  getPoppyLoginError,
+  HUMAN_POPPY_CONTEXT,
+  isPoppyGuestActive,
+  pickPoppyUserClaims,
+  toPoppyAgentContext,
+  toPoppyErrorResponse,
+  type PoppyLogin,
+  type PoppyRuntime
+} from "../utils/poppy-helpers.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,
@@ -240,15 +251,6 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
-import {
-  classifyPoppyLogin,
-  explainPoppyGuestFailure,
-  HUMAN_POPPY_CONTEXT,
-  pickPoppyUserClaims,
-  toPoppyAgentContext,
-  type PoppyLogin,
-  type PoppyRuntime
-} from "./poppy-agent.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import {
   clampReturnTo,
@@ -1280,7 +1282,14 @@ export class AuthClient {
     }
 
     const poppyJoin = this.poppy
-      ? this.extractPoppyJoin(searchParams, req)
+      ? extractPoppyJoin(
+          searchParams,
+          [this.poppy.issuer, this.issuer],
+          new URL(
+            (this.authorizationParameters.redirect_uri as string | undefined) ||
+              resolveAppBaseUrl(this.appBaseUrl, req)
+          )
+        )
       : undefined;
 
     // do not pass returnTo as part of authorizationParameters
@@ -1293,66 +1302,6 @@ export class AuthClient {
       challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
     };
     return this.startInteractiveLogin(options, req);
-  }
-
-  /**
-   * Recognizes Auth0's browser join, which sends the agent's browser to the
-   * login route as a third-party-initiated login (OIDC Core §4) carrying `iss`
-   * and `target_link_uri`.
-   *
-   * Removes both from `searchParams`, since neither is an /authorize
-   * parameter. Returns the join, with where it should land, only when `iss` is
-   * the configured issuer; any other login returns `undefined`.
-   */
-  private extractPoppyJoin(
-    searchParams: Record<string, string>,
-    req: NextRequest
-  ): { returnTo?: string } | undefined {
-    const { iss, target_link_uri: targetLinkUri } = searchParams;
-    delete searchParams.iss;
-    delete searchParams.target_link_uri;
-
-    if (iss === undefined) {
-      return undefined;
-    }
-    if (iss !== this.poppy!.issuer && iss !== this.issuer) {
-      console.warn(
-        "[nextjs-auth0] Ignoring a third-party-initiated login: iss does not match the configured Poppy issuer, so it is handled as a normal login."
-      );
-      return undefined;
-    }
-    return { returnTo: this.resolvePoppyTargetLink(targetLinkUri, req) };
-  }
-
-  /**
-   * Returns a join's `target_link_uri` as the post-login destination when it is
-   * on this app's origin.
-   *
-   * Anything else is ignored with a warning rather than refused: the parameters
-   * only choose where the browser lands, the login itself always uses the
-   * configured issuer, so ignoring them costs nothing, while a 400 would break a
-   * join over a cosmetic mismatch. The values are not logged, since anyone can
-   * put them in the URL.
-   */
-  private resolvePoppyTargetLink(
-    targetLinkUri: string | undefined,
-    req: NextRequest
-  ): string | undefined {
-    if (targetLinkUri === undefined) {
-      return undefined;
-    }
-
-    const safeBaseUrl = new URL(
-      (this.authorizationParameters.redirect_uri as string | undefined) ||
-        resolveAppBaseUrl(this.appBaseUrl, req)
-    );
-    if (!toSafeRedirect(targetLinkUri, safeBaseUrl)) {
-      console.warn(
-        "[nextjs-auth0] Ignoring target_link_uri: it is not on this app's origin."
-      );
-      return undefined;
-    }
-    return targetLinkUri;
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -1798,17 +1747,19 @@ export class AuthClient {
 
     // ★ POSTMESSAGE BRANCH
     if (challengeMode === "popup") {
-      // Poppy guests come from a browser join, never a popup. Refuse rather
-      // than merge an anonymous subject into a user session.
-      const popupPoppyLogin = this.classifyPoppyLogin(idTokenClaims);
-      if (
-        popupPoppyLogin.kind === "guest" ||
-        popupPoppyLogin.kind === "invalid_guest"
-      ) {
+      const popupPoppyLogin = classifyPoppyLogin(idTokenClaims, this.poppy);
+      const popupPoppyError =
+        this.poppy &&
+        getPoppyLoginError(
+          popupPoppyLogin,
+          await this.readPoppyGuest(req.cookies),
+          idTokenClaims!,
+          this.poppy,
+          { allowGuest: false }
+        );
+      if (popupPoppyError) {
         return this.handleCallbackError(
-          popupPoppyLogin.kind === "guest"
-            ? new PoppyError(PoppyErrorCode.GUEST_NOT_SUPPORTED)
-            : this.poppyGuestWithoutAgentError(idTokenClaims!),
+          popupPoppyError,
           onCallbackCtx,
           req,
           state,
@@ -1893,7 +1844,7 @@ export class AuthClient {
           transactionState
         );
         if (popupPoppyLogin.kind === "agent") {
-          this.attachPoppyAgentState(fallbackSession, popupPoppyLogin.state);
+          attachPoppyAgentState(fallbackSession, popupPoppyLogin.state);
         }
 
         // IPSIE: reject a session whose ceiling is already in the past at login.
@@ -1961,10 +1912,18 @@ export class AuthClient {
     );
 
     // Poppy: a Personal Agent's login, as a guest or in the customer's account.
-    const poppyLogin = this.classifyPoppyLogin(idTokenClaims);
-    if (poppyLogin.kind === "invalid_guest") {
+    const poppyLogin = classifyPoppyLogin(idTokenClaims, this.poppy);
+    const poppyError =
+      this.poppy &&
+      getPoppyLoginError(
+        poppyLogin,
+        await this.readPoppyGuest(req.cookies),
+        idTokenClaims!,
+        this.poppy
+      );
+    if (poppyError) {
       return this.handleCallbackError(
-        this.poppyGuestWithoutAgentError(idTokenClaims!),
+        poppyError,
         onCallbackCtx,
         req,
         state,
@@ -1983,7 +1942,7 @@ export class AuthClient {
       );
     }
     if (poppyLogin.kind === "agent") {
-      this.attachPoppyAgentState(session, poppyLogin.state);
+      attachPoppyAgentState(session, poppyLogin.state);
     }
 
     // IPSIE: reject a session whose ceiling is already in the past at login.
@@ -2069,51 +2028,6 @@ export class AuthClient {
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
-  }
-
-  /** Classifies a login for Poppy; always "human" when Poppy is off. */
-  private classifyPoppyLogin(idTokenClaims?: oauth.IDToken): PoppyLogin {
-    if (!this.poppy || !idTokenClaims) {
-      return { kind: "human" };
-    }
-    return classifyPoppyLogin(
-      idTokenClaims as Record<string, unknown>,
-      this.poppy
-    );
-  }
-
-  /**
-   * The error for a guest-looking login that isn't a valid guest. The reason
-   * names claims, so it is logged here and kept out of the message, which the
-   * default onCallback returns to the browser.
-   */
-  private poppyGuestWithoutAgentError(
-    idTokenClaims: Record<string, unknown>
-  ): PoppyError {
-    const reason = explainPoppyGuestFailure(idTokenClaims, this.poppy!);
-    console.error(`[nextjs-auth0] Refused a Poppy guest login: ${reason}.`);
-    return new PoppyError(PoppyErrorCode.INVALID_GUEST, undefined, reason);
-  }
-
-  /**
-   * Records the agent on a signed-in session and caps the session at the join
-   * token's expiry. The cap reuses the IPSIE ceiling, so reads report no
-   * session and refresh stops once it passes; the session stores also cap the
-   * cookie's max-age at it.
-   */
-  private attachPoppyAgentState(
-    session: SessionData,
-    poppy: PoppyAgentState
-  ): void {
-    const ipsieCeiling = session.internal.sessionExpiresAt;
-    session.internal = {
-      ...session.internal,
-      poppy,
-      sessionExpiresAt:
-        ipsieCeiling === undefined
-          ? poppy.sessionExpiresAt
-          : Math.min(ipsieCeiling, poppy.sessionExpiresAt)
-    };
   }
 
   /**
@@ -2223,21 +2137,13 @@ export class AuthClient {
     }
     try {
       const payload = await this.readAnonymousCookie(reqCookies);
-      if (!payload?.poppy || !this.isPoppyGuestActive(payload)) {
+      if (!payload?.poppy || !isPoppyGuestActive(payload, this.epoch())) {
         return undefined;
       }
       return payload.poppy;
     } catch {
       return undefined;
     }
-  }
-
-  private isPoppyGuestActive(payload: AnonymousCookiePayload): boolean {
-    return (
-      payload.poppy !== undefined &&
-      payload.expires_at > this.epoch() &&
-      !isSessionCeilingReached(payload.poppy.sessionExpiresAt)
-    );
   }
 
   /**
@@ -2278,8 +2184,9 @@ export class AuthClient {
    * cookie.
    *
    * A session and a guest cookie shouldn't be found together: a guest join
-   * ends any session, and every login deletes the guest cookie. If they are
-   * (a browser from before that), the agent is reported, the safer answer.
+   * ends any session, and a login over a guest is refused unless it is the
+   * agent's join or a new guest join, which replace the guest. If they are (a
+   * browser from before that), the agent is reported, the safer answer.
    */
   async getPoppyContext(
     reqCookies: RequestCookies | ReadonlyRequestCookies
@@ -2601,6 +2508,10 @@ export class AuthClient {
         "MFA verification succeeded but no session could be established. Ensure 'openid' scope is requested."
       );
     } catch (e) {
+      const poppyRefusal = toPoppyErrorResponse(e);
+      if (poppyRefusal) {
+        return poppyRefusal;
+      }
       return handleMfaError(e);
     }
   }
@@ -2743,6 +2654,10 @@ export class AuthClient {
     } catch (e) {
       if (e instanceof MfaRequiredError) {
         return this.#createMfaRequiredResponse(req, null, e);
+      }
+      const poppyRefusal = toPoppyErrorResponse(e);
+      if (poppyRefusal) {
+        return poppyRefusal;
       }
       if (e instanceof PasswordlessVerifyError) {
         const serverErrorCodes = new Set([
@@ -2896,6 +2811,10 @@ export class AuthClient {
     } catch (e) {
       if (e instanceof MfaRequiredError) {
         return this.#createMfaRequiredResponse(req, null, e);
+      }
+      const poppyRefusal = toPoppyErrorResponse(e);
+      if (poppyRefusal) {
+        return poppyRefusal;
       }
       if (e instanceof PasswordlessDbGetTokenError) {
         const serverErrorCodes = new Set([
@@ -3891,7 +3810,7 @@ export class AuthClient {
     reqCookies: RequestCookies,
     resCookies?: ResponseCookies
   ): AnonymousSession | null {
-    if (this.isPoppyGuestActive(payload)) {
+    if (isPoppyGuestActive(payload, this.epoch())) {
       return this.readPublicSession(payload);
     }
     if (resCookies) {
@@ -7220,6 +7139,18 @@ export class AuthClient {
       }
     };
 
+    const poppyError =
+      this.poppy &&
+      getPoppyLoginError(
+        classifyPoppyLogin(claims, this.poppy),
+        await this.readPoppyGuest(reqCookies),
+        claims,
+        this.poppy,
+        { allowGuest: false }
+      );
+    if (poppyError) {
+      throw poppyError;
+    }
     session = await this.finalizeSession(
       session,
       tokenEndpointResponse.id_token
@@ -7365,6 +7296,10 @@ export class AuthClient {
     } catch (e) {
       if (e instanceof MfaRequiredError) {
         return this.#createMfaRequiredResponse(req, null, e);
+      }
+      const poppyRefusal = toPoppyErrorResponse(e);
+      if (poppyRefusal) {
+        return poppyRefusal;
       }
       if (e instanceof PasskeyGetTokenError) {
         const serverErrorCodes = new Set([
@@ -7699,6 +7634,18 @@ export class AuthClient {
       }
     };
 
+    const poppyError =
+      this.poppy &&
+      getPoppyLoginError(
+        classifyPoppyLogin(claims, this.poppy),
+        await this.readPoppyGuest(reqCookies),
+        claims,
+        this.poppy,
+        { allowGuest: false }
+      );
+    if (poppyError) {
+      throw poppyError;
+    }
     session = await this.finalizeSession(session, tokenResponse.id_token);
     await this.sessionStore.set(reqCookies, resCookies, session, true);
     await this.#clearPoppyGuestCookie(reqCookies, resCookies);

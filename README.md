@@ -523,7 +523,7 @@ Lets personal AI agents, such as Meta Muse, shop and manage accounts on your sit
 
 ```ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
-import poppyConfig from "./auth0-poppy.json"; // your domain, Auth0 issuer, join endpoint and scopes
+import poppyConfig from "./auth0-poppy.json"; // your domain, company name, Auth0 issuer, join endpoint and scopes
 
 export const auth0 = new Auth0Client({ poppy: { config: poppyConfig } });
 

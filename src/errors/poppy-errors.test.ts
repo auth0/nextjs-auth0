@@ -14,7 +14,10 @@ describe("PoppyError", () => {
 
   it.each([
     [PoppyErrorCode.INVALID_GUEST, /neither a guest nor a user/],
-    [PoppyErrorCode.GUEST_NOT_SUPPORTED, /cannot complete in a popup/]
+    [
+      PoppyErrorCode.GUEST_NOT_SUPPORTED,
+      /only complete through the browser join/
+    ]
   ])("has a default message for %s", (code, message) => {
     expect(new PoppyError(code).message).toMatch(message);
   });
