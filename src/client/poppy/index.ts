@@ -40,7 +40,7 @@ class ClientPoppyClient implements PoppyBrowserClient {
 }
 
 /**
- * Client-side Poppy (Personal Agent Protocol) singleton. Experimental and
+ * Client-side Poppy (Personal Agent Protocol) singleton. Beta and
  * subject to change.
  *
  * Prefer `auth0.poppy.getContext()` in a Server Component, and pass what the

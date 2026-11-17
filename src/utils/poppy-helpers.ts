@@ -1,4 +1,13 @@
-import { InvalidConfigurationError } from "../errors/index.js";
+import { NextResponse } from "next/server.js";
+
+import {
+  InvalidConfigurationError,
+  PoppyError,
+  PoppyErrorCode
+} from "../errors/index.js";
+import { addCacheControlHeadersForSession } from "../server/cookies.js";
+import type { AnonymousCookiePayload } from "../types/anonymous-session.js";
+import type { SessionData } from "../types/index.js";
 import type {
   PoppyActClaim,
   PoppyAgentState,
@@ -9,12 +18,13 @@ import {
   ANONYMOUS_SUB_PROFILE,
   DEFAULT_POPPY_GUEST_SUBJECT_PREFIX,
   POPPY_REQUIRED_ACT_CLAIMS
-} from "../utils/poppy-constants.js";
-import { isUnixSeconds } from "../utils/session-helpers.js";
+} from "./poppy-constants.js";
 import {
   buildPoppyDiscoveryDocuments,
   type PoppyDiscoveryDocuments
-} from "./poppy-discovery.js";
+} from "./poppy-discovery-helpers.js";
+import { isSessionCeilingReached, isUnixSeconds } from "./session-helpers.js";
+import { toSafeRedirect } from "./url-helpers.js";
 
 /** Extra ID token claims kept in `session.user` for Poppy, beyond the defaults. */
 const POPPY_PROFILE_CLAIMS = ["sub_profile", "client_profile"];
@@ -66,14 +76,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readActString(
-  act: Record<string, unknown>,
-  name: string
-): string | undefined {
-  const value = act[name];
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
 function hasAnonymousSubProfile(claims: Record<string, unknown>): boolean {
   const value = claims.sub_profile;
   return (
@@ -121,9 +123,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isPoppyAct(act: Record<string, unknown>): act is PoppyActClaim {
-  return POPPY_REQUIRED_ACT_CLAIMS.every(
-    (name) => readActString(act, name) !== undefined
-  );
+  return POPPY_REQUIRED_ACT_CLAIMS.every((name) => isNonEmptyString(act[name]));
 }
 
 /**
@@ -157,7 +157,7 @@ export function explainPoppyGuestFailure(
   }
   const keys = `"act" has: ${Object.keys(act).join(", ") || "no claims"}`;
   for (const name of POPPY_REQUIRED_ACT_CLAIMS) {
-    if (readActString(act, name) === undefined) {
+    if (!isNonEmptyString(act[name])) {
       return `act.${name} is missing or not a string (${keys})`;
     }
   }
@@ -166,15 +166,19 @@ export function explainPoppyGuestFailure(
 
 /**
  * Decides whether a login is a person, a signed-in agent or an agent guest.
+ * Always a person when Poppy is off or there are no ID token claims.
  *
  * A guest has a subject starting with `anon_poppy@`, an anonymous
  * `sub_profile` and a Poppy `act`. An anonymous subject must never become a
  * user session, so a login with only some of those fails closed.
  */
 export function classifyPoppyLogin(
-  claims: Record<string, unknown>,
-  runtime: PoppyRuntime
+  claims: Record<string, unknown> | undefined,
+  runtime: PoppyRuntime | undefined
 ): PoppyLogin {
+  if (!runtime || !claims) {
+    return { kind: "human" };
+  }
   const state = readPoppyAgentState(claims);
   const sub = claims.sub;
   const hasGuestSubject =
@@ -187,6 +191,145 @@ export function classifyPoppyLogin(
       : { kind: "invalid_guest" };
   }
   return state ? { kind: "agent", state } : { kind: "human" };
+}
+
+/**
+ * The error to refuse a login with, or `undefined` to let it through.
+ *
+ * - A login that looks like a guest but isn't a valid one fails closed. The
+ *   reason names claims, so it is logged here and kept out of the message,
+ *   which the default `onCallback` returns to the browser.
+ * - A guest completes only through the redirect callback, never a popup,
+ *   passkey or passwordless login: guests come from a browser join. Those
+ *   logins pass `allowGuest: false`.
+ * - While an agent guest is in the browser, only the agent's signed-in join,
+ *   or a new guest join (another `sub` or Poppy Session), may replace it. A
+ *   person's login and the same guest coming back are refused: the browser is
+ *   the agent's, and on Auth0 a guest's own login comes back as the same
+ *   guest, so redirecting would loop.
+ */
+export function getPoppyLoginError(
+  login: PoppyLogin,
+  guest: PoppyAgentState | undefined,
+  claims: Record<string, unknown>,
+  runtime: PoppyRuntime,
+  options: { allowGuest?: boolean } = {}
+): PoppyError | undefined {
+  if (login.kind === "invalid_guest") {
+    const reason = explainPoppyGuestFailure(claims, runtime);
+    console.error(`[nextjs-auth0] Refused a Poppy guest login: ${reason}.`);
+    return new PoppyError(PoppyErrorCode.INVALID_GUEST, undefined, reason);
+  }
+  if (options.allowGuest === false && login.kind === "guest") {
+    return new PoppyError(PoppyErrorCode.GUEST_NOT_SUPPORTED);
+  }
+  if (!guest || login.kind === "agent") {
+    return undefined;
+  }
+  if (
+    login.kind === "guest" &&
+    (login.state.sub !== guest.sub ||
+      login.state.act.poppy_sid !== guest.act.poppy_sid)
+  ) {
+    return undefined;
+  }
+  return new PoppyError(PoppyErrorCode.SIGN_IN_REQUIRED);
+}
+
+/**
+ * The 403 JSON answer for a login route whose login Poppy refused (see
+ * {@link getPoppyLoginError}), or `undefined` for any other error.
+ */
+export function toPoppyErrorResponse(error: unknown): NextResponse | undefined {
+  if (!(error instanceof PoppyError)) {
+    return undefined;
+  }
+  const res = NextResponse.json(
+    { error: error.code, error_description: error.message },
+    { status: 403 }
+  );
+  addCacheControlHeadersForSession(res);
+  return res;
+}
+
+/**
+ * Recognizes Auth0's browser join, which sends the agent's browser to the
+ * login route as a third-party-initiated login (OIDC Core §4) carrying `iss`
+ * and `target_link_uri`.
+ *
+ * Removes both from `searchParams`, since neither is an /authorize parameter.
+ * Returns the join only when `iss` is one of `issuers`; any other login
+ * returns `undefined`. The join lands on `target_link_uri` when it is on
+ * `safeBaseUrl`'s origin. Anything else is ignored with a warning rather than
+ * refused: the parameters only choose where the browser lands, the login
+ * itself always uses the configured issuer, so ignoring them costs nothing,
+ * while a 400 would break a join over a cosmetic mismatch. The values are not
+ * logged, since anyone can put them in the URL.
+ */
+export function extractPoppyJoin(
+  searchParams: Record<string, string>,
+  issuers: string[],
+  safeBaseUrl: URL
+): { returnTo?: string } | undefined {
+  const { iss, target_link_uri: targetLinkUri } = searchParams;
+  delete searchParams.iss;
+  delete searchParams.target_link_uri;
+
+  if (iss === undefined) {
+    return undefined;
+  }
+  if (!issuers.includes(iss)) {
+    console.warn(
+      "[nextjs-auth0] Ignoring a third-party-initiated login: iss does not match the configured Poppy issuer, so it is handled as a normal login."
+    );
+    return undefined;
+  }
+  if (targetLinkUri === undefined) {
+    return {};
+  }
+  if (!toSafeRedirect(targetLinkUri, safeBaseUrl)) {
+    console.warn(
+      "[nextjs-auth0] Ignoring target_link_uri: it is not on this app's origin."
+    );
+    return {};
+  }
+  return { returnTo: targetLinkUri };
+}
+
+/**
+ * Records the agent on a signed-in session and caps the session at the join
+ * token's expiry. The cap reuses the IPSIE ceiling, so reads report no session
+ * and refresh stops once it passes; the session stores also cap the cookie's
+ * max-age at it.
+ */
+export function attachPoppyAgentState(
+  session: SessionData,
+  poppy: PoppyAgentState
+): void {
+  const ipsieCeiling = session.internal.sessionExpiresAt;
+  session.internal = {
+    ...session.internal,
+    poppy,
+    sessionExpiresAt:
+      ipsieCeiling === undefined
+        ? poppy.sessionExpiresAt
+        : Math.min(ipsieCeiling, poppy.sessionExpiresAt)
+  };
+}
+
+/**
+ * Whether an anonymous cookie holds a Poppy guest that hasn't ended: its token
+ * and the Poppy Session are both still valid at `now` (Unix seconds).
+ */
+export function isPoppyGuestActive(
+  payload: AnonymousCookiePayload,
+  now: number
+): boolean {
+  return (
+    payload.poppy !== undefined &&
+    payload.expires_at > now &&
+    !isSessionCeilingReached(payload.poppy.sessionExpiresAt)
+  );
 }
 
 /**

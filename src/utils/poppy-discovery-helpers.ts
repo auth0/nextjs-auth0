@@ -1,6 +1,6 @@
 import { InvalidConfigurationError } from "../errors/index.js";
 import type { PoppyConfig } from "../types/poppy.js";
-import { isLoopbackHost } from "../utils/url-helpers.js";
+import { isLoopbackHost } from "./url-helpers.js";
 
 /** The two discovery documents, built once from {@link PoppyConfig}. */
 export interface PoppyDiscoveryDocuments {
@@ -48,9 +48,12 @@ function validateDomain(
   } catch {
     url = undefined;
   }
+  if (url && url.port === "" && value.endsWith(":443")) {
+    fail(`domain must not include the default port 443: use "${url.host}".`);
+  }
   if (!url || url.host !== value.toLowerCase()) {
     fail(
-      `domain must be a bare host such as "fernway.com", without scheme, port or path, got "${value}".`
+      `domain must be a bare host such as "fernway.com", without scheme or path, got "${value}".`
     );
   }
 
@@ -60,12 +63,7 @@ function validateDomain(
       `domain "${value}" is a local host, which is only allowed outside production. Set it to the public host that serves the app.`
     );
   }
-  // The spec forbids a port. Local mode allows one, to match `next dev`.
-  if (url.port && !local) {
-    fail(
-      `domain must be a bare host such as "fernway.com", without scheme, port or path, got "${value}".`
-    );
-  }
+  // The spec includes the port when it isn't 443, and so does `resource`.
   return { domain: url.host, local };
 }
 
@@ -90,7 +88,7 @@ function validateIssuer(value: unknown): string {
 function validateProtocolVersion(value: unknown): string {
   if (typeof value !== "string" || !/^\d+\.\d+$/.test(value)) {
     fail(
-      `protocolVersion must be a version such as "0.4" (major.minor), got ${typeof value === "string" ? `"${value}"` : typeof value}.`
+      `protocolVersion must be a major.minor version, got ${typeof value === "string" ? `"${value}"` : typeof value}.`
     );
   }
   return value;
@@ -111,6 +109,68 @@ function validateScopes(value: unknown): Record<string, string> | undefined {
     scopes[name] = description;
   }
   return scopes;
+}
+
+const SCOPE_HINT_CHANGES = new Set(["none", "reversible", "irreversible"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+// Served as `auth.scope_hints`. The spec requires both fields in each entry.
+function validateScopeHints(
+  value: unknown
+): Record<string, { changes: string; personal_data: boolean }> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isPlainObject(value)) {
+    fail("scopeHints must be an object mapping each scope to its hint.");
+  }
+  const hints: Record<string, { changes: string; personal_data: boolean }> = {};
+  for (const [name, hint] of Object.entries(value)) {
+    if (
+      !isPlainObject(hint) ||
+      typeof hint.changes !== "string" ||
+      !SCOPE_HINT_CHANGES.has(hint.changes) ||
+      typeof hint.personalData !== "boolean"
+    ) {
+      fail(
+        `scope hint "${name}" must have changes ("none", "reversible" or "irreversible") and a boolean personalData.`
+      );
+    }
+    hints[name] = { changes: hint.changes, personal_data: hint.personalData };
+  }
+  return hints;
+}
+
+function validateApis(
+  value: unknown
+): { type: string; url: string; description: string }[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    fail("apis must be an array.");
+  }
+  return value.map((api: unknown, index) => {
+    if (
+      !isPlainObject(api) ||
+      !isNonEmptyString(api.type) ||
+      !isNonEmptyString(api.description)
+    ) {
+      fail(`apis[${index}] must have a non-empty type and description.`);
+    }
+    return {
+      type: api.type,
+      url: requireHttpsUrl(api.url, `apis[${index}].url`).raw,
+      description: api.description
+    };
+  });
 }
 
 /**
@@ -151,12 +211,12 @@ export function buildPoppyDiscoveryDocuments(
     "browserSessionEndpoint"
   ).raw;
   const scopes = validateScopes(config.scopes);
-
-  if (
-    config.organizationName !== undefined &&
-    (typeof config.organizationName !== "string" ||
-      config.organizationName.trim().length === 0)
-  ) {
+  const scopeHints = validateScopeHints(config.scopeHints);
+  const apis = validateApis(config.apis);
+  if (config.unscoped !== undefined && typeof config.unscoped !== "boolean") {
+    fail("unscoped must be a boolean.");
+  }
+  if (!isNonEmptyString(config.organizationName)) {
     fail("organizationName must be a non-empty string.");
   }
   const logoUri =
@@ -168,18 +228,19 @@ export function buildPoppyDiscoveryDocuments(
     poppy: {
       protocol_version: protocolVersion,
       organization: {
-        ...(config.organizationName !== undefined && {
-          name: config.organizationName
-        }),
+        name: config.organizationName,
         domain,
         ...(logoUri !== undefined && { logo_uri: logoUri })
       },
       auth: {
         issuer,
-        ...(scopes !== undefined && { scopes })
+        ...(scopes !== undefined && { scopes }),
+        ...(scopeHints !== undefined && { scope_hints: scopeHints })
       },
+      ...(apis !== undefined && { apis }),
       web: {
-        browser_session_endpoint: browserSessionEndpoint
+        browser_session_endpoint: browserSessionEndpoint,
+        ...(config.unscoped !== undefined && { unscoped: config.unscoped })
       }
     },
     protectedResource: {

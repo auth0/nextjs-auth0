@@ -1,22 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
+import { InvalidConfigurationError, PoppyErrorCode } from "../errors/index.js";
+import { StatelessSessionStore } from "../server/session/stateless-session-store.js";
 import type { PoppyConfig } from "../types/poppy.js";
 import {
   classifyPoppyLogin,
   explainPoppyGuestFailure,
+  getPoppyLoginError,
   pickPoppyUserClaims,
   readPoppyAgentState,
   resolvePoppyRuntime,
   toPoppyAgentContext
-} from "./poppy-agent.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
+} from "./poppy-helpers.js";
 
 const config: PoppyConfig = {
   protocolVersion: "0.3",
   domain: "fernway.com",
   issuer: "https://auth.fernway.com/",
-  browserSessionEndpoint: "https://auth.fernway.com/poppy/web/browser-session"
+  browserSessionEndpoint: "https://auth.fernway.com/poppy/web/browser-session",
+  organizationName: "Fernway"
 };
 
 const runtime = resolvePoppyRuntime({ config });
@@ -309,6 +311,67 @@ describe("explainPoppyGuestFailure", () => {
     expect(text).not.toContain("ana@example.com");
     expect(text).not.toContain("muse.example");
     expect(text).not.toContain("secret-sid");
+  });
+});
+
+describe("getPoppyLoginError", () => {
+  const guest = readPoppyAgentState(guestClaims)!;
+  // A default parameter would replace an explicit `undefined`, so `null`
+  // stands for "no guest in the browser".
+  const check = (
+    claims: Record<string, unknown>,
+    options?: { allowGuest?: boolean },
+    inBrowser: typeof guest | null = guest
+  ) =>
+    getPoppyLoginError(
+      classifyPoppyLogin(claims, runtime),
+      inBrowser ?? undefined,
+      claims,
+      runtime,
+      options
+    )?.code;
+
+  it("refuses an invalid guest, with or without a guest in the browser", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const invalid = { sub: guestClaims.sub };
+    expect(check(invalid)).toBe(PoppyErrorCode.INVALID_GUEST);
+    expect(check(invalid, {}, null)).toBe(PoppyErrorCode.INVALID_GUEST);
+  });
+
+  it("refuses a guest where guests aren't allowed (popup, passkey, passwordless)", () => {
+    expect(check(guestClaims, { allowGuest: false }, null)).toBe(
+      PoppyErrorCode.GUEST_NOT_SUPPORTED
+    );
+  });
+
+  it("lets any login through when no guest is in the browser", () => {
+    expect(check(guestClaims, {}, null)).toBeUndefined();
+    expect(
+      check({ sub: "auth0|person", exp: now + 3600 }, {}, null)
+    ).toBeUndefined();
+  });
+
+  it("lets the agent's signed-in join through", () => {
+    expect(
+      check({ sub: "auth0|customer", exp: now + 7200, act: agentAct })
+    ).toBeUndefined();
+  });
+
+  it("lets a new guest through, by sub or by Poppy Session", () => {
+    expect(check({ ...guestClaims, sub: "anon_poppy@other" })).toBeUndefined();
+    expect(
+      check({ ...guestClaims, act: { ...agentAct, poppy_sid: "s_other" } })
+    ).toBeUndefined();
+  });
+
+  it("refuses the same guest coming back", () => {
+    expect(check(guestClaims)).toBe(PoppyErrorCode.SIGN_IN_REQUIRED);
+  });
+
+  it("refuses a person", () => {
+    expect(check({ sub: "auth0|person", exp: now + 3600 })).toBe(
+      PoppyErrorCode.SIGN_IN_REQUIRED
+    );
   });
 });
 
