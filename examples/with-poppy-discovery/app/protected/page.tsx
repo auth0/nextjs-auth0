@@ -2,8 +2,9 @@ import { auth0 } from "@/lib/auth0";
 
 // Opens only with a signed-in session. Without one, withPageAuthRequired sends
 // the browser to /auth/login?returnTo=/protected. An agent guest has no
-// session, so opening this page as a guest shows what Auth0 does with that
-// login: a login page, an error, or the guest again in a redirect loop.
+// session, and Auth0 answers that login with the same guest again. The SDK
+// refuses it (poppy_sign_in_required) after one round trip, so opening this
+// page as a guest shows that error instead of a redirect loop.
 export default auth0.withPageAuthRequired(
   async function Protected() {
     const session = await auth0.getSession();

@@ -36,8 +36,16 @@ async function requireGuest() {
   const poppy = await auth0.poppy.getContext();
   const guest = await auth0.getAnonymousSession();
 
-  if (poppy.kind !== "agent" || poppy.state !== "guest" || !guest) {
+  if (poppy.kind !== "agent" || poppy.state !== "guest") {
     throw new CartError(403, "The cart is only available to an agent guest.");
+  }
+  // The guest outlives its access token: it is still the guest, but there is
+  // no token until a silent login renews it.
+  if (!guest) {
+    throw new CartError(
+      401,
+      "The guest's access token has expired. Open /auth/login?prompt=none&returnTo=/cart to renew it."
+    );
   }
   return {
     token: guest.accessToken,

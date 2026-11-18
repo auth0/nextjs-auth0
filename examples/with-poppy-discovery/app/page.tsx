@@ -21,7 +21,8 @@ const BEHAVIOUR = [
     key: "guest",
     who: "An agent, signed out (guest)",
     session: "null",
-    anonymous: "the guest: id and expiresAt (the access token stays on the server)"
+    anonymous:
+      "the guest: id and expiresAt (the access token stays on the server). null while its access token has expired, until a silent login renews it"
   },
   {
     key: "signed_in",
