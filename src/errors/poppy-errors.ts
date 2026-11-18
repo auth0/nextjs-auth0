@@ -18,6 +18,13 @@ export enum PoppyErrorCode {
   INVALID_GUEST = "invalid_poppy_guest",
 
   /**
+   * The ID token has a Poppy `act` but no valid `sub` or `exp`. The SDK refuses
+   * it rather than take the agent for a person. `error.reason` names the
+   * failing check; it is logged on the server and never part of the message.
+   */
+  INVALID_AGENT = "invalid_poppy_agent",
+
+  /**
    * A Poppy guest login came through a popup, passkey or passwordless login.
    * Guests come from a browser join, so they complete only through the
    * redirect callback.
@@ -49,6 +56,8 @@ export enum PoppyErrorCode {
 const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
   [PoppyErrorCode.INVALID_GUEST]:
     "The ID token looks like a Poppy guest login but is not a valid one, so it is neither a guest nor a user.",
+  [PoppyErrorCode.INVALID_AGENT]:
+    "The ID token has a Poppy agent but is not a valid agent login, so it is not taken as a person.",
   [PoppyErrorCode.GUEST_NOT_SUPPORTED]:
     "A Poppy guest login can only complete through the browser join, not a popup, passkey or passwordless login.",
   [PoppyErrorCode.SIGN_IN_REQUIRED]:
@@ -89,7 +98,8 @@ export class PoppyError extends SdkError {
   public code: PoppyErrorCode;
 
   /**
-   * Why the login was refused, for `invalid_poppy_guest`: the failing check,
+   * Why the login was refused, for `invalid_poppy_guest` and
+   * `invalid_poppy_agent`: the failing check,
    * with claim names but no claim values apart from `sub_profile`. For logs
    * only: it is kept out of `message`, which the default `onCallback` returns
    * to the browser.

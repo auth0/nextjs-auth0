@@ -37,13 +37,20 @@ export interface PoppyRuntime {
   guestSubjectPrefix: string;
 }
 
+/** An anonymous cookie that holds a Poppy guest. */
+export type PoppyGuestCookie = AnonymousCookiePayload & {
+  poppy: PoppyAgentState;
+};
+
 /** The result of looking at a login's ID token claims. */
 export type PoppyLogin =
   | { kind: "human" }
   | { kind: "agent"; state: PoppyAgentState }
   | { kind: "guest"; state: PoppyAgentState }
   // Looks like a guest but isn't a valid one: fail closed, never a user.
-  | { kind: "invalid_guest" };
+  | { kind: "invalid_guest" }
+  // Has a Poppy act but no valid sub or exp: fail closed, never a person.
+  | { kind: "invalid_agent" };
 
 function requireNonEmptyString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -191,15 +198,22 @@ export function classifyPoppyLogin(
       ? { kind: "guest", state }
       : { kind: "invalid_guest" };
   }
-  return state ? { kind: "agent", state } : { kind: "human" };
+  if (state) {
+    return { kind: "agent", state };
+  }
+  return isRecord(claims.act) && isPoppyAct(claims.act)
+    ? { kind: "invalid_agent" }
+    : { kind: "human" };
 }
 
 /**
  * The error to refuse a login with, or `undefined` to let it through.
  *
- * - A login that looks like a guest but isn't a valid one fails closed. The
- *   reason names claims, so it is logged here and kept out of the message,
- *   which the default `onCallback` returns to the browser.
+ * - A login that looks like a guest but isn't a valid one fails closed, and
+ *   so does one with a Poppy `act` but no valid `sub` or `exp`: an agent is
+ *   never taken as a person. The reason names claims, so it is logged here
+ *   and kept out of the message, which the default `onCallback` returns to
+ *   the browser.
  * - A guest completes only through the redirect callback, never a popup,
  *   passkey or passwordless login: guests come from a browser join. Those
  *   logins pass `allowGuest: false`.
@@ -207,22 +221,33 @@ export function classifyPoppyLogin(
  *   login with a Poppy agent `act`), or a new guest join (another `sub` or
  *   Poppy Session), may replace it. The agent join isn't compared with the
  *   guest: its `act.sub`, `poppy_user_id` and `poppy_sid` can differ from the
- *   guest join's, and only Auth0 issues a Poppy `act`. A person's login and
- *   the same guest coming back are refused: the browser is the agent's, and
- *   on Auth0 a guest's own login comes back as the same guest, so redirecting
- *   would loop.
+ *   guest join's, and only Auth0 issues a Poppy `act`. A person's login is
+ *   refused: the browser is the agent's.
+ * - The same guest coming back is refused while its access token is still
+ *   valid: on Auth0 a guest's own login, or a silent one, comes back as the
+ *   same guest, so redirecting would loop. Once the token has expired it is
+ *   accepted as a renewal of the token, at most once per token lifetime.
+ *
+ * `now` is the current time in Unix seconds.
  */
 export function getPoppyLoginError(
   login: PoppyLogin,
-  guest: PoppyAgentState | undefined,
+  guest: PoppyGuestCookie | undefined,
   claims: Record<string, unknown>,
   runtime: PoppyRuntime,
-  options: { allowGuest?: boolean } = {}
+  options: { allowGuest?: boolean; now: number }
 ): PoppyError | undefined {
   if (login.kind === "invalid_guest") {
     const reason = explainPoppyGuestFailure(claims, runtime);
     console.error(`[nextjs-auth0] Refused a Poppy guest login: ${reason}.`);
     return new PoppyError(PoppyErrorCode.INVALID_GUEST, undefined, reason);
+  }
+  if (login.kind === "invalid_agent") {
+    const reason = isNonEmptyString(claims.sub)
+      ? "the ID token exp is not a valid Unix time in seconds"
+      : "the ID token has no sub";
+    console.error(`[nextjs-auth0] Refused a Poppy agent login: ${reason}.`);
+    return new PoppyError(PoppyErrorCode.INVALID_AGENT, undefined, reason);
   }
   if (options.allowGuest === false && login.kind === "guest") {
     return new PoppyError(PoppyErrorCode.GUEST_NOT_SUPPORTED);
@@ -230,12 +255,13 @@ export function getPoppyLoginError(
   if (!guest || login.kind === "agent") {
     return undefined;
   }
-  if (
-    login.kind === "guest" &&
-    (login.state.sub !== guest.sub ||
-      login.state.act.poppy_sid !== guest.act.poppy_sid)
-  ) {
-    return undefined;
+  if (login.kind === "guest") {
+    const sameGuest =
+      login.state.sub === guest.poppy.sub &&
+      login.state.act.poppy_sid === guest.poppy.act.poppy_sid;
+    if (!sameGuest || guest.expires_at <= options.now) {
+      return undefined;
+    }
   }
   return new PoppyError(PoppyErrorCode.SIGN_IN_REQUIRED);
 }
@@ -321,16 +347,16 @@ export function attachPoppyAgentState(
 }
 
 /**
- * Whether an anonymous cookie holds a Poppy guest that hasn't ended: its token
- * and the Poppy Session are both still valid at `now` (Unix seconds).
+ * Whether an anonymous cookie holds a Poppy guest that hasn't ended. A guest
+ * lasts until its Poppy Session ends (the join's ID token `exp`), like a
+ * signed-in agent. Its access token can expire earlier: the guest is still
+ * there, and a silent login renews the token (see {@link getPoppyLoginError}).
  */
 export function isPoppyGuestActive(
-  payload: AnonymousCookiePayload,
-  now: number
-): boolean {
+  payload: AnonymousCookiePayload
+): payload is PoppyGuestCookie {
   return (
     payload.poppy !== undefined &&
-    payload.expires_at > now &&
     !isSessionCeilingReached(payload.poppy.sessionExpiresAt)
   );
 }
