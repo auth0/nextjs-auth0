@@ -2124,8 +2124,31 @@ export class AuthClient {
     // The spec only says a join SHOULD keep the browser's own login (§6).
     // `exists` also covers a session from another domain in resolver mode,
     // which reads as no session but is still in the browser.
-    const { exists } = await this.getSessionWithDomainCheck(req.cookies);
+    const { exists, session: replaced } = await this.getSessionWithDomainCheck(
+      req.cookies
+    );
     if (exists) {
+      // Revoke the session's refresh token first, as logout does, so it can't
+      // be replayed from a copy of the cookie. A failed revocation must not
+      // stop the join.
+      if (replaced?.tokenSet.refreshToken) {
+        try {
+          const [discoveryError, metadata] =
+            await this.discoverAuthorizationServerMetadata();
+          if (!discoveryError) {
+            await this.performTokenRevocation(
+              metadata,
+              replaced.tokenSet.refreshToken,
+              "refresh_token"
+            );
+          }
+        } catch (e) {
+          console.warn(
+            "[nextjs-auth0] Failed to revoke the refresh token of the session a Poppy guest replaced (the session is still ended):",
+            e
+          );
+        }
+      }
       await this.sessionStore.delete(req.cookies, res.cookies);
     }
 

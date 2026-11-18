@@ -44,10 +44,16 @@ const poppyConfig: PoppyConfig = {
 let keyPair: jose.GenerateKeyPairResult;
 let tokenResponse: Record<string, unknown> = {};
 let anonymousTokenRequests = 0;
+let revokedTokens: string[] = [];
 
 const server = setupServer(
   http.get(`${issuer}.well-known/openid-configuration`, () =>
-    HttpResponse.json(createAuthorizationServerMetadata(domain, { issuer }))
+    HttpResponse.json(
+      createAuthorizationServerMetadata(domain, {
+        issuer,
+        revocation_endpoint: `${issuer}oauth/revoke`
+      })
+    )
   ),
   http.get(`${issuer}.well-known/jwks.json`, async () =>
     HttpResponse.json({
@@ -62,6 +68,10 @@ const server = setupServer(
     })
   ),
   http.post(`${issuer}oauth/token`, () => HttpResponse.json(tokenResponse)),
+  http.post(`${issuer}oauth/revoke`, async ({ request }) => {
+    revokedTokens.push(new URLSearchParams(await request.text()).get("token")!);
+    return new HttpResponse(null, { status: 200 });
+  }),
   http.post(`${issuer}anonymous/token`, () => {
     anonymousTokenRequests++;
     return HttpResponse.json({ error: "unexpected" }, { status: 500 });
@@ -75,6 +85,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   anonymousTokenRequests = 0;
+  revokedTokens = [];
 });
 
 afterEach(() => {
@@ -189,17 +200,20 @@ async function login(
     path = "/auth/login",
     scope = "openid profile orders:write",
     expiresIn = 36000,
-    accessToken = "at_123"
+    accessToken = "at_123",
+    refreshToken
   }: {
     path?: string;
     scope?: string;
     expiresIn?: number;
     accessToken?: string;
+    refreshToken?: string;
   } = {}
 ) {
   const { state, nonce } = await startLogin(auth0, browser, path);
   tokenResponse = {
     access_token: accessToken,
+    ...(refreshToken && { refresh_token: refreshToken }),
     token_type: "Bearer",
     expires_in: expiresIn,
     scope,
@@ -731,6 +745,49 @@ describe("Poppy: agent guest", () => {
       act: { poppy_sid: "s_8Hq2" },
       scopes: []
     });
+  });
+
+  it("revokes the refresh token of the session it ends", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana" },
+      { refreshToken: "rt_ana" }
+    );
+
+    await login(auth0, browser, guestClaims());
+
+    expect(revokedTokens).toEqual(["rt_ana"]);
+    expect(browser.has("__session")).toBe(false);
+  });
+
+  it("still ends the session when the revocation fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    server.use(
+      http.post(`${issuer}oauth/revoke`, () =>
+        HttpResponse.json({ error: "server_error" }, { status: 500 })
+      )
+    );
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana" },
+      { refreshToken: "rt_ana" }
+    );
+
+    const res = await login(auth0, browser, guestClaims());
+
+    expect(res.status).toBe(307);
+    expect(browser.has("__session")).toBe(false);
+    expect(browser.has("auth0_anon")).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to revoke the refresh token"),
+      expect.anything()
+    );
   });
 
   it("leaves no session behind once that guest has ended", async () => {

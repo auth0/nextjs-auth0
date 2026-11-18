@@ -141,4 +141,30 @@ describe("Poppy discovery files", () => {
       "invalid_configuration"
     );
   });
+  it("refuses poppy with a domain resolver, since Poppy has one issuer", () => {
+    expect(
+      () =>
+        new Auth0Client({
+          domain: () => domain,
+          clientId,
+          clientSecret,
+          secret,
+          appBaseUrl,
+          poppy: { config: poppyConfig }
+        })
+    ).toThrow(/Poppy can't be used with a domain resolver/);
+  });
+
+  it("still allows a domain resolver without poppy", () => {
+    expect(
+      () =>
+        new Auth0Client({
+          domain: () => domain,
+          clientId,
+          clientSecret,
+          secret,
+          appBaseUrl
+        })
+    ).not.toThrow();
+  });
 });

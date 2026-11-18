@@ -657,6 +657,13 @@ export class Auth0Client {
     const poppy = options.poppy
       ? resolvePoppyRuntime(options.poppy)
       : undefined;
+    // Poppy has one issuer, and the discovery files name it, so it can't serve
+    // a domain that changes per request.
+    if (poppy && typeof options.domain === "function") {
+      throw new InvalidConfigurationError(
+        "Invalid poppy option: Poppy can't be used with a domain resolver, because it has one issuer. Set domain to a string."
+      );
+    }
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
