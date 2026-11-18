@@ -1556,6 +1556,42 @@ describe("Poppy: a guest outlives its access token", () => {
     );
   });
 
+  it("keeps the first join's deadline when it renews, though the new token's exp is later", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    const joinedAt = epoch();
+    // Auth0 keeps its session at 2 hours from the join, but gives each
+    // silent login fresh tokens with a later exp.
+    await login(
+      auth0,
+      browser,
+      { ...guestClaims, exp: joinedAt + 120 },
+      { expiresIn: 60 }
+    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 61 * 1000);
+
+    await login(
+      auth0,
+      browser,
+      { ...guestClaims, exp: epoch() + 7200 },
+      {
+        path: "/auth/login?prompt=none",
+        expiresIn: 60,
+        accessToken: "at_renewed"
+      }
+    );
+    expect(
+      (await auth0.getAnonymousSession(browser.request("/")))?.accessToken
+    ).toBe("at_renewed");
+
+    // Past the first join's exp, the guest has ended.
+    vi.setSystemTime((joinedAt + 121) * 1000);
+    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
+      kind: "human"
+    });
+  });
+
   it("ends when its Poppy Session ends", async () => {
     const auth0 = createClient();
     const browser = new Browser();

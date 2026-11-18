@@ -256,14 +256,25 @@ export function getPoppyLoginError(
     return undefined;
   }
   if (login.kind === "guest") {
-    const sameGuest =
-      login.state.sub === guest.poppy.sub &&
-      login.state.act.poppy_sid === guest.poppy.act.poppy_sid;
-    if (!sameGuest || guest.expires_at <= options.now) {
+    if (
+      !isSamePoppyGuest(login.state, guest.poppy) ||
+      guest.expires_at <= options.now
+    ) {
       return undefined;
     }
   }
   return new PoppyError(PoppyErrorCode.SIGN_IN_REQUIRED);
+}
+
+/**
+ * Whether two guest logins are the same guest: the same subject in the same
+ * Poppy Session.
+ */
+export function isSamePoppyGuest(
+  a: PoppyAgentState,
+  b: PoppyAgentState
+): boolean {
+  return a.sub === b.sub && a.act.poppy_sid === b.act.poppy_sid;
 }
 
 /**
