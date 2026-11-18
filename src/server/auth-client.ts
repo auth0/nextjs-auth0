@@ -191,6 +191,7 @@ import {
   getPoppyLoginError,
   HUMAN_POPPY_CONTEXT,
   isPoppyGuestActive,
+  isSamePoppyGuest,
   pickPoppyUserClaims,
   toPoppyAgentContext,
   toPoppyErrorResponse,
@@ -2074,7 +2075,22 @@ export class AuthClient {
     state: string,
     transactionState: TransactionState
   ): Promise<NextResponse> {
-    const ceiling = login.state.sessionExpiresAt;
+    // A renewal of the same guest keeps the guest's deadline. Auth0 gives each
+    // silent login fresh tokens with a later `exp`, but doesn't extend its own
+    // session, so the guest must not outlive the first join. The earlier of
+    // the two is kept in case Auth0 ever sends an `exp` before it.
+    const existing = await this.readPoppyGuest(req.cookies);
+    const guestState =
+      existing && isSamePoppyGuest(login.state, existing.poppy)
+        ? {
+            ...login.state,
+            sessionExpiresAt: Math.min(
+              login.state.sessionExpiresAt,
+              existing.poppy.sessionExpiresAt
+            )
+          }
+        : login.state;
+    const ceiling = guestState.sessionExpiresAt;
     if (isSessionCeilingInPast(ceiling, idTokenClaims.iat)) {
       return this.handleCallbackError(
         new AccessTokenError(
@@ -2097,7 +2113,7 @@ export class AuthClient {
         expires_at: Number.isFinite(tokenExpiresAt)
           ? Math.min(tokenExpiresAt, ceiling)
           : ceiling,
-        poppy: login.state
+        poppy: guestState
       },
       req.cookies,
       res.cookies
