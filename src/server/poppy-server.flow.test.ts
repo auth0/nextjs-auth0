@@ -269,8 +269,7 @@ describe("Poppy: third-party-initiated login", () => {
     );
   });
 
-  it("ignores target_link_uri when iss is not the configured issuer", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("refuses a login whose iss is not the configured issuer", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     const query = new URLSearchParams({
@@ -278,26 +277,17 @@ describe("Poppy: third-party-initiated login", () => {
       target_link_uri: `${appBaseUrl}/account/email`
     });
 
-    const { authorizeUrl } = await startLogin(
-      auth0,
-      browser,
-      `/auth/login?${query}`
-    );
-    expect(authorizeUrl.searchParams.has("iss")).toBe(false);
-    expect(authorizeUrl.searchParams.has("target_link_uri")).toBe(false);
+    const res = await auth0.middleware(browser.request(`/auth/login?${query}`));
 
-    const res = await login(
-      auth0,
-      browser,
-      { sub: "auth0|ana" },
-      {
-        path: `/auth/login?${query}`
-      }
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+    const body = await res.text();
+    expect(body).toBe(
+      "Invalid iss query param: it is not the Auth0 issuer this app uses."
     );
-    expect(new URL(res.headers.get("location")!).pathname).toBe("/");
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("iss does not match")
-    );
+    // Neither value is echoed back.
+    expect(body).not.toContain("attacker.example");
+    expect(res.cookies.getAll()).toEqual([]);
   });
 
   it("without the poppy option, still forwards both parameters as before", async () => {

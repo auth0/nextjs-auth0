@@ -2,6 +2,7 @@ import { NextResponse } from "next/server.js";
 
 import {
   InvalidConfigurationError,
+  InvalidRequestError,
   PoppyError,
   PoppyErrorCode
 } from "../errors/index.js";
@@ -261,13 +262,13 @@ export function toPoppyErrorResponse(error: unknown): NextResponse | undefined {
  * and `target_link_uri`.
  *
  * Removes both from `searchParams`, since neither is an /authorize parameter.
- * Returns the join only when `iss` is one of `issuers`; any other login
- * returns `undefined`. The join lands on `target_link_uri` when it is on
- * `safeBaseUrl`'s origin. Anything else is ignored with a warning rather than
- * refused: the parameters only choose where the browser lands, the login
- * itself always uses the configured issuer, so ignoring them costs nothing,
- * while a 400 would break a join over a cosmetic mismatch. The values are not
- * logged, since anyone can put them in the URL.
+ * Without `iss`, it's a normal login and returns `undefined`. An `iss` that
+ * isn't one of `issuers` throws {@link InvalidRequestError}: the login says it
+ * comes from another issuer, so it is refused rather than run as a normal one
+ * (OIDC Core §4). The join lands on `target_link_uri` only when it is on
+ * `safeBaseUrl`'s origin; any other target is ignored with a warning, since
+ * it only chooses where the browser lands. The values are not logged or
+ * echoed, since anyone can put them in the URL.
  */
 export function extractPoppyJoin(
   searchParams: Record<string, string>,
@@ -282,10 +283,9 @@ export function extractPoppyJoin(
     return undefined;
   }
   if (!issuers.includes(iss)) {
-    console.warn(
-      "[nextjs-auth0] Ignoring a third-party-initiated login: iss does not match the configured Poppy issuer, so it is handled as a normal login."
+    throw new InvalidRequestError(
+      "Invalid iss query param: it is not the Auth0 issuer this app uses."
     );
-    return undefined;
   }
   if (targetLinkUri === undefined) {
     return {};

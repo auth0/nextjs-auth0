@@ -30,7 +30,7 @@ An agent reaches your site in two ways. It can call your APIs with a signed `Pop
 3. Auth0 sends the browser to your `/auth/login` with `iss` and `target_link_uri`, then back to `/auth/callback`, and the SDK exchanges the code as for any login. **The SDK reads the agent from the ID token Auth0 signed.**
 4. Your code asks `auth0.poppy.getContext()` who is driving.
 
-The SDK treats a login as the agent's join only when `iss` matches your issuer. Without it, `target_link_uri` is ignored and the browser lands on your default page.
+The SDK treats a login as the agent's join only when `iss` matches your issuer. Without `iss`, `target_link_uri` is ignored and the browser lands on your default page. A different `iss` is refused with `400`.
 
 An agent is either a **guest** (the customer hasn't approved it yet) or **signed in** (it acts in the customer's account).
 
@@ -57,7 +57,7 @@ auth0 poppy config --company-domain fernway.com --out ./poppy.json
 auth0 poppy doctor fernway.com --config ./poppy.json
 ```
 
-`poppy.json` is your discovery document, and it holds no secrets, so it's safe to commit. The SDK serves it as written at `/.well-known/poppy.json`. It reads only two values from it:
+`poppy.json` is your discovery document, and it holds no secrets, so it's safe to commit. The SDK serves it as written at `/.well-known/poppy.json`, so the whole file is public: don't add anything private to it. It reads only two values from it:
 
 | Field | Used for |
 | --- | --- |
@@ -66,7 +66,7 @@ auth0 poppy doctor fernway.com --config ./poppy.json
 
 The SDK checks only these two at startup. `auth0 poppy doctor` checks the rest of the file.
 
-**Set `web.unscoped` to `true` unless your app limits the agent to its scopes.** A signed-in agent gets a normal `getSession()`, so by default your website gives it everything the account can do, and the protocol requires `web.unscoped: true` in that case. If your app instead checks the agent's `scopes` from `getContext()` before each action, leave it out.
+**Set `web.unscoped` to `true` unless your app limits the agent to its scopes.** A signed-in agent gets a normal `getSession()`, so by default your website gives it everything the account can do, and the protocol requires `web.unscoped: true` in that case. If your app instead checks the agent's `scopes` from `getContext()` before each action, leave it out. To get those scopes, add your API's scopes to `authorizationParameters.scope`: Auth0 grants only the ones the customer approved for the agent.
 
 ### 3. Turn it on
 
@@ -331,7 +331,8 @@ To run a real agent join, you need a tenant with Poppy enabled, an agent registe
 | `/auth/login` fails with "An error occurred while trying to initiate the login request." | The server can't reach your tenant. Check the server log for the underlying error |
 | Log in, or a protected page, ends on "An agent guest is driving this browser…" | A guest is in the browser, and only a signed-in agent join can replace it. Log out (`/auth/logout`) to end the guest, then log in. On Auth0 the guest's own login comes back as the same guest, which the SDK stops instead of looping |
 | The callback fails with `invalid_poppy_guest` | Read the server log, or `error.reason` in your `onCallback`. It names the failing check |
-| The agent lands on your home page after a join, not the page it asked for | The join didn't send `iss`, or `iss` doesn't match your issuer, so `target_link_uri` was ignored. A mismatched `iss` logs a warning; a missing one doesn't |
+| The agent lands on your home page after a join, not the page it asked for | The join didn't send `iss`, so `target_link_uri` was ignored |
+| `/auth/login` answers `400` with "Invalid iss query param" | The join's `iss` isn't your `auth.issuer` or your tenant's issuer. Check `auth.issuer` in `poppy.json` |
 | `poppy.getContext()` throws `poppy_not_enabled` | The `poppy` option isn't set, or `routes.poppyContext` is set to a path other than `NEXT_PUBLIC_POPPY_CONTEXT_ROUTE` |
 | A signed-in agent's join fails at the callback | Auth0 needed to show a prompt, such as MFA, which an agent can't complete. Skip the prompt for these logins, for example in an Action |
 | A guest isn't kept in the browser | The guest cookie is `Secure` by default, so serve the site over HTTPS |

@@ -1281,16 +1281,24 @@ export class AuthClient {
       );
     }
 
-    const poppyJoin = this.poppy
-      ? extractPoppyJoin(
+    let poppyJoin: { returnTo?: string } | undefined;
+    if (this.poppy) {
+      try {
+        poppyJoin = extractPoppyJoin(
           searchParams,
           [this.poppy.issuer, this.issuer],
           new URL(
             (this.authorizationParameters.redirect_uri as string | undefined) ||
               resolveAppBaseUrl(this.appBaseUrl, req)
           )
-        )
-      : undefined;
+        );
+      } catch (e) {
+        if (e instanceof InvalidRequestError) {
+          return new NextResponse(e.message, { status: 400 });
+        }
+        throw e;
+      }
+    }
 
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
