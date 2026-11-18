@@ -6,7 +6,7 @@ import { buildPoppyDiscoveryDocuments } from "./poppy-discovery-helpers.js";
 
 // The poppy.json written by `auth0 poppy config`.
 const validConfig: PoppyConfig = {
-  protocol_version: "0.3",
+  protocol_version: "1.0",
   organization: { name: "Fernway", domain: "fernway.com" },
   auth: {
     issuer: "https://auth.fernway.com/",
@@ -67,14 +67,6 @@ describe("buildPoppyDiscoveryDocuments", () => {
     });
   });
 
-  it("lowercases the domain in the protected resource", () => {
-    const { protectedResource } = buildPoppyDiscoveryDocuments(
-      withDomain("Fernway.COM")
-    );
-
-    expect(protectedResource.resource).toBe("https://fernway.com");
-  });
-
   it("keeps a port other than 443 in the protected resource", () => {
     const { protectedResource } = buildPoppyDiscoveryDocuments(
       withDomain("fernway.com:8443")
@@ -104,6 +96,32 @@ describe("buildPoppyDiscoveryDocuments", () => {
       ["a missing domain", undefined]
     ])("rejects an organization.domain with %s", (_case, domain) => {
       expectInvalid(withDomain(domain), /organization\.domain must/);
+    });
+
+    it("rejects a domain that isn't lowercase, and suggests the fix", () => {
+      expectInvalid(
+        withDomain("Fernway.COM"),
+        /organization\.domain must be lowercase: use "fernway\.com"/
+      );
+    });
+
+    it("rejects an internationalized domain that isn't in punycode, and suggests the fix", () => {
+      expectInvalid(
+        withDomain("bücher.de"),
+        /ASCII \(punycode\) form: use "xn--bcher-kva\.de"/
+      );
+    });
+
+    it.each([
+      ["with an uppercase host", "https://AUTH.fernway.com/"],
+      ["with the default port", "https://auth.fernway.com:443/"],
+      ["with a path", "https://auth.fernway.com//"],
+      ["with a longer path", "https://auth.fernway.com/tenant/"]
+    ])("rejects an issuer %s", (_case, issuer) => {
+      expectInvalid(
+        withIssuer(issuer),
+        /auth\.issuer must match Auth0's issuer exactly, such as "https:\/\/auth\.fernway\.com\/"/
+      );
     });
 
     it("rejects the default port 443, and suggests the fix", () => {

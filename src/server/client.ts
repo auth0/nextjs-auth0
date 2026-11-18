@@ -664,6 +664,13 @@ export class Auth0Client {
         "Invalid poppy option: Poppy can't be used with a domain resolver, because it has one issuer. Set domain to a string."
       );
     }
+    // Enterprise Connect keeps no session cookie of its own, while a guest
+    // lives in this app's cookie: the two don't fit together.
+    if (poppy && options.enterpriseConnect) {
+      throw new InvalidConfigurationError(
+        "Invalid poppy option: Poppy can't be used with enterpriseConnect."
+      );
+    }
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;

@@ -15,7 +15,7 @@ import {
 } from "./poppy-helpers.js";
 
 const config: PoppyConfig = {
-  protocol_version: "0.3",
+  protocol_version: "1.0",
   organization: { name: "Fernway", domain: "fernway.com" },
   auth: { issuer: "https://auth.fernway.com/" },
   web: {

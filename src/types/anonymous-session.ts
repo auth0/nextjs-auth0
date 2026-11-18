@@ -11,7 +11,11 @@ import type * as jose from "jose";
  * @category Session
  */
 export interface AnonymousSession {
-  /** Anonymous subject, always "anon@{uuid}" (extracted from access token sub claim) */
+  /**
+   * Anonymous subject (extracted from the access token's `sub` claim):
+   * `anon@{uuid}` for an anonymous session, or the guest's `anon_poppy@…`
+   * subject for a Poppy agent guest.
+   */
   id: string;
   /** Bearer token for API calls; validates per access_token JWT expiry */
   accessToken: string;
