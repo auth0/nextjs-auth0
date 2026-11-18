@@ -85,7 +85,7 @@ The config is passed as an object, not a path, so it also works in Edge middlewa
 Agents fetch the files at the host root, so if your app has a `basePath`, serve them at the root another way; the SDK warns at startup. Your middleware matcher has to let `/.well-known/*` through to the SDK:
 
 ```ts
-// middleware.ts (or proxy.ts)
+// middleware.ts (on Next.js 16, proxy.ts, with the function named proxy)
 import type { NextRequest } from "next/server";
 import { auth0 } from "./lib/auth0";
 
@@ -173,7 +173,7 @@ const cartKey =
     : (await auth0.getSession())?.user.sub;
 ```
 
-This key stays the same from guest to signed in only when the agent signs in within the same Poppy Session and its link in Auth0 doesn't change: Auth0 takes `poppy_sid` from each join and `act.sub` from the agent's link at the time. Otherwise the signed-in agent gets another key, so move the guest's cart when the agent signs in if you need to keep it.
+This key stays the same from guest to signed in only when the agent signs in within the same Poppy Session and its link in Auth0 doesn't change: Auth0 takes `poppy_sid` from each join and `act.sub` from the agent's link at the time. Otherwise the signed-in agent gets another key, so move the guest's cart when the agent signs in if you need to keep it. The guest cookie is deleted when the agent signs in, so save the guest's key in your own storage (for example a cookie of your own) while the guest is present.
 
 **Server Action: set your own rules for agents**
 
@@ -186,7 +186,9 @@ export async function placeOrder(cart: Cart) {
     await saveOrder(cart, { placedVia: poppy.act.sub });
     return;
   }
-  await saveOrder(cart);
+  const session = await auth0.getSession();
+  if (!session) throw new Error("Log in to order");
+  await saveOrder(cart, { customer: session.user.sub });
 }
 ```
 
@@ -196,7 +198,7 @@ export async function placeOrder(cart: Cart) {
 const poppy = await auth0.poppy.getContext(req);
 ```
 
-`getContext()` always returns `{ kind: "human" }` when the `poppy` option isn't set. A guest and a session are never in the browser together: see [Guests and signed-in agents](#guests-and-signed-in-agents).
+`getContext()` always returns `{ kind: "human" }` when the `poppy` option isn't set. A guest join ends any session in the browser: see [Guests and signed-in agents](#guests-and-signed-in-agents).
 
 The SDK keeps no storage of its own for Poppy Sessions. Where you keep carts and how you link a guest to a customer is up to your app, and `act.poppy_sid` is the key to use.
 
@@ -212,14 +214,14 @@ import { PoppyErrorCode } from "@auth0/nextjs-auth0/errors";
 try {
   const context = await poppy.getContext(); // the same value as auth0.poppy.getContext()
   if (context.kind === "agent") showAgentBanner(context.state);
-} catch (error) {
-  if (error.code === PoppyErrorCode.NOT_ENABLED) {
+} catch (error: any) {
+  if (error?.code === PoppyErrorCode.NOT_ENABLED) {
     // the route answered 404: the poppy option isn't set
   }
 }
 ```
 
-The route answers `GET` only, is never cached, returns `404` when the `poppy` option isn't set, and `401` when the session can't be read. It returns no tokens, but the token's `sub` and `sub_profile` and every `act` claim, such as `poppy_sid`, `poppy_user_id`, `client_id` and `iss`, become readable by every script on the page, including analytics and other third-party scripts, so only call it on pages that need it.
+The route answers `GET` only, is never cached, returns `404` when the `poppy` option isn't set, and `401` when the session can't be read and no guest is present. It returns no tokens, but the token's `sub` and `sub_profile` and every `act` claim, such as `poppy_sid`, `poppy_user_id`, `client_id` and `iss`, are readable by every script on your origin, including analytics and other third-party scripts. Not calling it doesn't hide them: while the `poppy` option is set, any script on your origin can fetch the route, as it can `/auth/profile`, so only load scripts you trust.
 
 To change the path, set `NEXT_PUBLIC_POPPY_CONTEXT_ROUTE`, which both the server and `poppy.getContext()` read. If you set `routes.poppyContext` instead, set the variable to the same path.
 
@@ -232,13 +234,13 @@ There is no hook: `useUser()` stays `null` for a guest, because a guest is not a
 | Stored in | The anonymous session cookie (`auth0_anon`). `anonymousSession` doesn't need to be enabled | The normal session cookie |
 | `getSession()` | **`null`**, so code that only checks "logged in" never treats a guest as a customer | The customer's session |
 | `getAnonymousSession()` | The guest: `{ id, accessToken, expiresAt }` | `null` |
-| Lifetime | Until the join's ID token expires (Auth0 caps it at 2 hours). Its access token can expire sooner: `getAnonymousSession()` is then `null` until a silent login renews it | Until the join's ID token expires. Rolling can't extend it past that |
+| Lifetime | At most until the join's ID token expires (Auth0 caps it at 2 hours), or sooner if `anonymousSession.cookie.maxAge` is shorter. Its access token can expire sooner: `getAnonymousSession()` is then `null` until a silent login renews it | At most until the join's ID token expires, or sooner under the session's own duration. Rolling can't extend it past that |
 | `onCallback`, `beforeSessionSaved` | **Not called**: both receive a user session, so a hook written for people could treat the guest as a customer | Called as usual |
 | Agent state | Inside the guest cookie | In `session.internal.poppy`. `beforeSessionSaved` and `updateSession` can't remove it |
 
 When the customer approves the agent and it joins again, the SDK replaces the guest with the customer's session and deletes the guest cookie, even if `clearAnonymousSessionOnLogin` is `false`.
 
-**A guest and a session are never in the browser together.** Auth0 refuses a guest join in a browser signed in to an account: it shows a `session_conflict` error page on its own domain, so the join never reaches your site. A guest join over an earlier guest replaces it. If a guest join still finds a session in your app, for example because your app's session outlived the Auth0 session, the SDK ends that session, a person's or a signed-in agent's, so the agent never acts with an account it wasn't approved for. It revokes the session's refresh token first, as logout does, and ends the session even if the revocation fails. The Poppy spec says a join SHOULD keep the browser's own login; the SDK ends it for that reason.
+**A guest join replaces any session it finds in the browser.** Auth0 refuses a guest join in a browser signed in to an account: it shows a `session_conflict` error page on its own domain, so the join never reaches your site. A guest join over an earlier guest replaces it. If a guest join still finds a session in your app, for example because your app's session outlived the Auth0 session, the SDK ends that session, a person's or a signed-in agent's, so the agent never acts with an account it wasn't approved for. It revokes the session's refresh token first, as logout does, and ends the session even if the revocation fails. Logins that complete at the same time can still leave both; `getContext()` then reports the agent. The Poppy spec says a join SHOULD keep the browser's own login; the SDK ends it for that reason.
 
 **Only a signed-in agent join can replace a guest.** While a guest is in the browser, a login replaces it only if it's a signed-in agent join (a login whose ID token has a Poppy agent `act`), or a new guest join (another guest `sub` or Poppy Session). The SDK doesn't compare the agent join with the guest, since the agent's `act.sub`, `poppy_user_id` and `poppy_sid` can differ between the two joins. Any other login is refused with `poppy_sign_in_required`: a person's login, by the usual redirect, a popup, a passkey or passwordless, and the same guest coming back while its access token is valid. That last one matters: on Auth0 a guest's own login comes back as the same guest, so a page that sends a guest to log in would otherwise loop. The SDK refuses after one round trip. Once the guest's access token has expired, the same guest coming back is accepted once, to renew the token. The callback passes the error to `onCallback`, whose default answers `500` with the error message; logging out ends the guest, and the person can then sign in. The passkey and passwordless routes answer `403` JSON, and `auth0.passkey.*` and `auth0.passwordless.*` throw the `PoppyError`. A guest that has already ended doesn't block anything.
 
@@ -277,13 +279,13 @@ A login that looks like a guest (an `anon_poppy@` subject or Auth0's anonymous `
 
 ```ts
 import { NextResponse } from "next/server";
-import { PoppyErrorCode } from "@auth0/nextjs-auth0/errors";
+import { type PoppyError, PoppyErrorCode } from "@auth0/nextjs-auth0/errors";
 
 export const auth0 = new Auth0Client({
   poppy: { config: poppyConfig },
   onCallback: async (error, context) => {
     if (error?.code === PoppyErrorCode.INVALID_GUEST) {
-      console.error("Poppy login refused:", error.reason);
+      console.error("Poppy login refused:", (error as PoppyError).reason);
       return new NextResponse("Sign-in failed.", { status: 500 });
     }
     // ...
@@ -319,8 +321,8 @@ To run a real agent join, you need a tenant with Poppy enabled, an agent registe
 ## Limitations
 
 - **No refresh token.** Auth0 issues no refresh token for a join, by design: the website's session must not outlive what the agent was allowed, at most 2 hours. For a signed-in agent, `getAccessToken()` can't refresh the token or get one for another audience; when the session ends, the agent joins again. A login for an API the customer didn't approve for the agent fails with an authorization error.
-- **Silent login for a guest.** While the guest's token is valid, a silent login (`prompt=none`) is refused with `poppy_sign_in_required`, so a page can't loop. Once the token has expired, the SDK accepts the same guest and stores the new token, but keeps the first join's deadline: Auth0's guest session lasts 2 hours from the join, and a renewal doesn't extend it. Auth0 returns the guest only while that session is live; after it, a silent login answers `login_required` and a normal one shows Auth0's login page. Don't run silent logins for a guest: check `poppy.getContext()` first.
-- **Disconnecting.** Only revoking the agent's refresh token ends the browser's sign-in early. Removing a grant or blocking the user doesn't. Tokens from the join last at most 2 hours.
+- **Silent login for a guest.** While the guest's token is valid, a silent login (`prompt=none`) is refused with `poppy_sign_in_required`, so a page can't loop. Once the token has expired, the SDK accepts the same guest and stores the new token, but keeps the first join's deadline: Auth0's guest session lasts 2 hours from the join, and a renewal doesn't extend it. Auth0 returns the guest only while that session is live; after it, a silent login answers `login_required` and a normal one shows Auth0's login page. Run a silent login for a guest only to renew its token: when `poppy.getContext()` reports a guest and `getAnonymousSession()` is `null`.
+- **Disconnecting.** The website's session from a join has no refresh token, and the SDK doesn't check with Auth0 during the session, so it lasts until the join's ID token expires, at most 2 hours. Revoking the agent's refresh token, removing a grant or blocking the user doesn't end it sooner; logging the browser out does.
 - **`protected_resources`.** Agents check that Auth0's metadata lists your domain there. Until Auth0 publishes it, agents may not trust your site.
 - **Other apps on the tenant.** Auth0 doesn't limit a guest's session to the app that created it: another first-party app on the tenant with browser join enabled can sign in to it as the same `anon_poppy@…` user. An app without the `poppy` option would take that user for a customer.
 - **Back-channel logout.** It doesn't reach guests, which live only in the browser's guest cookie.
@@ -335,7 +337,7 @@ To run a real agent join, you need a tenant with Poppy enabled, an agent registe
 | Agents ignore the site | `issuer` doesn't match Auth0's character for character, or the site isn't on a public HTTPS host |
 | `/auth/login` fails with "An error occurred while trying to initiate the login request." | The server can't reach your tenant. Check the server log for the underlying error |
 | Log in, or a protected page, ends on "An agent guest is driving this browser…" | A guest is in the browser, and only a signed-in agent join can replace it. Log out (`/auth/logout`) to end the guest, then log in. On Auth0 the guest's own login comes back as the same guest, which the SDK stops instead of looping |
-| A signed-in agent's login fails with `access_denied`: "The requested audience is not authorized for this session." | The login's `audience` doesn't match the API the customer approved for the agent. Set `authorizationParameters.audience` to that API's identifier |
+| A signed-in agent's login fails with `access_denied`: "The requested audience is not authorized for this session." | The login's `audience` doesn't match the API the customer approved for the agent. Set `authorizationParameters.audience` to that API's identifier, and fix or remove any `audience` the login link passes, which overrides it |
 | The callback fails with `invalid_poppy_guest` or `invalid_poppy_agent` | Read the server log, or `error.reason` in your `onCallback`. It names the failing check |
 | The agent lands on your home page after a join, not the page it asked for | Expected today: Auth0's join sends no `target_link_uri`. When a join sends one, it is used only with a matching `iss` |
 | `/auth/login` answers `400` with "Invalid iss query param" | The join's `iss` isn't your `auth.issuer` or your tenant's issuer. Check `auth.issuer` in `poppy.json` |
