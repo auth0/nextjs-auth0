@@ -1,5 +1,5 @@
 {
-  "protocol_version": "<major.minor>",
+  "protocol_version": "1.0",
   "organization": {
     "name": "Fernway",
     "domain": "fernway.com"
@@ -16,6 +16,13 @@
       }
     }
   },
+  "apis": [
+    {
+      "type": "openapi",
+      "url": "https://YOUR-CARTS-API-HOST/openapi.json",
+      "description": "carts"
+    }
+  ],
   "web": {
     "browser_session_endpoint": "https://YOUR-TENANT.us.auth0.com/poppy/YOUR_WEB_APP_CLIENT_ID/browser-session",
     "unscoped": true
