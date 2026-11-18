@@ -23,7 +23,13 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 1. Copy `.env.example` to `.env.local` and fill in your Auth0 application's values.
 2. In your Auth0 application, add `http://localhost:3000/auth/callback` to the allowed callback URLs and `http://localhost:3000` to the allowed logout URLs.
 3. In `poppy.json`, replace the placeholders with your values, or generate it with `auth0 poppy config` (see [The config file](#the-config-file)). For local testing set `organization.domain` to `localhost:3000`.
-4. Install and start:
+4. Build the SDK this example links to (`file:../..`). Its `dist/` folder isn't committed, so run this once from the repository root, and again after you change the SDK:
+
+   ```bash
+   pnpm install && pnpm run build
+   ```
+
+5. Install and start the example, from this folder:
 
    ```bash
    pnpm install
@@ -77,7 +83,18 @@ With the app running and the cookies for your host cleared:
 
 > **The cart is stored in memory.** The app remembers which cart belongs to which Poppy session in a `Map` in the server process (`lib/carts.ts`). It is lost when the server restarts, and it is not shared between instances, so on a serverless host such as Vercel a cart can look empty on the next request. This is for the demo only: use your own storage (a database or Redis) in a real app.
 
-The `/cart` page lets an agent guest manage a cart through a separate carts API, a small Express resource server that expects an Auth0 access token for its audience.
+The `/cart` page lets an agent guest manage a cart through a separate carts API, a small resource server that expects an Auth0 access token for its audience. It isn't part of this repository: run any server that answers these routes, as `lib/carts.ts` calls them.
+
+| Route | Body | Answer |
+| --- | --- | --- |
+| `POST /carts` | `{}` | The new cart: `{ id, items, total }` |
+| `GET /carts/{id}` | | The cart, or `404` when the API doesn't know it |
+| `PUT /carts/{id}` | `{ items: [] }` | The emptied cart |
+| `POST /carts/{id}/items` | An item: `{ productId, name, price, quantity }` | The cart |
+| `PATCH /carts/{id}/items/{productId}` | `{ quantity }` | The cart |
+| `DELETE /carts/{id}/items/{productId}` | | The cart |
+
+Every route takes the access token as `Authorization: Bearer <token>` and answers `401` when it rejects it.
 
 1. Start the carts API on `http://localhost:4000` (set `CARTS_API_URL` if it runs elsewhere).
 2. Set `AUTH0_AUDIENCE` in `.env.local` to the carts API's identifier, so the access token an agent guest gets from the join is valid for it. Leave it unset if your tenant's default audience already is that API.
@@ -93,6 +110,8 @@ An agent only reaches your site over public HTTPS. To see an agent show up as **
 
 - a tenant with Poppy enabled and an agent registered on it,
 - this app on a public HTTPS host (a tunnel works),
-- `organization.domain` in `poppy.json` set to that host.
+- `organization.domain` in `poppy.json` set to that host,
+- `APP_BASE_URL` in `.env.local` set to that public origin, for example `https://<host>`,
+- `https://<host>/auth/callback` in your application's allowed callback URLs, and `https://<host>` in its allowed logout URLs.
 
 The [Poppy guide](../../guides/poppy.md) covers each step, local testing and troubleshooting.
