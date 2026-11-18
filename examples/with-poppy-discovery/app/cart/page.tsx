@@ -6,8 +6,10 @@ export default async function Cart() {
   const poppy = await auth0.poppy.getContext();
   const session = await auth0.getSession();
 
-  // Key the cart by the Poppy session for an agent. A guest agent and the same
-  // agent after the customer signs in share it, so the cart carries over.
+  // Key the cart by the Poppy session for an agent. The key stays the same
+  // from guest to signed in only when the agent signs in within the same Poppy
+  // Session and its link in Auth0 doesn't change; otherwise the signed-in
+  // agent gets a new, empty cart.
   const owner =
     poppy.kind === "agent"
       ? `${poppy.act.sub} · ${poppy.act.poppy_sid}`

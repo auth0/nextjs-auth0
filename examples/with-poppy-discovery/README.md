@@ -14,7 +14,7 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 | `app/page.tsx` | Calls `auth0.poppy.getContext()` to show who is driving, and offers Log in, or Log out for a person or an agent |
 | `app/inspector.tsx`, `app/api/inspect/route.ts` | Buttons on the home page that call `auth0.poppy.getContext()`, `getSession()` and `getAnonymousSession()` on the server and show the result (tokens left out) |
 | `app/browser-context.tsx` | A button that calls the client-side `poppy.getContext()`, which reads the SDK's `/auth/poppy-context` route |
-| `app/cart/page.tsx` | Keys a cart by the Poppy session. For an agent guest it shows the cart manager below, and for anyone else a notice |
+| `app/cart/page.tsx` | Keys a cart by the Poppy session. For an agent guest it shows the cart manager below, and for anyone else a notice. The key changes on sign-in unless the agent stays in the same Poppy Session |
 | `app/cart-manager.tsx` | The shop and cart UI: add items, change quantities, remove items, clear the cart |
 | `lib/carts.ts`, `app/api/cart/**` | Server routes that call the carts API with the guest's access token. The browser never sees the token |
 
@@ -59,6 +59,7 @@ A guest lasts until the join's ID token expires (Auth0 caps it at 2 hours), but 
 - `poppy.getContext()` still reports the guest, and **Log in** is still refused, so a person can't sign in over the agent.
 - `getAnonymousSession()` returns `null` until the token is renewed.
 - A silent login renews it: open `/auth/login?prompt=none&returnTo=/`. The SDK accepts the same guest coming back once its token has expired and stores the new token. While the token is still valid the same login is refused, so nothing can loop.
+- A renewal keeps the first join's deadline. Auth0's guest session lasts 2 hours from the join and isn't extended, though each silent login returns a later `exp`. After it, a silent login answers `login_required`, and the agent joins again.
 
 Auth0 gives a browser join **no refresh token**, for a guest or a signed-in agent. This is by design: the website's session must not outlive what the agent was allowed. When the session ends, the agent joins again.
 
