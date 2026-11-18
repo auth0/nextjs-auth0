@@ -1740,27 +1740,84 @@ describe("Poppy: a session from another domain", () => {
 });
 
 describe("Poppy: popup merge", () => {
-  it("records the agent when its popup login merges into a session", async () => {
+  it("replaces the session with the agent's when its popup login finds one", async () => {
     const auth0 = createClient();
     const browser = new Browser();
-    await login(auth0, browser, { sub: "auth0|ana" });
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana" },
+      { scope: "openid profile admin:all", refreshToken: "rt_ana" }
+    );
 
     await login(
       auth0,
       browser,
       { sub: "auth0|ana", act: agentAct() },
-      { path: "/auth/login?challengeMode=popup" }
+      {
+        path: "/auth/login?challengeMode=popup",
+        scope: "openid profile orders:write",
+        accessToken: "at_agent"
+      }
     );
 
     const session = await auth0.getSession(browser.request("/"));
+    // The agent's own tokens, not the person's: no merge of the two.
+    expect(session?.tokenSet.accessToken).toBe("at_agent");
+    expect(session?.tokenSet.refreshToken).toBeUndefined();
+    expect(session?.tokenSet.scope).toBe("openid profile orders:write");
     expect(session?.internal.poppy?.act).toMatchObject({ poppy_sid: "s_8Hq2" });
     expect(session?.internal.sessionExpiresAt).toBe(
       session?.internal.poppy?.sessionExpiresAt
     );
     expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
       kind: "agent",
-      state: "signed_in"
+      state: "signed_in",
+      scopes: ["openid", "profile", "orders:write"]
     });
+  });
+
+  it("still merges a person's popup login into the session", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana" },
+      { refreshToken: "rt_ana" }
+    );
+
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana" },
+      { path: "/auth/login?challengeMode=popup", accessToken: "at_step_up" }
+    );
+
+    const session = await auth0.getSession(browser.request("/"));
+    expect(session?.tokenSet.refreshToken).toBe("rt_ana");
+  });
+});
+
+describe("Poppy: sessions that carry a property named poppy", () => {
+  // An app's hook may add any top-level property; only `user` and `tokenSet`
+  // make a session.
+  it.each([
+    ["with the poppy option", {}],
+    ["without the poppy option", { poppy: undefined }]
+  ])("are still sessions, %s", async (_case, options) => {
+    const auth0 = createClient({
+      ...options,
+      beforeSessionSaved: async (session) => ({
+        ...session,
+        poppy: { appData: true }
+      })
+    });
+    const browser = new Browser();
+    await login(auth0, browser, { sub: "auth0|ana" });
+
+    const session = await auth0.getSession(browser.request("/"));
+    expect(session?.user.sub).toBe("auth0|ana");
   });
 });
 

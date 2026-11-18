@@ -482,8 +482,7 @@ function isSessionPayload(session: SessionData): boolean {
     typeof value.user === "object" &&
     value.user !== null &&
     typeof value.tokenSet === "object" &&
-    value.tokenSet !== null &&
-    !("poppy" in value)
+    value.tokenSet !== null
   );
 }
 
@@ -1790,8 +1789,13 @@ export class AuthClient {
 
       // Merge new token into existing session (do NOT create fresh session)
       // Use getSessionWithDomainCheck to enforce MCD domain isolation
-      const { error: sessionError, session: existingSession } =
+      const { error: sessionError, session: sessionInBrowser } =
         await this.getSessionWithDomainCheck(req.cookies);
+      // A Poppy agent's login replaces the session, as it does on a redirect:
+      // a merge would keep the other login's token set, scope and refresh
+      // token beside the agent.
+      const existingSession =
+        popupPoppyLogin.kind === "agent" ? null : sessionInBrowser;
 
       // If domain check failed in MCD mode, return error via postMessage
       if (sessionError) {
@@ -1814,11 +1818,6 @@ export class AuthClient {
           transactionState,
           idTokenClaims
         );
-        // The merge takes the agent's claims and tokens, so record the agent
-        // and its cap too, as for a new session.
-        if (popupPoppyLogin.kind === "agent") {
-          attachPoppyAgentState(existingSession, popupPoppyLogin.state);
-        }
         const mergedSession = await this.finalizeSession(
           existingSession,
           oidcRes.id_token
@@ -1850,7 +1849,8 @@ export class AuthClient {
         await this.transactionStore.delete(popupResponse.cookies, state);
         return popupResponse;
       } else {
-        // No existing session (edge case: session expired during popup flow)
+        // No existing session (edge case: session expired during popup flow),
+        // or a Poppy agent's login, which starts a fresh session.
         if (!idTokenClaims) {
           const popupResponse = createAuthCompletePostMessageResponse({
             success: false,
@@ -1939,14 +1939,18 @@ export class AuthClient {
 
     // Poppy: a Personal Agent's login, as a guest or in the customer's account.
     const poppyLogin = classifyPoppyLogin(idTokenClaims, this.poppy);
+    // Read once: the check and a guest's renewal must see the same guest.
+    const guestInBrowser = await this.readPoppyGuest(req.cookies);
     const poppyError =
       this.poppy &&
       getPoppyLoginError(
         poppyLogin,
-        await this.readPoppyGuest(req.cookies),
+        guestInBrowser,
         idTokenClaims!,
         this.poppy,
-        { now: this.epoch() }
+        {
+          now: this.epoch()
+        }
       );
     if (poppyError) {
       return this.handleCallbackError(
@@ -1961,6 +1965,7 @@ export class AuthClient {
       return this.completePoppyGuestLogin(
         req,
         poppyLogin,
+        guestInBrowser,
         oidcRes,
         idTokenClaims!,
         onCallbackCtx,
@@ -2069,6 +2074,7 @@ export class AuthClient {
   private async completePoppyGuestLogin(
     req: NextRequest,
     login: Extract<PoppyLogin, { kind: "guest" }>,
+    existing: PoppyGuestCookie | undefined,
     oidcRes: oauth.TokenEndpointResponse,
     idTokenClaims: oauth.IDToken,
     onCallbackCtx: OnCallbackContext,
@@ -2079,7 +2085,6 @@ export class AuthClient {
     // silent login fresh tokens with a later `exp`, but doesn't extend its own
     // session, so the guest must not outlive the first join. The earlier of
     // the two is kept in case Auth0 ever sends an `exp` before it.
-    const existing = await this.readPoppyGuest(req.cookies);
     const guestState =
       existing && isSamePoppyGuest(login.state, existing.poppy)
         ? {
@@ -2122,8 +2127,9 @@ export class AuthClient {
     // A guest join ends any session in this browser, a person's or a signed-in
     // agent's, so the agent never acts with an account it wasn't approved for.
     // The spec only says a join SHOULD keep the browser's own login (§6).
-    // `exists` also covers a session from another domain in resolver mode,
-    // which reads as no session but is still in the browser.
+    // `exists` also covers a session made for another domain (its
+    // `internal.mcd` names another domain), which reads as no session but is
+    // still in the browser.
     const { exists, session: replaced } = await this.getSessionWithDomainCheck(
       req.cookies
     );
@@ -2268,8 +2274,7 @@ export class AuthClient {
     }
 
     // A guest is reported even when the session can't be read, for example a
-    // session from another domain in resolver mode: the agent is the safer
-    // answer.
+    // session made for another domain: the agent is the safer answer.
     const guest = await this.readPoppyGuest(reqCookies);
     if (guest) {
       return toPoppyAgentContext(guest.poppy, "guest");
@@ -4887,9 +4892,9 @@ export class AuthClient {
     // Read session from store
     const session = await this.sessionStore.get(cookies);
 
-    // No session found. A payload without `user` and `tokenSet`, or with the
-    // `poppy` of an anonymous cookie, isn't a session: the cookies share one
-    // key, so a browser could copy its guest cookie into the session cookie.
+    // No session found. A payload without `user` and `tokenSet` isn't a
+    // session: the cookies share one key, so a guest cookie copied into the
+    // session cookie decrypts, but has neither.
     if (!session || !isSessionPayload(session)) {
       return {
         error: null,
