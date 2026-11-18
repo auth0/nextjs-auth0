@@ -98,6 +98,8 @@ export const config = {
 };
 ```
 
+Poppy can't be used with a domain resolver (`domain` as a function): it has one issuer, and the discovery files name it. The client throws `InvalidConfigurationError` at startup.
+
 That's all that's required. Without the `poppy` option, nothing changes.
 
 ## The discovery files
@@ -236,7 +238,7 @@ There is no hook: `useUser()` stays `null` for a guest, because a guest is not a
 
 When the customer approves the agent and it joins again, the SDK replaces the guest with the customer's session and deletes the guest cookie, even if `clearAnonymousSessionOnLogin` is `false`.
 
-**A guest and a session are never in the browser together.** Auth0 refuses a guest join in a browser signed in to an account: it shows a `session_conflict` error page on its own domain, so the join never reaches your site. A guest join over an earlier guest replaces it. If a guest join still finds a session in your app, for example because your app's session outlived the Auth0 session, the SDK ends that session, a person's or a signed-in agent's, so the agent never acts with an account it wasn't approved for. The Poppy spec says a join SHOULD keep the browser's own login; the SDK ends it for that reason.
+**A guest and a session are never in the browser together.** Auth0 refuses a guest join in a browser signed in to an account: it shows a `session_conflict` error page on its own domain, so the join never reaches your site. A guest join over an earlier guest replaces it. If a guest join still finds a session in your app, for example because your app's session outlived the Auth0 session, the SDK ends that session, a person's or a signed-in agent's, so the agent never acts with an account it wasn't approved for. It revokes the session's refresh token first, as logout does, and ends the session even if the revocation fails. The Poppy spec says a join SHOULD keep the browser's own login; the SDK ends it for that reason.
 
 **Only a signed-in agent join can replace a guest.** While a guest is in the browser, a login replaces it only if it's a signed-in agent join (a login whose ID token has a Poppy agent `act`), or a new guest join (another guest `sub` or Poppy Session). The SDK doesn't compare the agent join with the guest, since the agent's `act.sub`, `poppy_user_id` and `poppy_sid` can differ between the two joins. Any other login is refused with `poppy_sign_in_required`: a person's login, by the usual redirect, a popup, a passkey or passwordless, and the same guest coming back while its access token is valid. That last one matters: on Auth0 a guest's own login comes back as the same guest, so a page that sends a guest to log in would otherwise loop. The SDK refuses after one round trip. Once the guest's access token has expired, the same guest coming back is accepted once, to renew the token. The callback passes the error to `onCallback`, whose default answers `500` with the error message; logging out ends the guest, and the person can then sign in. The passkey and passwordless routes answer `403` JSON, and `auth0.passkey.*` and `auth0.passwordless.*` throw the `PoppyError`. A guest that has already ended doesn't block anything.
 
