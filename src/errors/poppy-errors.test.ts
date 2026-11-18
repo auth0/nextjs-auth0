@@ -14,6 +14,7 @@ describe("PoppyError", () => {
 
   it.each([
     [PoppyErrorCode.INVALID_GUEST, /neither a guest nor a user/],
+    [PoppyErrorCode.INVALID_AGENT, /not taken as a person/],
     [
       PoppyErrorCode.GUEST_NOT_SUPPORTED,
       /only complete through the browser join/

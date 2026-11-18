@@ -187,14 +187,21 @@ async function login(
   idTokenClaims: Record<string, unknown>,
   {
     path = "/auth/login",
-    scope = "openid profile orders:write"
-  }: { path?: string; scope?: string } = {}
+    scope = "openid profile orders:write",
+    expiresIn = 36000,
+    accessToken = "at_123"
+  }: {
+    path?: string;
+    scope?: string;
+    expiresIn?: number;
+    accessToken?: string;
+  } = {}
 ) {
   const { state, nonce } = await startLogin(auth0, browser, path);
   tokenResponse = {
-    access_token: "at_123",
+    access_token: accessToken,
     token_type: "Bearer",
-    expires_in: 36000,
+    expires_in: expiresIn,
     scope,
     id_token: await signIdToken(idTokenClaims, nonce)
   };
@@ -269,8 +276,7 @@ describe("Poppy: third-party-initiated login", () => {
     );
   });
 
-  it("ignores target_link_uri when iss is not the configured issuer", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("refuses a login whose iss is not the configured issuer", async () => {
     const auth0 = createClient();
     const browser = new Browser();
     const query = new URLSearchParams({
@@ -278,26 +284,17 @@ describe("Poppy: third-party-initiated login", () => {
       target_link_uri: `${appBaseUrl}/account/email`
     });
 
-    const { authorizeUrl } = await startLogin(
-      auth0,
-      browser,
-      `/auth/login?${query}`
-    );
-    expect(authorizeUrl.searchParams.has("iss")).toBe(false);
-    expect(authorizeUrl.searchParams.has("target_link_uri")).toBe(false);
+    const res = await auth0.middleware(browser.request(`/auth/login?${query}`));
 
-    const res = await login(
-      auth0,
-      browser,
-      { sub: "auth0|ana" },
-      {
-        path: `/auth/login?${query}`
-      }
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+    const body = await res.text();
+    expect(body).toBe(
+      "Invalid iss query param: it is not the Auth0 issuer this app uses."
     );
-    expect(new URL(res.headers.get("location")!).pathname).toBe("/");
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("iss does not match")
-    );
+    // Neither value is echoed back.
+    expect(body).not.toContain("attacker.example");
+    expect(res.cookies.getAll()).toEqual([]);
   });
 
   it("without the poppy option, still forwards both parameters as before", async () => {
@@ -1491,6 +1488,186 @@ describe("Poppy: other logins over a guest", () => {
     expect((await res.json()).error).toBe("poppy_guest_not_supported");
     expect(browser.has("__session")).toBe(false);
     expect(browser.has("auth0_anon")).toBe(false);
+  });
+});
+
+describe("Poppy: a guest outlives its access token", () => {
+  // The join's ID token (the Poppy Session) lasts 2 hours; the API access
+  // token only 60 seconds.
+  const guestClaims = {
+    sub: "anon_poppy@7c2e5a1d",
+    sub_profile: anonymousSubProfile,
+    act: agentAct()
+  };
+
+  async function guestWithStaleToken(auth0: Auth0Client) {
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims, { expiresIn: 60 });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 61 * 1000);
+    return browser;
+  }
+
+  it("is still the guest once its access token has expired", async () => {
+    const auth0 = createClient();
+    const browser = await guestWithStaleToken(auth0);
+
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      kind: "agent",
+      state: "guest"
+    });
+    // No usable token until it's renewed.
+    expect(await auth0.getAnonymousSession(browser.request("/"))).toBeNull();
+  });
+
+  it("still refuses a person's login then", async () => {
+    const auth0 = createClient();
+    const browser = await guestWithStaleToken(auth0);
+
+    const res = await login(auth0, browser, { sub: "auth0|ana" });
+
+    expect(res.status).toBe(500);
+    expect(browser.has("__session")).toBe(false);
+  });
+
+  it("renews the token when the same guest comes back, for example from a silent login", async () => {
+    const auth0 = createClient();
+    const browser = await guestWithStaleToken(auth0);
+
+    const res = await login(auth0, browser, guestClaims, {
+      path: "/auth/login?prompt=none&returnTo=%2Fcart",
+      expiresIn: 60,
+      accessToken: "at_renewed"
+    });
+
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/cart");
+    expect(
+      (await auth0.getAnonymousSession(browser.request("/")))?.accessToken
+    ).toBe("at_renewed");
+
+    // Renewed once: the same guest coming back again is refused, so a page
+    // that sends it to log in can't loop.
+    const again = await login(auth0, browser, guestClaims, {
+      path: "/auth/login?prompt=none&returnTo=%2Fcart"
+    });
+    expect(again.status).toBe(500);
+    expect(await again.text()).toBe(
+      new PoppyError(PoppyErrorCode.SIGN_IN_REQUIRED).message
+    );
+  });
+
+  it("ends when its Poppy Session ends", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(
+      auth0,
+      browser,
+      { ...guestClaims, exp: epoch() + 120 },
+      { expiresIn: 60 }
+    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 121 * 1000);
+
+    expect(await auth0.poppy.getContext(browser.request("/"))).toEqual({
+      kind: "human"
+    });
+  });
+});
+
+describe("Poppy: cookies that aren't a session", () => {
+  const guestClaims = {
+    sub: "anon_poppy@7c2e5a1d",
+    sub_profile: anonymousSubProfile,
+    act: agentAct()
+  };
+
+  it("ignores a guest cookie copied into the session cookie", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims);
+
+    // The cookies share one key, so the copy decrypts.
+    browser.set("__session", browser.get("auth0_anon")!);
+
+    expect(await auth0.getSession(browser.request("/"))).toBeNull();
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      state: "guest"
+    });
+  });
+});
+
+describe("Poppy: a session from another domain", () => {
+  const guestClaims = {
+    sub: "anon_poppy@7c2e5a1d",
+    sub_profile: anonymousSubProfile,
+    act: agentAct()
+  };
+
+  // A session made for another domain: it reads as no session, with an error.
+  async function otherDomainSession() {
+    return encrypt(
+      {
+        user: { sub: "auth0|ana" },
+        tokenSet: { accessToken: "at_other", expiresAt: epoch() + 3600 },
+        internal: {
+          sid: "sid_other",
+          createdAt: epoch(),
+          mcd: { domain: "other.example", issuer: "https://other.example/" }
+        }
+      },
+      secret,
+      epoch() + 3600
+    );
+  }
+
+  it("is deleted by a guest join", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    browser.set("__session", await otherDomainSession());
+
+    await login(auth0, browser, guestClaims);
+
+    expect(browser.has("auth0_anon")).toBe(true);
+    expect(browser.has("__session")).toBe(false);
+  });
+
+  it("doesn't hide a guest from the context, on the server or the route", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, guestClaims);
+    browser.set("__session", await otherDomainSession());
+
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      state: "guest"
+    });
+    const res = await auth0.middleware(browser.request("/auth/poppy-context"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ state: "guest" });
+  });
+});
+
+describe("Poppy: popup merge", () => {
+  it("records the agent when its popup login merges into a session", async () => {
+    const auth0 = createClient();
+    const browser = new Browser();
+    await login(auth0, browser, { sub: "auth0|ana" });
+
+    await login(
+      auth0,
+      browser,
+      { sub: "auth0|ana", act: agentAct() },
+      { path: "/auth/login?challengeMode=popup" }
+    );
+
+    const session = await auth0.getSession(browser.request("/"));
+    expect(session?.internal.poppy?.act).toMatchObject({ poppy_sid: "s_8Hq2" });
+    expect(session?.internal.sessionExpiresAt).toBe(
+      session?.internal.poppy?.sessionExpiresAt
+    );
+    expect(await auth0.poppy.getContext(browser.request("/"))).toMatchObject({
+      kind: "agent",
+      state: "signed_in"
+    });
   });
 });
 

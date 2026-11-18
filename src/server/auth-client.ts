@@ -194,6 +194,7 @@ import {
   pickPoppyUserClaims,
   toPoppyAgentContext,
   toPoppyErrorResponse,
+  type PoppyGuestCookie,
   type PoppyLogin,
   type PoppyRuntime
 } from "../utils/poppy-helpers.js";
@@ -472,6 +473,17 @@ export interface AuthClientOptions {
    * fall through.
    */
   poppy?: PoppyRuntime;
+}
+
+function isSessionPayload(session: SessionData): boolean {
+  const value = session as unknown as Record<string, unknown>;
+  return (
+    typeof value.user === "object" &&
+    value.user !== null &&
+    typeof value.tokenSet === "object" &&
+    value.tokenSet !== null &&
+    !("poppy" in value)
+  );
 }
 
 /**
@@ -1281,16 +1293,24 @@ export class AuthClient {
       );
     }
 
-    const poppyJoin = this.poppy
-      ? extractPoppyJoin(
+    let poppyJoin: { returnTo?: string } | undefined;
+    if (this.poppy) {
+      try {
+        poppyJoin = extractPoppyJoin(
           searchParams,
           [this.poppy.issuer, this.issuer],
           new URL(
             (this.authorizationParameters.redirect_uri as string | undefined) ||
               resolveAppBaseUrl(this.appBaseUrl, req)
           )
-        )
-      : undefined;
+        );
+      } catch (e) {
+        if (e instanceof InvalidRequestError) {
+          return new NextResponse(e.message, { status: 400 });
+        }
+        throw e;
+      }
+    }
 
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
@@ -1755,7 +1775,7 @@ export class AuthClient {
           await this.readPoppyGuest(req.cookies),
           idTokenClaims!,
           this.poppy,
-          { allowGuest: false }
+          { allowGuest: false, now: this.epoch() }
         );
       if (popupPoppyError) {
         return this.handleCallbackError(
@@ -1793,6 +1813,11 @@ export class AuthClient {
           transactionState,
           idTokenClaims
         );
+        // The merge takes the agent's claims and tokens, so record the agent
+        // and its cap too, as for a new session.
+        if (popupPoppyLogin.kind === "agent") {
+          attachPoppyAgentState(existingSession, popupPoppyLogin.state);
+        }
         const mergedSession = await this.finalizeSession(
           existingSession,
           oidcRes.id_token
@@ -1919,7 +1944,8 @@ export class AuthClient {
         poppyLogin,
         await this.readPoppyGuest(req.cookies),
         idTokenClaims!,
-        this.poppy
+        this.poppy,
+        { now: this.epoch() }
       );
     if (poppyError) {
       return this.handleCallbackError(
@@ -2080,10 +2106,10 @@ export class AuthClient {
     // A guest join ends any session in this browser, a person's or a signed-in
     // agent's, so the agent never acts with an account it wasn't approved for.
     // The spec only says a join SHOULD keep the browser's own login (§6).
-    const { session: existing } = await this.getSessionWithDomainCheck(
-      req.cookies
-    );
-    if (existing) {
+    // `exists` also covers a session from another domain in resolver mode,
+    // which reads as no session but is still in the browser.
+    const { exists } = await this.getSessionWithDomainCheck(req.cookies);
+    if (exists) {
       await this.sessionStore.delete(req.cookies, res.cookies);
     }
 
@@ -2126,21 +2152,18 @@ export class AuthClient {
   }
 
   /**
-   * The Poppy guest in this browser, or undefined when there is none or it has
-   * ended. Never throws.
+   * The Poppy guest cookie in this browser, or undefined when there is none or
+   * the guest has ended. Its access token may have expired. Never throws.
    */
   private async readPoppyGuest(
     reqCookies: RequestCookies | ReadonlyRequestCookies
-  ): Promise<AnonymousCookiePayload["poppy"]> {
+  ): Promise<PoppyGuestCookie | undefined> {
     if (!this.poppy) {
       return undefined;
     }
     try {
       const payload = await this.readAnonymousCookie(reqCookies);
-      if (!payload?.poppy || !isPoppyGuestActive(payload, this.epoch())) {
-        return undefined;
-      }
-      return payload.poppy;
+      return payload && isPoppyGuestActive(payload) ? payload : undefined;
     } catch {
       return undefined;
     }
@@ -2197,9 +2220,6 @@ export class AuthClient {
     }
 
     const { error, session } = await this.getSessionWithDomainCheck(reqCookies);
-    if (error) {
-      throw error;
-    }
     if (session?.internal?.poppy) {
       return toPoppyAgentContext(
         session.internal.poppy,
@@ -2208,8 +2228,17 @@ export class AuthClient {
       );
     }
 
+    // A guest is reported even when the session can't be read, for example a
+    // session from another domain in resolver mode: the agent is the safer
+    // answer.
     const guest = await this.readPoppyGuest(reqCookies);
-    return guest ? toPoppyAgentContext(guest, "guest") : HUMAN_POPPY_CONTEXT;
+    if (guest) {
+      return toPoppyAgentContext(guest.poppy, "guest");
+    }
+    if (error) {
+      throw error;
+    }
+    return HUMAN_POPPY_CONTEXT;
   }
 
   /**
@@ -3802,22 +3831,25 @@ export class AuthClient {
   }
 
   /**
-   * The public session for a decrypted Poppy guest cookie. A guest cannot be
-   * renewed: it lasts until its token or the Poppy Session ends, whichever is
-   * first, and is then gone.
+   * The public session for a decrypted Poppy guest cookie. A guest lasts until
+   * its Poppy Session ends, and is then deleted. It has no session token, so
+   * the SDK can't renew its access token: once the token has expired this
+   * returns null, and a silent login renews it.
    */
   private poppyGuestSession(
     payload: AnonymousCookiePayload,
     reqCookies: RequestCookies,
     resCookies?: ResponseCookies
   ): AnonymousSession | null {
-    if (isPoppyGuestActive(payload, this.epoch())) {
-      return this.readPublicSession(payload);
+    if (!isPoppyGuestActive(payload)) {
+      if (resCookies) {
+        this.deleteAnonymousCookie(reqCookies, resCookies);
+      }
+      return null;
     }
-    if (resCookies) {
-      this.deleteAnonymousCookie(reqCookies, resCookies);
-    }
-    return null;
+    return payload.expires_at > this.epoch()
+      ? this.readPublicSession(payload)
+      : null;
   }
 
   /**
@@ -4816,8 +4848,10 @@ export class AuthClient {
     // Read session from store
     const session = await this.sessionStore.get(cookies);
 
-    // No session found
-    if (!session) {
+    // No session found. A payload without `user` and `tokenSet`, or with the
+    // `poppy` of an anonymous cookie, isn't a session: the cookies share one
+    // key, so a browser could copy its guest cookie into the session cookie.
+    if (!session || !isSessionPayload(session)) {
       return {
         error: null,
         session: null,
@@ -7148,7 +7182,7 @@ export class AuthClient {
         await this.readPoppyGuest(reqCookies),
         claims,
         this.poppy,
-        { allowGuest: false }
+        { allowGuest: false, now: this.epoch() }
       );
     if (poppyError) {
       throw poppyError;
@@ -7647,7 +7681,7 @@ export class AuthClient {
         await this.readPoppyGuest(reqCookies),
         claims,
         this.poppy,
-        { allowGuest: false }
+        { allowGuest: false, now: this.epoch() }
       );
     if (poppyError) {
       throw poppyError;

@@ -10,7 +10,8 @@ import {
   pickPoppyUserClaims,
   readPoppyAgentState,
   resolvePoppyRuntime,
-  toPoppyAgentContext
+  toPoppyAgentContext,
+  type PoppyGuestCookie
 } from "./poppy-helpers.js";
 
 const config: PoppyConfig = {
@@ -317,20 +318,25 @@ describe("explainPoppyGuestFailure", () => {
 });
 
 describe("getPoppyLoginError", () => {
-  const guest = readPoppyAgentState(guestClaims)!;
+  // The guest cookie in the browser; its access token is still valid.
+  const guest: PoppyGuestCookie = {
+    access_token: "at_guest",
+    expires_at: now + 60,
+    poppy: readPoppyAgentState(guestClaims)!
+  };
   // A default parameter would replace an explicit `undefined`, so `null`
   // stands for "no guest in the browser".
   const check = (
     claims: Record<string, unknown>,
-    options?: { allowGuest?: boolean },
-    inBrowser: typeof guest | null = guest
+    options: { allowGuest?: boolean } = {},
+    inBrowser: PoppyGuestCookie | null = guest
   ) =>
     getPoppyLoginError(
       classifyPoppyLogin(claims, runtime),
       inBrowser ?? undefined,
       claims,
       runtime,
-      options
+      { ...options, now }
     )?.code;
 
   it("refuses an invalid guest, with or without a guest in the browser", () => {
@@ -366,13 +372,34 @@ describe("getPoppyLoginError", () => {
     ).toBeUndefined();
   });
 
-  it("refuses the same guest coming back", () => {
+  it("refuses the same guest coming back while its access token is valid", () => {
     expect(check(guestClaims)).toBe(PoppyErrorCode.SIGN_IN_REQUIRED);
   });
 
-  it("refuses a person", () => {
-    expect(check({ sub: "auth0|person", exp: now + 3600 })).toBe(
+  it("accepts the same guest coming back once its access token has expired, to renew it", () => {
+    const stale = { ...guest, expires_at: now - 1 };
+    expect(check(guestClaims, {}, stale)).toBeUndefined();
+  });
+
+  it("refuses a person, even once the guest's access token has expired", () => {
+    const person = { sub: "auth0|person", exp: now + 3600 };
+    expect(check(person)).toBe(PoppyErrorCode.SIGN_IN_REQUIRED);
+    expect(check(person, {}, { ...guest, expires_at: now - 1 })).toBe(
       PoppyErrorCode.SIGN_IN_REQUIRED
+    );
+  });
+
+  it("refuses a Poppy agent with no valid exp or sub, rather than take it for a person", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const badExp = { sub: "auth0|customer", exp: "soon", act: agentAct };
+    const noSub = { exp: now + 7200, act: agentAct };
+    expect(classifyPoppyLogin(badExp, runtime)).toEqual({
+      kind: "invalid_agent"
+    });
+    expect(check(badExp, {}, null)).toBe(PoppyErrorCode.INVALID_AGENT);
+    expect(check(noSub, {}, null)).toBe(PoppyErrorCode.INVALID_AGENT);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("Refused a Poppy agent login")
     );
   });
 });
