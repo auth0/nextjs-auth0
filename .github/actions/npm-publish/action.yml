@@ -50,6 +50,9 @@ runs:
           TAG="beta"
         elif [[ "${VERSION}" == *"alpha"* ]]; then
           TAG="alpha"
+        elif [[ "${VERSION%%+*}" == *"-"* ]]; then
+          echo "::error::Prerelease version ${VERSION} must contain 'beta' or 'alpha' so it is not published as latest"
+          exit 1
         else
           TAG="latest"
         fi
