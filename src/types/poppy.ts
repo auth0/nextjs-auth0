@@ -118,8 +118,8 @@ export interface PoppyAgentState {
    */
   sub: string;
   /**
-   * The ID token's own `sub_profile`, when Auth0 sends it. For example
-   * `"user"`, or `"user urn:auth0:anonymous_user"` for a guest.
+   * The ID token's own `sub_profile`, when Auth0 sends it: on a guest,
+   * `"user urn:auth0:anonymous_user"`. A signed-in join has none.
    */
   sub_profile?: string;
   /** The ID token's `act` claim, as Auth0 sent it. */
@@ -165,8 +165,8 @@ export interface PoppyAgentContext {
    */
   sub: string;
   /**
-   * The ID token's own `sub_profile`, when Auth0 sends it. For example
-   * `"user"`, or `"user urn:auth0:anonymous_user"` for a guest.
+   * The ID token's own `sub_profile`, when Auth0 sends it: on a guest,
+   * `"user urn:auth0:anonymous_user"`. A signed-in join has none.
    */
   sub_profile?: string;
   /**

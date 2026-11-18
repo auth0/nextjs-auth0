@@ -77,13 +77,13 @@ const DEFAULT_MESSAGES: Record<PoppyErrorCode, string> = {
  * @example Reading the code in `onCallback`
  * ```typescript
  * import { NextResponse } from "next/server";
- * import { PoppyErrorCode } from "@auth0/nextjs-auth0/errors";
+ * import { type PoppyError, PoppyErrorCode } from "@auth0/nextjs-auth0/errors";
  *
  * export const auth0 = new Auth0Client({
  *   poppy: { config: poppyConfig },
  *   onCallback: async (error, context) => {
  *     if (error?.code === PoppyErrorCode.INVALID_GUEST) {
- *       console.error("Poppy login refused:", error.reason);
+ *       console.error("Poppy login refused:", (error as PoppyError).reason);
  *       return new NextResponse("Sign-in failed.", { status: 500 });
  *     }
  *     // ...

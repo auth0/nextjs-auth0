@@ -223,19 +223,22 @@ export function classifyPoppyLogin(
  *   guest: its `act.sub`, `poppy_user_id` and `poppy_sid` can differ from the
  *   guest join's, and only Auth0 issues a Poppy `act`. A person's login is
  *   refused: the browser is the agent's.
- * - The same guest coming back is refused while its access token is still
- *   valid: on Auth0 a guest's own login, or a silent one, comes back as the
- *   same guest, so redirecting would loop. Once the token has expired it is
- *   accepted as a renewal of the token, at most once per token lifetime.
+ * - The same guest coming back from a silent login (`prompt=none`) is a
+ *   successful refresh. From an interactive login it is refused while its
+ *   access token is still valid: on Auth0 a guest's own login comes back as
+ *   the same guest, so a page that sends a guest to log in would loop. Once
+ *   the token has expired it is accepted as a renewal, at most once per token
+ *   lifetime.
  *
- * `now` is the current time in Unix seconds.
+ * `now` is the current time in Unix seconds; `silent` is true for a login
+ * started with `prompt=none`.
  */
 export function getPoppyLoginError(
   login: PoppyLogin,
   guest: PoppyGuestCookie | undefined,
   claims: Record<string, unknown>,
   runtime: PoppyRuntime,
-  options: { allowGuest?: boolean; now: number }
+  options: { allowGuest?: boolean; now: number; silent?: boolean }
 ): PoppyError | undefined {
   if (login.kind === "invalid_guest") {
     const reason = explainPoppyGuestFailure(claims, runtime);
@@ -256,21 +259,25 @@ export function getPoppyLoginError(
     return undefined;
   }
   if (login.kind === "guest") {
-    if (
-      !isSamePoppyGuest(login.state, guest.poppy) ||
-      guest.expires_at <= options.now
-    ) {
+    if (!isSamePoppySession(login.state, guest.poppy)) {
       return undefined;
     }
+    if (options.silent || guest.expires_at <= options.now) {
+      return undefined;
+    }
+    return new PoppyError(
+      PoppyErrorCode.SIGN_IN_REQUIRED,
+      "This login returned the agent guest that is already in this browser, so there is nothing to sign in. Only a signed-in agent join can replace the guest. Log out to sign in yourself."
+    );
   }
   return new PoppyError(PoppyErrorCode.SIGN_IN_REQUIRED);
 }
 
 /**
- * Whether two guest logins are the same guest: the same subject in the same
- * Poppy Session.
+ * Whether two logins are the same agent's in the same Poppy Session: the same
+ * subject and the same `poppy_sid`. Used for a guest and a signed-in agent.
  */
-export function isSamePoppyGuest(
+export function isSamePoppySession(
   a: PoppyAgentState,
   b: PoppyAgentState
 ): boolean {
@@ -294,9 +301,9 @@ export function toPoppyErrorResponse(error: unknown): NextResponse | undefined {
 }
 
 /**
- * Recognizes Auth0's browser join, which sends the agent's browser to the
- * login route as a third-party-initiated login (OIDC Core §4) carrying `iss`
- * and `target_link_uri`.
+ * Handles a third-party-initiated login (OIDC Core §4) with `iss` and
+ * `target_link_uri`. Auth0's browser join sends neither today: it ends with a
+ * plain login at the Initiate Login URI. A join that sends them is handled.
  *
  * Removes both from `searchParams`, since neither is an /authorize parameter.
  * Without `iss`, it's a normal login and returns `undefined`. An `iss` that

@@ -53,10 +53,22 @@ function validateDomain(
       `organization.domain must not include the default port 443: use "${url.host}".`
     );
   }
+  // An internationalized name must be written in its ASCII (punycode) form,
+  // which is what agents compare with.
+  if (url && [...value].some((c) => c.charCodeAt(0) > 0x7f)) {
+    fail(
+      `organization.domain must be in its ASCII (punycode) form: use "${url.host}".`
+    );
+  }
   if (!url || url.host !== value.toLowerCase()) {
     fail(
       `organization.domain must be a bare host such as "fernway.com", without scheme or path, got "${value}".`
     );
+  }
+  // poppy.json is served as written, and agents compare it character for
+  // character with the resource, which is lowercase.
+  if (value !== url.host) {
+    fail(`organization.domain must be lowercase: use "${url.host}".`);
   }
 
   const local = isLoopbackHost(url.hostname);
@@ -79,6 +91,13 @@ function validateIssuer(value: unknown): string {
   if (!raw.endsWith("/")) {
     fail(
       `auth.issuer must match Auth0's issuer exactly, including the trailing slash: use "${raw}/".`
+    );
+  }
+  // Agents compare the issuer character for character with Auth0's, which is
+  // `https://<host>/` in canonical form: lowercase, no default port, no path.
+  if (url.href !== raw || url.pathname !== "/") {
+    fail(
+      `auth.issuer must match Auth0's issuer exactly, such as "${url.origin}/", got "${raw}".`
     );
   }
   return raw;

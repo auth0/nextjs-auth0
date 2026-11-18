@@ -133,7 +133,7 @@ import {
 } from "../types/index.js";
 import type { SessionCheckResult } from "../types/mcd.js";
 import type { MfaTokenEndpointResponse } from "../types/mfa.js";
-import type { PoppyContext } from "../types/poppy.js";
+import type { PoppyAgentState, PoppyContext } from "../types/poppy.js";
 import {
   ANON_TRANSFER_AUDIENCE,
   ANON_TRANSFER_TOKEN_PARAM,
@@ -191,7 +191,7 @@ import {
   getPoppyLoginError,
   HUMAN_POPPY_CONTEXT,
   isPoppyGuestActive,
-  isSamePoppyGuest,
+  isSamePoppySession,
   pickPoppyUserClaims,
   toPoppyAgentContext,
   toPoppyErrorResponse,
@@ -1218,6 +1218,7 @@ export class AuthClient {
         undefined
       ),
       challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
+      silent: authorizationParams.get("prompt") === "none" || undefined,
       // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
       originIssuer: this.provider?.isResolverMode ? this.issuer : undefined,
@@ -1334,10 +1335,11 @@ export class AuthClient {
     // Propagate domain mismatch error but don't delete session on domain mismatch
     const hasDomainMismatch = sessionError && sessionExists;
 
-    // Poppy: read the guest cookie once. A guest has no session, ID token or
-    // session ID to send to OIDC logout, so a guest's logout uses /v2/logout.
+    // Poppy: read the guest cookie once. A logout with no session uses
+    // /v2/logout: a guest has no ID token or session ID for OIDC logout, and
+    // Auth0 may still hold a guest whose cookie has already ended here.
     const hasPoppyGuest = await this.hasPoppyGuestCookie(req.cookies);
-    const isPoppyGuestLogout = hasPoppyGuest && !session;
+    const isPoppyGuestLogout = this.poppy !== undefined && !session;
 
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
@@ -1778,6 +1780,10 @@ export class AuthClient {
           { allowGuest: false, now: this.epoch() }
         );
       if (popupPoppyError) {
+        await this.#revokeRefreshTokenBestEffort(
+          oidcRes.refresh_token,
+          "a refused Poppy login"
+        );
         return this.handleCallbackError(
           popupPoppyError,
           onCallbackCtx,
@@ -1791,11 +1797,14 @@ export class AuthClient {
       // Use getSessionWithDomainCheck to enforce MCD domain isolation
       const { error: sessionError, session: sessionInBrowser } =
         await this.getSessionWithDomainCheck(req.cookies);
-      // A Poppy agent's login replaces the session, as it does on a redirect:
-      // a merge would keep the other login's token set, scope and refresh
-      // token beside the agent.
+      // A Poppy agent's login, or any login over a signed-in agent's session,
+      // replaces the session, as it does on a redirect: a merge would mix two
+      // identities, keeping the agent state beside another login, or the
+      // other login's token set, scope and refresh token beside the agent.
       const existingSession =
-        popupPoppyLogin.kind === "agent" ? null : sessionInBrowser;
+        popupPoppyLogin.kind === "agent" || sessionInBrowser?.internal.poppy
+          ? null
+          : sessionInBrowser;
 
       // If domain check failed in MCD mode, return error via postMessage
       if (sessionError) {
@@ -1870,7 +1879,10 @@ export class AuthClient {
           transactionState
         );
         if (popupPoppyLogin.kind === "agent") {
-          attachPoppyAgentState(fallbackSession, popupPoppyLogin.state);
+          attachPoppyAgentState(
+            fallbackSession,
+            this.#keepAgentDeadline(popupPoppyLogin.state, sessionInBrowser)
+          );
         }
 
         // IPSIE: reject a session whose ceiling is already in the past at login.
@@ -1940,7 +1952,11 @@ export class AuthClient {
     // Poppy: a Personal Agent's login, as a guest or in the customer's account.
     const poppyLogin = classifyPoppyLogin(idTokenClaims, this.poppy);
     // Read once: the check and a guest's renewal must see the same guest.
-    const guestInBrowser = await this.readPoppyGuest(req.cookies);
+    // The renewal also needs a guest that has just ended (inside the read
+    // leeway), so it keeps that guest's deadline rather than take a new one.
+    const guestCookie = await this.readPoppyGuestCookie(req.cookies);
+    const guestInBrowser =
+      guestCookie && isPoppyGuestActive(guestCookie) ? guestCookie : undefined;
     const poppyError =
       this.poppy &&
       getPoppyLoginError(
@@ -1948,11 +1964,13 @@ export class AuthClient {
         guestInBrowser,
         idTokenClaims!,
         this.poppy,
-        {
-          now: this.epoch()
-        }
+        { now: this.epoch(), silent: transactionState.silent }
       );
     if (poppyError) {
+      await this.#revokeRefreshTokenBestEffort(
+        oidcRes.refresh_token,
+        "a refused Poppy login"
+      );
       return this.handleCallbackError(
         poppyError,
         onCallbackCtx,
@@ -1965,7 +1983,7 @@ export class AuthClient {
       return this.completePoppyGuestLogin(
         req,
         poppyLogin,
-        guestInBrowser,
+        guestCookie,
         oidcRes,
         idTokenClaims!,
         onCallbackCtx,
@@ -1974,7 +1992,13 @@ export class AuthClient {
       );
     }
     if (poppyLogin.kind === "agent") {
-      attachPoppyAgentState(session, poppyLogin.state);
+      attachPoppyAgentState(
+        session,
+        this.#keepAgentDeadline(
+          poppyLogin.state,
+          await this.#readStoredSession(req.cookies)
+        )
+      );
     }
 
     // IPSIE: reject a session whose ceiling is already in the past at login.
@@ -2086,7 +2110,7 @@ export class AuthClient {
     // session, so the guest must not outlive the first join. The earlier of
     // the two is kept in case Auth0 ever sends an `exp` before it.
     const guestState =
-      existing && isSamePoppyGuest(login.state, existing.poppy)
+      existing && isSamePoppySession(login.state, existing.poppy)
         ? {
             ...login.state,
             sessionExpiresAt: Math.min(
@@ -2127,35 +2151,21 @@ export class AuthClient {
     // A guest join ends any session in this browser, a person's or a signed-in
     // agent's, so the agent never acts with an account it wasn't approved for.
     // The spec only says a join SHOULD keep the browser's own login (§6).
-    // `exists` also covers a session made for another domain (its
-    // `internal.mcd` names another domain), which reads as no session but is
-    // still in the browser.
+    // `exists` also covers a leftover session made for another domain (from
+    // before Poppy refused a domain resolver), which reads as no session but
+    // is still in the browser.
     const { exists, session: replaced } = await this.getSessionWithDomainCheck(
       req.cookies
     );
     if (exists) {
-      // Revoke the session's refresh token first, as logout does, so it can't
-      // be replayed from a copy of the cookie. A failed revocation must not
-      // stop the join.
-      if (replaced?.tokenSet.refreshToken) {
-        try {
-          const [discoveryError, metadata] =
-            await this.discoverAuthorizationServerMetadata();
-          if (!discoveryError) {
-            await this.performTokenRevocation(
-              metadata,
-              replaced.tokenSet.refreshToken,
-              "refresh_token"
-            );
-          }
-        } catch (e) {
-          console.warn(
-            "[nextjs-auth0] Failed to revoke the refresh token of the session a Poppy guest replaced (the session is still ended):",
-            e
-          );
-        }
-      }
+      // End the session here first: if that fails, the join fails and the old
+      // session is left as it was. Then revoke its refresh token, best effort,
+      // so it can't be replayed from a copy of the cookie.
       await this.sessionStore.delete(req.cookies, res.cookies);
+      await this.#revokeRefreshTokenBestEffort(
+        replaced?.tokenSet.refreshToken,
+        "the session a Poppy guest replaced"
+      );
     }
 
     addCacheControlHeadersForSession(res);
@@ -2197,6 +2207,73 @@ export class AuthClient {
   }
 
   /**
+   * The agent state to store for a signed-in agent. A login of the same agent
+   * in the same Poppy Session (a silent login, say) keeps the earlier deadline:
+   * Auth0 returns a later `exp` on each login but doesn't extend its session.
+   */
+  #keepAgentDeadline(
+    state: PoppyAgentState,
+    existing: SessionData | null | undefined
+  ): PoppyAgentState {
+    const previous = existing?.internal?.poppy;
+    return previous && isSamePoppySession(state, previous)
+      ? {
+          ...state,
+          sessionExpiresAt: Math.min(
+            state.sessionExpiresAt,
+            previous.sessionExpiresAt
+          )
+        }
+      : state;
+  }
+
+  /**
+   * The session in the store, read without the ceiling check, so a session
+   * whose deadline is in the read leeway still gives its deadline to
+   * {@link #keepAgentDeadline}. Never throws.
+   */
+  async #readStoredSession(
+    reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<SessionData | null> {
+    try {
+      const session = await this.sessionStore.get(reqCookies);
+      return session && isSessionPayload(session) ? session : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Revokes a refresh token at Auth0, best effort, as logout does: a failure
+   * is logged and never stops the response.
+   */
+  async #revokeRefreshTokenBestEffort(
+    refreshToken: string | undefined,
+    whose: string
+  ): Promise<void> {
+    if (!refreshToken) {
+      return;
+    }
+    try {
+      const [discoveryError, metadata] =
+        await this.discoverAuthorizationServerMetadata();
+      if (discoveryError) {
+        throw discoveryError;
+      }
+      await this.performTokenRevocation(
+        metadata,
+        refreshToken,
+        "refresh_token"
+      );
+    } catch (e) {
+      console.warn(
+        `[nextjs-auth0] Failed to revoke the refresh token of ${whose}:`,
+        e
+      );
+    }
+  }
+
+  /**
    * The Poppy guest cookie in this browser, or undefined when there is none or
    * the guest has ended. Its access token may have expired. Never throws.
    */
@@ -2206,9 +2283,23 @@ export class AuthClient {
     if (!this.poppy) {
       return undefined;
     }
+    const payload = await this.readPoppyGuestCookie(reqCookies);
+    return payload && isPoppyGuestActive(payload) ? payload : undefined;
+  }
+
+  /**
+   * The Poppy guest cookie in this browser, ended or not, or undefined when
+   * there is none. Never throws.
+   */
+  private async readPoppyGuestCookie(
+    reqCookies: RequestCookies | ReadonlyRequestCookies
+  ): Promise<PoppyGuestCookie | undefined> {
+    if (!this.poppy) {
+      return undefined;
+    }
     try {
       const payload = await this.readAnonymousCookie(reqCookies);
-      return payload && isPoppyGuestActive(payload) ? payload : undefined;
+      return payload?.poppy ? (payload as PoppyGuestCookie) : undefined;
     } catch {
       return undefined;
     }
@@ -2221,15 +2312,7 @@ export class AuthClient {
   private async hasPoppyGuestCookie(
     reqCookies: RequestCookies
   ): Promise<boolean> {
-    if (!this.poppy) {
-      return false;
-    }
-    try {
-      const payload = await this.readAnonymousCookie(reqCookies);
-      return payload?.poppy !== undefined;
-    } catch {
-      return false;
-    }
+    return (await this.readPoppyGuestCookie(reqCookies)) !== undefined;
   }
 
   /** Deletes the anonymous cookie when, and only when, it holds a Poppy guest. */
@@ -2274,7 +2357,7 @@ export class AuthClient {
     }
 
     // A guest is reported even when the session can't be read, for example a
-    // session made for another domain: the agent is the safer answer.
+    // leftover session made for another domain: the agent is the safer answer.
     const guest = await this.readPoppyGuest(reqCookies);
     if (guest) {
       return toPoppyAgentContext(guest.poppy, "guest");
@@ -3643,7 +3726,12 @@ export class AuthClient {
     const state = decrypted.payload;
     const now = Math.floor(Date.now() / 1000);
 
+    // A guest is read only with the `poppy` option; a leftover guest cookie
+    // after Poppy is turned off is no anonymous session.
     if (state.poppy) {
+      if (!this.poppy) {
+        return null;
+      }
       return this.poppyGuestSession(state, reqCookies, resCookies);
     }
 
@@ -3926,6 +4014,15 @@ export class AuthClient {
       throw new AnonymousSessionError(
         "unauthorized_client",
         "Anonymous sessions are not enabled for this client."
+      );
+    }
+    // A Poppy guest lives in the same cookie. Its access token can expire
+    // before the guest does, so getAnonymousSession() is then null while the
+    // guest is still in the browser: refuse rather than overwrite it.
+    if (await this.readPoppyGuest(reqCookies)) {
+      throw new AnonymousSessionError(
+        "poppy_guest_active",
+        "An agent guest is in this browser, so an anonymous session can't replace it. It ends at logout or when its Poppy Session ends."
       );
     }
     return this.createAndPersist(reqCookies, resCookies, options);
@@ -7229,10 +7326,20 @@ export class AuthClient {
         { allowGuest: false, now: this.epoch() }
       );
     if (poppyError) {
+      await this.#revokeRefreshTokenBestEffort(
+        tokenEndpointResponse.refresh_token,
+        "a refused Poppy login"
+      );
       throw poppyError;
     }
     if (poppyLogin.kind === "agent") {
-      attachPoppyAgentState(session, poppyLogin.state);
+      attachPoppyAgentState(
+        session,
+        this.#keepAgentDeadline(
+          poppyLogin.state,
+          await this.#readStoredSession(reqCookies)
+        )
+      );
     }
     session = await this.finalizeSession(
       session,
@@ -7728,10 +7835,20 @@ export class AuthClient {
         { allowGuest: false, now: this.epoch() }
       );
     if (poppyError) {
+      await this.#revokeRefreshTokenBestEffort(
+        tokenResponse.refresh_token,
+        "a refused Poppy login"
+      );
       throw poppyError;
     }
     if (poppyLogin.kind === "agent") {
-      attachPoppyAgentState(session, poppyLogin.state);
+      attachPoppyAgentState(
+        session,
+        this.#keepAgentDeadline(
+          poppyLogin.state,
+          await this.#readStoredSession(reqCookies)
+        )
+      );
     }
     session = await this.finalizeSession(session, tokenResponse.id_token);
     await this.sessionStore.set(reqCookies, resCookies, session, true);

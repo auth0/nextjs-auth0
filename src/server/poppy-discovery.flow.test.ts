@@ -14,7 +14,7 @@ const secret =
 const appBaseUrl = "https://fernway.com";
 
 const poppyConfig: PoppyConfig = {
-  protocol_version: "0.3",
+  protocol_version: "1.0",
   organization: { name: "Fernway", domain: "fernway.com" },
   auth: {
     issuer: "https://auth.fernway.com/",
@@ -58,7 +58,7 @@ describe("Poppy discovery files", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("application/json");
       expect(await res.json()).toEqual({
-        protocol_version: "0.3",
+        protocol_version: "1.0",
         organization: { name: "Fernway", domain: "fernway.com" },
         auth: {
           issuer: "https://auth.fernway.com/",
@@ -153,6 +153,21 @@ describe("Poppy discovery files", () => {
           poppy: { config: poppyConfig }
         })
     ).toThrow(/Poppy can't be used with a domain resolver/);
+  });
+
+  it("refuses poppy with enterpriseConnect", () => {
+    expect(
+      () =>
+        new Auth0Client({
+          domain,
+          clientId,
+          clientSecret,
+          secret,
+          appBaseUrl,
+          enterpriseConnect: true,
+          poppy: { config: poppyConfig }
+        })
+    ).toThrow(/Poppy can't be used with enterpriseConnect/);
   });
 
   it("still allows a domain resolver without poppy", () => {

@@ -108,6 +108,9 @@ export function getStatusForAnonymousError(code: string): number {
     case "feature_not_enabled":
     case "unauthorized_client":
       return 403;
+    // A Poppy guest is in the browser and would be overwritten.
+    case "poppy_guest_active":
+      return 409;
     // `server_error` is an authorization-server fault; `invalid_response` is a
     // protocol violation the SDK raises when Auth0 returns a malformed payload
     // (out-of-range `expires_in`, missing `session_token`). Neither is the
