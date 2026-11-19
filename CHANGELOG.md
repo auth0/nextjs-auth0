@@ -5,6 +5,7 @@
 
 **Added**
 - feat(poppy): support Poppy (Personal Agent Protocol) browser joins [\#2939](https://github.com/auth0/nextjs-auth0/pull/2939) ([Piyush-85](https://github.com/Piyush-85))
+- chore(example): poppy browser join [\#2940](https://github.com/auth0/nextjs-auth0/pull/2940) ([Piyush-85](https://github.com/Piyush-85))
 
 ## [v4.33.0](https://github.com/auth0/nextjs-auth0/tree/v4.33.0) (2026-10-22)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.32.1...v4.33.0)
