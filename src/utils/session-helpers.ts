@@ -6,6 +6,19 @@ import type { AccessTokenSet, SessionData } from "../types/index.js";
 const SESSION_EXPIRY_LEEWAY_SECONDS = 30;
 
 /**
+ * Returns true for a positive Unix timestamp in seconds. Rejects zero and
+ * negatives, millisecond timestamps (13+ digits), NaN, Infinity and non-numbers.
+ */
+export function isUnixSeconds(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value > 0 &&
+    value < 10_000_000_000
+  );
+}
+
+/**
  * Returns true when the IPSIE session ceiling has been reached.
  * Applies 30s negative leeway for clock skew — the session is treated as
  * expired slightly before the wall-clock ceiling, never after.
@@ -144,13 +157,10 @@ export function buildSessionFromCallback(
   oidcRes: oauth.TokenEndpointResponse,
   transactionState: TransactionState
 ): SessionData {
-  // Reject non-positive values (0, negatives), millisecond timestamps (13+ digits),
-  // NaN, Infinity, and non-numbers — all fall open to "no ceiling."
+  // Anything that is not a plausible Unix time in seconds falls open to
+  // "no ceiling."
   const rawExpiry = idTokenClaims.session_expiry;
-  const sessionExpiresAt =
-    typeof rawExpiry === "number" && rawExpiry > 0 && rawExpiry < 10_000_000_000
-      ? rawExpiry
-      : undefined;
+  const sessionExpiresAt = isUnixSeconds(rawExpiry) ? rawExpiry : undefined;
 
   return {
     user: idTokenClaims,

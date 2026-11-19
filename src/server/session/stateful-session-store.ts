@@ -182,7 +182,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
       await this.store.set(sessionId, session);
     }
 
-    const maxAge = this.calculateMaxAge(session.internal.createdAt);
+    const maxAge = this.calculateMaxAge(
+      session.internal.createdAt,
+      session.internal.poppy?.sessionExpiresAt
+    );
     // Use consistent timestamp to avoid race condition - align with calculateMaxAge logic
     const now = this.epoch();
     const expiration = now + maxAge;

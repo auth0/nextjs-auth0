@@ -41,10 +41,12 @@ import {
   User
 } from "../types/index.js";
 import type { DiscoveryCacheOptions, DomainResolver } from "../types/mcd.js";
+import type { PoppyContext, PoppyOptions } from "../types/poppy.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
 } from "../utils/constants.js";
+import { resolvePoppyRuntime } from "../utils/poppy-helpers.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { buildSessionTransferRedirectUrl } from "../utils/session-transfer-helpers.js";
@@ -80,6 +82,7 @@ import {
 } from "./next-compat.js";
 import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
+import { ServerPoppyClient } from "./poppy/server-poppy-client.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -540,6 +543,34 @@ export interface Auth0ClientOptions {
    * Defaults to disabled; when disabled, routes are not mounted and methods return null.
    */
   anonymousSession?: AnonymousSessionConfig;
+
+  /**
+   * Poppy (Personal Agent Protocol) support. Beta and subject to
+   * change.
+   *
+   * When set, the SDK serves `poppy.config`, the `poppy.json` written by
+   * `auth0 poppy config`, as written at `/.well-known/poppy.json`, and builds
+   * `/.well-known/oauth-protected-resource` from its `organization.domain` and
+   * `auth.issuer`. The middleware matcher must include `/.well-known/:path*`.
+   *
+   * It also handles agent logins from Auth0's browser join, and
+   * {@link Auth0Client.poppy | auth0.poppy.getContext()} reports who is
+   * driving. A login that looks like a guest but isn't a valid one is refused
+   * with a `PoppyError`, and the `onCallback` and `beforeSessionSaved` hooks
+   * are not called for a guest. See `guides/poppy.md` for the full behavior.
+   *
+   * An invalid `organization.domain` or `auth.issuer` throws an
+   * `InvalidConfigurationError` here, so it fails at startup instead of being
+   * served to agents. Check the rest of the file with `auth0 poppy doctor`.
+   *
+   * @example
+   * ```ts
+   * import poppyConfig from "./poppy.json";
+   *
+   * export const auth0 = new Auth0Client({ poppy: { config: poppyConfig } });
+   * ```
+   */
+  poppy?: PoppyOptions;
 }
 
 /** @category Session */
@@ -562,6 +593,7 @@ export class Auth0Client {
   private _mfa?: ServerMfaClient;
   private _passwordless?: ServerPasswordlessClient;
   private _passkey?: ServerPasskeyClient;
+  private _poppy?: ServerPoppyClient;
   #options: Auth0ClientOptions;
 
   /** @category Getting Started */
@@ -620,8 +652,36 @@ export class Auth0Client {
     }
     const tokenRefreshBuffer = tokenRefreshBufferOption ?? 0;
 
+    // Resolved once here, not per AuthClient: nothing in it depends on the
+    // request's domain, and a broken config should fail at startup.
+    const poppy = options.poppy
+      ? resolvePoppyRuntime(options.poppy)
+      : undefined;
+    // Poppy has one issuer, and the discovery files name it, so it can't serve
+    // a domain that changes per request.
+    if (poppy && typeof options.domain === "function") {
+      throw new InvalidConfigurationError(
+        "Invalid poppy option: Poppy can't be used with a domain resolver, because it has one issuer. Set domain to a string."
+      );
+    }
+    // Enterprise Connect keeps no session cookie of its own, while a guest
+    // lives in this app's cookie: the two don't fit together.
+    if (poppy && options.enterpriseConnect) {
+      throw new InvalidConfigurationError(
+        "Invalid poppy option: Poppy can't be used with enterpriseConnect."
+      );
+    }
+
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+
+    // Agents fetch the discovery files at the host root, which an app with a
+    // basePath never receives.
+    if (poppy && basePath && basePath !== "/") {
+      console.warn(
+        `[nextjs-auth0] Poppy: with basePath "${basePath}", the discovery files are served at ${basePath}/.well-known/poppy.json, but agents fetch /.well-known/poppy.json at the host root. Serve them at the root, for example with a rewrite or a proxy.`
+      );
+    }
 
     // Session cookie secure can be configured via options or AUTH0_COOKIE_SECURE.
     const envCookieSecure = process.env.AUTH0_COOKIE_SECURE;
@@ -776,6 +836,8 @@ export class Auth0Client {
       anonymousSessionLogout:
         process.env.NEXT_PUBLIC_ANONYMOUS_SESSION_LOGOUT_ROUTE ||
         "/auth/anonymous-session/logout",
+      poppyContext:
+        process.env.NEXT_PUBLIC_POPPY_CONTEXT_ROUTE || "/auth/poppy-context",
       ...options.routes
     };
 
@@ -907,6 +969,7 @@ export class Auth0Client {
                   : {})
               }
             : options.anonymousSession,
+          poppy,
           discoveryCache,
           provider: this.provider
         });
@@ -1030,6 +1093,26 @@ export class Auth0Client {
     // is deferred (D7). Access-token renewal is persisted through the route
     // handler (handleGetAnonymousSession), which owns a writable response.
     return authClient.getAnonymousSession(reqCookies as RequestCookies);
+  }
+
+  /** Backs `auth0.poppy.getContext()`. */
+  async #getPoppyContext(
+    req?: Request | PagesRouterRequest | NextRequest
+  ): Promise<PoppyContext> {
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    let reqCookies:
+      RequestCookies | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
+    }
+
+    return authClient.getPoppyContext(reqCookies);
   }
 
   /**
@@ -1846,6 +1929,22 @@ export class Auth0Client {
       this._passkey = new ServerPasskeyClient(this.provider);
     }
     return this._passkey;
+  }
+
+  /**
+   * Access Poppy (Personal Agent Protocol) operations. Beta and
+   * subject to change.
+   *
+   * `auth0.poppy.getContext()` says who is driving the current request: a
+   * person, or a Personal Agent as a guest or signed in.
+   *
+   * @category Session
+   */
+  get poppy(): ServerPoppyClient {
+    if (!this._poppy) {
+      this._poppy = new ServerPoppyClient((req) => this.#getPoppyContext(req));
+    }
+    return this._poppy;
   }
 
   /**

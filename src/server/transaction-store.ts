@@ -116,6 +116,14 @@ export interface TransactionState extends jose.JWTPayload {
   challengeMode?: "redirect" | "popup";
 
   /**
+   * True when the login was started with `prompt=none`. With Poppy, the same
+   * agent guest coming back from a silent login is a successful refresh, not
+   * a refused login.
+   * @internal
+   */
+  silent?: boolean;
+
+  /**
    * The Auth0 domain used for this transaction (MCD mode).
    * Stored to validate that the session is for the same domain.
    * @internal

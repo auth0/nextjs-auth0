@@ -57,6 +57,8 @@ export {
   type MfaRequirements
 } from "./mfa-errors.js";
 
+export { PoppyError, PoppyErrorCode } from "./poppy-errors.js";
+
 export {
   PopupBlockedError,
   PopupCancelledError,

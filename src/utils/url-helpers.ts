@@ -30,3 +30,19 @@ export function isUrl(url: string): boolean {
     return false;
   }
 }
+
+/**
+ * Checks if a hostname is a loopback host: `localhost`, a `*.localhost` name,
+ * `127.0.0.1` or `[::1]`. Pass `URL#hostname`, so an IPv6 address keeps its
+ * brackets.
+ * @param hostname The hostname to check, without a port.
+ * @returns True if the hostname is a loopback host.
+ */
+export function isLoopbackHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]"
+  );
+}

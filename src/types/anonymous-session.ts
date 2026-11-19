@@ -11,7 +11,11 @@ import type * as jose from "jose";
  * @category Session
  */
 export interface AnonymousSession {
-  /** Anonymous subject, always "anon@{uuid}" (extracted from access token sub claim) */
+  /**
+   * Anonymous subject (extracted from the access token's `sub` claim):
+   * `anon@{uuid}` for an anonymous session, or the guest's `anon_poppy@…`
+   * subject for a Poppy agent guest.
+   */
   id: string;
   /** Bearer token for API calls; validates per access_token JWT expiry */
   accessToken: string;
@@ -79,10 +83,17 @@ export type UseAnonymousSessionOptions = { route?: string };
  * Internal cookie payload (stays encrypted in cookie; never surfaces to SDK consumer)
  */
 export interface AnonymousCookiePayload extends jose.JWTPayload {
-  session_token: string; // opaque, non-API handle for renewal/metadata
+  // Opaque, non-API handle for renewal/metadata. Always present for anonymous
+  // sessions created through /anonymous/token; absent for a Poppy guest, which
+  // comes from a browser join and cannot be renewed.
+  session_token?: string;
   access_token: string; // standard bearer token
   expires_at: number; // Unix seconds, access token expiry
   metadata?: Record<string, unknown>; // last persisted metadata
+  // Set only for a Personal Agent's signed-out (guest) login. Its `sub` is the
+  // guest's anonymous ID token `sub`, kept so the session never depends on the
+  // access token being a decodable JWT.
+  poppy?: import("./poppy.js").PoppyAgentState;
 }
 
 /**

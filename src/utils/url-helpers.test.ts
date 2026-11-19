@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import payloads from "../test/fixtures/open-redirect-payloads.json" with { type: "json" };
-import { isUrl, toSafeRedirect } from "./url-helpers.js";
+import { isLoopbackHost, isUrl, toSafeRedirect } from "./url-helpers.js";
 
 describe("url-helpers", () => {
   describe("isUrl", () => {
@@ -70,6 +70,33 @@ describe("url-helpers", () => {
 
     it("should not throw for empty redirect", () => {
       expect(toSafeRedirect.bind(null, "", safeBaseUrl)).not.toThrow();
+    });
+  });
+
+  describe("isLoopbackHost", () => {
+    it.each(["localhost", "shop.localhost", "127.0.0.1", "[::1]"])(
+      "should return true for %s",
+      (hostname) => {
+        expect(isLoopbackHost(hostname)).toBe(true);
+      }
+    );
+
+    it.each([
+      "fernway.com",
+      "localhost.fernway.com",
+      "notlocalhost",
+      "127.0.0.2",
+      "::1",
+      ""
+    ])("should return false for %s", (hostname) => {
+      expect(isLoopbackHost(hostname)).toBe(false);
+    });
+
+    it("should match URL#hostname, which keeps the brackets on an IPv6 address", () => {
+      expect(isLoopbackHost(new URL("http://[::1]:3000").hostname)).toBe(true);
+      expect(isLoopbackHost(new URL("http://LOCALHOST:3000").hostname)).toBe(
+        true
+      );
     });
   });
 });

@@ -70,6 +70,7 @@ Legend: `→` flow, `↔` bidirectional, `[]` storage, `{}` transform
 | getAccessToken (client) | Browser→`/auth/access-token`→[session]→token |
 | useUser | Browser→`/auth/profile`→[session]→User |
 | Stateful session | [cookie:sid]↔[external store:SessionData] |
+| Poppy agent join | Agent browser→Auth0 join→`/auth/login` (no query today; `iss`+`target_link_uri` handled if sent)→Auth0`/authorize`→`/auth/callback`→{classify: person/guest/agent}→[`auth0_anon` guest \| session cookie agent]→redirect |
 
 See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 
@@ -86,6 +87,8 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 | `getAccessToken()` | `./client` | Client-side token retrieval |
 | `Auth0Provider` | `./client` | Context provider wrapping app |
 | `withPageAuthRequired` | `./client` or `./server` | Page protection HOC |
+| `auth0.poppy.getContext()` | `./server` | Who is driving: person, agent guest, or signed-in agent (beta, needs `poppy` option) |
+| `poppy.getContext()` | `./client` | The same, client-side, via `/auth/poppy-context` |
 
 ### Session Storage
 
@@ -103,6 +106,20 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 
 - Optional, requires `dpop.enabled: true` + key pair config
 - Tokens bound to cryptographic proof
+
+### Poppy (Personal Agents, beta)
+
+- Enabled with `new Auth0Client({ poppy: { config } })`; without it nothing changes
+- `poppy.config` is the `poppy.json` written by `auth0 poppy config`, served as is at `/.well-known/poppy.json` (no version pinned, no field mapping); the SDK reads and checks only `organization.domain` and `auth.issuer`, which build `/.well-known/oauth-protected-resource`; `auth0 poppy doctor` checks the rest; set `web.unscoped: true` when a signed-in agent gets full account access
+- SDK never verifies the agent (Auth0 does at the browser join); it trusts the ID token at `/auth/callback`, and the token response of passkey and passwordless logins
+- Agent = `act.sub` + `act.poppy_sid` + `act.poppy_user_id`; guest = `anon_poppy@` subject + anonymous `sub_profile` + Poppy `act`
+- Guest → `auth0_anon` cookie, `getSession()` stays `null`, hooks skipped; signed-in agent → `session.internal.poppy` (an agent's popup login, or any popup login over an agent's session, replaces the session, as a redirect does; the same agent logging in again in the same Poppy Session keeps its first deadline); both last at most until the join's ID token `exp` (a shorter `anonymousSession.cookie.maxAge`, or the session's own duration, ends them sooner); a guest's access token can expire sooner; the same guest coming back from a silent login (`prompt=none`) or after its token expired is a refresh that keeps the first join's deadline (Auth0 doesn't extend its guest session); `createAnonymousSession()` refuses to replace a live guest (`poppy_guest_active`, 409); a guest's `AnonymousSession.id` is its `anon_poppy@` subject; a Poppy `act` without a valid `sub`/`exp` is refused (`invalid_poppy_agent`); a decrypted session cookie without `user`/`tokenSet` is no session
+- `poppy` with a domain resolver (`domain` as a function), or with `enterpriseConnect`, throws `InvalidConfigurationError`
+- A guest join ends any session in the browser (deleting it, then revoking its refresh token, best effort) and replaces a plain anonymous session; with an active guest, only a signed-in agent join (any Poppy agent `act`, not compared with the guest) or a new guest join (new `sub` or `poppy_sid`) may log in; any other login (a person's, by redirect, popup, passkey or passwordless, or the same guest again from an interactive login while its access token is valid, which would loop) is refused with `poppy_sign_in_required` (a refused login's refresh token is revoked, best effort), after the `invalid_poppy_*` and `poppy_guest_not_supported` checks (callback: `onCallback` error; popup: `postMessage` error; passkey and passwordless: 403 JSON)
+- Context mirrors the ID token: `kind`, `state`, the token's own `sub` + `sub_profile`, the whole `act` as sent (nested; `act.sub` is the agent), `scopes`; agent state stores `sub`, `sub_profile`, `act`, `sessionExpiresAt`
+- `/auth/logout`: with `poppy` set, a logout with no session always uses `/v2/logout` (the SDK keeps no ID token or sid for a guest, and Auth0 may still hold a guest whose cookie ended); other logouts use `logoutStrategy`; the guest cookie is deleted; a `basePath` warns at startup (agents fetch `/.well-known/*` at the host root)
+- `/auth/poppy-context` (404 unless `poppy` set) backs client `poppy.getContext()`; no hook
+- Code: `src/server/poppy/server-poppy-client.ts`, `src/utils/poppy-helpers.ts`, `src/utils/poppy-discovery-helpers.ts`, `src/client/poppy/index.ts`, `src/utils/poppy-constants.ts`, `src/errors/poppy-errors.ts`; guide: [guides/poppy.md](guides/poppy.md)
 
 ### Hooks
 
@@ -124,6 +141,9 @@ Base class: `SdkError` with `code: string` property.
 | `InvalidConfigurationError` | `invalid_configuration` | Bad SDK config |
 | `DiscoveryError` | `discovery_error` | OIDC discovery failed |
 | `OAuth2Error` | varies | Auth0 callback error (may contain user input) |
+| `PoppyError` | `invalid_poppy_guest`, `invalid_poppy_agent`, `poppy_guest_not_supported` | Agent login refused (the reason is in `error.reason` and the server log, never the message) |
+| `PoppyError` | `poppy_sign_in_required` | Login over an active agent guest that isn't a signed-in agent join or a new guest join |
+| `PoppyError` | `poppy_not_enabled`, `poppy_context_unavailable` | Client `poppy.getContext()` failed (route 404, or any other failure) |
 
 **Pattern:** Catch by `error.code`, not `instanceof`.
 
