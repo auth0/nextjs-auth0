@@ -173,11 +173,11 @@ if (poppy.kind === "agent") {
 const poppy = await auth0.poppy.getContext();
 const cartKey =
   poppy.kind === "agent"
-    ? `${poppy.act.poppy_sid}|${poppy.act.poppy_user_id}`
+    ? `agent:${poppy.act.poppy_sid}|${poppy.act.poppy_user_id}`
     : (await auth0.getSession())?.user.sub;
 ```
 
-This key stays the same from guest to signed in when the agent signs in within the same Poppy Session, whether or not the agent is linked to an Auth0 agent: Auth0 takes `poppy_sid` and `poppy_user_id` from each join. If the agent signs in with a new Poppy Session, the signed-in agent gets another key, so move the guest's cart when the agent signs in if you need to keep it. The guest cookie is deleted when the agent signs in, so save the guest's key in your own storage (for example a cookie of your own) while the guest is present.
+The `agent:` prefix keeps an agent's key apart from a customer's `sub`: the agent chooses `poppy_sid` and `poppy_user_id`, so without it an agent could send `auth0` and `abc123` and get the key of the customer `auth0|abc123`. This key stays the same from guest to signed in when the signed-in join has the same `poppy_sid` and `poppy_user_id` as the guest's join, whether or not the agent is linked to an Auth0 agent: Auth0 takes both from each join. If either differs, the signed-in agent gets another key, so move the guest's cart when the agent signs in if you need to keep it. The guest cookie is deleted when the agent signs in, so save the guest's key in your own storage (for example a cookie of your own) while the guest is present.
 
 **Server Action: set your own rules for agents**
 
@@ -206,7 +206,7 @@ const poppy = await auth0.poppy.getContext(req);
 
 `getContext()` always returns `{ kind: "human" }` when the `poppy` option isn't set. A guest join ends any session in the browser: see [Guests and signed-in agents](#guests-and-signed-in-agents).
 
-The SDK keeps no storage of its own for Poppy Sessions. Where you keep carts and how you link a guest to a customer is up to your app. Key them by the Poppy Session and the user together (`act.poppy_sid` and `act.poppy_user_id`), never by `act.poppy_sid` alone. The agent (`act.sub`) and `act.poppy_agent_id` are data about the Session, not part of the key: for an agent linked to an Auth0 agent, `act.sub` is the Auth0 agent's ID and not the agent's URL. So two agents that send the same Session ID and User ID share a key. Agents choose their Session IDs at random, so this is unlikely. A later beta may add the agent to the key, which would change every key.
+The SDK keeps no storage of its own for Poppy Sessions. Where you keep carts and how you link a guest to a customer is up to your app. Key them by the Poppy Session and the user together (`act.poppy_sid` and `act.poppy_user_id`), never by `act.poppy_sid` alone. The agent (`act.sub`) and `act.poppy_agent_id` are data about the Session, not part of the key: for an agent linked to an Auth0 agent, `act.sub` is the Auth0 agent's ID and not the agent's URL. So two agents that send the same Session ID and User ID share a key. The protocol says an agent must choose its Session ID at random, but the SDK can't check that. Treat the key as a name for the Session, not as a secret and not as proof of which agent is calling: to know the agent, read `act.sub`. A later beta may add the agent to the key, which would change every key.
 
 ### Client-side usage
 

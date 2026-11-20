@@ -530,7 +530,7 @@ export const auth0 = new Auth0Client({ poppy: { config: poppyConfig } });
 const poppy = await auth0.poppy.getContext(); // { kind: "human" } or { kind: "agent", state: "guest" | "signed_in", ... }
 ```
 
-Your middleware matcher must let `/.well-known/*` through to the SDK. For setup, the file format, guest vs signed-in behaviour, errors and testing, see [Poppy in guides/poppy.md](https://github.com/auth0/nextjs-auth0/blob/beta/guides/poppy.md).
+Your middleware matcher must let `/.well-known/*` through to the SDK. For setup, the file format, guest vs signed-in behaviour, errors and testing, see [Poppy in guides/poppy.md](./guides/poppy.md).
 
 ## Feedback
 
