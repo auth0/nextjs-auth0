@@ -14,7 +14,7 @@ Shows how to let personal AI agents shop on your Next.js site with the Poppy (Pe
 | `app/page.tsx` | Calls `auth0.poppy.getContext()` to show who is driving, and offers Log in, or Log out for a person or an agent |
 | `app/inspector.tsx`, `app/api/inspect/route.ts` | Buttons on the home page that call `auth0.poppy.getContext()`, `getSession()` and `getAnonymousSession()` on the server and show the result (tokens left out) |
 | `app/browser-context.tsx` | A button that calls the client-side `poppy.getContext()`, which reads the SDK's `/auth/poppy-context` route |
-| `app/cart/page.tsx` | Keys a cart by the Poppy session. For an agent guest it shows the cart manager below, and for anyone else a notice. The key changes on sign-in unless the agent stays in the same Poppy Session |
+| `app/cart/page.tsx` | Keys a cart by the Poppy Session ID and the User ID. For an agent guest it shows the cart manager below, and for anyone else a notice. The key changes on sign-in unless the agent signs in with the same Session ID and User ID |
 | `app/cart-manager.tsx` | The shop and cart UI: add items, change quantities, remove items, clear the cart |
 | `lib/carts.ts`, `app/api/cart/**` | Server routes that call the carts API with the guest's access token. The browser never sees the token |
 

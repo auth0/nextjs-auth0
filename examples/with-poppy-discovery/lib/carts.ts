@@ -49,7 +49,9 @@ async function requireGuest() {
   }
   return {
     token: guest.accessToken,
-    key: `${poppy.act.sub}|${poppy.act.poppy_sid}`
+    // The Poppy Session ID and the User ID, not the agent (see the guide). The
+    // prefix keeps it apart from a customer's `sub` if the map is ever shared.
+    key: `poppy:${poppy.act.poppy_sid}|${poppy.act.poppy_user_id}`
   };
 }
 
