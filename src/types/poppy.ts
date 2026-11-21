@@ -82,8 +82,9 @@ export interface PoppyActClaim {
    */
   sub: string;
   /**
-   * The Poppy Session ID. Stable from guest to signed in, so the app can key a
-   * cart by it.
+   * The Poppy Session ID. Key a cart by it together with `poppy_user_id`, never
+   * by it alone: the agent chooses it, and the key stays the same from guest to
+   * signed in only when both are the same in the two joins.
    */
   poppy_sid: string;
   /**

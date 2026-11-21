@@ -23,7 +23,8 @@ class CartError extends Error {
   }
 }
 
-// Which cart belongs to which Poppy session. The carts API lists every cart to
+// Which cart belongs to which Poppy session, keyed by `poppy_sid` and
+// `poppy_user_id` together, as in the guide. The carts API lists every cart to
 // every caller, so the app keeps this itself and only touches its own cart.
 // Demo only: a real app would use its own storage.
 const store = globalThis as typeof globalThis & {
@@ -49,7 +50,7 @@ async function requireGuest() {
   }
   return {
     token: guest.accessToken,
-    key: `${poppy.act.sub}|${poppy.act.poppy_sid}`
+    key: `agent:${poppy.act.poppy_sid}|${poppy.act.poppy_user_id}`
   };
 }
 

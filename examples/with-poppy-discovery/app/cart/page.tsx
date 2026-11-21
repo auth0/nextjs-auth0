@@ -6,13 +6,13 @@ export default async function Cart() {
   const poppy = await auth0.poppy.getContext();
   const session = await auth0.getSession();
 
-  // Key the cart by the Poppy session for an agent. The key stays the same
-  // from guest to signed in only when the agent signs in within the same Poppy
-  // Session and its link in Auth0 doesn't change; otherwise the signed-in
+  // Key the cart by the Poppy session for an agent: `poppy_sid` and
+  // `poppy_user_id` together. The key stays the same from guest to signed in
+  // only when both are the same in the two joins; otherwise the signed-in
   // agent gets a new, empty cart.
   const owner =
     poppy.kind === "agent"
-      ? `${poppy.act.sub} · ${poppy.act.poppy_sid}`
+      ? `${poppy.act.poppy_sid} · ${poppy.act.poppy_user_id}`
       : (session?.user.email ?? session?.user.sub ?? "anonymous visitor");
 
   const isGuest = poppy.kind === "agent" && poppy.state === "guest";
