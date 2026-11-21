@@ -9,6 +9,7 @@ import type {
   TokenSet,
   User
 } from "../../../types/index.js";
+import type { MCDMetadata } from "../../../types/mcd.js";
 
 // The engine's cache key for "no specific audience" (engine `getAccessToken`). Never sent.
 export const ENGINE_DEFAULT_AUDIENCE = "default";
@@ -30,6 +31,38 @@ export interface SessionMapper {
 }
 
 type TokenEntry = Record<string, unknown>;
+
+/**
+ * The domain the engine keeps in a session for an issuer (with `keepDomainPath`): the host, then
+ * the path when the issuer is not at the root of its host (`myorg.okta.com/oauth2/default`).
+ */
+export function sessionDomainOf(issuer: string): string {
+  const { host, pathname } = new URL(issuer);
+  return pathname === "/" ? host : `${host}${pathname}`;
+}
+
+/**
+ * nextjs's `mcd` for a session domain of the engine: the host as `domain`, and the issuer, with
+ * the path kept as given (nextjs added no trailing slash to a path issuer).
+ */
+function toMcd(domain: string): MCDMetadata {
+  const slash = domain.indexOf("/");
+  return slash === -1
+    ? { domain, issuer: `https://${domain}/` }
+    : { domain: domain.slice(0, slash), issuer: `https://${domain}` };
+}
+
+/**
+ * The engine's session domain for nextjs's `mcd`. nextjs kept the path in `issuer` only, so the
+ * domain is read from it, and from `domain` when the issuer cannot be read.
+ */
+function fromMcd(mcd: MCDMetadata): string {
+  try {
+    return sessionDomainOf(mcd.issuer);
+  } catch {
+    return mcd.domain;
+  }
+}
 
 /**
  * Converts between today's `SessionData` (the public shape: `getSession()`, `updateSession()`,
@@ -88,7 +121,7 @@ export function createSessionMapper({
         connectionTokenSets:
           connectionTokenSets as StateData["connectionTokenSets"]
       }),
-      ...(mcd?.domain && { domain: mcd.domain }),
+      ...(mcd?.domain && { domain: fromMcd(mcd) }),
       ...(sessionExpiresAt !== undefined && { sessionExpiresAt }),
       internal: internalRest
     };
@@ -157,9 +190,10 @@ export function createSessionMapper({
       internal: {
         ...internalRest,
         ...(sessionExpiresAt !== undefined && { sessionExpiresAt }),
-        // The engine stores the domain as a bare host; on Auth0 the issuer is always
-        // `https://{domain}/`, as nextjs fills it for sessions without `mcd`.
-        ...(domain && { mcd: { domain, issuer: `https://${domain}/` } })
+        // The engine stores the host, with the path of an issuer that is not at the root of its
+        // host. On Auth0 the issuer is `https://{domain}/`, as nextjs fills it for sessions
+        // without `mcd`.
+        ...(domain && { mcd: toMcd(domain) })
       }
     };
     // nextjs saves a session without `user` or `tokenSet` and reads it back the same way, so an

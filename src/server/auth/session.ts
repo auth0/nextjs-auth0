@@ -12,6 +12,7 @@ import {
   sharedJarContext,
   type CookieContext
 } from "../engine/adapters/context.js";
+import { sessionDomainOf } from "../engine/adapters/session-mapper.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 import { NextStatefulStateStore } from "../engine/stores/stateful-state-store.js";
 import type {
@@ -73,12 +74,15 @@ export async function readSession(
     return { state };
   }
 
+  // The session's domain is compared as the engine stores it: the host, with the issuer's path.
+  const currentDomain = async () =>
+    sessionDomainOf((await setup.currentDomain(ctx)).issuer);
   if (state.domain) {
-    const currentDomain = await setup.currentDomain(ctx);
-    if (state.domain !== currentDomain) {
+    const current = await currentDomain();
+    if (state.domain !== current) {
       return {
         error: new SessionDomainMismatchError(
-          `Session was created for domain '${state.domain}' but the current request is for domain '${currentDomain}'. ` +
+          `Session was created for domain '${state.domain}' but the current request is for domain '${current}'. ` +
             `This may indicate a cross-domain session reuse attempt.`
         )
       };
@@ -93,13 +97,13 @@ export async function readSession(
     try {
       const { iss } = decodeJwt(state.idToken);
       if (typeof iss === "string") {
-        inferredDomain = normalizeDomain(iss).domain;
+        inferredDomain = sessionDomainOf(normalizeDomain(iss).issuer);
       }
     } catch {
       // Malformed ID token or issuer: fall back to the current domain.
     }
   }
-  state.domain = inferredDomain ?? (await setup.currentDomain(ctx));
+  state.domain = inferredDomain ?? (await currentDomain());
   return { state };
 }
 

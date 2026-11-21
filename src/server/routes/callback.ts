@@ -30,6 +30,7 @@ import { finalizeSession } from "../auth/hooks.js";
 import { readSession } from "../auth/session.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
 import { middlewareContext } from "../engine/adapters/context.js";
+import { sessionDomainOf } from "../engine/adapters/session-mapper.js";
 import type { Engine, EngineSetup } from "../engine/create-engine.js";
 import { toTokenSet } from "../fetcher/create-fetcher.js";
 import type { OnCallbackContext, OnCallbackHook } from "../types/hooks.js";
@@ -648,10 +649,9 @@ async function hasWrongIssuer(
   if (iss === null || !transaction.domain) {
     return false;
   }
+  // The transaction keeps the domain as the engine stores it: the host, with the issuer's path.
   try {
-    return (
-      normalizeDomain(iss).domain !== normalizeDomain(transaction.domain).domain
-    );
+    return sessionDomainOf(normalizeDomain(iss).issuer) !== transaction.domain;
   } catch {
     return true;
   }

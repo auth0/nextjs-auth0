@@ -726,7 +726,7 @@ export class Auth0Client {
 
     const { ctx } = await requestContext();
     const federated = await isFederatedDomain(
-      await this.#setup.currentDomain(ctx),
+      (await this.#setup.currentDomain(ctx)).domain,
       emailDomain,
       { customFetch: this.#setup.fetch }
     );

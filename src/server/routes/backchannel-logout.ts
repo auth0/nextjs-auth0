@@ -62,7 +62,7 @@ export async function handleBackChannelLogout(
   if (typeof config.domain === "function") {
     // Resolver mode: the domain resolved for the request is the trust anchor. A resolver error
     // reaches the app, as on nextjs (its middleware resolves the domain before the route runs).
-    const currentDomain = await setup.currentDomain(ctx);
+    const currentDomain = (await setup.currentDomain(ctx)).domain;
     // The token's issuer is read without verifying, only to compare it.
     try {
       const issuerDomain = readIssuerDomain(logoutToken);
@@ -89,7 +89,10 @@ export async function handleBackChannelLogout(
   // Static mode: custom domains of one tenant share signing keys, so a token for another domain
   // would verify. An issuer that cannot be read skips the check; verification decides.
   const issuerDomain = readIssuerDomain(logoutToken);
-  if (issuerDomain && issuerDomain !== (await setup.currentDomain(ctx))) {
+  if (
+    issuerDomain &&
+    issuerDomain !== (await setup.currentDomain(ctx)).domain
+  ) {
     return textResponse(
       "Logout token issuer does not match the configured domain.",
       403

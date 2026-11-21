@@ -80,7 +80,7 @@ async function withScratch(
 ): Promise<NextResponse> {
   const scratch = NextResponse.next();
   const ctx = middlewareContext(req, scratch);
-  const issuer = `https://${await setup.currentDomain(ctx)}/`;
+  const { issuer } = await setup.currentDomain(ctx);
   const res = await run(ctx, issuer);
   transferCookies(scratch, res);
   return res;

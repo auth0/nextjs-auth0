@@ -56,10 +56,25 @@ const UNSUPPORTED_AUTHORIZATION_PARAMS = [
 
 export type Engine = ServerClient<CookieContext>;
 type GetEngine = () => Promise<Engine>;
-type CurrentDomain = (ctx?: CookieContext) => Promise<string>;
+type CurrentDomain = (ctx?: CookieContext) => Promise<NormalizedDomain>;
 type BuildEngine = (
   domain: string | EngineDomainResolver<CookieContext>
 ) => Engine;
+
+/**
+ * A domain normalized as nextjs normalizes it.
+ */
+export interface NormalizedDomain {
+  /**
+   * The host, lowercased, without port or path (nextjs's `domain`).
+   */
+  domain: string;
+  /**
+   * The issuer URL (nextjs's `issuer`). It keeps the path, and the `http` scheme and the port with
+   * `allowInsecureRequests`. This is the value given to the engine.
+   */
+  issuer: string;
+}
 
 export interface EngineSetup {
   /**
@@ -68,8 +83,8 @@ export interface EngineSetup {
    */
   getEngine: GetEngine;
   /**
-   * The domain for a call, normalized as the engine gets it. In resolver mode this calls the
-   * user's resolver.
+   * The domain for a call: the host and the issuer given to the engine. In resolver mode this
+   * calls the user's resolver.
    */
   currentDomain: CurrentDomain;
   errors: ErrorMapper;
@@ -102,6 +117,9 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
   );
   const anonymous = createAnonymousStore(config, cookieHandler);
   const customFetch = createFetch(options);
+  // As on nextjs: on by default in tests, so a static `http` domain (a mock server) is kept.
+  const allowInsecureRequests =
+    options.allowInsecureRequests ?? process.env.NODE_ENV === "test";
 
   const build: BuildEngine = (domain) => {
     try {
@@ -121,6 +139,11 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
         enableParallelTransactions: config.enableParallelTransactions,
         customFetch,
         httpTimeout: options.httpTimeout ?? undefined,
+        // `http` for a static domain only; a resolver's issuer always uses https.
+        allowInsecureRequests,
+        // nextjs always kept the path of the domain (an Okta custom authorization server, for
+        // example). The engine then keeps it in the session's domain too.
+        keepDomainPath: true,
         transactionStore,
         stateStore: sessionStore,
         ...anonymous,
@@ -138,7 +161,7 @@ export function createEngine(options: Auth0ClientOptions): EngineSetup {
   };
 
   return {
-    ...selectEngine(config, build),
+    ...selectEngine(config, allowInsecureRequests, build),
     errors,
     fetch: customFetch,
     cookieHandler,
@@ -263,15 +286,18 @@ interface EngineAccess {
 /**
  * Picks how the engine is built from the domain setup.
  */
-function selectEngine(config: EngineConfig, build: BuildEngine): EngineAccess {
-  const { domain, options } = config;
+function selectEngine(
+  { domain }: EngineConfig,
+  allowInsecureRequests: boolean,
+  build: BuildEngine
+): EngineAccess {
   if (typeof domain === "function") {
     return resolverEngine(domain, build);
   }
   if (domain) {
-    return staticEngine(domain, options.allowInsecureRequests, build);
+    return staticEngine(domain, allowInsecureRequests, build);
   }
-  return lazyEngine(options.allowInsecureRequests, build);
+  return lazyEngine(allowInsecureRequests, build);
 }
 
 /**
@@ -279,12 +305,15 @@ function selectEngine(config: EngineConfig, build: BuildEngine): EngineAccess {
  */
 function staticEngine(
   domain: string,
-  allowInsecureRequests: boolean | undefined,
+  allowInsecureRequests: boolean,
   build: BuildEngine
 ): EngineAccess {
-  const host = staticDomain(domain, allowInsecureRequests);
-  const engine = build(host);
-  return { getEngine: async () => engine, currentDomain: async () => host };
+  const normalized = normalizeDomain(domain, { allowInsecureRequests });
+  const engine = build(normalized.issuer);
+  return {
+    getEngine: async () => engine,
+    currentDomain: async () => normalized
+  };
 }
 
 /**
@@ -295,7 +324,7 @@ function resolverEngine(
   build: BuildEngine
 ): EngineAccess {
   const currentDomain: CurrentDomain = (ctx) => resolveDomain(resolver, ctx);
-  const engine = build(currentDomain);
+  const engine = build(async (ctx) => (await currentDomain(ctx)).issuer);
   return { getEngine: async () => engine, currentDomain };
 }
 
@@ -304,10 +333,10 @@ function resolverEngine(
  * A failure is not kept, so the next call tries again.
  */
 function lazyEngine(
-  allowInsecureRequests: boolean | undefined,
+  allowInsecureRequests: boolean,
   build: BuildEngine
 ): EngineAccess {
-  let current: { engine: Engine; host: string } | undefined;
+  let current: { engine: Engine; normalized: NormalizedDomain } | undefined;
   const load = () => {
     if (current) {
       return current;
@@ -321,35 +350,25 @@ function lazyEngine(
         )
       );
     }
-    const host = staticDomain(domain, allowInsecureRequests);
-    current = { engine: build(host), host };
+    const normalized = normalizeDomain(domain, { allowInsecureRequests });
+    current = { engine: build(normalized.issuer), normalized };
     return current;
   };
   return {
     getEngine: async () => load().engine,
-    currentDomain: async () => load().host
+    currentDomain: async () => load().normalized
   };
 }
 
 /**
- * Validates a static domain as nextjs does and returns the host given to the engine.
- */
-function staticDomain(domain: string, allowInsecureRequests?: boolean) {
-  const normalized = normalizeDomain(domain, {
-    allowInsecureRequests:
-      allowInsecureRequests ?? process.env.NODE_ENV === "test"
-  });
-  assertEngineIssuer(domain, normalized);
-  return normalized.domain;
-}
-
-/**
  * Calls the user's resolver with `{ headers, url }` and turns its failures into today's errors.
+ * The value is normalized without `allowInsecureRequests`, as on nextjs: https, no port, the path
+ * kept.
  */
 async function resolveDomain(
   resolver: DomainResolver,
   ctx?: CookieContext
-): Promise<string> {
+): Promise<NormalizedDomain> {
   let resolved: string;
   try {
     resolved = await resolver({
@@ -369,23 +388,7 @@ async function resolveDomain(
   // nextjs normalizes the issuer again when it picks the client, which refuses a host that is not
   // valid (a space, `!`) with the same error.
   normalizeDomain(normalized.issuer);
-  assertEngineIssuer(resolved, normalized);
-  return normalized.domain;
-}
-
-/**
- * The engine always talks to `https://{host}/`. A domain whose issuer has another scheme, a port or
- * a path would silently reach the wrong server, so it is refused with a clear message instead.
- */
-function assertEngineIssuer(
-  input: string,
-  { domain, issuer }: { domain: string; issuer: string }
-) {
-  if (issuer !== `https://${domain}/`) {
-    throw new InvalidConfigurationError(
-      `The domain "${input}" resolves to the issuer "${issuer}". Only https issuers at the root path are supported.`
-    );
-  }
+  return normalized;
 }
 
 /**

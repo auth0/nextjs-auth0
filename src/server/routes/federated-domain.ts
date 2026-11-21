@@ -34,7 +34,7 @@ export async function handleFederatedDomain(
   }
 
   const emailDomain = email.slice(email.lastIndexOf("@") + 1).toLowerCase();
-  const domain = await setup.currentDomain(
+  const { domain } = await setup.currentDomain(
     middlewareContext(req, NextResponse.next())
   );
   const isFederated = await isFederatedDomain(domain, emailDomain, {

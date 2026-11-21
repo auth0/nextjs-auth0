@@ -76,13 +76,14 @@ export function isConnectTransaction(
 }
 
 /**
- * The issuer of the current request's domain, as the My Account API base (`https://{domain}/`).
+ * The issuer of the current request's domain, as the My Account API base (`https://{domain}/` on
+ * Auth0).
  */
 export async function issuerOf(
   setup: EngineSetup,
   ctx: CookieContext
 ): Promise<string> {
-  return `https://${await setup.currentDomain(ctx)}/`;
+  return (await setup.currentDomain(ctx)).issuer;
 }
 
 /**

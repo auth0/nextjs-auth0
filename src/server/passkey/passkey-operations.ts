@@ -237,7 +237,7 @@ async function myAccountToken(
     );
   }
 
-  const issuer = `https://${await setup.currentDomain(ctx)}/`;
+  const { issuer } = await setup.currentDomain(ctx);
   const result = await retrieveAccessToken(setup, ctx, {
     audience: `${issuer}me/`,
     scope: MY_ACCOUNT_SCOPE
