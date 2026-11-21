@@ -7,7 +7,8 @@ import {
   PasskeyEnrollmentVerifyError,
   PasskeyGetTokenError,
   PasskeyRegisterError,
-  SdkError
+  SdkError,
+  type PasskeyGetTokenApiErrorResponse
 } from "../../errors/index.js";
 import type {
   PasskeyChallengeOptions,
@@ -59,6 +60,9 @@ export async function handlePasskeyRegister(
     for (const field of REGISTER_FIELDS) {
       if (body[field]) options[field] = body[field];
     }
+    // Auth0 validates the value and rejects unsupported channels.
+    if (typeof body.deliveryMethod === "string")
+      options.deliveryMethod = body.deliveryMethod;
     const { ctx } = await readContext(req);
     const challenge = await registerPasskey(
       setup,
@@ -121,6 +125,8 @@ export async function handlePasskeyGetToken(
       options.connection = body.connection;
     if (typeof body.organization === "string")
       options.organization = body.organization;
+    if (body.verification !== undefined)
+      options.verification = body.verification;
 
     const scratch = NextResponse.next();
     await getPasskeyToken(setup, middlewareContext(req, scratch), options);
@@ -140,7 +146,18 @@ export async function handlePasskeyGetToken(
       if (e.error === "discovery_error" || e.error === "unexpected_error") {
         return serverError();
       }
-      return NextResponse.json(e.toJSON(), { status: 403 });
+      // The browser needs these to re-prompt for codes and resubmit the session.
+      const errorBody: PasskeyGetTokenApiErrorResponse & {
+        is_retryable: boolean;
+      } = {
+        ...e.toJSON(),
+        is_retryable: e.isRetryable,
+        ...(e.authSession && { auth_session: e.authSession }),
+        ...(e.verificationRequired && {
+          verification_required: e.verificationRequired
+        })
+      };
+      return NextResponse.json(errorBody, { status: 403 });
     }
     return otherErrorResponse(e);
   }

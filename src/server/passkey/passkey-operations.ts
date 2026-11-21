@@ -1,4 +1,5 @@
 import {
+  InvalidRequestError,
   PasskeyEnrollmentChallengeError,
   PasskeyEnrollmentVerifyError
 } from "../../errors/index.js";
@@ -11,7 +12,9 @@ import type {
   PasskeyEnrollmentVerifyResponse,
   PasskeyGetTokenOptions,
   PasskeyRegisterOptions,
-  PasskeyRegisterResponse
+  PasskeyRegisterResponse,
+  PasskeyVerificationCodes,
+  PasskeyVerificationIdentifier
 } from "../../types/index.js";
 import { retrieveAccessToken } from "../auth/access-token.js";
 import { createLoginHook } from "../auth/hooks.js";
@@ -87,7 +90,9 @@ export async function getPasskeyToken(
   options: PasskeyGetTokenOptions
 ): Promise<void> {
   const { config } = setup;
-  const { authSession, authResponse, connection, ...rest } = options;
+  const { authSession, authResponse, connection, verification, ...rest } =
+    options;
+  const codes = normalizePasskeyVerification(verification);
   const dpopKeyPair = await getDpopKeyPair(config);
   const hook = createLoginHook(setup);
   try {
@@ -97,7 +102,8 @@ export async function getPasskeyToken(
         ...rest,
         authSession,
         credential: authResponse,
-        ...(connection && { realm: connection })
+        ...(connection && { realm: connection }),
+        ...(codes && { verification: codes })
       } as EngineGetTokenOptions,
       ctx,
       dpopKeyPair ? { dpopKeyPair } : undefined,
@@ -114,6 +120,55 @@ export async function getPasskeyToken(
       scope: options.scope ?? config.loginScope
     });
   }
+}
+
+const PASSKEY_VERIFICATION_IDENTIFIERS: readonly PasskeyVerificationIdentifier[] =
+  ["email", "phone"];
+
+/**
+ * Validates passkey signup verification codes before they are sent.
+ * Keys must be `email` or `phone` and codes must be strings. Blank codes are
+ * dropped, and `undefined` is returned when nothing is left, so Auth0 never
+ * receives an empty `verification` object.
+ *
+ * @throws {InvalidRequestError} On an unknown key or a non-string code.
+ */
+function normalizePasskeyVerification(
+  verification: unknown
+): PasskeyVerificationCodes | undefined {
+  if (verification === undefined || verification === null) return undefined;
+  if (typeof verification !== "object" || Array.isArray(verification)) {
+    throw new InvalidRequestError("verification must be an object");
+  }
+
+  for (const key of Object.keys(verification)) {
+    if (
+      !PASSKEY_VERIFICATION_IDENTIFIERS.includes(
+        key as PasskeyVerificationIdentifier
+      )
+    ) {
+      throw new InvalidRequestError(
+        "verification keys must be 'email' or 'phone'"
+      );
+    }
+  }
+
+  // Keys come from the fixed identifier list, never from the request.
+  const input = verification as Record<string, unknown>;
+  const codes: PasskeyVerificationCodes = {};
+  for (const identifier of PASSKEY_VERIFICATION_IDENTIFIERS) {
+    const code = input[identifier];
+    if (code === undefined || code === null) continue;
+    if (typeof code !== "string") {
+      throw new InvalidRequestError(
+        `the '${identifier}' verification code must be a string`
+      );
+    }
+    if (code.trim()) {
+      codes[identifier] = code;
+    }
+  }
+  return Object.keys(codes).length > 0 ? codes : undefined;
 }
 
 /**

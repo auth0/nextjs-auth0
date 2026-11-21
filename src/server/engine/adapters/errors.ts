@@ -35,6 +35,7 @@ import {
   TokenRevocationErrorCode,
   type MfaRequirements
 } from "../../../errors/index.js";
+import type { PasskeyVerificationIdentifier } from "../../../types/index.js";
 import { DEFAULT_MFA_CONTEXT_TTL_SECONDS } from "../../../utils/constants.js";
 import { encryptMfaToken } from "../../../utils/mfa-utils.js";
 import { mapSttServerError } from "../../../utils/session-transfer-helpers.js";
@@ -127,6 +128,8 @@ interface EngineError {
     message?: string;
     mfa_token?: string;
     mfa_requirements?: MfaRequirements;
+    auth_session?: string;
+    verification_required?: PasskeyVerificationIdentifier[];
   };
 }
 
@@ -183,11 +186,19 @@ function oauth2ErrorFrom(e: unknown, fallbackCode = "unknown_error") {
 }
 
 // `{ error, error_description }` cause of the MFA, passkey and passwordless classes, set only
-// when Auth0 returned an `error`, as today.
+// when Auth0 returned an `error`, as today. A wrong passkey signup verification code also
+// carries `auth_session` and `verification_required`.
 function apiErrorBodyFrom(e: unknown) {
   const cause = causeOf(e);
   return cause?.error
-    ? { error: cause.error, error_description: cause.error_description ?? "" }
+    ? {
+        error: cause.error,
+        error_description: cause.error_description ?? "",
+        ...(cause.auth_session != null && { auth_session: cause.auth_session }),
+        ...(cause.verification_required != null && {
+          verification_required: cause.verification_required
+        })
+      }
     : undefined;
 }
 
