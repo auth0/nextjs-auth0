@@ -14,7 +14,10 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
-import { decryptMfaToken } from "../../utils/mfa-utils.js";
+import {
+  decryptMfaToken,
+  toAuth0ChallengeType
+} from "../../utils/mfa-utils.js";
 import { createLoginHook } from "../auth/hooks.js";
 import { readSession } from "../auth/session.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
@@ -64,8 +67,8 @@ export async function listAuthenticators(
 }
 
 /**
- * Starts an MFA challenge. When the token carries `mfa_requirements`, only their challenge types
- * are allowed (nextjs's check, before any request); without them, any type is.
+ * Starts an MFA challenge. `challengeType` is `otp` or `oob`; factor names from
+ * `mfa_requirements` (phone, email, push-notification, ...) are mapped to `oob`.
  */
 export async function challengeAuthenticator(
   setup: EngineSetup,
@@ -76,20 +79,18 @@ export async function challengeAuthenticator(
 ): Promise<EngineChallengeResponse> {
   const context = await decryptMfaToken(encryptedToken, setup.config.secret);
 
-  if (context.mfaRequirements?.challenge) {
-    const allowedTypes = new Set(
-      context.mfaRequirements.challenge.map((c) => c.type.toLowerCase())
+  // When mfa_requirements is present it must offer at least one challenge type.
+  // When absent (e.g. webauthn grant) there is nothing to check.
+  // The requested type is deliberately not compared against mfa_requirements:
+  // that list holds factor names (phone, email, push-notification, ...) while
+  // /mfa/challenge only accepts otp/oob. Auth0 enforces the allowed set itself.
+  if (
+    context.mfaRequirements?.challenge &&
+    context.mfaRequirements.challenge.length === 0
+  ) {
+    throw new MfaNoAvailableFactorsError(
+      "No MFA challenge types available in mfa_requirements"
     );
-    if (allowedTypes.size === 0) {
-      throw new MfaNoAvailableFactorsError(
-        "No MFA challenge types available in mfa_requirements"
-      );
-    }
-    if (!allowedTypes.has(challengeType.toLowerCase())) {
-      throw new MfaNoAvailableFactorsError(
-        `Challenge type "${challengeType}" is not allowed by mfa_requirements. Allowed: ${[...allowedTypes].join(", ")}`
-      );
-    }
   }
 
   const engine = await setup.getEngine();
@@ -97,8 +98,9 @@ export async function challengeAuthenticator(
     engine.mfa.challengeAuthenticator(
       {
         mfaToken: context.mfaToken,
-        challengeType:
-          challengeType as EngineChallengeResponse["challengeType"],
+        challengeType: toAuth0ChallengeType(
+          challengeType
+        ) as EngineChallengeResponse["challengeType"],
         ...(authenticatorId && { authenticatorId })
       },
       undefined,
