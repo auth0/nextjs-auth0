@@ -29,7 +29,7 @@
 | Import Path | Contents |
 |-------------|----------|
 | `@auth0/nextjs-auth0` | Client: `useUser`, `getAccessToken`, `Auth0Provider`, `withPageAuthRequired` |
-| `@auth0/nextjs-auth0/server` | Server: `Auth0Client`, `AbstractSessionStore`, `TransactionStore` |
+| `@auth0/nextjs-auth0/server` | Server: `Auth0Client`, `withPageAuthRequired`, MFA and MCD error classes |
 | `@auth0/nextjs-auth0/errors` | Error classes: `SdkError`, `AccessTokenError`, `AuthorizationError`, etc. |
 | `@auth0/nextjs-auth0/types` | TypeScript types only: `SessionData`, `User`, `TokenSet` |
 | `@auth0/nextjs-auth0/testing` | Test utilities: `generateSessionCookie` |
