@@ -56,18 +56,26 @@ export interface LoginHook {
 /**
  * The hook for one engine call that logs the user in and saves the session.
  *
- * `noIdToken`: the error for a login that would be saved with no user (no session before and no
- * ID token in the response). Nothing is saved; the error reaches the caller unchanged, as `failed`
- * says. Without it, such a login is not handled here.
+ * `missingIdToken`: the error for a login whose response has no ID token, whether or not a session
+ * exists (a login that is refused without one). `noIdToken`: the error for a login that would be
+ * saved with no user (no session before and no ID token), so a step-up on a session is allowed.
+ * Nothing is saved; the error reaches the caller unchanged, as `failed` says. Without them, such
+ * a login is not handled here.
  */
 export function createLoginHook(
   { config, sessionMapper }: EngineSetup,
-  { noIdToken }: { noIdToken?: () => Error } = {}
+  {
+    noIdToken,
+    missingIdToken
+  }: { noIdToken?: () => Error; missingIdToken?: () => Error } = {}
 ): LoginHook {
   let failed = false;
   return {
-    beforeSessionSaved: async (stateData) => {
+    beforeSessionSaved: async (stateData, { idTokenClaims }) => {
       try {
+        if (missingIdToken && !idTokenClaims) {
+          throw missingIdToken();
+        }
         if (noIdToken && !stateData.user) {
           throw noIdToken();
         }

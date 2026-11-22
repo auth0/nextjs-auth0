@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server.js";
 
+import { PasswordlessVerifyError } from "../../errors/index.js";
 import type {
   PasswordlessDbChallenge,
   PasswordlessDbChallengeEmailOptions,
@@ -80,6 +81,13 @@ export async function startPasswordless(
   });
 }
 
+// `main` refuses every passwordless login whose response has no ID token, with this error.
+const noIdTokenError = () =>
+  new PasswordlessVerifyError(
+    "missing_id_token",
+    "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
+  );
+
 /**
  * Exchanges an email or SMS code for tokens. The engine sends the grant with the login scope and
  * the configured audience, builds the session and saves it; our `beforeSessionSaved` runs on it.
@@ -91,7 +99,7 @@ export async function verifyPasswordless(
   options: PasswordlessVerifyOptions
 ): Promise<void> {
   const { config } = setup;
-  const hook = createLoginHook(setup);
+  const hook = createLoginHook(setup, { missingIdToken: noIdTokenError });
   try {
     const engine = await setup.getEngine();
     await engine.completePasswordless(
@@ -154,7 +162,7 @@ export async function loginWithDbOtp(
   const { config } = setup;
   const audience = config.authorizationParameters.audience ?? undefined;
   const dpopKeyPair = await getDpopKeyPair(config);
-  const hook = createLoginHook(setup);
+  const hook = createLoginHook(setup, { missingIdToken: noIdTokenError });
   try {
     const engine = await setup.getEngine();
     await engine.completePasswordlessDbConnection(

@@ -1,7 +1,8 @@
 import {
   InvalidRequestError,
   PasskeyEnrollmentChallengeError,
-  PasskeyEnrollmentVerifyError
+  PasskeyEnrollmentVerifyError,
+  PasskeyGetTokenError
 } from "../../errors/index.js";
 import type {
   PasskeyChallengeOptions,
@@ -94,7 +95,13 @@ export async function getPasskeyToken(
     options;
   const codes = normalizePasskeyVerification(verification);
   const dpopKeyPair = await getDpopKeyPair(config);
-  const hook = createLoginHook(setup);
+  const hook = createLoginHook(setup, {
+    missingIdToken: () =>
+      new PasskeyGetTokenError(
+        "missing_id_token",
+        "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
+      )
+  });
   try {
     const engine = await setup.getEngine();
     await engine.passkey.getToken(
