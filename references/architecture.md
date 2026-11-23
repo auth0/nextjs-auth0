@@ -40,10 +40,12 @@ Legend: `→` flow, `↔` bidirectional, `[]` storage, `{}` transform
 | Login | Browser→`/auth/login`→Auth0`/authorize`→`/auth/callback`→{tokenSet}→[session cookie]→redirect |
 | Logout | Browser→`/auth/logout`→[clear session]→Auth0`/oidc/logout`→redirect |
 | getSession | [cookie]→{decrypt}→SessionData |
-| getAccessToken | [session]→?expired→Auth0`/oauth/token`→{refresh}→[session update]→token |
+| getAccessToken | [session]→?expired→Auth0`/oauth/token`→{refresh}→[session update]→token (session update does not persist in Server Components, see note) |
 | getAccessToken (client) | Browser→`/auth/access-token`→[session]→token |
 | useUser | Browser→`/auth/profile`→[session]→User |
 | Stateful session | [cookie:sid]↔[external store:SessionData] |
+
+Server Components cannot set cookies: `getAccessToken()` there refreshes an expired token but the refreshed token set is not persisted. To persist it, call `getAccessToken(req, res)` in middleware.
 
 See [EXAMPLES.md](../EXAMPLES.md) for detailed flow implementations.
 
@@ -55,7 +57,7 @@ See [EXAMPLES.md](../EXAMPLES.md) for detailed flow implementations.
 | `useUser()` | `./client` | React hook for authenticated user |
 | `getAccessToken()` | `./client` | Client-side token retrieval |
 | `Auth0Provider` | `./client` | Context provider wrapping app |
-| `withPageAuthRequired` | `./client` or `./server` | Page protection HOC |
+| `withPageAuthRequired` | `./client` (standalone); server: `auth0.withPageAuthRequired(...)` on the `Auth0Client` instance | Page protection HOC |
 
 ## Session Storage
 
@@ -71,7 +73,7 @@ See [EXAMPLES.md](../EXAMPLES.md) for detailed flow implementations.
 
 ## DPoP (Demonstrating Proof-of-Possession)
 
-- Optional, requires `dpop.enabled: true` + key pair config
+- Optional, requires `useDPoP: true` plus `dpopKeyPair` (or the DPoP key environment variables)
 - Tokens bound to cryptographic proof
 
 ## Hooks

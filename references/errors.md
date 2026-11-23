@@ -4,7 +4,7 @@ Base class: `SdkError` (`src/errors/sdk-error.ts`) with an abstract `code: strin
 
 | Error Class | Code | Cause |
 |-------------|------|-------|
-| `AccessTokenError` | `access_token_error` | Token fetch/refresh failure |
+| `AccessTokenError` | `missing_session`, `missing_refresh_token`, `failed_to_refresh_token`, `session_expired` (`AccessTokenErrorCode`) | Token fetch/refresh failure |
 | `AuthorizationError` | `authorization_error` | OAuth authorize failure |
 | `InvalidConfigurationError` | `invalid_configuration` | Bad SDK config |
 | `DiscoveryError` | `discovery_error` | OIDC discovery failed |
@@ -13,10 +13,12 @@ Base class: `SdkError` (`src/errors/sdk-error.ts`) with an abstract `code: strin
 **Pattern:** catch by `error.code`, not `instanceof`.
 
 ```ts
+import { AccessTokenErrorCode } from "@auth0/nextjs-auth0/errors";
+
 try {
   await auth0.getAccessToken();
 } catch (e) {
-  if ((e as { code?: string }).code === "access_token_error") {
+  if ((e as { code?: string }).code === AccessTokenErrorCode.MISSING_SESSION) {
     // handle
   }
 }
