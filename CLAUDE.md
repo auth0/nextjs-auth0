@@ -11,7 +11,7 @@ This document provides context and guidelines for AI coding assistants working w
 - **Language:** TypeScript 5.9 (strict), ESM (`"type": "module"`, `module: NodeNext`, target ES2021)
 - **Tech Stack:** Next.js (peer, dev 15.5.x), React 18/19 (peer), `oauth4webapi` ^3.8, `openid-client` ^6.8, `jose` ^6, `swr` ^2, Vitest 4, MSW 2, Playwright
 - **Package Manager:** pnpm (CI uses pnpm 11)
-- **Minimum Platform Version:** Node.js 20 LTS+ (CI runs Node 22); Next.js ^14.2.35 || ~15.0.7 || ~15.1.11 || ~15.2.8 || ~15.3.8 || ~15.4.10 || ~15.5.9 || ^16.0.10
+- **Minimum Platform Version:** SDK runtime Node.js 20 LTS+; development needs Node.js 22+ (pnpm 11, as in CI); Next.js ^14.2.35 || ~15.0.7 || ~15.1.11 || ~15.2.8 || ~15.3.8 || ~15.4.10 || ~15.5.9 || ^16.0.10
 
 ---
 

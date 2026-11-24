@@ -120,6 +120,8 @@
     "dist",
     "skills",
     "guides",
-    "AGENTS.md"
+    "references",
+    "AGENTS.md",
+    "CLAUDE.md"
   ]
 }
