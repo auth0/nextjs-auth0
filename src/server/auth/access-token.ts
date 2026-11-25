@@ -105,7 +105,11 @@ export async function retrieveAccessToken(
   const cached = findTokenSet(
     state,
     audience ?? sessionMapper.defaultAudienceKey,
-    scope
+    scope,
+    getScopeForAudience(
+      config.authorizationParameters.scope,
+      audience ?? config.authorizationParameters.audience
+    ) ?? ""
   );
 
   const now = Date.now() / 1000;
@@ -176,17 +180,26 @@ function unwrap(result: AccessTokenResult): AccessToken {
 }
 
 /**
- * The token the engine serves for this audience and scope, if any (its `getAccessToken` lookup).
+ * The token the engine serves for this audience and scope, if any (its `getAccessToken` lookup),
+ * with one rule of nextjs: a login token that records no scope (a session built by hand with
+ * `generateSessionCookie`) counts as holding the configured scope for the audience.
  */
 function findTokenSet(
   state: StateData,
   audience: string,
-  scope: string
+  scope: string,
+  configuredScope: string
 ): EngineTokenSet | undefined {
+  const [loginToken] = state.tokenSets;
   return state.tokenSets.find(
     (tokenSet) =>
       tokenSet.audience === audience &&
-      (!scope || compareScopes(tokenSet.scope, scope))
+      (!scope ||
+        compareScopes(
+          tokenSet.scope ||
+            (tokenSet === loginToken ? configuredScope : undefined),
+          scope
+        ))
   );
 }
 

@@ -189,12 +189,12 @@ export async function handleCallback(
   try {
     let result: InteractiveLoginResult | undefined;
     if (magicLink) {
-      // The engine sends no DPoP proof on this exchange. Never in Enterprise Connect
-      // mode: the engine refuses passwordless there, so no magic link was sent.
+      // Never in Enterprise Connect mode: the engine refuses passwordless there, so no
+      // magic link was sent.
       await engine.completePasswordlessMagicLink(
         callbackUrl,
         ctx,
-        undefined,
+        dpopKeyPair ? { dpopKeyPair } : undefined,
         loginOptions
       );
     } else {

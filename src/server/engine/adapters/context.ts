@@ -144,6 +144,24 @@ function copyOf(
 }
 
 /**
+ * Copies the cookies written to `scratch` onto the framework's live `cookies()` store, for a call
+ * with no request object. In a Server Action the `NextResponse` a function returns is not what
+ * the browser gets (the app usually reads its `location` and calls `redirect()`), so a cookie that
+ * is only on it is lost; the live store is sent. A Server Component refuses the write and the
+ * rest is skipped: the response it returns carries the cookies, as on nextjs.
+ */
+export async function copyToCookieStore(scratch: NextResponse): Promise<void> {
+  const store = (await cookies()) as unknown as ResponseCookies;
+  for (const cookie of scratch.cookies.getAll()) {
+    try {
+      store.set(cookie);
+    } catch {
+      return;
+    }
+  }
+}
+
+/**
  * The context for a call with no response object (Server Actions, Route Handlers): reads and
  * writes go to the same `cookies()` store. A write Next refuses (a Server Component) throws,
  * unless `ignoreWriteErrors` is set.

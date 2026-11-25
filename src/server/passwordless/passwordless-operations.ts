@@ -99,6 +99,7 @@ export async function verifyPasswordless(
   options: PasswordlessVerifyOptions
 ): Promise<void> {
   const { config } = setup;
+  const dpopKeyPair = await getDpopKeyPair(config);
   const hook = createLoginHook(setup, { missingIdToken: noIdTokenError });
   try {
     const engine = await setup.getEngine();
@@ -115,8 +116,7 @@ export async function verifyPasswordless(
             verificationCode: options.verificationCode
           },
       ctx,
-      // The engine sends no DPoP proof on this grant.
-      undefined,
+      dpopKeyPair ? { dpopKeyPair } : undefined,
       { beforeSessionSaved: hook.beforeSessionSaved }
     );
   } catch (e) {

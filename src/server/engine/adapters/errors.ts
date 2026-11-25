@@ -136,6 +136,11 @@ interface EngineError {
 // Errors thrown by `fetch` itself (network down, unknown host), recorded by `wrapFetch`. A
 // `TypeError` from anywhere else (a store, a resolver) must not be taken for one.
 const fetchErrors = new WeakSet<object>();
+// The subset of `fetchErrors` whose request was the OpenID configuration (discovery), as opposed to
+// the key list or any other request.
+const discoveryFetchErrors = new WeakSet<object>();
+const DISCOVERY_URL =
+  /\/\.well-known\/(openid-configuration|oauth-authorization-server)/;
 
 /**
  * Wraps the `fetch` given to the engine so the mapper can recognize network failures by identity.
@@ -146,7 +151,16 @@ export function wrapFetch(fetchFn: typeof fetch): typeof fetch {
     try {
       return await fetchFn(input, init);
     } catch (e) {
-      if (typeof e === "object" && e !== null) fetchErrors.add(e);
+      if (typeof e === "object" && e !== null) {
+        fetchErrors.add(e);
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (DISCOVERY_URL.test(url)) discoveryFetchErrors.add(e);
+      }
       throw e;
     }
   };
@@ -670,6 +684,11 @@ export function createErrorMapper({
           code === "verify_logout_token_error"
         ) {
           return new BackchannelLogoutError((e as EngineError).message);
+        }
+        // The key list could not be fetched (network): not a discovery failure, so it is left
+        // unchanged, as nextjs does (the route answers it with its fixed text in resolver mode).
+        if (fetchErrors.has(e) && !discoveryFetchErrors.has(e)) {
+          return e;
         }
         break;
 

@@ -1,7 +1,4 @@
-import {
-  BackchannelAuthenticationNotSupportedError,
-  InvalidConfigurationError
-} from "../../errors/index.js";
+import { BackchannelAuthenticationNotSupportedError } from "../../errors/index.js";
 import type {
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse
@@ -12,6 +9,7 @@ import {
 } from "../../utils/anonymous-session-constants.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../../utils/constants.js";
+import { readContext } from "../engine/adapters/context.js";
 import type { EngineSetup } from "../engine/create-engine.js";
 
 // Parameters of the authorize request that the caller cannot set, as on nextjs.
@@ -31,22 +29,21 @@ const INTERNAL_AUTHORIZE_PARAMS = [
  * CIBA: the engine's auth client sends the request to Auth0 and polls until the user approves,
  * then the tokens are returned. Nothing is saved, as on nextjs. nextjs's checks and parameter
  * rules come first: the tenant supports CIBA, and internal or `null` parameters are not sent.
+ * With a domain function the domain is resolved for this request (it reads `headers()`, as on
+ * nextjs); with a static domain no request is needed.
  */
 export async function backchannelAuthentication(
   setup: EngineSetup,
   options: BackchannelAuthenticationOptions
 ): Promise<BackchannelAuthenticationResponse> {
   const { config } = setup;
-  // The engine's auth client only exists with a static domain.
-  if (typeof config.domain === "function") {
-    throw new InvalidConfigurationError(
-      "getTokenByBackchannelAuth is not yet supported in resolver mode (DomainResolver)."
-    );
-  }
-
   const engine = await setup.getEngine();
   return setup.errors.callEngine("backchannelAuthentication", async () => {
-    const authClient = engine.authClient;
+    const authClient = await engine.getAuthClient(
+      typeof config.domain === "function"
+        ? (await readContext()).ctx
+        : undefined
+    );
     const metadata = await authClient.getServerMetadata();
     if (!metadata.backchannel_authentication_endpoint) {
       throw new BackchannelAuthenticationNotSupportedError();

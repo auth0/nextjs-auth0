@@ -15,7 +15,10 @@ import { createRouteUrl } from "../../utils/pathUtils.js";
 import { getScopeForAudience } from "../../utils/scope-helpers.js";
 import { toSafeRedirect } from "../../utils/url-helpers.js";
 import { getDpopKeyPair } from "../dpop/dpop-key-pair.js";
-import { requestContext } from "../engine/adapters/context.js";
+import {
+  copyToCookieStore,
+  requestContext
+} from "../engine/adapters/context.js";
 import {
   withoutUnsupportedParams,
   type EngineSetup
@@ -119,6 +122,10 @@ export async function startLogin(
 
   const res = NextResponse.redirect(authorizationUrl.toString());
   transferCookies(scratch, res);
+  if (!input) {
+    // A Server Action sends the live cookie store, not the response returned here.
+    await copyToCookieStore(scratch);
+  }
   return res;
 }
 
