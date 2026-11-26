@@ -16,7 +16,7 @@ importers:
         version: 1.2.1
       jose:
         specifier: ^6.0.11
-        version: 6.2.17
+        version: 6.2.18
       oauth4webapi:
         specifier: ^3.8.2
         version: 3.8.8
@@ -1865,8 +1865,8 @@ packages:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
     engines: {node: '>= 0.4'}
 
-  jose@6.2.17:
-    resolution: {integrity: sha512-wOuK9V1yujQFH5S0ZWmLcDZN7+IKh9bUCC2ZPCf2HDlol3WWHy+PPyNjEI75FXRLMp3vDKQcupP59xhVU95hcg==}
+  jose@6.2.18:
+    resolution: {integrity: sha512-doV4thUwgkrycJH4yLeqwTGIIZphHl+pk7CPReuMIhYhncmgzdko85MaCG4YQFTxqMFr1/oEH32tZuKKovcDEg==}
 
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
@@ -4538,7 +4538,7 @@ snapshots:
       has-symbols: 1.1.0
       set-function-name: 2.0.2
 
-  jose@6.2.17: {}
+  jose@6.2.18: {}
 
   js-tokens@10.0.0: {}
 
@@ -4776,7 +4776,7 @@ snapshots:
 
   openid-client@6.9.0:
     dependencies:
-      jose: 6.2.17
+      jose: 6.2.18
       oauth4webapi: 3.8.8
 
   optionator@0.9.4:
