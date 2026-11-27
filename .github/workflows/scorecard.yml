@@ -74,7 +74,7 @@ jobs:
       # token can write. (github.event.pull_request is null on push/schedule, so !…fork is true.)
       - name: Upload to code-scanning
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           sarif_file: results.sarif
           category: scorecard
