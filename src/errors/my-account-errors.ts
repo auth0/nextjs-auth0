@@ -2,6 +2,8 @@ import { SdkError } from "./sdk-error.js";
 
 /**
  * Error class representing a connect account request error.
+ *
+ * @category Connected Accounts
  */
 export class MyAccountApiError extends SdkError {
   public name: string = "MyAccountApiError";
@@ -58,6 +60,8 @@ export class MyAccountApiError extends SdkError {
 
 /**
  * Enum representing error codes related to the connect account flow.
+ *
+ * @category Connected Accounts
  */
 export enum ConnectAccountErrorCodes {
   /**
@@ -78,6 +82,8 @@ export enum ConnectAccountErrorCodes {
 
 /**
  * Error class representing a connect account error.
+ *
+ * @category Connected Accounts
  */
 export class ConnectAccountError extends SdkError {
   /**
@@ -105,6 +111,8 @@ export class ConnectAccountError extends SdkError {
 /**
  * Enum representing error codes for connected-accounts operations
  * (listing and disconnecting).
+ *
+ * @category Connected Accounts
  */
 export enum ConnectedAccountsErrorCodes {
   /**
@@ -126,6 +134,8 @@ export enum ConnectedAccountsErrorCodes {
 /**
  * Error class representing a connected-accounts operation error (listing or
  * disconnecting).
+ *
+ * @category Connected Accounts
  */
 export class ConnectedAccountsError extends SdkError {
   /**

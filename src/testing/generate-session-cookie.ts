@@ -1,6 +1,7 @@
 import { encrypt } from "../server/cookies.js";
 import { SessionData } from "../types/index.js";
 
+/** @category Testing */
 export type GenerateSessionCookieConfig = {
   /**
    * The secret used to derive an encryption key for the session cookie.
@@ -10,6 +11,7 @@ export type GenerateSessionCookieConfig = {
   secret: string;
 };
 
+/** @category Testing */
 export const generateSessionCookie = async (
   session: Partial<SessionData>,
   config: GenerateSessionCookieConfig

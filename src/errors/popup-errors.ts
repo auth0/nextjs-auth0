@@ -18,6 +18,8 @@ import { SdkError } from "./sdk-error.js";
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class PopupBlockedError extends SdkError {
   public code = "popup_blocked" as const;
@@ -49,6 +51,8 @@ export class PopupBlockedError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class PopupCancelledError extends SdkError {
   public code = "popup_cancelled" as const;
@@ -78,6 +82,8 @@ export class PopupCancelledError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class PopupTimeoutError extends SdkError {
   public code = "popup_timeout" as const;
@@ -107,6 +113,8 @@ export class PopupTimeoutError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class PopupInProgressError extends SdkError {
   public code = "popup_in_progress" as const;
@@ -136,6 +144,8 @@ export class PopupInProgressError extends SdkError {
  *   }
  * }
  * ```
+ *
+ * @category MFA
  */
 export class ExecutionContextError extends SdkError {
   public code = "invalid_execution_context" as const;

@@ -59,6 +59,8 @@ import {
  *   popupHeight: 700
  * });
  * ```
+ *
+ * @category MFA
  */
 export interface ChallengeWithPopupOptions {
   /** Target API audience (required) */
@@ -719,5 +721,7 @@ class ClientMfaClient implements MfaClient {
  *   audience: 'https://api.example.com'
  * });
  * ```
+ *
+ * @category MFA
  */
 export const mfa = new ClientMfaClient();

@@ -7,6 +7,8 @@ import type * as jose from "jose";
 
 /**
  * Session object returned to SDK consumers (access token exposed, session token stays server-side)
+ *
+ * @category Session
  */
 export interface AnonymousSession {
   /** Anonymous subject, always "anon@{uuid}" (extracted from access token sub claim) */
@@ -21,11 +23,15 @@ export interface AnonymousSession {
 
 /**
  * Metadata payload shape for client updates
+ *
+ * @category Session
  */
 export type AnonymousSessionMetadata = Record<string, unknown>;
 
 /**
  * Config block for auth0.ts setup
+ *
+ * @category Session
  */
 export interface AnonymousSessionConfig {
   /** Master switch. Defaults to false: routes not mounted, methods no-op */
@@ -64,6 +70,8 @@ export interface AnonymousSessionConfig {
 
 /**
  * Hook options shape
+ *
+ * @category Session
  */
 export type UseAnonymousSessionOptions = { route?: string };
 

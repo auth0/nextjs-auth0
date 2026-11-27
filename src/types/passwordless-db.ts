@@ -1,5 +1,7 @@
 /**
  * Delivery method for phone OTP.
+ *
+ * @category Passwordless
  */
 export type PasswordlessDbDeliveryMethod = "text" | "voice";
 
@@ -13,6 +15,8 @@ export type PasswordlessDbDeliveryMethod = "text" | "voice";
  * non-functional and `loginWithOtp` will fail with `invalid_request`.
  *
  * A successful challenge does not guarantee an OTP was delivered.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessDbChallengeEmailOptions {
   /** The email address to send the OTP to. */
@@ -32,6 +36,8 @@ export interface PasswordlessDbChallengeEmailOptions {
  * identified by phone number.
  *
  * Same 200-always contract as {@link PasswordlessDbChallengeEmailOptions}.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessDbChallengePhoneOptions {
   /** The phone number to send the OTP to, in E.164 format (e.g. `'+14155550100'`). */
@@ -56,6 +62,8 @@ export interface PasswordlessDbChallengePhoneOptions {
  *
  * Treat `authSession` as a black box — never parse, log, or persist it beyond
  * the in-flight OTP verification flow.
+ *
+ * @category Passwordless
  */
 export interface PasswordlessDbChallenge {
   /** Opaque session handle returned by Auth0. Pass directly to `loginWithOtp`. */
@@ -68,6 +76,8 @@ export interface PasswordlessDbChallenge {
  * Throws `PasswordlessDbGetTokenError` with `error: "invalid_request"` if the
  * `auth_session` was non-functional (blocked user, signup disabled for a
  * non-existent user, wrong OTP, or expired session).
+ *
+ * @category Passwordless
  */
 export interface PasswordlessDbGetTokenOptions {
   /** The opaque `authSession` returned by `challengeWithEmail` or `challengeWithPhoneNumber`. */

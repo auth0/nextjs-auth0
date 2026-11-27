@@ -13,6 +13,8 @@ import {
   vi
 } from "vitest";
 
+import { PasskeyGetTokenError } from "../../errors/index.js";
+
 const BASE_URL = "http://localhost:3000";
 
 const REGISTER_URL = `${BASE_URL}/auth/passkey/register`;
@@ -529,5 +531,211 @@ describe("ClientPasskeyClient", () => {
       expect(err.mfa_token).toBe("encrypted-mfa-token-value");
       expect(err.name).not.toBe("PasskeyEnrollmentChallengeError");
     });
+  });
+});
+
+describe("ClientPasskeyClient identifier verification", () => {
+  let client: typeof import("./index.js").passkey;
+
+  const VERIFICATION_CHALLENGE = {
+    ...FAKE_CHALLENGE_RESPONSE,
+    verificationRequired: ["email"]
+  };
+
+  const WRONG_CODE_RESPONSE = {
+    error: "invalid_grant",
+    error_description: "Invalid or expired session",
+    auth_session: FAKE_CHALLENGE_RESPONSE.authSession,
+    verification_required: ["email"]
+  };
+
+  beforeEach(async () => {
+    const mod = await import("./index.js");
+    client = mod.passkey;
+  });
+
+  /** Mocks the verify route, recording each request body. */
+  function mockVerify(
+    respond: (call: number) => Response
+  ): Record<string, any>[] {
+    const bodies: Record<string, any>[] = [];
+    server.use(
+      http.post(VERIFY_URL, async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, any>);
+        return respond(bodies.length - 1);
+      })
+    );
+    return bodies;
+  }
+
+  it("collects codes before creating the passkey and sends them to verify", async () => {
+    server.use(
+      http.post(REGISTER_URL, () => HttpResponse.json(VERIFICATION_CHALLENGE))
+    );
+    const bodies = mockVerify(() => HttpResponse.json({ success: true }));
+    const create = vi
+      .spyOn(navigator.credentials, "create")
+      .mockResolvedValue(makeFakeCredential());
+    const onVerificationRequired = vi.fn(async () => {
+      expect(create).not.toHaveBeenCalled();
+      return { email: "123456" };
+    });
+
+    await client.signup({ email: "user@example.com", onVerificationRequired });
+
+    expect(onVerificationRequired).toHaveBeenCalledExactlyOnceWith({
+      verificationRequired: ["email"],
+      isRetry: false
+    });
+    expect(create).toHaveBeenCalledOnce();
+    expect(bodies[0].verification).toEqual({ email: "123456" });
+  });
+
+  it("does not send the callback or verification when none is required", async () => {
+    let registerBody: Record<string, unknown> = {};
+    server.use(
+      http.post(REGISTER_URL, async ({ request }) => {
+        registerBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(FAKE_CHALLENGE_RESPONSE);
+      })
+    );
+    const bodies = mockVerify(() => HttpResponse.json({ success: true }));
+    vi.spyOn(navigator.credentials, "create").mockResolvedValue(
+      makeFakeCredential()
+    );
+    const onVerificationRequired = vi.fn();
+
+    await client.signup({
+      email: "user@example.com",
+      deliveryMethod: "text",
+      onVerificationRequired
+    });
+
+    expect(onVerificationRequired).not.toHaveBeenCalled();
+    expect(registerBody).toEqual({
+      email: "user@example.com",
+      deliveryMethod: "text"
+    });
+    expect(bodies[0]).not.toHaveProperty("verification");
+  });
+
+  it("throws verification_required without creating a passkey when no callback is given", async () => {
+    server.use(
+      http.post(REGISTER_URL, () => HttpResponse.json(VERIFICATION_CHALLENGE))
+    );
+    const create = vi.spyOn(navigator.credentials, "create");
+
+    const err = await client
+      .signup({ email: "user@example.com" })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(PasskeyGetTokenError);
+    expect(err.error).toBe("verification_required");
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("re-prompts on a wrong code and resubmits the same credential", async () => {
+    server.use(
+      http.post(REGISTER_URL, () => HttpResponse.json(VERIFICATION_CHALLENGE))
+    );
+    const bodies = mockVerify((call) =>
+      call === 0
+        ? HttpResponse.json(WRONG_CODE_RESPONSE, { status: 403 })
+        : HttpResponse.json({ success: true })
+    );
+    const create = vi
+      .spyOn(navigator.credentials, "create")
+      .mockResolvedValue(makeFakeCredential());
+    const onVerificationRequired = vi
+      .fn()
+      .mockResolvedValueOnce({ email: "000000" })
+      .mockResolvedValueOnce({ email: "123456" });
+
+    await client.signup({ email: "user@example.com", onVerificationRequired });
+
+    expect(onVerificationRequired).toHaveBeenNthCalledWith(2, {
+      verificationRequired: ["email"],
+      isRetry: true
+    });
+    expect(create).toHaveBeenCalledOnce();
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1].authSession).toBe(bodies[0].authSession);
+    expect(bodies[1].authResponse).toEqual(bodies[0].authResponse);
+    expect(bodies[1].verification).toEqual({ email: "123456" });
+  });
+
+  it("retries with the auth_session returned in the error", async () => {
+    server.use(
+      http.post(REGISTER_URL, () => HttpResponse.json(VERIFICATION_CHALLENGE))
+    );
+    const bodies = mockVerify((call) =>
+      call === 0
+        ? HttpResponse.json(
+            { ...WRONG_CODE_RESPONSE, auth_session: "rotated-session" },
+            { status: 403 }
+          )
+        : HttpResponse.json({ success: true })
+    );
+    vi.spyOn(navigator.credentials, "create").mockResolvedValue(
+      makeFakeCredential()
+    );
+    const onVerificationRequired = vi
+      .fn()
+      .mockResolvedValueOnce({ email: "000000" })
+      .mockResolvedValueOnce({ email: "123456" });
+
+    await client.signup({ email: "user@example.com", onVerificationRequired });
+
+    expect(bodies[0].authSession).toBe(FAKE_CHALLENGE_RESPONSE.authSession);
+    expect(bodies[1].authSession).toBe("rotated-session");
+  });
+
+  it("stops and throws on a terminal error", async () => {
+    server.use(
+      http.post(REGISTER_URL, () => HttpResponse.json(VERIFICATION_CHALLENGE))
+    );
+    mockVerify(() =>
+      HttpResponse.json(
+        {
+          error: "invalid_grant",
+          error_description: "Invalid or expired session"
+        },
+        { status: 403 }
+      )
+    );
+    vi.spyOn(navigator.credentials, "create").mockResolvedValue(
+      makeFakeCredential()
+    );
+    const onVerificationRequired = vi.fn(async () => ({ email: "000000" }));
+
+    const err = await client
+      .signup({ email: "user@example.com", onVerificationRequired })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(PasskeyGetTokenError);
+    expect(err.isRetryable).toBe(false);
+    expect(onVerificationRequired).toHaveBeenCalledOnce();
+  });
+
+  it("exposes retry details from the route body", async () => {
+    server.use(
+      http.post(REGISTER_URL, () => HttpResponse.json(FAKE_CHALLENGE_RESPONSE))
+    );
+    mockVerify(() => HttpResponse.json(WRONG_CODE_RESPONSE, { status: 403 }));
+    vi.spyOn(navigator.credentials, "create").mockResolvedValue(
+      makeFakeCredential()
+    );
+
+    const err = await client
+      .signup({ email: "user@example.com" })
+      .catch((e) => e);
+
+    expect(err.isRetryable).toBe(true);
+    expect(err.authSession).toBe(FAKE_CHALLENGE_RESPONSE.authSession);
+    expect(err.verificationRequired).toEqual(["email"]);
+    expect(err.cause.auth_session).toBe(FAKE_CHALLENGE_RESPONSE.authSession);
+    expect(JSON.stringify(err)).not.toContain(
+      FAKE_CHALLENGE_RESPONSE.authSession
+    );
   });
 });

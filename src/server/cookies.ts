@@ -134,6 +134,7 @@ export async function sign(
   return `${value}.${signature}`;
 }
 
+/** @category Configuration */
 export interface CookieOptions {
   httpOnly: boolean;
   sameSite: "lax" | "strict" | "none";
@@ -144,6 +145,7 @@ export interface CookieOptions {
   transient?: boolean;
 }
 
+/** @category Session */
 export type ReadonlyRequestCookies = Omit<
   RequestCookies,
   "set" | "clear" | "delete"

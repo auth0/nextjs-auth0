@@ -27,6 +27,8 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
  *   route: '/tenant-a/auth/access-token'
  * });
  * ```
+ *
+ * @category Access Tokens
  */
 export type AccessTokenOptions = {
   /**
@@ -105,6 +107,8 @@ export type AccessTokenOptions = {
  * Returned by `getAccessToken({ includeFullResponse: true })` and by
  * `mfa.challengeWithPopup()`. Contains the access token along with scope
  * and expiration metadata.
+ *
+ * @category Access Tokens
  */
 export type AccessTokenResponse = {
   /** The access token string (JWT or opaque). */
@@ -125,6 +129,8 @@ export type AccessTokenResponse = {
  * @returns The access token as a string, or the full token response when `includeFullResponse` is true.
  * @note Passing audience or scope relies on MRRT to be configured in your Auth0 Application.
  * @see https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token/configure-and-implement-multi-resource-refresh-token
+ *
+ * @category Access Tokens
  */
 export async function getAccessToken(
   options: AccessTokenOptions & { includeFullResponse: true }

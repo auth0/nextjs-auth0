@@ -4,6 +4,8 @@ import { TokenSet } from "./index.js";
 /**
  * Options to initiate a connect account flow using the My Account API.
  * @see https://auth0.com/docs/manage-users/my-account-api
+ *
+ * @category Connected Accounts
  */
 export interface ConnectAccountOptions {
   /**
@@ -24,6 +26,7 @@ export interface ConnectAccountOptions {
   returnTo?: string;
 }
 
+/** @category Connected Accounts */
 export enum RESPONSE_TYPES {
   /**
    * Authorization Code flow.
@@ -144,6 +147,8 @@ export interface CompleteConnectAccountResponse {
 /**
  * Options to disconnect (unlink) a connected account using the My Account API.
  * @see https://auth0.com/docs/api/myaccount/connected-accounts/delete-connected-account
+ *
+ * @category Connected Accounts
  */
 export interface DisconnectAccountOptions {
   /**
@@ -160,6 +165,8 @@ export interface DisconnectAccountOptions {
 /**
  * A connected account as returned by the My Account API list endpoint.
  * @see https://auth0.com/docs/api/myaccount/connected-accounts/get-connected-accounts
+ *
+ * @category Connected Accounts
  */
 export interface ConnectedAccount {
   /**

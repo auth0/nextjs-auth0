@@ -1,19 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { mfa, passkey } from "@auth0/nextjs-auth0/client";
+import type {
+  PasskeyDeliveryMethod,
+  PasskeyVerificationCodes,
+  PasskeyVerificationIdentifier
+} from "@auth0/nextjs-auth0/types";
 
 import { QrCode } from "./qr-code";
 
 type Mode = "login" | "signup";
-type Step = "form" | "enroll" | "otp";
+type Step = "form" | "verify" | "enroll" | "otp";
+
+const IDENTIFIER_LABELS: Record<PasskeyVerificationIdentifier, string> = {
+  email: "Code sent to your email",
+  phone: "Code sent to your phone"
+};
 
 export function PasskeyForm() {
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<Step>("form");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  // How to send the phone code. "" lets Auth0 use the channel the connection supports.
+  const [deliveryMethod, setDeliveryMethod] = useState<"" | PasskeyDeliveryMethod>("");
+  // Identifier verification: identifiers still needing a code, and the codes entered.
+  const [pending, setPending] = useState<PasskeyVerificationIdentifier[]>([]);
+  const [codes, setCodes] = useState<PasskeyVerificationCodes>({});
+  // passkey.signup() waits on this promise while the OTP screen is shown.
+  const codesRequest = useRef<{
+    resolve: (codes: PasskeyVerificationCodes) => void;
+    reject: (reason: unknown) => void;
+  } | null>(null);
   const [mfaToken, setMfaToken] = useState("");
   const [oobCode, setOobCode] = useState("");
   const [barcodeUri, setBarcodeUri] = useState("");
@@ -35,15 +56,37 @@ export function PasskeyForm() {
 
     try {
       if (mode === "signup") {
-        await passkey.signup({ email, name: displayName || email });
+        await passkey.signup({
+          // Pass the identifiers your connection accepts. Only those are verified.
+          ...(email && { email }),
+          ...(phoneNumber && { phoneNumber }),
+          // Pass deliveryMethod only when the user picked one.
+          ...(phoneNumber && deliveryMethod && { deliveryMethod }),
+          name: displayName || email || phoneNumber,
+          // Called before the passkey prompt when the connection requires
+          // verification, and again with the remaining identifiers after a
+          // wrong code. The same passkey is resubmitted on a retry.
+          onVerificationRequired: ({ verificationRequired, isRetry }) =>
+            new Promise<PasskeyVerificationCodes>((resolve, reject) => {
+              codesRequest.current = { resolve, reject };
+              setPending(verificationRequired);
+              setCodes({});
+              setError(isRetry ? "That code was not right. Try again." : null);
+              setStep("verify");
+              setLoading(false);
+            })
+        });
       } else {
         await passkey.login();
       }
       window.location.href = "/dashboard";
     } catch (err) {
       const e = err as { error?: string; error_description?: string; mfa_token?: string };
+      setStep("form");
 
-      if (e.error === "mfa_required" && e.mfa_token) {
+      if (e.error === "verification_cancelled") {
+        // The user left the OTP screen.
+      } else if (e.error === "mfa_required" && e.mfa_token) {
         try {
           const authenticators = await mfa.getAuthenticators({ mfaToken: e.mfa_token });
           const active = authenticators.find(a => a.active);
@@ -73,6 +116,11 @@ export function PasskeyForm() {
         } catch (mfaErr: any) {
           setError(mfaErr?.error_description ?? "Failed to send MFA code. Please try again.");
         }
+      } else if (e.error === "too_many_requests") {
+        setError("Too many attempts. Wait a moment and try again.");
+      } else if (mode === "signup" && e.error === "invalid_grant") {
+        // Too many wrong codes, an expired code or session: start a new signup.
+        setError("Verification could not be completed. Please sign up again.");
       } else if (e.error === "webauthn_error") {
         setError(
           e.error_description ??
@@ -86,6 +134,21 @@ export function PasskeyForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Hand the codes back to passkey.signup(), which continues with the passkey prompt.
+  function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setStep("form");
+    codesRequest.current?.resolve(codes);
+    codesRequest.current = null;
+  }
+
+  function cancelVerify() {
+    codesRequest.current?.reject({ error: "verification_cancelled" });
+    codesRequest.current = null;
   }
 
   async function handleOtp(e: React.FormEvent) {
@@ -113,6 +176,59 @@ export function PasskeyForm() {
     "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50";
   const btnPrimary =
     "w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2";
+
+  if (step === "verify") {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-800">Verify your details</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Enter the one-time code we sent. You will create your passkey next.
+          </p>
+        </div>
+
+        <form onSubmit={handleVerify} className="space-y-4">
+          {pending.map((identifier, i) => (
+            <div key={identifier}>
+              <label htmlFor={`code-${identifier}`} className="mb-1 block text-sm font-medium text-gray-700">
+                {IDENTIFIER_LABELS[identifier]}
+              </label>
+              <input
+                id={`code-${identifier}`}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={codes[identifier] ?? ""}
+                onChange={(e) => setCodes({ ...codes, [identifier]: e.target.value })}
+                placeholder="000000"
+                required
+                autoFocus={i === 0}
+                className={inputClass + " text-center text-lg tracking-widest"}
+              />
+            </div>
+          ))}
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <button type="submit" className={btnPrimary}>
+            Continue
+          </button>
+        </form>
+
+        <button
+          type="button"
+          onClick={cancelVerify}
+          className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
+        >
+          ← Back
+        </button>
+      </div>
+    );
+  }
 
   if (step === "enroll") {
     return (
@@ -257,7 +373,7 @@ export function PasskeyForm() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                required={!phoneNumber}
                 disabled={loading}
                 className={inputClass}
               />
@@ -279,6 +395,43 @@ export function PasskeyForm() {
               />
               <p className="mt-1 text-xs text-gray-400">Shown in the browser passkey dialog.</p>
             </div>
+            <div>
+              <label htmlFor="phoneNumber" className="mb-1 block text-sm font-medium text-gray-700">
+                Phone number
+              </label>
+              <input
+                id="phoneNumber"
+                type="tel"
+                autoComplete="tel"
+                placeholder="+15551234567"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                required={!email}
+                disabled={loading}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                E.164 format. Enter it with or instead of an email, depending on your connection.
+              </p>
+            </div>
+            {phoneNumber && (
+              <div>
+                <label htmlFor="deliveryMethod" className="mb-1 block text-sm font-medium text-gray-700">
+                  Send the code by
+                </label>
+                <select
+                  id="deliveryMethod"
+                  value={deliveryMethod}
+                  onChange={(e) => setDeliveryMethod(e.target.value as "" | PasskeyDeliveryMethod)}
+                  disabled={loading}
+                  className={inputClass}
+                >
+                  <option value="">Default</option>
+                  <option value="text">Text message</option>
+                  <option value="voice">Voice call</option>
+                </select>
+              </div>
+            )}
           </>
         )}
 

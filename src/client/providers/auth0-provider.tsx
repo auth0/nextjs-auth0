@@ -9,6 +9,8 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 /**
  * Props for the Auth0Provider component.
  * Adds anonymousSession prop for seeding SWR cache (SSR fallback, no loading flash).
+ *
+ * @category Configuration
  */
 export type Auth0ProviderProps = {
   /**
@@ -42,6 +44,12 @@ export type Auth0ProviderProps = {
   anonymousSessionRoute?: string;
 };
 
+/**
+ * Seeds `useUser` (and the anonymous session hook) with data fetched on the
+ * server, so client components render without a loading flash.
+ *
+ * @category Getting Started
+ */
 export function Auth0Provider({
   user,
   anonymousSession,

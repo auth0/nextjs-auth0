@@ -89,6 +89,7 @@ export function clampReturnTo(returnTo: string, fallback: string): string {
   return clampTransactionField("returnTo", returnTo, fallback);
 }
 
+/** @category Login & Logout */
 export interface TransactionState extends jose.JWTPayload {
   codeVerifier?: string;
   responseType: RESPONSE_TYPES;
@@ -150,6 +151,7 @@ export interface TransactionState extends jose.JWTPayload {
   anonymousSessionRef?: string;
 }
 
+/** @category Configuration */
 export interface TransactionCookieOptions {
   /**
    * The prefix of the cookie used to store the transaction state.
@@ -188,6 +190,7 @@ export interface TransactionCookieOptions {
   maxAge?: number;
 }
 
+/** @category Login & Logout */
 export interface TransactionStoreOptions {
   secret: string;
   cookieOptions?: TransactionCookieOptions;
@@ -205,6 +208,8 @@ export interface TransactionStoreOptions {
  * TransactionStore is responsible for storing the state required to successfully complete
  * an authentication transaction. The store relies on encrypted, stateless cookies to store
  * the transaction state.
+ *
+ * @category Login & Logout
  */
 export class TransactionStore {
   private readonly secret: string;

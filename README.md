@@ -381,7 +381,7 @@ export const auth0 = new Auth0Client({
   authorizationParameters: {
     audience: "urn:your-api-identifier",
     scope: {
-      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "profile:read profile:write",
+      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "read:me:profile update:me:profile",
       [`https://${process.env.AUTH0_DOMAIN}/my-org/`]: "org:read org:write"
     }
   }
@@ -395,7 +395,7 @@ Make requests through the proxy paths:
 ```tsx
 // My Account API
 const response = await fetch("/me/v1/profile", {
-  headers: { "scope": "profile:read" }
+  headers: { "scope": "read:me:profile" }
 });
 
 // My Organization API
@@ -406,7 +406,7 @@ const response = await fetch("/my-org/organizations", {
 
 The `scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
 
-For complete documentation, examples, and integration patterns with UI Components, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis).
+For complete documentation and examples, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis). For My Account API examples, including managing the user's profile and integration with UI Components, see [My Account API in guides/my-account.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/my-account.md).
 
 ## Base Path
 
@@ -480,7 +480,7 @@ The SDK mounts following routes:
 > The passwordless DB OTP routes (`/auth/passwordless/otp/challenge` and `/auth/passwordless/otp/token`) work with standard **database connections** configured with `email_otp` or `phone_otp` — not dedicated passwordless connections. Use `passwordless.challengeWithEmail()`, `passwordless.challengeWithPhoneNumber()`, and `passwordless.loginWithOtp()` from `@auth0/nextjs-auth0/client`. See [Passwordless OTP on Database Connections](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passwordless-otp-on-database-connections) in EXAMPLES.md for full setup and usage details.
 
 > [!NOTE]
-> The passkey routes implement the WebAuthn ceremony server-side. Use the `passkey` singleton from `@auth0/nextjs-auth0/client` for the full one-call API (`passkey.signup()`, `passkey.login()`), or call each route individually for step-by-step control. See [Passkey Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passkey-authentication) in EXAMPLES.md for full setup and usage details.
+> The passkey routes implement the WebAuthn ceremony server-side. Use the `passkey` singleton from `@auth0/nextjs-auth0/client` for the full one-call API (`passkey.signup()`, `passkey.login()`), or call each route individually for step-by-step control. See [Passkey Authentication in guides/passkeys.md](https://github.com/auth0/nextjs-auth0/blob/main/guides/passkeys.md) for full setup and usage details.
 
 > [!NOTE]  
 > The `/auth/access-token` response includes `token`, `expires_at` (seconds since epoch), `expires_in` (TTL seconds), optional `scope`, and optional `token_type`. If you're using the client helper `getAccessToken()`, it returns only the token string by default; pass `{ includeFullResponse: true }` to get the full response payload.

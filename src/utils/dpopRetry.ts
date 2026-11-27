@@ -32,6 +32,8 @@ export function isEdgeRuntime(): boolean {
  * ```
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc9449 | RFC 9449: OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)}
+ *
+ * @category Access Tokens
  */
 export async function generateDpopKeyPair(): Promise<DpopKeyPair> {
   return await generateKeyPair("ES256");
