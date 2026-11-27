@@ -1,0 +1,35 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
+
+export default function LoginToLinkButton() {
+  const searchParams = useSearchParams();
+  // Detect ?linked=true query param after callback redirect
+  const linked = searchParams.get("linked") === "true";
+
+  const handleLogin = () => {
+    // SEC-1: pass no session_token. The SDK mints a transfer ticket from the session
+    // token in its own cookie and sends that to /authorize.
+    window.location.href = "/auth/login?returnTo=/demo";
+  };
+
+  return (
+    <div>
+      <button onClick={handleLogin}>Login to Link</button>
+      {linked && (
+        <div
+          style={{
+            marginTop: "10px",
+            padding: "10px",
+            background: "#d4edda",
+            border: "1px solid #c3e6cb",
+            borderRadius: "5px",
+            color: "#155724"
+          }}
+        >
+          ✓ Anonymous session successfully linked to your account!
+        </div>
+      )}
+    </div>
+  );
+}
