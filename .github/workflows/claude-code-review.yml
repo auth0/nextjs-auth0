@@ -10,4 +10,4 @@ on:
 
 jobs:
   claude-review:
-    uses: auth0/auth0-ai-pr-analyzer-gh-action/.github/workflows/claude-code-review.yml@main
+    uses: auth0/auth0-ai-pr-analyzer-gh-action/.github/workflows/claude-code-review.yml@068575ff8b60e5dcd0e7447fedfed5d4f2092c30 # main on 2026-11-27, TODO: use a release instead
