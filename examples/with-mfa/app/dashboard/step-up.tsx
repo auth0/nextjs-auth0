@@ -49,7 +49,17 @@ export function StepUp({ audience }: { audience: string }) {
       setMessage("MFA is required. Pick an authenticator.");
       // 2. List the authenticators the user can use.
       try {
-        setAuthenticators(await mfa.getAuthenticators({ mfaToken: err.mfa_token }));
+        const all = await mfa.getAuthenticators({ mfaToken: err.mfa_token });
+        // This example completes OTP and code-based OOB (SMS, voice, email) factors only.
+        // Recovery codes need a different verify payload, and Guardian push (`auth0` channel)
+        // completes by device approval, not by typing a binding code.
+        setAuthenticators(
+          all.filter(
+            (a) =>
+              a.authenticatorType !== "recovery-code" &&
+              !(a.authenticatorType === "oob" && a.oobChannel === "auth0")
+          )
+        );
       } catch (listErr: any) {
         setMessage(`${listErr?.code ?? "error"}: ${listErr?.message}. Click "Get a token for the API" to retry.`);
       }

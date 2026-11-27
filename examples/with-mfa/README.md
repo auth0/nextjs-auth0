@@ -18,8 +18,9 @@ A Next.js App Router example of MFA step-up with [`@auth0/nextjs-auth0`](https:/
 1. A regular web application with the Authorization Code and Refresh Token grants, and the callback `http://localhost:3000/auth/callback` and logout URL `http://localhost:3000`.
 2. An API with the identifier you put in `NEXT_PUBLIC_AUTH0_AUDIENCE`, and the application allowed to request it.
 3. In the application's **Multi-Resource Refresh Token** settings, enable that API.
-4. At least one MFA factor enabled (Security > Multi-factor Auth) and the user enrolled in it.
-5. A post-login **Action** that asks for MFA on a refresh-token exchange for the protected API only (replace `YOUR_API_IDENTIFIER` with the value of `NEXT_PUBLIC_AUTH0_AUDIENCE`), so that requesting the API's token answers `mfa_required`:
+4. At least one MFA factor enabled (Security > Multi-factor Auth) and the user enrolled in it. This example completes authenticator-app (OTP) and code-based factors (SMS, voice, email); recovery codes and Guardian push are not offered.
+5. **Security > Multi-factor Auth > Additional Settings > Customize MFA Factors using Actions** turned on. The Action's MFA APIs need it; without it the protected token request fails instead of starting the step-up flow.
+6. A post-login **Action** that asks for MFA on a refresh-token exchange for the protected API only (replace `YOUR_API_IDENTIFIER` with the value of `NEXT_PUBLIC_AUTH0_AUDIENCE`), so that requesting the API's token answers `mfa_required`:
 
 ```js
 exports.onExecutePostLogin = async (event, api) => {
