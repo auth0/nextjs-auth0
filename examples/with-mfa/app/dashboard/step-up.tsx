@@ -21,6 +21,8 @@ export function StepUp({ audience }: { audience: string }) {
   const [pending, setPending] = useState(false);
   // Identifies the latest challenge request, so a slower earlier one cannot overwrite it.
   const challengeId = useRef(0);
+  // Identifies the latest MFA attempt (token request), so a slower earlier one cannot overwrite it.
+  const attemptId = useRef(0);
 
   function resetChallenge() {
     challengeId.current++;
@@ -31,38 +33,56 @@ export function StepUp({ audience }: { audience: string }) {
     setPending(false);
   }
 
+  // Starts (or continues, for chained MFA) an MFA attempt with a new `mfa_token`.
+  async function beginMfa(token: string, id: number) {
+    // A new `mfa_required` starts a new attempt: drop any state of the previous one.
+    resetChallenge();
+    setAuthenticators([]);
+    setMfaToken(token);
+    setMessage("MFA is required. Pick an authenticator.");
+    // 2. List the authenticators the user can use.
+    try {
+      const all = await mfa.getAuthenticators({ mfaToken: token });
+      if (id !== attemptId.current) return; // a newer attempt replaced this one
+      // This example completes OTP and code-based OOB (SMS, voice, email) factors only.
+      // Recovery codes need a different verify payload, and Guardian push (`auth0` channel)
+      // completes by device approval, not by typing a binding code.
+      const supported = all.filter(
+        (a) =>
+          a.authenticatorType !== "recovery-code" &&
+          !(a.authenticatorType === "oob" && a.oobChannel === "auth0")
+      );
+      setAuthenticators(supported);
+      if (supported.length === 0) {
+        setMessage(
+          "MFA is required, but the user has no supported authenticator. Enroll an authenticator app, SMS or email factor, then try again."
+        );
+      }
+    } catch (listErr: any) {
+      if (id !== attemptId.current) return;
+      setMessage(`${listErr?.code ?? "error"}: ${listErr?.message}. Click "Get a token for the API" to retry.`);
+    }
+  }
+
   // 1. Ask for a token for the protected API. With MFA required, this throws `mfa_required`.
   async function requestToken() {
+    if (!audience) {
+      setMessage("Set NEXT_PUBLIC_AUTH0_AUDIENCE to the protected API identifier first.");
+      return;
+    }
+    const id = ++attemptId.current;
     try {
       await getAccessToken({ audience });
+      if (id !== attemptId.current) return;
       setMfaToken(null);
-      setMessage("Got the token for the API. No MFA was needed.");
+      setMessage("Got the token for the API.");
     } catch (err: any) {
+      if (id !== attemptId.current) return;
       if (err?.code !== "mfa_required") {
         setMessage(`${err?.code ?? "error"}: ${err?.message}`);
         return;
       }
-      // A new `mfa_required` starts a new attempt: drop any state of the previous one.
-      resetChallenge();
-      setAuthenticators([]);
-      setMfaToken(err.mfa_token);
-      setMessage("MFA is required. Pick an authenticator.");
-      // 2. List the authenticators the user can use.
-      try {
-        const all = await mfa.getAuthenticators({ mfaToken: err.mfa_token });
-        // This example completes OTP and code-based OOB (SMS, voice, email) factors only.
-        // Recovery codes need a different verify payload, and Guardian push (`auth0` channel)
-        // completes by device approval, not by typing a binding code.
-        setAuthenticators(
-          all.filter(
-            (a) =>
-              a.authenticatorType !== "recovery-code" &&
-              !(a.authenticatorType === "oob" && a.oobChannel === "auth0")
-          )
-        );
-      } catch (listErr: any) {
-        setMessage(`${listErr?.code ?? "error"}: ${listErr?.message}. Click "Get a token for the API" to retry.`);
-      }
+      await beginMfa(err.mfa_token, id);
     }
   }
 
@@ -92,6 +112,7 @@ export function StepUp({ audience }: { audience: string }) {
 
   // 4. Verify the code. The token for the API is saved in the session.
   async function verify() {
+    const id = challengeId.current;
     try {
       await mfa.verify({
         mfaToken: mfaToken!,
@@ -100,6 +121,12 @@ export function StepUp({ audience }: { audience: string }) {
       // 5. The token is cached now: asking again needs no MFA.
       await requestToken();
     } catch (err: any) {
+      if (id !== challengeId.current) return; // the user picked another authenticator meanwhile
+      // Chained MFA: Auth0 wants another factor and sends a replacement `mfa_token`.
+      if (err?.code === "mfa_required" && err?.mfa_token) {
+        await beginMfa(err.mfa_token, ++attemptId.current);
+        return;
+      }
       setMessage(`${err?.code ?? "error"}: ${err?.message}`);
     }
   }
@@ -109,7 +136,7 @@ export function StepUp({ audience }: { audience: string }) {
       <p className="text-sm text-gray-600">
         API: <code>{audience || "(set NEXT_PUBLIC_AUTH0_AUDIENCE)"}</code>
       </p>
-      <button className={`${button} bg-rose-600 hover:bg-rose-700`} onClick={requestToken}>
+      <button disabled={!audience} className={`${button} bg-rose-600 hover:bg-rose-700`} onClick={requestToken}>
         Get a token for the API
       </button>
 
