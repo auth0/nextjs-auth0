@@ -19,6 +19,8 @@ A Next.js App Router example of connected accounts and Token Vault with [`@auth0
 ## Run it
 
 ```bash
+# the example uses the local SDK (file:../..), so build it first
+(cd ../.. && pnpm install && pnpm build)
 cp .env.local.example .env.local   # fill in the values
 pnpm install
 pnpm dev

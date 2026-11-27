@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useAnonymousSession } from "@auth0/nextjs-auth0/client";
 
 export default function AnonymousSessionPanel() {
   const { anonymous, isLoading, error, invalidate } = useAnonymousSession();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   if (isLoading) {
     return <p>Loading...</p>;
@@ -22,9 +24,19 @@ export default function AnonymousSessionPanel() {
   }
 
   const logout = async () => {
-    await fetch("/auth/anonymous-session/logout", { method: "POST" });
-    invalidate();
-    window.location.href = "/";
+    setLogoutError(null);
+    try {
+      const response = await fetch("/auth/anonymous-session/logout", {
+        method: "POST"
+      });
+      if (!response.ok) {
+        throw new Error(`Logout failed (${response.status})`);
+      }
+      invalidate();
+      window.location.href = "/";
+    } catch (e) {
+      setLogoutError(e instanceof Error ? e.message : "Logout failed");
+    }
   };
 
   return (
@@ -47,6 +59,12 @@ export default function AnonymousSessionPanel() {
           </p>
           <pre>{JSON.stringify(anonymous.metadata, null, 2)}</pre>
         </>
+      )}
+
+      {logoutError && (
+        <div className="error-banner">
+          <strong>Error:</strong> {logoutError}
+        </div>
       )}
 
       <div style={{ marginTop: "15px" }}>

@@ -1,7 +1,10 @@
 /**
  * TIER 2 MSW Tests (M1-M12)
  * Deterministic, CI-safe tests using SYNTHETIC fixtures
- * Tests SDK behavior through example app config
+ * M1-M8 assert the /anonymous/token and /anonymous/logout wire contract the SDK
+ * depends on (they call the MSW handlers directly and do not exercise the SDK).
+ * M10 renders the real useAnonymousSession hook against MSW; M9, M11 and M12 are
+ * todo placeholders (server-runtime, covered by the live tier).
  */
 import { useAnonymousSession } from "@auth0/nextjs-auth0/client";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -14,9 +17,7 @@ import {
   SYNTHETIC_DOMAIN,
   SYNTHETIC_METADATA,
   SYNTHETIC_SESSION_TOKEN,
-  WIRE_CREATE_RESPONSE,
   WIRE_LOGOUT_WITH_SESSION_TOKEN_ERROR,
-  WIRE_RENEW_RESPONSE,
   WIRE_RENEW_WITH_METADATA_ERROR
 } from "./fixtures/synthetic-tokens";
 import { server } from "./setup";

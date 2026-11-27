@@ -7,7 +7,7 @@ This example ships a tiered test suite. The browser (Playwright) tier is intenti
 | Behavior                        | Unit (src/)                       | Live (Tier1)                   | MSW (Tier2)            | Offline e2e (mock)      | Browser e2e         | Notes                                                                             |
 | ------------------------------- | --------------------------------- | ------------------------------ | ---------------------- | ----------------------- | ------------------- | --------------------------------------------------------------------------------- |
 | Create success                  | `POST /api/anon/create` (T1.1)    | L1 (happy path)                | T2.1 (mock AS success) | O1, O2                  | —                   | O1/O2 prove example wiring + SDK persist; unit + live prove full invariant        |
-| Create errors (AS rejects)      | T1.2 (mock tenant error)          | L2 (live tenant unreachable)   | T2.2 (mock AS 500)     | O9-O13                  | —                   | O9-O13 cover 403/400/500; unit + MSW prove SDK error-mapping                      |
+| Create errors (AS rejects)      | T1.2 (mock tenant error)          | L2 (live tenant unreachable)   | T2.2 (mock AS 500)     | O9-O13                  | —                   | O9-O13 cover 403/400/500; unit proves SDK error-mapping (MSW M4/M6 only check the wire error shape)                      |
 | Get/read                        | T1.3 (unit flow.test)             | L3 (live GET after create)     | —                      | O1, O3                  | —                   | O1/O3 prove example wiring + SDK decrypt; unit + live prove full invariant        |
 | Renew (silent)                  | T1.4-1.6 (unit + integration)     | L4 (live renewal)              | T2.3 (mock AS renewal) | O15                     | —                   | O15 proves example wiring + SDK renew; unit + live prove full invariant           |
 | Logout                          | T1.7 (unit flow.test)             | L5 (live logout)               | —                      | O-logout                | L11 (logout UI)     | O-logout + L11 exercise UI reset + navigation; unit proves server invariant       |
@@ -36,11 +36,11 @@ The offline tier (17 tests in `tests/e2e/offline/`) runs against a mock Auth0 te
 
 - The actual `/anonymous/token` wire contract (request/response shape, server-side validation, token issuance)
 - Live tenant configuration (client grants, `anonymous_sessions.active`, audience setup)
-- Access token signature verification, aud/iss/exp claims validation, scope enforcement, and session_expires_in handling — the mock uses an unsigned synthetic JWT and omits those fields; only the live Tier1 specs prove the real /anonymous/token wire contract
+- Access token signature verification, aud/iss/exp claims validation, scope enforcement, and session_expires_in handling — the mock uses an unsigned synthetic JWT and omits those fields. The live Tier1 specs cover the real /anonymous/token wire contract, but they only decode JWT payloads (`decodeJwtPayload()`); they do not verify signatures or `exp`, so token validation remains a gap
 
 Run: `pnpm test:e2e:offline`. Needs no tenant credentials. Boots a test server on `:3001` with `E2E_ANON_MOCK=1`.
 
-**Coverage:** O1-O8 (session lifecycle), O9-O14 (error paths), O15-O17 (renewal, chunking constraint, metadata set-once). See matrix above for cross-tier coverage. The live Tier1 specs (L1-L8, L9b, L10a) remain the definitive verification of the Auth0 wire contract.
+**Coverage:** O1-O8 (session lifecycle), O9-O14 (error paths), O15-O17 (renewal, chunking constraint, metadata set-once). See matrix above for cross-tier coverage. The live Tier1 specs (L1-L8, L9b, L10a) remain the definitive verification of the Auth0 wire contract (not of token signature or expiry validation).
 
 ## Known Gaps at the Browser Tier (By Design)
 

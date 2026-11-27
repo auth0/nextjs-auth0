@@ -13,9 +13,14 @@ export function ConnectedAccounts() {
 
   async function run(request: () => Promise<Response>) {
     setBusy(true);
-    const res = await request();
-    setResult(await res.json());
-    setBusy(false);
+    try {
+      const res = await request();
+      setResult(await res.json());
+    } catch (err: any) {
+      setResult({ error: err?.message ?? "Request failed" });
+    } finally {
+      setBusy(false);
+    }
   }
 
   const query = `connection=${encodeURIComponent(connection)}`;

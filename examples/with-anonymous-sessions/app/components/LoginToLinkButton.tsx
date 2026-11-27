@@ -1,18 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 export default function LoginToLinkButton() {
   const searchParams = useSearchParams();
-  const [linked, setLinked] = useState(false);
-
-  useEffect(() => {
-    // Detect ?linked=true query param after callback redirect
-    if (searchParams.get("linked") === "true") {
-      setLinked(true);
-    }
-  }, [searchParams]);
+  // Detect ?linked=true query param after callback redirect
+  const linked = searchParams.get("linked") === "true";
 
   const handleLogin = () => {
     // SEC-1: pass no session_token. The SDK mints a transfer ticket from the session

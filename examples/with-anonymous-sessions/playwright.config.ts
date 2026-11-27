@@ -29,6 +29,8 @@ if (existsSync(envPath)) {
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Offline specs need the E2E_ANON_MOCK server; they run via playwright.offline.config.ts.
+  testIgnore: "**/offline/**",
   timeout: 30_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

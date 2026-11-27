@@ -19,11 +19,14 @@ A Next.js App Router example of MFA step-up with [`@auth0/nextjs-auth0`](https:/
 2. An API with the identifier you put in `NEXT_PUBLIC_AUTH0_AUDIENCE`, and the application allowed to request it.
 3. In the application's **Multi-Resource Refresh Token** settings, enable that API.
 4. At least one MFA factor enabled (Security > Multi-factor Auth) and the user enrolled in it.
-5. A post-login **Action** that asks for MFA on a refresh-token exchange, so that requesting the API's token answers `mfa_required`:
+5. A post-login **Action** that asks for MFA on a refresh-token exchange for the protected API only (replace `YOUR_API_IDENTIFIER` with the value of `NEXT_PUBLIC_AUTH0_AUDIENCE`), so that requesting the API's token answers `mfa_required`:
 
 ```js
 exports.onExecutePostLogin = async (event, api) => {
-  if (event.request?.body?.grant_type === "refresh_token") {
+  if (
+    event.request?.body?.grant_type === "refresh_token" &&
+    event.resource_server?.identifier === "YOUR_API_IDENTIFIER"
+  ) {
     if (event.user.enrolledFactors.length) {
       api.authentication.challengeWithAny([
         { type: "otp" }, { type: "phone" }, { type: "push-notification" },
@@ -38,11 +41,13 @@ exports.onExecutePostLogin = async (event, api) => {
 };
 ```
 
-The tenant's MFA policy must not be "Always": background token refreshes cannot answer an MFA challenge.
+The audience check keeps ordinary session renewal (the default-audience refresh) free of MFA. The tenant's MFA policy must not be "Always": background token refreshes cannot answer an MFA challenge.
 
 ## Run it
 
 ```bash
+# the example uses the local SDK (file:../..), so build it first
+(cd ../.. && pnpm install && pnpm build)
 cp .env.local.example .env.local   # fill in the values
 pnpm install
 pnpm dev

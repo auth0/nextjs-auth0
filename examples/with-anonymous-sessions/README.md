@@ -114,14 +114,14 @@ This example includes test-only files for the offline e2e harness. Before deploy
 - `lib/mock/` — offline mock fetch for E2E_ANON_MOCK mode
 - `app/api/test/` — scenario injection route for test harness
 - `playwright.offline.config.ts` and `tests/e2e/offline/`
-- The `E2E_ANON_MOCK` gated `customFetch` line in `lib/auth0.ts`
+- The `mockAnonFetch` import and the `E2E_ANON_MOCK` gated `customFetch` line in `lib/auth0.ts`
 
 These files exist solely to support offline testing without Auth0 tenant credentials. They have no role in a production application and should never be deployed to dev, staging, or production environments.
 
 ## Dependencies
 
 - `@auth0/nextjs-auth0`: `file:../..` (local SDK build)
-- `next`: 16.3.3
+- `next`: 16.4.6
 - `react`: 19.2.1
 
 ## Notes
